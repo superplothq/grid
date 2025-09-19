@@ -1,5 +1,4 @@
 import { add, multiply } from "utils";
-import { PGlite } from "@electric-sql/pglite"
 
 export interface CalculationResult {
   sum: number;
@@ -17,31 +16,6 @@ export function calculateSample(x: number, y: number): CalculationResult {
     product,
     total
   };
-}
-
-export async function pgOps() {
-  console.log("called once");
-  const db = new PGlite("idb://my-pgdata");
-
-  // Create table
-  await db.exec(`
-      CREATE TABLE IF NOT EXISTS users (
-        id SERIAL PRIMARY KEY,
-        name TEXT,
-        email TEXT
-      );
-    `);
-
-  // Insert data
-  await db.exec(`
-      INSERT INTO users (name, email) VALUES
-      ('John Doe', 'john@example.com'),
-      ('Jane Smith', 'jane@example.com');
-    `);
-
-  // Query data
-  const result = await db.query("SELECT * FROM users");
-  console.log(result);
 }
 
 export function processNumbers(numbers: number[]): number {

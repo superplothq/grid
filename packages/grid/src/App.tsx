@@ -9,9 +9,6 @@ const App: React.FC = () => {
   const result = calculateSample(x, y);
   const sum = processNumbers(numbers);
 
-  useEffect(() => {
-    pgOps();
-  }, []);
 
   return (
     <div style={{ padding: "20px", fontFamily: "Arial, sans-serif" }}>
