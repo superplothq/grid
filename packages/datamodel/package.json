@@ -1,0 +1,14 @@
+{
+  "name": "datamodel",
+  "version": "1.0.0",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "clean": "rm -rf dist",
+    "lint": "eslint . --ext .ts"
+  },
+  "dependencies": {
+    "utils": "1.0.0"
+  }
+}
