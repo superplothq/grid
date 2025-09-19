@@ -1,5 +1,5 @@
-import React, { useState } from "react";
-import { calculateSample, processNumbers } from "datamodel";
+import React, { useEffect, useState } from "react";
+import { calculateSample, processNumbers, pgOps } from "datamodel";
 
 const App: React.FC = () => {
   const [x, setX] = useState<number>(5);
@@ -8,6 +8,10 @@ const App: React.FC = () => {
 
   const result = calculateSample(x, y);
   const sum = processNumbers(numbers);
+
+  useEffect(() => {
+    pgOps();
+  }, []);
 
   return (
     <div style={{ padding: "20px", fontFamily: "Arial, sans-serif" }}>

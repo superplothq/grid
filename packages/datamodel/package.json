@@ -5,10 +5,12 @@
   "types": "dist/index.d.ts",
   "scripts": {
     "build": "tsc",
+    "watch": "tsc --watch",
     "clean": "rm -rf dist",
     "lint": "eslint . --ext .ts"
   },
   "dependencies": {
-    "utils": "1.0.0"
+    "utils": "1.0.0",
+    "@electric-sql/pglite": "^0.3.8"
   }
 }
