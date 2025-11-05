@@ -1,54 +1,43 @@
-import React, { useEffect, useState } from "react";
-import { calculateSample, processNumbers, pgOps } from "datamodel";
+import React from "react";
+import { Routes, Route, Link } from "react-router-dom";
+import { loadDataToLocalStorage, DataSource } from "datamodel";
+import Scratchpad from "./Scratchpad";
 
-const App: React.FC = () => {
-  const [x, setX] = useState<number>(5);
-  const [y, setY] = useState<number>(3);
-  const [numbers] = useState<number[]>([1, 2, 3, 4, 5]);
-
-  const result = calculateSample(x, y);
-  const sum = processNumbers(numbers);
-
+const Home: React.FC = () => {
+  const loadData = async () => {
+    const ds = new DataSource({
+      sourceType: "local",
+      fullQualifiedName: "idb://users2",
+      name: "users"
+    });
+    await ds.init();
+    const data = await loadDataToLocalStorage(ds, { }, [
+      ["John Doe", "john@example.com"],
+      ["Jane Smith", "jane@example.com"]
+    ]);
+    // console.log(data);
+  }
 
   return (
     <div style={{ padding: "20px", fontFamily: "Arial, sans-serif" }}>
-      <h1>Grid Application</h1>
+      <h1>Testpad</h1>
+      <button onClick={loadData}>Test loading</button>
+    </div>
+  );
+};
 
-      <div style={{ marginBottom: "20px" }}>
-        <h2>Calculate Sample</h2>
-        <div>
-          <label>
-            X:
-            <input
-              type="number"
-              value={x}
-              onChange={(e) => setX(Number(e.target.value))}
-              style={{ marginLeft: "10px", marginRight: "20px" }}
-            />
-          </label>
-          <label>
-            Y:
-            <input
-              type="number"
-              value={y}
-              onChange={(e) => setY(Number(e.target.value))}
-              style={{ marginLeft: "10px" }}
-            />
-          </label>
-        </div>
+const App: React.FC = () => {
+  return (
+    <div>
+      <nav style={{ padding: "10px", backgroundColor: "#f0f0f0", marginBottom: "20px" }}>
+        <Link to="/" style={{ marginRight: "20px", textDecoration: "none" }}>Home</Link>
+        <Link to="/scratchpad" style={{ textDecoration: "none" }}>Scratchpad</Link>
+      </nav>
 
-        <div style={{ marginTop: "10px", padding: "10px", backgroundColor: "#f0f0f0" }}>
-          <p><strong>Sum:</strong> {result.sum}</p>
-          <p><strong>Product:</strong> {result.product}</p>
-          <p><strong>Total:</strong> {result.total}</p>
-        </div>
-      </div>
-
-      <div>
-        <h2>Process Numbers</h2>
-        <p><strong>Numbers:</strong> [{numbers.join(", ")}]</p>
-        <p><strong>Sum of all numbers:</strong> {sum}</p>
-      </div>
+      <Routes>
+        <Route path="/" element={<Home />} />
+        <Route path="/scratchpad" element={<Scratchpad />} />
+      </Routes>
     </div>
   );
 };

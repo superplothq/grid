@@ -1,7 +1,7 @@
 /*
  * This file contains code that is used to test the maximum number of rows that
  * can be inserted into a table in local pglite.
- * The number is around 16000000 rows for the csv data mentioned in the code.
+ * The number is around 16000000 rows for the csv data mentioned in the code for the following data.
  */
 
 import { PGlite } from "@electric-sql/pglite"
