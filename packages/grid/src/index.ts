@@ -11,12 +11,10 @@ class Grid extends HTMLElement {
   }
 
   get data(): Array<Array<string>> {
-    console.log("Grid data getter called");
     return this.#data;
   }
 
   set data(value: Array<Array<string>>) {
-    console.log("Grid data setter called with:", value);
     this.#data = value;
   }
 }

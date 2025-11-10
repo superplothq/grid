@@ -30,7 +30,6 @@ const GridPlayground: React.FC = () => {
   useEffect(() => {
     console.log("GridPlayground mounted");
 
-    // Set data property directly on the DOM element
     if (gridRef.current) {
       gridRef.current.data = sampleData;
     }
