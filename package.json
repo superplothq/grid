@@ -7,7 +7,7 @@
   ],
   "scripts": {
     "build": "yarn workspaces run build",
-    "start": "yarn workspace grid start",
+    "start": "yarn workspace playground start",
     "lint": "yarn workspaces run lint",
     "clean": "yarn workspaces run clean"
   },

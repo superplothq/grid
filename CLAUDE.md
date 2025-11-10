@@ -8,7 +8,7 @@ This is a yarn workspace with three packages:
 
 - **packages/utils**: Pure JavaScript library with utility functions (TypeScript compiled to CommonJS)
 - **packages/datamodel**: Business logic library that depends on utils (TypeScript compiled to CommonJS)
-- **packages/grid**: React web application that depends on datamodel (TypeScript + Webpack + React)
+- **packages/playground**: React web application that depends on datamodel (TypeScript + Webpack + React)
 
 ## Common Commands
 
