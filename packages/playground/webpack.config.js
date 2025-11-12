@@ -9,6 +9,7 @@ module.exports = {
     filename: 'bundle.js',
     clean: true,
   },
+  devtool: 'source-map',
   resolve: {
     extensions: ['.tsx', '.ts', '.js'],
     fallback: {
@@ -19,6 +20,11 @@ module.exports = {
   },
   module: {
     rules: [
+      {
+        test: /\.js$/,
+        enforce: 'pre',
+        use: ['source-map-loader'],
+      },
       {
         test: /\.tsx?$/,
         use: 'ts-loader',

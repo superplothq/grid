@@ -1,5 +1,6 @@
 import React, { useEffect, useRef } from "react";
 import "grid";
+import Grid, { GridData } from "grid";
 
 // Declare the custom element for TypeScript
 declare global {
@@ -11,32 +12,33 @@ declare global {
 }
 
 // Sample data: 10 rows of string arrays
-const sampleData: Array<Array<string>> = [
-  ["John Doe", "john.doe@example.com", "Software Engineer", "New York"],
-  ["Jane Smith", "jane.smith@example.com", "Product Manager", "San Francisco"],
-  ["Bob Johnson", "bob.johnson@example.com", "Designer", "Los Angeles"],
-  ["Alice Williams", "alice.williams@example.com", "Data Scientist", "Boston"],
-  ["Charlie Brown", "charlie.brown@example.com", "DevOps Engineer", "Seattle"],
-  ["Diana Prince", "diana.prince@example.com", "Marketing Manager", "Chicago"],
-  ["Eve Davis", "eve.davis@example.com", "Sales Director", "Miami"],
-  ["Frank Miller", "frank.miller@example.com", "HR Manager", "Austin"],
-  ["Grace Lee", "grace.lee@example.com", "QA Engineer", "Portland"],
-  ["Henry Wilson", "henry.wilson@example.com", "Tech Lead", "Denver"]
-];
+const sampleData: GridData = {
+  columns: ["Name", "Email", "Title", "City"],
+  data: [
+    ["John Doe", "Jane Smith", "Bob Johnson", "Alice Williams", "Charlie Brown", "Diana Prince", "Eve Davis", "Frank Miller", "Grace Lee", "Henry Wilson"],
+    ["john.doe@example.com", "jane.smith@example.com", "bob.johnson@example.com", "alice.williams@example.com", "charlie.brown@example.com", "diana.prince@example.com", "eve.davis@example.com", "frank.miller@example.com", "grace.lee@example.com", "henry.wilson@example.com"],
+    ["Software Engineer", "Product Manager", "Designer", "Data Scientist", "DevOps Engineer", "Marketing Manager", "Sales Director", "HR Manager", "QA Engineer", "Tech Lead"],
+    ["New York", "San Francisco", "Los Angeles", "Boston", "Seattle", "Chicago", "Miami", "Austin", "Portland", "Denver"] 
+  ]
+};
 
 const GridPlayground: React.FC = () => {
-  const gridRef = useRef<HTMLElement & { data: Array<Array<string>> }>(null);
+  const gridRef = useRef<HTMLElement & {
+    data: GridData
+    render: () => Promise<void>
+      }>(null);
 
   useEffect(() => {
-    console.log("GridPlayground mounted");
-
     if (gridRef.current) {
       gridRef.current.data = sampleData;
+      gridRef.current.render();
     }
   }, []);
 
   return (
-    <dataflow-grid ref={gridRef} />
+    <div style={{background: "#fafafa", height: "400px", width: "600px", border: "1px solid #e0e0e0"}}>
+      <dataflow-grid ref={gridRef} />
+    </div>
   );
 };
 
