@@ -33,6 +33,7 @@
 import { defaultConfig, GridConfig } from "./config";
 import { GridData } from "./types";
 import { tableCss } from "./table-css";
+import GridView from "./grid-view";
 
 
 class Grid extends HTMLElement {
@@ -45,11 +46,13 @@ class Grid extends HTMLElement {
   #containerDim = { h: 0, w: 0 };
   // #colSpaceManager: ColumnSpaceManager | null = null;
   config: GridConfig;
+  view: GridView;
 
   constructor(config: Partial<GridConfig> = {}) {
     super();
     // TODO better parsing with allowed values or null / undefined value handling
     this.config = { ...defaultConfig, ...config };
+    this.view = new GridView(this.config);
   }
 
   connectedCallback() {
@@ -58,7 +61,9 @@ class Grid extends HTMLElement {
     const rect = this.getBoundingClientRect();
     this.#containerDim.h = rect.height;
     this.#containerDim.w = rect.width;
-    console.log("Container dim", this.#containerDim);
+
+    this.view.mountEl = this.#tableEl!;
+    console.log("dim", this.#containerDim);
 
     // this.#colSpaceManager = new ColumnSpaceManager(
     //   this.#containerDim,
@@ -74,6 +79,7 @@ class Grid extends HTMLElement {
 
   set data(value: GridData) {
     this.#data = value;
+    this.view.data = value;
     // if (this.#colSpaceManager) {
     //   this.#colSpaceManager.data = value;
     // }
