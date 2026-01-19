@@ -22,8 +22,14 @@
   *
   * In row first format, for 150k rows across 20 columns, total 150k array of 20 elements each would be created.
   * In column first format, for 150k rows across 20 columns, total 20 array of 150k elements each would be created.
+  *
+  * TODO: 
+  *   1. data for spark line charts
+  *   2. data navigation with row_left, row_right, col_top, col_bottom
   */
-import ColumnSpaceManager from "./column-space-manager";
+
+
+// import ColumnSpaceManager from "./column-space-manager";
 import { defaultConfig, GridConfig } from "./config";
 import { GridData } from "./types";
 import { tableCss } from "./table-css";
@@ -37,7 +43,7 @@ class Grid extends HTMLElement {
 
   #tableEl: HTMLTableElement | null = null;
   #containerDim = { h: 0, w: 0 };
-  #colSpaceManager: ColumnSpaceManager | null = null;
+  // #colSpaceManager: ColumnSpaceManager | null = null;
   config: GridConfig;
 
   constructor(config: Partial<GridConfig> = {}) {
@@ -54,12 +60,12 @@ class Grid extends HTMLElement {
     this.#containerDim.w = rect.width;
     console.log("Container dim", this.#containerDim);
 
-    this.#colSpaceManager = new ColumnSpaceManager(
-      this.#containerDim,
-      this.config,
-      this.#tableEl!,
-      this.#data
-    );
+    // this.#colSpaceManager = new ColumnSpaceManager(
+    //   this.#containerDim,
+    //   this.config,
+    //   this.#tableEl!,
+    //   this.#data
+    // );
   }
 
   get data(): GridData {
@@ -68,9 +74,9 @@ class Grid extends HTMLElement {
 
   set data(value: GridData) {
     this.#data = value;
-    if (this.#colSpaceManager) {
-      this.#colSpaceManager.data = value;
-    }
+    // if (this.#colSpaceManager) {
+    //   this.#colSpaceManager.data = value;
+    // }
   }
 
   async render() {
@@ -79,7 +85,7 @@ class Grid extends HTMLElement {
       return;
     }
 
-    await this.#colSpaceManager!.render();    
+    // await this.#colSpaceManager!.render();    
     // console.log("Grid will render", this.data);
   }
 

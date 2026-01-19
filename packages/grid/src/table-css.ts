@@ -1,3 +1,5 @@
+// TODO: temporary before we have proper less / scss
+
 export const tableCss = `
   table * {
     box-sizing: border-box;
