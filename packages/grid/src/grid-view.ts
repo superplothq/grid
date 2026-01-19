@@ -19,6 +19,5 @@ export default class GridView {
   }
 
   render(): void {
-    console.log("GridView render");
   }
 }
