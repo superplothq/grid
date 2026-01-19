@@ -54,5 +54,5 @@ export default abstract class GridLayoutSpaceManager {
 
   abstract calculate(): void;
 
-  abstract render(): void;
+  abstract render(): Promise<void>;
 }

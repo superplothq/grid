@@ -1,18 +1,20 @@
 /**
   * TODO[doc]
   * Mostly the data would be in the format of 2D array
-  * [[col1, col2, col3],
-  *  [1,    2,    3],
-  *  [val1, val2, val3]]
+  * [[col1, col2,   col3],
+  *  [1,    val2_1, val_3_1],
+  *  [2,    val2_2, val3_2],
+  *  [3,    val2_3, val3_3],
+  *  [4,    val2_4, val3_4]]
   *  This creates too many array allocations. So we would change the structure from row first to column first.
   *
   * Sample data structure of IData
   * {
   *   columns: ["col1", "col2", "col3"],
   *   data: [
-  *     [1, "val1"],
-  *     ["2", "val2"],
-  *     ["3", "val3"]
+  *     [1, 2, 3, 4],
+  *     [val2_1", "val_3_1", "val2_4"],
+  *     [val2_2", "val_3_2", "val2_3"],
   *   ]
   * }
   *
@@ -77,7 +79,7 @@ class Grid extends HTMLElement {
       return;
     }
 
-    this.#colSpaceManager!.render();    
+    await this.#colSpaceManager!.render();    
     // console.log("Grid will render", this.data);
   }
 
