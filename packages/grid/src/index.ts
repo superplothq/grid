@@ -23,18 +23,15 @@
   * In row first format, for 150k rows across 20 columns, total 150k array of 20 elements each would be created.
   * In column first format, for 150k rows across 20 columns, total 20 array of 150k elements each would be created.
   *
-  * TODO: 
+  * TODO:
   *   1. data for spark line charts
   *   2. data navigation with row_left, row_right, col_top, col_bottom
   */
 
-
-// import ColumnSpaceManager from "./column-space-manager";
 import { defaultConfig, GridConfig } from "./config";
 import { GridData } from "./types";
 import { tableCss } from "./table-css";
 import GridView from "./grid-view";
-
 
 class Grid extends HTMLElement {
   #data: GridData = {
@@ -42,15 +39,12 @@ class Grid extends HTMLElement {
     data: []
   };
 
-  #tableEl: HTMLTableElement | null = null;
   #containerDim = { h: 0, w: 0 };
-  // #colSpaceManager: ColumnSpaceManager | null = null;
   config: GridConfig;
   view: GridView;
 
   constructor(config: Partial<GridConfig> = {}) {
     super();
-    // TODO better parsing with allowed values or null / undefined value handling
     this.config = { ...defaultConfig, ...config };
     this.view = new GridView(this.config);
   }
@@ -62,15 +56,7 @@ class Grid extends HTMLElement {
     this.#containerDim.h = rect.height;
     this.#containerDim.w = rect.width;
 
-    this.view.mountEl = this.#tableEl!;
-    console.log("dim", this.#containerDim);
-
-    // this.#colSpaceManager = new ColumnSpaceManager(
-    //   this.#containerDim,
-    //   this.config,
-    //   this.#tableEl!,
-    //   this.#data
-    // );
+    this.view.mount(this);
   }
 
   get data(): GridData {
@@ -80,19 +66,13 @@ class Grid extends HTMLElement {
   set data(value: GridData) {
     this.#data = value;
     this.view.data = value;
-    // if (this.#colSpaceManager) {
-    //   this.#colSpaceManager.data = value;
-    // }
   }
 
-  async render() {
+  render(): void {
     if (this.data.columns.length === 0) {
-      console.log("TODO no data");
       return;
     }
-
-    // await this.#colSpaceManager!.render();    
-    // console.log("Grid will render", this.data);
+    this.view.render();
   }
 
   #attachShadowDom() {
@@ -104,6 +84,15 @@ class Grid extends HTMLElement {
           width: 100%;
           height: 100%;
           overflow: hidden;
+          position: relative;
+        }
+        .viewport {
+          position: absolute;
+          top: 0;
+          left: 0;
+          right: 0;
+          bottom: 0;
+          overflow: auto;
         }
       </style>
       <div class="scroll-backdrop"></div>
@@ -113,17 +102,12 @@ class Grid extends HTMLElement {
     const style = document.createElement("style");
     style.innerHTML = tableCss;
     this.append(style);
-
-    this.#tableEl = document.createElement("table");
-    this.#tableEl.setAttribute("cellspacing", "0");
-    this.append(this.#tableEl)
   }
 }
 
-// TODO decide name of the component
 if (document.createElement("dataflow-grid").constructor === HTMLElement) {
   window.customElements.define("dataflow-grid", Grid);
 }
 
 export default Grid;
-export { GridData, GridConfig }
+export { GridData, GridConfig };
