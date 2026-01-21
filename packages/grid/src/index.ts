@@ -429,6 +429,7 @@ export default class Grid {
       rowspan?: number;
       top?: number;
       left?: number;
+      transform?: string;
     };
   }) {
     opts.usedKeys.add(opts.key);
@@ -455,6 +456,10 @@ export default class Grid {
     if (opts.extraStyles.left !== undefined) {
       cell.style.left = `${opts.extraStyles.left}px`;
     }
+    if (opts.extraStyles.transform !== undefined) {
+      cell.style.transform = opts.extraStyles.transform;
+    }
+
     // Queue for measurement - we measure ALL visible cells every render,
     // not just unmeasured ones, because virtualized data means larger content
     // can appear at any time during scroll.
@@ -628,8 +633,11 @@ export default class Grid {
           extraStyles: {
             rowspan: state.span,
             left: rowFacetsLeftPositions[level],
+            // stops cell flickering of row facets when vertically scrolled
+            transform: "translate(0, calc(var(--offset-y)))"
           },
         });
+
         let arr;
         if ((arr = this.#postRenderAdjustCellsPerLevel[level]) instanceof Array) {
           arr.push(cell);
