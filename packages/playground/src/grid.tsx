@@ -1,4 +1,4 @@
-import React, { useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import "grid";
 import Grid, { GridDataModel } from "grid";
 
@@ -206,6 +206,11 @@ const GridPlayground: React.FC = () => {
     gridRef.current.draw();
   };
 
+  // Generate grid on page load with current input values
+  useEffect(() => {
+    handleGenerate();
+  }, []);
+
   return (
     <>
       <pre>
@@ -250,7 +255,7 @@ const GridPlayground: React.FC = () => {
         <span> Total data points: {totalDataPoints}</span>
       </div>
       <pre id="pref-info"></pre>
-      <div style={{position: "relative", background: "#fafafa", height: "calc(100vh - 600px)", width: "calc(100vw - 200px)", border: "1px solid #e0e0e0",
+      <div style={{position: "relative", background: "#fafafa", height: "calc(100vh )", width: "calc(100vw - 200px)", border: "1px solid #e0e0e0",
       margin: 0, padding: 0, boxSizing: "border-box"}} ref={gridConRef}>
       </div>
     </>

@@ -565,7 +565,7 @@ export default class Grid {
           gridRow: hRow + 1,
           gridCol: hCol + 1,
           content: "",
-          cls: `corner level-${hRow}`,
+          cls: `corner level-${hRow} ${hCol === numRowFacets - 1 ? "edge-r" : ""} ${hRow === numColFacets - 1 ? "edge-b" : ""}`,
           sizeKey: hCol,
           extraStyles: {
             top: colHeaderTopPositions[hRow],

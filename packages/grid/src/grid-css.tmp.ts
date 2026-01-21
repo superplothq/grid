@@ -42,16 +42,17 @@ export const gridCss = `
     /* Base cell styling */
   .cell {
     /* padding: 6px 10px; */
-    /* border-right: 1px solid #e0e0e0; */
+    border-right: 1px solid #616161;
     /* border-bottom: 1px solid #e0e0e0; */
     padding: 0;
     margin: 0;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    font-size: 13px;
+    font-size: 12px;
     display: flex;
     align-items: center;
+    padding: 1px 3px
   }
 
   /* Column headers */
@@ -62,17 +63,31 @@ export const gridCss = `
     justify-content: center;
     position: sticky;
     z-index: 20;
+    border-bottom: 1px solid #616161;
+    font-weight: 500;
+    color: #424242;
   }
 
   .cell.row-header {
     background: rgb(250, 250, 250);
     position: sticky;
     z-index: 15;
+    color: #424242;
+  }
+
+  .cell.data {
+    justify-content: end;
+    color: #1a237e;
   }
 
   .cell.corner {
     background: lightgray;
     position: sticky;
     z-index: 30;
+    border: none !important;
   }
+  .cell.corner.edge-r {
+    border-right: 1px solid #616161 !important;
+  }
+
 `;
