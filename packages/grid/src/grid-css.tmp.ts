@@ -58,7 +58,7 @@ export const gridCss = `
   /* Column headers */
   .cell.col-header {
     /* background: linear-gradient(180deg, #4a90e2 0%, #357abd 100%); */
-    background: lightgray;
+    background: #ffe082;
     color: black;
     justify-content: center;
     position: sticky;
@@ -69,7 +69,7 @@ export const gridCss = `
   }
 
   .cell.row-header {
-    background: rgb(250, 250, 250);
+    background: #f5f5f5;
     position: sticky;
     z-index: 15;
     color: #424242;
@@ -81,7 +81,7 @@ export const gridCss = `
   }
 
   .cell.corner {
-    background: lightgray;
+    background: #ffe082;
     position: sticky;
     z-index: 30;
     border: none !important;

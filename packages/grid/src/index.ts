@@ -172,6 +172,8 @@ export default class Grid {
   #cellPool: HTMLElement[] = [];
   #measureSpan: HTMLElement | null = null;
   #renderCount = 0;
+  #postRenderAdjustCellsPerLevel: HTMLElement[][] = [];
+  #layoutBootstrapped = false;
 
 
   constructor(config: Partial<GridConfig>, mountPoint: HTMLElement) {
@@ -239,12 +241,6 @@ export default class Grid {
 
   #setupScrollListener() {
     if (this.#scrollListenerSet) return;
-
-    // TODO this extra call is required as after the first draw the viewport needs to be recomputed
-    //      once grid cells are positioned by browser.
-    //      Right now this is called here as this code is executed only once after redraw.
-    this.#invalidateViewport();
-
     this.#mountPoint.addEventListener("scroll", () => {
       this.#scrollListenerSet = true;
       if (this.#scrollRAF) return;
@@ -490,6 +486,33 @@ export default class Grid {
     return vp;
   }
 
+  // Sticky headers need explicit top/left positions when stacked.
+  // Row header level 0 sticks at left:0, level 1 at left:width_of_level_0, etc.
+  // Column header level 0 sticks at top:0, level 1 at top:rowHeight, etc.
+  // TODO when calculating this if in row facet there are larger value cells followed by smaller value cells
+  //      there is a bug where the last facet cells are moved with transform. Is it because of we keep one
+  //      columnWidth? Example ->
+  //      row-facet-00 row_facet-01 ...
+  //      _            row_facet-11 ...
+  //      rf-20        row_facet-21 ...
+  #getFacetPositions(vp: { rowHeight: number }) {
+    const rowFacetsLeftPositions = [0];
+    for (let i = 0; i < this.#data!.rowFacetCount - 1; i++) {
+      rowFacetsLeftPositions.push(
+        rowFacetsLeftPositions[i] + this.#columnSizes.getColumnWidth(i)
+      );
+    }
+    const colFacetsTopPositions: number[] = [];
+    for (let i = 0; i < this.#data!.colFacetCount; i++) {
+      colFacetsTopPositions.push(i * vp.rowHeight);
+    }
+
+    return {
+      rowFacetsLeftPositions,
+      colFacetsTopPositions
+    }
+  }
+
   draw() {
     const startTime = performance.now();
     this.#renderCount++;
@@ -534,32 +557,17 @@ export default class Grid {
 
     const usedKeys: Set<string> = new Set();
     this.#cellsToMeasure.length = 0;
+    const { rowFacetsLeftPositions, colFacetsTopPositions } = this.#getFacetPositions(vp);
 
-    // Sticky headers need explicit top/left positions when stacked.
-    // Row header level 0 sticks at left:0, level 1 at left:width_of_level_0, etc.
-    // Column header level 0 sticks at top:0, level 1 at top:rowHeight, etc.
-    // TODO when calculating this if in row facet there are larger value cells followed by smaller value cells
-    //      there is a bug where the last facet cells are moved with transform. Is it because of we keep one
-    //      columnWidth? Example ->
-    //      row-facet-00 row_facet-01 ...
-    //      _            row_facet-11 ...
-    //      rf-20        row_facet-21 ...
-    const rowHeaderLeftPositions = [0];
-    for (let i = 0; i < numRowFacets - 1; i++) {
-      rowHeaderLeftPositions.push(
-        rowHeaderLeftPositions[i] + this.#columnSizes.getColumnWidth(i)
-      );
-    }
-    const colHeaderTopPositions: number[] = [];
-    for (let i = 0; i < numColFacets; i++) {
-      colHeaderTopPositions.push(i * vp.rowHeight);
+    for (let i = 0; i < numRowFacets; i++) {
+      this.#postRenderAdjustCellsPerLevel.push([]);
     }
 
     // Render corner cells
     for (let hRow = 0; hRow < numColFacets; hRow++) {
       for (let hCol = 0; hCol < numRowFacets; hCol++) {
         const key = `corner-${hRow}-${hCol}`;
-        this.#placeCellInDom({
+        const cell = this.#placeCellInDom({
           usedKeys,
           key,
           gridRow: hRow + 1,
@@ -568,10 +576,11 @@ export default class Grid {
           cls: `corner level-${hRow} ${hCol === numRowFacets - 1 ? "edge-r" : ""} ${hRow === numColFacets - 1 ? "edge-b" : ""}`,
           sizeKey: hCol,
           extraStyles: {
-            top: colHeaderTopPositions[hRow],
-            left: rowHeaderLeftPositions[hCol],
+            top: colFacetsTopPositions[hRow],
+            left: rowFacetsLeftPositions[hCol],
           },
         });
+        this.#postRenderAdjustCellsPerLevel[hCol].push(cell);
       }
     }
 
@@ -595,7 +604,7 @@ export default class Grid {
           sizeKey,
           extraStyles: {
             colspan: state.span,
-            top: colHeaderTopPositions[level],
+            top: colFacetsTopPositions[level],
           },
         });
       }
@@ -608,7 +617,7 @@ export default class Grid {
       onMerge: (level, state) => {
         const key = `row-h-${level}-${vp.y0 + state.start}`;
         const startGridRow = numColFacets + state.start + 1;
-        this.#placeCellInDom({
+        const cell = this.#placeCellInDom({
           usedKeys,
           key,
           gridRow: startGridRow,
@@ -618,9 +627,13 @@ export default class Grid {
           sizeKey: level,
           extraStyles: {
             rowspan: state.span,
-            left: rowHeaderLeftPositions[level],
+            left: rowFacetsLeftPositions[level],
           },
         });
+        let arr;
+        if ((arr = this.#postRenderAdjustCellsPerLevel[level]) instanceof Array) {
+          arr.push(cell);
+        }
       }
     });
     // data cells
@@ -657,8 +670,30 @@ export default class Grid {
 
     this.#autosizeCells();
     this.#setupScrollListener();
+    if (!this.#layoutBootstrapped) {
+      // First time we calculate some view state assmuning columns width are 60px (default)
+      // Following - Once cells are placed in dom and browser layouts the grid real values are
+      // used (from browser grid layout) to adjust some state (offset / top, left / stickyness etc)
+      this.#layoutBootstrapped = true;
+      this.#onlayoutBootstrap();
+    }
+    
+    // cleanup
+    this.#postRenderAdjustCellsPerLevel.length = 0;
     
     this.#debugInfo(performance.now() - startTime);
+  }
+
+  #onlayoutBootstrap() {
+    const vp = this.#invalidateViewport();
+    const { rowFacetsLeftPositions } = this.#getFacetPositions(vp);
+    for (let i = 0; i < this.#postRenderAdjustCellsPerLevel.length; i++) {
+      const cells = this.#postRenderAdjustCellsPerLevel[i];
+      for (let j = 0; j < cells.length; j++) {
+        const cell = cells[j];
+        cell.style.left = `${rowFacetsLeftPositions[i]}px`;
+      }
+    }
   }
 
   #debugInfo(dt: number) {
