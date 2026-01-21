@@ -1,6 +1,12 @@
 // TODO emporary file. create less / saas style and load it from there
 
 export const gridShadowElsStyle = `
+  * {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+  }
+
   /* Virtual scrollable area (creates scrollbar size) */
   .virtual-panel {
     position: absolute;
@@ -38,6 +44,8 @@ export const gridCss = `
     /* padding: 6px 10px; */
     /* border-right: 1px solid #e0e0e0; */
     /* border-bottom: 1px solid #e0e0e0; */
+    padding: 0;
+    margin: 0;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -51,9 +59,20 @@ export const gridCss = `
     /* background: linear-gradient(180deg, #4a90e2 0%, #357abd 100%); */
     background: lightgray;
     color: black;
-    font-weight: 600;
     justify-content: center;
     position: sticky;
     z-index: 20;
+  }
+
+  .cell.row-header {
+    background: rgb(250, 250, 250);
+    position: sticky;
+    z-index: 15;
+  }
+
+  .cell.corner {
+    background: lightgray;
+    position: sticky;
+    z-index: 30;
   }
 `;

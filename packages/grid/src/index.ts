@@ -115,7 +115,7 @@ class ColumnSizes {
   // TODO[improvement] calculate separate column height for value cells and cell from column facets
   #rowHeight?: number;
   #indices: number[] = []; // Max measured width per column (grows only, never shrinks)
-  #auto: number[] = [];       // Same as indices when no override (for reset capability)
+  // #auto: number[] = [];       // Same as indices when no override (for reset capability)
   #override = [];   // User-set widths from manual column resize (future feature)
   #config: GridConfig;
 
@@ -127,13 +127,17 @@ class ColumnSizes {
     this.#rowHeight = value;
   }
 
+  // reset() {
+  //   this.#indices.length = 0;
+  // }
+
   get indices() {
     return this.#indices;
   }
 
-  get auto() {
-    return this.#auto;
-  }
+  // get auto() {
+  //   return this.#auto;
+  // }
 
   get override() {
     return this.#override;
@@ -167,6 +171,7 @@ export default class Grid {
   #activeCells: Map<string, HTMLElement> = new Map();
   #cellPool: HTMLElement[] = [];
   #measureSpan: HTMLElement | null = null;
+  #renderCount = 0;
 
 
   constructor(config: Partial<GridConfig>, mountPoint: HTMLElement) {
@@ -191,13 +196,13 @@ export default class Grid {
     const sample = document.createElement("div");
     sample.className = "cell";
     sample.style.visibility = "hidden";
-    sample.style.position = "absolute";
+    // sample.style.position = "absolute";
     sample.textContent = "Mgy$123,456"; // Mix of chars
     this.#con.appendChild(sample);
     const rect = sample.getBoundingClientRect();
     this.#columnSizes.rowHeight = rect.height;
     this.#con.removeChild(sample);
-    console.log(`Measured row height: ${this.#columnSizes.rowHeight}px`);
+    console.log(`>>> Measured row height: ${this.#columnSizes.rowHeight}px`);
   }
 
 
@@ -234,6 +239,12 @@ export default class Grid {
 
   #setupScrollListener() {
     if (this.#scrollListenerSet) return;
+
+    // TODO this extra call is required as after the first draw the viewport needs to be recomputed
+    //      once grid cells are positioned by browser.
+    //      Right now this is called here as this code is executed only once after redraw.
+    this.#invalidateViewport();
+
     this.#mountPoint.addEventListener("scroll", () => {
       this.#scrollListenerSet = true;
       if (this.#scrollRAF) return;
@@ -337,20 +348,41 @@ export default class Grid {
     // Column range calculation (variable widths)
     const scrollableWidth = Math.max(1, totalWidth - viewWidth);
     const scrollPercentX = Math.min(1, scrollLeft / scrollableWidth);
-    // Calculate max scroll column
-    // This calculates the maximum starting column when fully scrolled right (like scrollableRows for columns).
-    // similar to row: we are trying to find the 0 the xth column till where the scrolling would happen.
+    /*
+     * Calculate max scroll column
+     * This calculates the maximum starting column when fully scrolled right (like scrollableRows for columns).
+     * similar to row: we are trying to find the 0 the xth column till where the scrolling would happen.
+     * This calculation happens from right to left
+     *
+     *    ───────────────────────── 110
+     *    ··································· 160
+     *       1          2         3       4  
+     *    ┌──────┬────────────┬─────────┬────┐
+     *    │      │            │         │    │
+     *    │      │            │         │    │
+     *    │    30│          60│       50│  20│
+     *    │      │            │         │    │
+     *    │      │            │         │    │
+     *    └──────┴────────────┴─────────┴────┘
+     *                                   ····· 20
+     *                        ················ 70
+     *           ····························· 130 (col_4 + col_3 + col_2) = maxScrollWidth
+     *              ───────────────────────── 110 = visibleDataWidth
+     * Here we do the fractional col calculation till where the last column touches edge of the viewport.
+     * in that case it's maxScrollWidth - visibleDataWidth = fraction of column (col_2) if scrolled to the
+     * the last column's right edge touches viewport.
+     * Convert it to fraction and add it to previous column
+     */
     const visibleDataWidth = viewWidth - rowFacetsWidth;
     let maxScrollWidth = 0;
     let maxScrollCol = this.#viewState.meta.totalColsCount;
+    let lastColWidth = -1;
     while (maxScrollWidth < visibleDataWidth && maxScrollCol > 0) {
       maxScrollCol--;
-      maxScrollWidth += this.#columnSizes.getColumnWidth(data.rowFacetCount + maxScrollCol);
+      lastColWidth =  this.#columnSizes.getColumnWidth(data.rowFacetCount + maxScrollCol);
+      maxScrollWidth += lastColWidth;
     }
-    // TODO the empty space left on the right is because of +1
-    //      check: https://ampcode.com/threads/T-019bdb30-ac09-76af-9ec9-e97b18414f59
-    //      if +1 is remove the border width needs to be adjusted (if border added to cells)
-    maxScrollCol = Math.min(this.#viewState.meta.totalColsCount - 1, maxScrollCol);
+    maxScrollCol = Math.min(this.#viewState.meta.totalColsCount - 1, maxScrollCol + ((maxScrollWidth - visibleDataWidth)) / lastColWidth);
 
     const startColFloat = maxScrollCol * scrollPercentX;
     const startCol = Math.floor(startColFloat);
@@ -438,31 +470,9 @@ export default class Grid {
     }
 
     return cell;
-
   }
 
-  draw() {
-    // TODO performance start counters
-    if (!this.#data) throw new Error("Data is not set!");
-
-
-    this.#setupScrollListener();
-    
-    const datamodel = this.#data.getSlice(0, 0, 0, 0);
-    this.#viewState.meta.totalColsCount = datamodel.totalColsCount;
-    this.#viewState.meta.totalRowsCount = datamodel.totalRowsCount;
-
-    // TODO[improvement] when column start & end is calculated, it's done with a default cellWidth(60px) and then
-    //      adjusted after the content is rendered. This allows column variable col length.
-    //      However It's not the same for row height - all rows are fixed height(19px) - Ideally it should also have
-    //      variable row height calculation 
-    //      The reason this is not feasbile is because number of columns are low hence width can be cached
-    //      however the number of rows are too high hence the height value can't be cached.
-    //      but what we can do is to have different height for column facets <> footer <> value rows. Row facets
-    //      would increase the height of the row.
-    //      get this information from cellRenderer
-    //      i.e. render column facets and compute it's height -> render full value cells to compute row height
-
+  #invalidateViewport() {
     const vp = this.#calculateViewport();
 
     // Virtual panel sized to full virtual dimensions - this empty div creates
@@ -477,6 +487,32 @@ export default class Grid {
     // Example: if row 5.3 is visible, we render from row 5 but shift up by 0.3*rowHeight.
     this.#con.style.setProperty("--offset-x", `${vp.offsetX}px`);
     this.#con.style.setProperty("--offset-y", `${vp.offsetY}px`);
+    return vp;
+  }
+
+  draw() {
+    const startTime = performance.now();
+    this.#renderCount++;
+
+    // TODO performance start counters
+    if (!this.#data) throw new Error("Data is not set!");
+
+    const datamodel = this.#data.getSlice(0, 0, 0, 0);
+    this.#viewState.meta.totalColsCount = datamodel.totalColsCount;
+    this.#viewState.meta.totalRowsCount = datamodel.totalRowsCount;
+
+    // TODO[improvement] when column start & end is calculated, it's done with a default cellWidth(60px) and then
+    //      adjusted after the content is rendered. This allows column variable col length.
+    //      However It's not the same for row height - all rows are fixed height(19px) - Ideally it should also have
+    //      variable row height calculation 
+    //      The reason this is not feasbile is because number of columns are low hence width can be cached
+    //      however the number of rows are too high hence the height value can't be cached.
+    //      but what we can do is to have different height for column facets <> footer <> value rows. Row facets
+    //      would increase the height of the row.
+    //      get this information from cellRenderer
+    //      i.e. render column facets and compute it's height -> render full value cells to compute row height
+    const vp = this.#invalidateViewport();
+
 
     // Fetch data for visible range
     const data = this.#data.getSlice(vp.x0, vp.y0, vp.x1, vp.y1);
@@ -497,7 +533,7 @@ export default class Grid {
     this.#con.style.gridTemplateRows = rowTemplate;
 
     const usedKeys: Set<string> = new Set();
-    this.#cellsToMeasure = [];
+    this.#cellsToMeasure.length = 0;
 
     // Sticky headers need explicit top/left positions when stacked.
     // Row header level 0 sticks at left:0, level 1 at left:width_of_level_0, etc.
@@ -526,8 +562,8 @@ export default class Grid {
         this.#placeCellInDom({
           usedKeys,
           key,
-          gridRow: hCol + 1,
-          gridCol: hRow + 1,
+          gridRow: hRow + 1,
+          gridCol: hCol + 1,
           content: "",
           cls: `corner level-${hRow}`,
           sizeKey: hCol,
@@ -620,45 +656,45 @@ export default class Grid {
     }
 
     this.#autosizeCells();
+    this.#setupScrollListener();
+    
+    this.#debugInfo(performance.now() - startTime);
+  }
+
+  #debugInfo(dt: number) {
+    const debugEl = document.getElementById("pref-info");
+    if (!debugEl) return;
+    debugEl.innerText = `[dT: ${dt.toFixed(2)}ms] [drawCalled = ${this.#renderCount}] [els: ${document.getElementsByTagName("*").length}] [pool: ${this.#cellPool.length}]`;
   }
 
   /**
     * Measure-after-render pattern: let CSS Grid auto-size with max-content,
     * then measure actual widths and cache for scroll calculations.
     *
-    * Key behavior: Cache keeps MAX width seen for each column, never shrinks.
-    * This prevents columns from jumping smaller when scrolling to rows with
-    * shorter content. Column widths are stable once expanded.
-    *
     * Called every render because virtualized data means different content
     * appears as user scrolls - a column might show "$1,234" initially but
     * "$1,234,567,890" later. We need to catch and accommodate larger values.
+    * 
+    * This is done in two stages i.e. 1st pushed to this.#cellsMeasure and then calulate the
+    * column width per column (instead of calculating max width when #placeCellInDom is called)
+    * is to reduce layout thrashing while calling getComputedStyle().
+    *
     */
   #autosizeCells() {
     if (this.#cellsToMeasure.length === 0) return;
-    // measure this by putting this value in grid
-    const span = this.#getMeasurementSpan();
-
+   
+    let indices: number[] = []
     for (const { cell, sizeKey } of this.#cellsToMeasure) {
-      span.textContent = cell.textContent;
-      const width = span.getBoundingClientRect().width;
+      const width = cell.getBoundingClientRect().width;
       if (!width) continue;
-
-      // Only update if new width is larger (columns grow, never shrink)
-      const currentWidth = this.#columnSizes.indices[sizeKey];
-      if (currentWidth === undefined || width > currentWidth) {
-        this.#columnSizes.indices[sizeKey] = width;
-      }
-
-      if (this.#columnSizes.override[sizeKey] === undefined) {
-        const currentAuto = this.#columnSizes.auto[sizeKey];
-        if (currentAuto === undefined || width > currentAuto) {
-          this.#columnSizes.auto[sizeKey] = width;
-        }
+      if (width > (indices[sizeKey] || 0)) {
+        indices[sizeKey] = width;
       }
     }
-    this.#cellsToMeasure = [];
-
+    for (let i = 0; i < indices.length; i++) {
+      if (indices[i] === undefined) continue;
+      this.#columnSizes.indices[i] = indices[i];
+    }
   }
 
   #releaseCell(cell: HTMLElement) {
@@ -667,34 +703,6 @@ export default class Grid {
     cell.textContent = "";
     this.#cellPool.push(cell);
   }
-
-  /**
-    * Returns a hidden span element for measuring text content width.
-    *
-    * Why not measure the actual rendered cell with getBoundingClientRect?
-    * Because CSS Grid distributes track space - if a merged header spans
-    * 4 columns, each column's laid-out width includes 1/4 of the header,
-    * not the actual content width. Measuring in isolation gives true
-    * content width unaffected by grid layout distribution.
-    * TODO does this span gets all the style from the css?
-    */
-  #getMeasurementSpan() {
-    if (!this.#measureSpan) {
-      this.#measureSpan = document.createElement("span");
-      this.#measureSpan.className = "cell";
-      this.#measureSpan.style.cssText = `
-        visibility: hidden;
-        position: absolute;
-        top: -9999px;
-        white-space: nowrap;
-      `;
-      // this.#mountPoint.appendChild(this.#measureSpan);
-      document.body.appendChild(this.#measureSpan);
-    }
-    return this.#measureSpan;
-  }
-
-
 
   // Facet merging: adjacent cells with same value become one cell with colspan/rowspan.
   // Track merge state per facet level - when value changes, emit previous merged cell.
@@ -743,120 +751,3 @@ export default class Grid {
     }
   }
 }
-
-
-
-
-/**
-  * TODO[doc]
-  * Mostly the data would be in the format of 2D array
-  * [[col1, col2,   col3],
-  *  [1,    val2_1, val_3_1],
-  *  [2,    val2_2, val3_2],
-  *  [3,    val2_3, val3_3],
-  *  [4,    val2_4, val3_4]]
-  *  This creates too many array allocations. So we would change the structure from row first to column first.
-  *
-  * Sample data structure of IData
-  * {
-  *   columns: ["col1", "col2", "col3"],
-  *   data: [
-  *     [1, 2, 3, 4],
-  *     [val2_1", "val_3_1", "val2_4"],
-  *     [val2_2", "val_3_2", "val2_3"],
-  *   ]
-  * }
-  *
-  * Here `columns` keeps the order of columns and `data` keeps the order of rows.
-  *
-  * In row first format, for 150k rows across 20 columns, total 150k array of 20 elements each would be created.
-  * In column first format, for 150k rows across 20 columns, total 20 array of 150k elements each would be created.
-  *
-  * TODO:
-  *   1. data for spark line charts
-  *   2. data navigation with row_left, row_right, col_top, col_bottom
-  */
-
-// import { defaultConfig, GridConfig } from "./config";
-// import { GridData } from "./types";
-// import { tableCss } from "./table-css";
-// import GridView from "./grid-view";
-
-// class Grid extends HTMLElement {
-//   #data: GridData = {
-//     columns: [],
-//     data: []
-//   };
-
-//   #containerDim = { h: 0, w: 0 };
-//   config: GridConfig;
-//   view: GridView;
-
-//   constructor(config: Partial<GridConfig> = {}) {
-//     super();
-//     this.config = { ...defaultConfig, ...config };
-//     this.view = new GridView(this.config);
-//   }
-
-//   connectedCallback() {
-//     this.#attachShadowDom();
-
-//     const rect = this.getBoundingClientRect();
-//     this.#containerDim.h = rect.height;
-//     this.#containerDim.w = rect.width;
-
-//     this.view.mount(this);
-//   }
-
-//   get data(): GridData {
-//     return this.#data;
-//   }
-
-//   set data(value: GridData) {
-//     this.#data = value;
-//     this.view.data = value;
-//   }
-
-//   render(): void {
-//     if (this.data.columns.length === 0) {
-//       return;
-//     }
-//     this.view.render();
-//   }
-
-//   #attachShadowDom() {
-//     this.attachShadow({ mode: "open" });
-//     (this.shadowRoot as ShadowRoot).innerHTML = `
-//       <style>
-//         :host {
-//           display: block;
-//           width: 100%;
-//           height: 100%;
-//           overflow: hidden;
-//           position: relative;
-//         }
-//         .viewport {
-//           position: absolute;
-//           top: 0;
-//           left: 0;
-//           right: 0;
-//           bottom: 0;
-//           overflow: auto;
-//         }
-//       </style>
-//       <div class="scroll-backdrop"></div>
-//       <div class="viewport"><slot></slot></div>
-//     `;
-
-//     const style = document.createElement("style");
-//     style.innerHTML = tableCss;
-//     this.append(style);
-//   }
-// }
-
-// if (document.createElement("dataflow-grid").constructor === HTMLElement) {
-//   window.customElements.define("dataflow-grid", Grid);
-// }
-
-// export default Grid;
-// export { GridData, GridConfig };

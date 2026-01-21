@@ -72,13 +72,18 @@ const GridPlayground: React.FC = () => {
 
     const grid = new Grid({}, gridConRef.current);
     console.log(sampleData, columnFacets, rowFacets)
+
     grid.data = new GridDataModel(sampleData, columnFacets, rowFacets);
     grid.draw();
   }, []);
 
   return (
-    <div style={{position: "relative", background: "#fafafa", height: "calc(100vh - 600px)", width: "calc(100vw - 200px)", border: "1px solid #e0e0e0"}} ref={gridConRef}>
+    <>
+     <pre id = "pref-info"></pre>
+    <div style={{position: "relative", background: "#fafafa", height: "calc(100vh - 600px)", width: "calc(100vw - 200px)", border: "1px solid #e0e0e0",
+    margin: 0, padding: 0, boxSizing: "border-box"}} ref={gridConRef}>
     </div>
+    </>
   );
 };
 
