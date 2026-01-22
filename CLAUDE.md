@@ -22,6 +22,8 @@ The playground package runs a webpack-dev-server on port 3000 with hot reloading
 
 ## Notes
 
+- If you get lint errors, first run autofix to fix all autofixable errors, then run eslint again to see remaining errors
+  and fix them manually.
 - All packages use TypeScript with strict mode enabled
 - The workspace uses yarn workspaces for dependency management
 - ESLint is configured but may need workspace-level configuration fixes
