@@ -61,7 +61,7 @@ export default class StandardLayout extends PLayout {
     this.numColFacets = data.numColFacets;
   }
 
-  calculateVisibleRowRanges() {
+  calculateVerticalViewState() {
     const scrollTop = this.mountPoint.scrollTop;
     const viewHeight = this.mountPoint.clientHeight;
 
@@ -94,7 +94,7 @@ export default class StandardLayout extends PLayout {
     // 0.5 (middle)    90 × 0.5 = 45   45–54
     // 1 (bottom)      90 × 1 = 90     90–99
     // It's mapping the scroll percentage (0–1) to the valid range of starting rows (0–90).
-    const scrollableRows  = Math.max(0, this.numRows - Math.floor(visibleDataHeight / this.rowHeightByType.data)); 
+    const scrollableRows  = Math.max(0, this.numRows - Math.floor(visibleDataHeight / this.rowHeightByType.data));
 
     const startRowFloat = scrollableRows * scrollPercent;
     const startRow = Math.floor(startRowFloat);
@@ -102,18 +102,25 @@ export default class StandardLayout extends PLayout {
     const endRow = Math.min(this.numRows, startRow + visibleRows);
     const offsetY = (startRowFloat - startRow) * this.rowHeightByType.data;
 
+    const colFacetsTopPositions: number[] = [];
+    const facetRowHeight = this.getRowHeight("facet");
+    for (let i = 0; i < this.numColFacets; i++) {
+      colFacetsTopPositions.push(i * facetRowHeight);
+    }
+
     return {
       startRowFloat,
       startRow,
       endRow,
       totalHeight,
       colFacetsHeight,
-      offsetY
+      offsetY,
+      colFacetsTopPositions
     }
   }
 
   // Column range calculation (variable widths)
-  calculateVisibleColRanges() {
+  calculateHorizontalViewState() {
     const scrollLeft = this.mountPoint.scrollLeft;
     const viewWidth = this.mountPoint.clientWidth;
 
@@ -168,10 +175,16 @@ export default class StandardLayout extends PLayout {
     const startCol = Math.floor(startColFloat);
     const visibleCols = this.calcNumVisibleColumns(startCol, visibleDataWidth, this.numRowFacets);
     const endCol = Math.min(this.numCols, startCol + visibleCols);
-      
+
     const startColWidth = this.getColumnWidth(this.numRowFacets + startCol);
     const offsetX = (startColFloat - startCol) * startColWidth;
 
+    const rowFacetsLeftPositions = [0];
+    for (let i = 0; i < this.numRowFacets - 1; i++) {
+      rowFacetsLeftPositions.push(
+        rowFacetsLeftPositions[i] + this.getColumnWidth(i)
+      );
+    }
 
     return {
       startColFloat,
@@ -179,15 +192,16 @@ export default class StandardLayout extends PLayout {
       endCol,
       totalWidth,
       rowFacetsWidth,
-      offsetX
+      offsetX,
+      rowFacetsLeftPositions
     }
   }
 
   calculateViewState(): ViewState {
     if (!this.data) throw new Error("Data is not set!");
 
-    const vsVertical = this.calculateVisibleRowRanges();
-    const vsHorizontal = this.calculateVisibleColRanges();
+    const vsVertical = this.calculateVerticalViewState();
+    const vsHorizontal = this.calculateHorizontalViewState();
 
     return {
       x0: vsHorizontal.startCol,
@@ -198,9 +212,10 @@ export default class StandardLayout extends PLayout {
       offsetY: vsVertical.offsetY,
       totalHeight: vsVertical.totalHeight,
       totalWidth: vsHorizontal.totalWidth,
-      // rowHeight,
       rowFacetsWidth: vsHorizontal.rowFacetsWidth,
       colFacetsHeight: vsVertical.colFacetsHeight,
+      rowFacetsLeftPositions: vsHorizontal.rowFacetsLeftPositions,
+      colFacetsTopPositions: vsVertical.colFacetsTopPositions,
     }
   }
 

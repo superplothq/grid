@@ -27,6 +27,7 @@ export interface ViewState {
   totalWidth: number;
   rowFacetsWidth: number;
   colFacetsHeight: number;
-  // rowHeight: number;
+  rowFacetsLeftPositions: number[];
+  colFacetsTopPositions: number[];
 }
 

@@ -101,27 +101,6 @@ export default class StandardLayoutRenderer extends RendererBase {
     this.#con.style.gridTemplateRows = rows;
   }
 
-  #calculateFacetPositions(): { rowFacetsLeftPositions: number[]; colFacetsTopPositions: number[] } {
-    const layout = this.layout as StandardLayout;
-
-    // Row facets left positions (cumulative widths)
-    const rowFacetsLeftPositions = [0];
-    for (let i = 0; i < layout.numRowFacets - 1; i++) {
-      rowFacetsLeftPositions.push(
-        rowFacetsLeftPositions[i] + layout.getColumnWidth(i)
-      );
-    }
-
-    // Column facets top positions
-    const colFacetsTopPositions: number[] = [];
-    const facetRowHeight = layout.getRowHeight("facet");
-    for (let i = 0; i < layout.numColFacets; i++) {
-      colFacetsTopPositions.push(i * facetRowHeight);
-    }
-
-    return { rowFacetsLeftPositions, colFacetsTopPositions };
-  }
-
   #measureCells(): void {
     // Measure visible cells and update column widths
     const layout = this.layout as StandardLayout;
@@ -180,13 +159,8 @@ export default class StandardLayoutRenderer extends RendererBase {
     );
     this.#setGridTemplate(template.columns, template.rows);
 
-    // 5. Begin render cycle
     this.beginRender();
 
-    // 6. Calculate facet positions for sticky headers
-    const { rowFacetsLeftPositions, colFacetsTopPositions } = this.#calculateFacetPositions();
-
-    // 7. Create render context for regions
     const ctx: RegionRenderContext = {
       container: this.#con,
       cellPool: this.cellPool,
@@ -195,7 +169,6 @@ export default class StandardLayoutRenderer extends RendererBase {
       registerCell: (key, cell) => this.registerCell(key, cell)
     };
 
-    // 8. Render each region
     for (const region of regions) {
       const renderData: RegionRenderData = {
         sliceData,
@@ -205,8 +178,8 @@ export default class StandardLayoutRenderer extends RendererBase {
         viewportX0: vs.x0,
         viewportY0: vs.y0,
         rowHeight: layout.getRowHeight("data"),
-        rowFacetsLeftPositions,
-        colFacetsTopPositions
+        rowFacetsLeftPositions: vs.rowFacetsLeftPositions,
+        colFacetsTopPositions: vs.colFacetsTopPositions
       };
 
       switch (region.type) {
@@ -225,16 +198,12 @@ export default class StandardLayoutRenderer extends RendererBase {
       }
     }
 
-    // 9. End render cycle - cleanup unused cells
     this.endRender(this.#con);
 
-    // 10. Measure cells for auto-sizing
     this.#measureCells();
 
-    // 11. Setup scroll listener
     this.#setupScrollListener();
 
-    // 12. Debug info
     // this.#debugInfo(performance.now() - startTime);
   }
 }
