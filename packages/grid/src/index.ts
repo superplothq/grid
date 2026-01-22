@@ -5,17 +5,16 @@ import {PRenderer} from "./core/renderer-proto";
 import {addToRegistry, getFromRegistry} from "./registry";
 import { ComponentClass } from "./types";
 
-function addToMap<T>(
-  map: Map<string, Map<string, T>>,
-  type: string,
-  name: string,
-  cls: T
-): void {
-  if (!map.has(type)) {
-    map.set(type, new Map());
-  }
-  map.get(type)!.set(name, cls);
-}
+// Export layout and renderer for registration
+export { default as StandardLayout } from "./core/layout/standard-layout";
+export { default as StandardLayoutRenderer } from "./core/layout/standard-layout-renderer";
+
+// Export types and base classes for extensibility
+export { GridDataViewModel } from "./grid-data-viewmodel";
+export { GridConfig, defaultConfig } from "./config";
+export { PLayout } from "./core/layout-proto";
+export { PRenderer } from "./core/renderer-proto";
+export type { ViewState, SliceResult } from "./types";
 
 export class Grid {
   #config: GridConfig;

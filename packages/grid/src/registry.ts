@@ -14,7 +14,7 @@ export function addToRegistry<T extends ComponentClass>(
   name: string,
   cls: T
 ): void {
-  if (REGISTRY!.has(type)) {
+  if (!REGISTRY.has(type)) {
     REGISTRY.set(type, new Map());
   }
   REGISTRY.get(type)!.set(name, cls);

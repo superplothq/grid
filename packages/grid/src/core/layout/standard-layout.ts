@@ -10,7 +10,7 @@ export default class StandardLayout extends PLayout {
   numCols = 0;
   // all column can be of different sizes hence those are tracked based on
   // column indices
-  colsWidth = {
+  colsWidth: { indices: number[]; override: number[] } = {
     indices: [],
     override: [],
   }
