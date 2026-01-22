@@ -4,19 +4,18 @@ import {PLayout} from "./core/layout-proto";
 import {PRenderer} from "./core/renderer-proto";
 import {addToRegistry, getFromRegistry} from "./registry";
 import { ComponentClass } from "./types";
+import StandardLayout from "./core/layout/standard-layout";
+import StandardLayoutRenderer from "./core/layout/standard-layout-renderer";
 
-// Export layout and renderer for registration
-export { default as StandardLayout } from "./core/layout/standard-layout";
-export { default as StandardLayoutRenderer } from "./core/layout/standard-layout-renderer";
+export { StandardLayout, StandardLayoutRenderer };
 
-// Export types and base classes for extensibility
 export { GridDataViewModel } from "./grid-data-viewmodel";
 export { GridConfig, defaultConfig } from "./config";
 export { PLayout } from "./core/layout-proto";
 export { PRenderer } from "./core/renderer-proto";
 export type { ViewState, SliceResult } from "./types";
 
-export class Grid {
+export default class Grid {
   #config: GridConfig;
   #data: GridDataViewModel | undefined;
   #layout: PLayout;
@@ -37,8 +36,8 @@ export class Grid {
       throw new Error(`No layout of type ${this.#config.layoutType} is present in the registry. Register one first by calling \`Grid.register(..., ..., ...)\`.`);
     }
 
-    this.#layout = new StandardLayout(config, mountPoint);
-    this.#renderer = new StandardRenderer(config, mountPoint, this.#layout);
+    this.#layout = new StandardLayout(this.#config, mountPoint);
+    this.#renderer = new StandardRenderer(this.#config, mountPoint, this.#layout);
   }
 
   set data(value: GridDataViewModel) {
@@ -65,3 +64,6 @@ export class Grid {
     addToRegistry(type, name, cls);
   }
 }
+
+Grid.register("layout", "standard", StandardLayout);
+Grid.register("renderer", "standard", StandardLayoutRenderer);

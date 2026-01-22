@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import "grid";
-import Grid, { GridDataModel } from "grid";
+import Grid, { GridDataViewModel } from "grid";
 
 // Declare the custom element for TypeScript
 declare global {
@@ -202,7 +202,7 @@ const GridPlayground: React.FC = () => {
     }
 
     console.log("Generated data:", { totalRows, totalCols, rowFacets: rowFacetRowMajor, colFacets: colFacetColMajor, data });
-    gridRef.current.data = new GridDataModel(data, colFacetLevelMajor, rowFacetLevelMajor);
+    gridRef.current.data = new GridDataViewModel(data, colFacetLevelMajor, rowFacetLevelMajor);
     gridRef.current.draw();
   };
 

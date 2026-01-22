@@ -1,35 +1,65 @@
 import {GridConfig} from "../../config";
 import {ViewState} from "../../types";
 import {PLayout} from "../layout-proto";
-import {RendererBase} from "../renderer-base";
-import {RegionRenderContext, RegionRenderData} from "../region-proto";
-import {CornerRegion} from "../regions/corner-region";
-import {ColFacetRegion} from "../regions/col-facet-region";
-import {RowFacetRegion} from "../regions/row-facet-region";
-import {ValueRegion} from "../regions/value-region";
+import {PRenderer} from "../renderer-proto";
 import {gridCss, gridShadowElsStyle} from "./grid-css.tmp";
 import StandardLayout from "./standard-layout";
 
-export default class StandardLayoutRenderer extends RendererBase {
+interface MergeState {
+  value: string | null;
+  start: number;
+  span: number;
+}
+
+interface CellToMeasure {
+  cell: HTMLElement;
+  sizeKey: number;
+}
+
+class CellPool {
+  #pool: HTMLElement[] = [];
+
+  acquire(): HTMLElement {
+    if (this.#pool.length > 0) {
+      return this.#pool.pop()!;
+    }
+    const cell = document.createElement("div");
+    cell.className = "cell";
+    return cell;
+  }
+
+  release(cell: HTMLElement): void {
+    cell.className = "cell";
+    cell.style.cssText = "";
+    cell.textContent = "";
+    this.#pool.push(cell);
+  }
+
+  get size(): number {
+    return this.#pool.length;
+  }
+}
+
+export default class StandardLayoutRenderer extends PRenderer {
   #con: HTMLElement;
   #virtualPanelEl: HTMLElement;
   #gridClipEl: HTMLElement;
   #scrollRAF: number | null = null;
   #scrollListenerSet = false;
   #renderCount = 0;
+  #layoutBootstrapped = false;
 
-  // Region instances
-  #cornerRegion = new CornerRegion();
-  #colFacetRegion = new ColFacetRegion();
-  #rowFacetRegion = new RowFacetRegion();
-  #valueRegion = new ValueRegion();
+  #cellPool: CellPool = new CellPool();
+  #activeCells: Map<string, HTMLElement> = new Map();
+  #usedKeys: Set<string> = new Set();
+  #cellsToMeasure: CellToMeasure[] = [];
+  #postRenderAdjustCellsPerLevel: HTMLElement[][] = [];
 
   constructor(config: GridConfig, mountPoint: HTMLElement, layout: PLayout) {
     super(config, mountPoint, layout);
 
     [this.#con, , this.#virtualPanelEl, this.#gridClipEl] = this.#attachShadowDom();
 
-    // Measure row height and update layout
     this.#measureRowHeight();
   }
 
@@ -65,7 +95,6 @@ export default class StandardLayoutRenderer extends RendererBase {
     const height = rect.height;
     this.#con.removeChild(sample);
 
-    // Update layout with measured height
     const layout = this.layout as StandardLayout;
     layout.rowHeightByType.facet = height;
     layout.rowHeightByType.data = height;
@@ -82,7 +111,6 @@ export default class StandardLayoutRenderer extends RendererBase {
 
       this.#scrollRAF = requestAnimationFrame(() => {
         this.#scrollRAF = null;
-        // Recalculate view state and re-render
         const vs = this.layout.calculateViewState();
         this.render(vs);
       });
@@ -101,43 +129,141 @@ export default class StandardLayoutRenderer extends RendererBase {
     this.#con.style.gridTemplateRows = rows;
   }
 
-  #measureCells(): void {
-    // Measure visible cells and update column widths
+  #autosizeCells(): void {
+    if (this.#cellsToMeasure.length === 0) return;
+
     const layout = this.layout as StandardLayout;
+    const indices: number[] = [];
 
-    for (const [key, cell] of this.activeCells) {
-      // Only measure non-merged data/header cells
-      if (!key.startsWith("data-") && !key.startsWith("col-h-") && !key.startsWith("row-h-")) {
-        continue;
-      }
-
+    for (const { cell, sizeKey } of this.#cellsToMeasure) {
       const width = cell.getBoundingClientRect().width;
       if (!width) continue;
-
-      // Extract column index from key
-      let colIndex = -1;
-      if (key.startsWith("data-")) {
-        const parts = key.split("-");
-        colIndex = layout.numRowFacets + parseInt(parts[1], 10);
-      } else if (key.startsWith("col-h-")) {
-        const parts = key.split("-");
-        colIndex = layout.numRowFacets + parseInt(parts[3], 10);
-      } else if (key.startsWith("row-h-")) {
-        const parts = key.split("-");
-        colIndex = parseInt(parts[2], 10);
+      if (width > (indices[sizeKey] || 0)) {
+        indices[sizeKey] = width;
       }
+    }
 
-      if (colIndex >= 0 && width > (layout.colsWidth.indices[colIndex] || 0)) {
-        layout.colsWidth.indices[colIndex] = width;
+    for (let i = 0; i < indices.length; i++) {
+      if (indices[i] === undefined) continue;
+      layout.colsWidth.indices[i] = indices[i];
+    }
+
+    this.#cellsToMeasure = [];
+  }
+
+  #placeCellInDom(opts: {
+    key: string;
+    sizeKey: number;
+    content: string;
+    cls: string;
+    gridRow: number;
+    gridCol: number;
+    extraStyles: {
+      colspan?: number;
+      rowspan?: number;
+      top?: number;
+      left?: number;
+      transform?: string;
+    };
+  }): HTMLElement {
+    this.#usedKeys.add(opts.key);
+    let cell = this.#activeCells.get(opts.key);
+    if (!cell) {
+      cell = this.#cellPool.acquire();
+      this.#activeCells.set(opts.key, cell);
+      this.#con.appendChild(cell);
+    }
+
+    cell.textContent = opts.content;
+    cell.className = "cell " + opts.cls;
+    cell.style.gridColumn = opts.extraStyles.colspan
+      ? `${opts.gridCol} / span ${opts.extraStyles.colspan}`
+      : `${opts.gridCol}`;
+    cell.style.gridRow = opts.extraStyles.rowspan
+      ? `${opts.gridRow} / span ${opts.extraStyles.rowspan}`
+      : `${opts.gridRow}`;
+
+    if (opts.extraStyles.top !== undefined) {
+      cell.style.top = `${opts.extraStyles.top}px`;
+    }
+    if (opts.extraStyles.left !== undefined) {
+      cell.style.left = `${opts.extraStyles.left}px`;
+    }
+    if (opts.extraStyles.transform !== undefined) {
+      cell.style.transform = opts.extraStyles.transform;
+    }
+
+    const isMerged = (opts.extraStyles.colspan && opts.extraStyles.colspan > 1) ||
+                     (opts.extraStyles.rowspan && opts.extraStyles.rowspan > 1);
+    if (opts.sizeKey !== undefined && !isMerged) {
+      this.#cellsToMeasure.push({ cell, sizeKey: opts.sizeKey });
+    }
+
+    return cell;
+  }
+
+  #computeMerges(
+    facetCount: number,
+    itemCount: number,
+    facets: string[][]
+  ): Array<{ level: number; value: string; start: number; span: number }> {
+    const results: Array<{ level: number; value: string; start: number; span: number }> = [];
+    const mergeState: MergeState[] = [];
+
+    for (let level = 0; level < facetCount; level++) {
+      mergeState[level] = { value: null, start: 0, span: 0 };
+    }
+
+    for (let i = 0; i < itemCount; i++) {
+      const facet = facets[i] || [];
+      for (let level = 0; level < facetCount; level++) {
+        const value = facet[level] || "";
+        const state = mergeState[level];
+
+        if (value === state.value && i > 0) {
+          state.span++;
+        } else {
+          if (state.span > 0) {
+            results.push({
+              level,
+              value: state.value as string,
+              start: state.start,
+              span: state.span
+            });
+          }
+          state.value = value;
+          state.start = i;
+          state.span = 1;
+        }
+      }
+    }
+
+    for (let level = 0; level < facetCount; level++) {
+      const state = mergeState[level];
+      if (state.span > 0) {
+        results.push({
+          level,
+          value: state.value as string,
+          start: state.start,
+          span: state.span
+        });
+      }
+    }
+
+    return results;
+  }
+
+  #onLayoutBootstrap(vs: ViewState): void {
+    this.#updateVirtualPanel(vs);
+
+    for (let i = 0; i < this.#postRenderAdjustCellsPerLevel.length; i++) {
+      const cells = this.#postRenderAdjustCellsPerLevel[i];
+      for (let j = 0; j < cells.length; j++) {
+        const cell = cells[j];
+        cell.style.left = `${vs.rowFacetsLeftPositions[i]}px`;
       }
     }
   }
-
-  // #debugInfo(dt: number): void {
-  //   const debugEl = document.getElementById("pref-info");
-  //   if (!debugEl) return;
-  //   debugEl.innerText = `[dT: ${dt.toFixed(2)}ms] [drawCalled = ${this.#renderCount}] [els: ${document.getElementsByTagName("*").length}] [pool: ${this.poolSize}]`;
-  // }
 
   render(vs: ViewState): void {
     if (!this.data) throw new Error("Data is not set!");
@@ -150,7 +276,15 @@ export default class StandardLayoutRenderer extends RendererBase {
 
     this.#updateVirtualPanel(vs);
     const sliceData = this.data.getSlice(vs.x0, vs.y0, vs.x1, vs.y1);
-    const regions = layout.calculateLayout(vs);
+
+    console.log(">>> Render #" + this.#renderCount, {
+      vs,
+      numDataColsVisible,
+      numDataRowsVisible,
+      numRowFacets: layout.numRowFacets,
+      numColFacets: layout.numColFacets,
+      sliceData
+    });
     const template = layout.getGridTemplate(
       layout.numRowFacets,
       layout.numColFacets,
@@ -159,51 +293,122 @@ export default class StandardLayoutRenderer extends RendererBase {
     );
     this.#setGridTemplate(template.columns, template.rows);
 
-    this.beginRender();
+    this.#usedKeys.clear();
+    this.#cellsToMeasure = [];
 
-    const ctx: RegionRenderContext = {
-      container: this.#con,
-      cellPool: this.cellPool,
-      activeCells: this.activeCells,
-      markKeyUsed: (key) => this.markKeyUsed(key),
-      registerCell: (key, cell) => this.registerCell(key, cell)
-    };
+    for (let i = 0; i < layout.numRowFacets; i++) {
+      this.#postRenderAdjustCellsPerLevel.push([]);
+    }
 
-    for (const region of regions) {
-      const renderData: RegionRenderData = {
-        sliceData,
-        region,
-        numRowFacets: layout.numRowFacets,
-        numColFacets: layout.numColFacets,
-        viewportX0: vs.x0,
-        viewportY0: vs.y0,
-        rowHeight: layout.getRowHeight("data"),
-        rowFacetsLeftPositions: vs.rowFacetsLeftPositions,
-        colFacetsTopPositions: vs.colFacetsTopPositions
-      };
-
-      switch (region.type) {
-      case "corner":
-        this.#cornerRegion.render(ctx, renderData);
-        break;
-      case "colFacet":
-        this.#colFacetRegion.render(ctx, renderData);
-        break;
-      case "rowFacet":
-        this.#rowFacetRegion.render(ctx, renderData);
-        break;
-      case "values":
-        this.#valueRegion.render(ctx, renderData);
-        break;
+    for (let hRow = 0; hRow < layout.numColFacets; hRow++) {
+      for (let hCol = 0; hCol < layout.numRowFacets; hCol++) {
+        const key = `corner-${hRow}-${hCol}`;
+        const cell = this.#placeCellInDom({
+          key,
+          gridRow: hRow + 1,
+          gridCol: hCol + 1,
+          content: "",
+          cls: `corner level-${hRow}${hCol === layout.numRowFacets - 1 ? " edge-r" : ""}${hRow === layout.numColFacets - 1 ? " edge-b" : ""}`,
+          sizeKey: hCol,
+          extraStyles: {
+            top: vs.colFacetsTopPositions[hRow],
+            left: vs.rowFacetsLeftPositions[hCol],
+          },
+        });
+        this.#postRenderAdjustCellsPerLevel[hCol].push(cell);
       }
     }
 
-    this.endRender(this.#con);
+    if (sliceData.columnFacets && sliceData.columnFacets.length > 0) {
+      const numDataColsVisible = sliceData.columnFacets.length;
+      const merges = this.#computeMerges(layout.numColFacets, numDataColsVisible, sliceData.columnFacets);
 
-    this.#measureCells();
+      for (const merge of merges) {
+        const key = `col-h-${merge.level}-${vs.x0 + merge.start}`;
+        const sizeKey = layout.numRowFacets + vs.x0 + merge.start;
 
+        this.#placeCellInDom({
+          key,
+          gridRow: merge.level + 1,
+          gridCol: layout.numRowFacets + merge.start + 1,
+          content: merge.value,
+          cls: `col-header level-${merge.level}`,
+          sizeKey,
+          extraStyles: {
+            colspan: merge.span,
+            top: vs.colFacetsTopPositions[merge.level],
+          },
+        });
+      }
+    }
+
+    if (sliceData.rowFacets && sliceData.rowFacets.length > 0) {
+      const numDataRowsVisible = sliceData.rowFacets.length;
+      const merges = this.#computeMerges(layout.numRowFacets, numDataRowsVisible, sliceData.rowFacets);
+
+      for (const merge of merges) {
+        const key = `row-h-${merge.level}-${vs.y0 + merge.start}`;
+        const cell = this.#placeCellInDom({
+          key,
+          gridRow: layout.numColFacets + merge.start + 1,
+          gridCol: merge.level + 1,
+          content: merge.value,
+          cls: `row-header level-${merge.level}`,
+          sizeKey: merge.level,
+          extraStyles: {
+            rowspan: merge.span,
+            left: vs.rowFacetsLeftPositions[merge.level],
+            transform: "translate(0, calc(var(--offset-y)))",
+          },
+        });
+
+        this.#postRenderAdjustCellsPerLevel[merge.level].push(cell);
+      }
+    }
+
+    if (sliceData.data) {
+      const numDataColsVisible = sliceData.data.length;
+      const numDataRowsVisible = sliceData.data[0]?.length ?? 0;
+
+      for (let i = 0; i < numDataColsVisible; i++) {
+        const colData = sliceData.data[i] ?? [];
+        const gridCol = layout.numRowFacets + i + 1;
+        const sizeKey = layout.numRowFacets + vs.x0 + i;
+
+        for (let j = 0; j < numDataRowsVisible; j++) {
+          const key = `data-${vs.x0 + i}-${vs.y0 + j}`;
+          const value = colData[j] ?? "";
+
+          this.#placeCellInDom({
+            key,
+            gridRow: layout.numColFacets + j + 1,
+            gridCol,
+            content: String(value),
+            cls: "data",
+            sizeKey,
+            extraStyles: {},
+          });
+        }
+      }
+    }
+
+    for (const [key, cell] of this.#activeCells) {
+      if (!this.#usedKeys.has(key)) {
+        this.#con.removeChild(cell);
+        this.#cellPool.release(cell);
+        this.#activeCells.delete(key);
+      }
+    }
+
+    this.#autosizeCells();
     this.#setupScrollListener();
 
-    // this.#debugInfo(performance.now() - startTime);
+    if (!this.#layoutBootstrapped) {
+      this.#layoutBootstrapped = true;
+      const vsUpdated = this.layout.calculateViewState();
+      this.#onLayoutBootstrap(vsUpdated);
+    }
+
+    this.#postRenderAdjustCellsPerLevel.length = 0;
   }
 }

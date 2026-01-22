@@ -69,7 +69,7 @@ export default class StandardLayout extends PLayout {
     // hence that's the total height of header
     const heightPerFacetRow = this.rowHeightByType.facet;
     const colFacetsHeight = this.numColFacets * heightPerFacetRow;
-    const dataHeight = this.numCols * this.rowHeightByType.data;
+    const dataHeight = this.numRows * this.rowHeightByType.data;
     // total width of the grid if it was rendered fully
     // this value will be used to calculate scroll position there by setting dimension of virtual-panel
     const totalHeight = colFacetsHeight + dataHeight;
@@ -132,7 +132,7 @@ export default class StandardLayout extends PLayout {
     //   1. For config like this if rf12 is overflowing it can wrap it's content
     //   2. Individual row facet might have it's own maxWidth
     const rowFacetsWidth = this.getColWidthTillIdx(this.numRowFacets);
-    const totalWidth = this.getColWidthTillIdx(this.numColFacets + this.numCols);
+    const totalWidth = this.getColWidthTillIdx(this.numRowFacets + this.numCols);
     const scrollableWidth = Math.max(1, totalWidth - viewWidth);
     const scrollPercentX = Math.min(1, scrollLeft / scrollableWidth);
     /*
