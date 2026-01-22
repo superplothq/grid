@@ -165,13 +165,15 @@ export default class StandardLayoutRenderer extends PRenderer {
       left?: number;
       transform?: string;
     };
-  }): HTMLElement {
+  }): [HTMLElement, boolean] {
     this.#usedKeys.add(opts.key);
     let cell = this.#activeCells.get(opts.key);
+    let needAppend = false;
     if (!cell) {
       cell = this.#cellPool.acquire();
       this.#activeCells.set(opts.key, cell);
-      this.#con.appendChild(cell);
+      // this.#con.appendChild(cell);
+      needAppend = true;
     }
 
     cell.textContent = opts.content;
@@ -199,7 +201,7 @@ export default class StandardLayoutRenderer extends PRenderer {
       this.#cellsToMeasure.push({ cell, sizeKey: opts.sizeKey });
     }
 
-    return cell;
+    return [cell, needAppend];
   }
 
   #computeMerges(
@@ -277,14 +279,6 @@ export default class StandardLayoutRenderer extends PRenderer {
     this.#updateVirtualPanel(vs);
     const sliceData = this.data.getSlice(vs.x0, vs.y0, vs.x1, vs.y1);
 
-    console.log(">>> Render #" + this.#renderCount, {
-      vs,
-      numDataColsVisible,
-      numDataRowsVisible,
-      numRowFacets: layout.numRowFacets,
-      numColFacets: layout.numColFacets,
-      sliceData
-    });
     const template = layout.getGridTemplate(
       layout.numRowFacets,
       layout.numColFacets,
@@ -300,6 +294,7 @@ export default class StandardLayoutRenderer extends PRenderer {
       this.#postRenderAdjustCellsPerLevel.push([]);
     }
 
+    let nodeAppendList = [];
     for (let hRow = 0; hRow < layout.numColFacets; hRow++) {
       for (let hCol = 0; hCol < layout.numRowFacets; hCol++) {
         const key = `corner-${hRow}-${hCol}`;
@@ -315,82 +310,74 @@ export default class StandardLayoutRenderer extends PRenderer {
             left: vs.rowFacetsLeftPositions[hCol],
           },
         });
-        this.#postRenderAdjustCellsPerLevel[hCol].push(cell);
+        cell[1] && nodeAppendList.push(cell[0]);
+        this.#postRenderAdjustCellsPerLevel[hCol].push(cell[0]);
       }
     }
 
-    if (sliceData.columnFacets && sliceData.columnFacets.length > 0) {
-      const numDataColsVisible = sliceData.columnFacets.length;
-      const merges = this.#computeMerges(layout.numColFacets, numDataColsVisible, sliceData.columnFacets);
+    let merges = this.#computeMerges(layout.numColFacets, numDataColsVisible, sliceData.columnFacets!);
+    for (const merge of merges) {
+      const key = `col-h-${merge.level}-${vs.x0 + merge.start}`;
+      const sizeKey = layout.numRowFacets + vs.x0 + merge.start;
+      const cell = this.#placeCellInDom({
+        key,
+        gridRow: merge.level + 1,
+        gridCol: layout.numRowFacets + merge.start + 1,
+        content: merge.value,
+        cls: `col-header level-${merge.level}`,
+        sizeKey,
+        extraStyles: {
+          colspan: merge.span,
+          top: vs.colFacetsTopPositions[merge.level],
+        },
+      });
+      cell[1] && nodeAppendList.push(cell[0]);
+    }
 
-      for (const merge of merges) {
-        const key = `col-h-${merge.level}-${vs.x0 + merge.start}`;
-        const sizeKey = layout.numRowFacets + vs.x0 + merge.start;
+    merges.length = 0;
+    merges = this.#computeMerges(layout.numRowFacets, numDataRowsVisible, sliceData.rowFacets!);
+    for (const merge of merges) {
+      const key = `row-h-${merge.level}-${vs.y0 + merge.start}`;
+      const cell = this.#placeCellInDom({
+        key,
+        gridRow: layout.numColFacets + merge.start + 1,
+        gridCol: merge.level + 1,
+        content: merge.value,
+        cls: `row-header level-${merge.level}`,
+        sizeKey: merge.level,
+        extraStyles: {
+          rowspan: merge.span,
+          left: vs.rowFacetsLeftPositions[merge.level],
+          transform: merge.level === sliceData.rowFacets![0].length - 1 ? "" : "translate(0, calc(var(--offset-y)))",
+        },
+      });
+      cell[1] && nodeAppendList.push(cell[0]);
+      this.#postRenderAdjustCellsPerLevel[merge.level].push(cell[0]);
+    }
 
-        this.#placeCellInDom({
+    for (let i = 0; i < numDataColsVisible; i++) {
+      const colData = sliceData.data ? sliceData.data[i] ?? [] : [];
+      const gridCol = layout.numRowFacets + i + 1;
+      const sizeKey = layout.numRowFacets + vs.x0 + i;
+
+      for (let j = 0; j < numDataRowsVisible; j++) {
+        const key = `data-${vs.x0 + i}-${vs.y0 + j}`;
+        const value = colData[j] ?? "";
+        const cell =  this.#placeCellInDom({
           key,
-          gridRow: merge.level + 1,
-          gridCol: layout.numRowFacets + merge.start + 1,
-          content: merge.value,
-          cls: `col-header level-${merge.level}`,
+          gridRow: layout.numColFacets + j + 1,
+          gridCol,
+          content: String(value),
+          cls: "data",
           sizeKey,
-          extraStyles: {
-            colspan: merge.span,
-            top: vs.colFacetsTopPositions[merge.level],
-          },
+          extraStyles: {},
         });
+        cell[1] && nodeAppendList.push(cell[0]);
       }
     }
 
-    if (sliceData.rowFacets && sliceData.rowFacets.length > 0) {
-      const numDataRowsVisible = sliceData.rowFacets.length;
-      const merges = this.#computeMerges(layout.numRowFacets, numDataRowsVisible, sliceData.rowFacets);
-
-      for (const merge of merges) {
-        const key = `row-h-${merge.level}-${vs.y0 + merge.start}`;
-        const cell = this.#placeCellInDom({
-          key,
-          gridRow: layout.numColFacets + merge.start + 1,
-          gridCol: merge.level + 1,
-          content: merge.value,
-          cls: `row-header level-${merge.level}`,
-          sizeKey: merge.level,
-          extraStyles: {
-            rowspan: merge.span,
-            left: vs.rowFacetsLeftPositions[merge.level],
-            transform: "translate(0, calc(var(--offset-y)))",
-          },
-        });
-
-        this.#postRenderAdjustCellsPerLevel[merge.level].push(cell);
-      }
-    }
-
-    if (sliceData.data) {
-      const numDataColsVisible = sliceData.data.length;
-      const numDataRowsVisible = sliceData.data[0]?.length ?? 0;
-
-      for (let i = 0; i < numDataColsVisible; i++) {
-        const colData = sliceData.data[i] ?? [];
-        const gridCol = layout.numRowFacets + i + 1;
-        const sizeKey = layout.numRowFacets + vs.x0 + i;
-
-        for (let j = 0; j < numDataRowsVisible; j++) {
-          const key = `data-${vs.x0 + i}-${vs.y0 + j}`;
-          const value = colData[j] ?? "";
-
-          this.#placeCellInDom({
-            key,
-            gridRow: layout.numColFacets + j + 1,
-            gridCol,
-            content: String(value),
-            cls: "data",
-            sizeKey,
-            extraStyles: {},
-          });
-        }
-      }
-    }
+    // append all cells to the DOM in one go
+    this.#con.append(...nodeAppendList);
 
     for (const [key, cell] of this.#activeCells) {
       if (!this.#usedKeys.has(key)) {

@@ -289,7 +289,7 @@ export default class StandardLayout extends PLayout {
   ): { columns: string; rows: string } {
     return {
       columns: `repeat(${numRowFacets + numDataCols}, max-content)`,
-      rows: `repeat(${numColFacets}, ${this.rowHeightByType.facet}) repeat(${numDataRows}, ${this.rowHeightByType.data})`,
+      rows: `repeat(${numColFacets}, ${this.rowHeightByType.facet}px) repeat(${numDataRows}, ${this.rowHeightByType.data}px)`,
     };
   }
 }
