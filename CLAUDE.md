@@ -1,15 +1,15 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository. This repository creates a high performant js grid.
 
 ## Project Structure
 
-This is a yarn workspace with three packages:
+This is a yarn workspace with following packages:
 
-- **packages/utils**: Pure JavaScript library with utility functions (TypeScript compiled to CommonJS)
-- **packages/datamodel**: Business logic library that depends on utils (TypeScript compiled to CommonJS)
-- **packages/playground**: React web application that depends on datamodel (TypeScript + Webpack + React)
-- **packages/grid**: Grid / pivot table web component
+- **packages/utils**: Ignore for now
+- **packages/datamodel**: Ignore for now
+- **packages/playground**: React web application that creates playground where samples of grid can get created during development / demo
+- **packages/grid**: High peformant Grid / pivot table implementation
 
 ### Technology Stack
 - **utils**: TypeScript, ESLint
@@ -18,7 +18,14 @@ This is a yarn workspace with three packages:
 - **playground**: React 18, TypeScript, Webpack 5, ESLint
 
 ### Development Server
-The playground package runs a webpack-dev-server on port 3000 with hot reloading enabled.
+Already setup by the user and running. 
+
+## Grid
+
+- Grid supports a ViewModel architecture with with explicit control via controller. ./packages/grid/src/index.ts is the controller and also the entry point. 
+- It has a open closed architecture where even the core grid is rendered by registering various components. You can look at ./packages/grid/src/index.ts Grid.register call
+- So far the controller expect components to comply to following protocol found in ./packages/grid/src/core/*-proto.ts files
+- ./packages/playground/src/grid.tsx uses the grid library to render the grid
 
 ## Notes
 
@@ -27,5 +34,3 @@ The playground package runs a webpack-dev-server on port 3000 with hot reloading
 - All packages use TypeScript with strict mode enabled
 - The workspace uses yarn workspaces for dependency management
 - ESLint is configured but may need workspace-level configuration fixes
-- Playground package outputs to `dist/` directory with webpack
-- Utils and datamodel compile to `dist/` with TypeScript compiler
