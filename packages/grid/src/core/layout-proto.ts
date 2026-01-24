@@ -1,7 +1,6 @@
 import {GridConfig} from "../config";
 import {GridDataViewModel} from "../grid-data-viewmodel";
 import {ViewState} from "../types";
-import {RegionLayout} from "./layout/types";
 
 export abstract class PLayout {
   data: GridDataViewModel | undefined;
@@ -18,7 +17,5 @@ export abstract class PLayout {
   }
 
   abstract calculateViewState(): ViewState;
-
-  abstract calculateLayout(vs: ViewState): RegionLayout[];
 }
 

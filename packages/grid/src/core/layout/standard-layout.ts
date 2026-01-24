@@ -1,7 +1,6 @@
 import {GridDataViewModel} from "../../grid-data-viewmodel";
 import {ViewState} from "../../types";
 import {PLayout} from "../layout-proto";
-import {RegionLayout} from "./types";
 
 export default class StandardLayout extends PLayout {
   numRowFacets: number = 0;
@@ -217,68 +216,6 @@ export default class StandardLayout extends PLayout {
       rowFacetsLeftPositions: vsHorizontal.rowFacetsLeftPositions,
       colFacetsTopPositions: vsVertical.colFacetsTopPositions,
     }
-  }
-
-  calculateLayout(vs: ViewState): RegionLayout[] {
-    const numDataColsVisible = vs.x1 - vs.x0;
-    const numDataRowsVisible = vs.y1 - vs.y0;
-
-    const regions: RegionLayout[] = [];
-
-    // Corner region (if row facets exist i.e. pivot table is being drawn)
-    if (this.numRowFacets > 0 && this.numColFacets > 0) {
-      regions.push({
-        type: "corner",
-        gridArea: {
-          rowStart: 1,
-          rowEnd: this.numColFacets + 1,
-          colStart: 1,
-          colEnd: this.numRowFacets + 1,
-        },
-        cells: [],
-      });
-    }
-
-    if (this.numColFacets > 0) {
-      regions.push({
-        type: "colFacet",
-        gridArea: {
-          rowStart: 1,
-          rowEnd: this.numColFacets + 1,
-          colStart: this.numRowFacets + 1,
-          colEnd: this.numRowFacets + numDataColsVisible + 1,
-        },
-        cells: [],
-      });
-    }
-
-    // Row facet region
-    if (this.numRowFacets > 0) {
-      regions.push({
-        type: "rowFacet",
-        gridArea: {
-          rowStart: this.numColFacets + 1,
-          rowEnd: this.numColFacets + numDataRowsVisible + 1,
-          colStart: 1,
-          colEnd: this.numRowFacets + 1,
-        },
-        cells: [],
-      });
-    }
-
-    // Value region (always present)
-    regions.push({
-      type: "values",
-      gridArea: {
-        rowStart: this.numColFacets + 1,
-        rowEnd: this.numColFacets + numDataRowsVisible + 1,
-        colStart: this.numRowFacets + 1,
-        colEnd: this.numRowFacets + numDataColsVisible + 1,
-      },
-      cells: [],
-    });
-
-    return regions;
   }
 
   getGridTemplate(
