@@ -2,6 +2,7 @@ import {GridConfig} from "../../config";
 import {ViewState} from "../../types";
 import CellManager from "../cell-manager";
 import {PLayout} from "../layout-proto";
+import {WithCellPlacement} from "../renderer-base";
 import {PRenderer} from "../renderer-proto";
 import {gridCss, gridShadowElsStyle} from "./grid-css.tmp";
 import StandardLayout from "./standard-layout";
@@ -17,7 +18,9 @@ interface CellToMeasure {
   sizeKey: number;
 }
 
-export default class StandardLayoutRenderer extends PRenderer {
+const StandardLayoutRendererBase = WithCellPlacement(PRenderer);
+
+export default class StandardLayoutRenderer extends StandardLayoutRendererBase {
   #con: HTMLElement;
   #virtualPanelEl: HTMLElement;
   #gridClipEl: HTMLElement;
@@ -119,51 +122,6 @@ export default class StandardLayoutRenderer extends PRenderer {
     this.#cellsToMeasure = [];
   }
 
-  #placeCellInDom(opts: {
-    key: string;
-    sizeKey: number;
-    content: string;
-    cls: string;
-    gridRow: number;
-    gridCol: number;
-    extraStyles: {
-      colspan?: number;
-      rowspan?: number;
-      top?: number;
-      left?: number;
-      transform?: string;
-    };
-  }): [HTMLElement, boolean] {
-    const [cell, needAppend] = this.cellManager.acquire(opts.key);
-
-    cell.textContent = opts.content;
-    cell.className = "cell " + opts.cls;
-    cell.style.gridColumn = opts.extraStyles.colspan
-      ? `${opts.gridCol} / span ${opts.extraStyles.colspan}`
-      : `${opts.gridCol}`;
-    cell.style.gridRow = opts.extraStyles.rowspan
-      ? `${opts.gridRow} / span ${opts.extraStyles.rowspan}`
-      : `${opts.gridRow}`;
-
-    if (opts.extraStyles.top !== undefined) {
-      cell.style.top = `${opts.extraStyles.top}px`;
-    }
-    if (opts.extraStyles.left !== undefined) {
-      cell.style.left = `${opts.extraStyles.left}px`;
-    }
-    if (opts.extraStyles.transform !== undefined) {
-      cell.style.transform = opts.extraStyles.transform;
-    }
-
-    const isMerged = (opts.extraStyles.colspan && opts.extraStyles.colspan > 1) ||
-                     (opts.extraStyles.rowspan && opts.extraStyles.rowspan > 1);
-    if (opts.sizeKey !== undefined && !isMerged) {
-      this.#cellsToMeasure.push({ cell, sizeKey: opts.sizeKey });
-    }
-
-    return [cell, needAppend];
-  }
-
   #computeMerges(
     facetCount: number,
     itemCount: number,
@@ -259,20 +217,20 @@ export default class StandardLayoutRenderer extends PRenderer {
     for (let hRow = 0; hRow < layout.numColFacets; hRow++) {
       for (let hCol = 0; hCol < layout.numRowFacets; hCol++) {
         const key = `corner-${hRow}-${hCol}`;
-        const cell = this.#placeCellInDom({
+        const [cell, needAppend] = this.placeCellInDom({
           key,
           gridRow: hRow + 1,
           gridCol: hCol + 1,
           content: "",
           cls: `corner level-${hRow}${hCol === layout.numRowFacets - 1 ? " edge-r" : ""}${hRow === layout.numColFacets - 1 ? " edge-b" : ""}`,
-          sizeKey: hCol,
           extraStyles: {
             top: vs.colFacetsTopPositions[hRow],
             left: vs.rowFacetsLeftPositions[hCol],
           },
         });
-        cell[1] && nodeAppendList.push(cell[0]);
-        this.#postRenderAdjustCellsPerLevel[hCol].push(cell[0]);
+        needAppend && nodeAppendList.push(cell);
+        this.#cellsToMeasure.push({ cell, sizeKey: hCol });
+        this.#postRenderAdjustCellsPerLevel[hCol].push(cell);
       }
     }
 
@@ -280,40 +238,43 @@ export default class StandardLayoutRenderer extends PRenderer {
     for (const merge of merges) {
       const key = `col-h-${merge.level}-${vs.x0 + merge.start}`;
       const sizeKey = layout.numRowFacets + vs.x0 + merge.start;
-      const cell = this.#placeCellInDom({
+      const colspan = merge.span;
+      const [cell, needAppend] = this.placeCellInDom({
         key,
         gridRow: merge.level + 1,
         gridCol: layout.numRowFacets + merge.start + 1,
         content: merge.value,
         cls: `col-header level-${merge.level}`,
-        sizeKey,
         extraStyles: {
-          colspan: merge.span,
+          colspan,
           top: vs.colFacetsTopPositions[merge.level],
         },
       });
-      cell[1] && nodeAppendList.push(cell[0]);
+      needAppend && nodeAppendList.push(cell);
+      if (!(colspan && colspan > 1)) {
+        this.#cellsToMeasure.push({ cell, sizeKey });
+      }
     }
 
     merges.length = 0;
     merges = this.#computeMerges(layout.numRowFacets, numDataRowsVisible, sliceData.rowFacets!);
     for (const merge of merges) {
       const key = `row-h-${merge.level}-${vs.y0 + merge.start}`;
-      const cell = this.#placeCellInDom({
+      const [cell, needAppend] = this.placeCellInDom({
         key,
         gridRow: layout.numColFacets + merge.start + 1,
         gridCol: merge.level + 1,
         content: merge.value,
         cls: `row-header level-${merge.level}`,
-        sizeKey: merge.level,
         extraStyles: {
           rowspan: merge.span,
           left: vs.rowFacetsLeftPositions[merge.level],
           transform: merge.level === sliceData.rowFacets![0].length - 1 ? "" : "translate(0, calc(var(--offset-y)))",
         },
       });
-      cell[1] && nodeAppendList.push(cell[0]);
-      this.#postRenderAdjustCellsPerLevel[merge.level].push(cell[0]);
+      needAppend && nodeAppendList.push(cell);
+      this.#cellsToMeasure.push({ cell, sizeKey: merge.level });
+      this.#postRenderAdjustCellsPerLevel[merge.level].push(cell);
     }
 
     for (let i = 0; i < numDataColsVisible; i++) {
@@ -324,16 +285,16 @@ export default class StandardLayoutRenderer extends PRenderer {
       for (let j = 0; j < numDataRowsVisible; j++) {
         const key = `data-${vs.x0 + i}-${vs.y0 + j}`;
         const value = colData[j] ?? "";
-        const cell =  this.#placeCellInDom({
+        const [cell, needAppend] = this.placeCellInDom({
           key,
           gridRow: layout.numColFacets + j + 1,
           gridCol,
           content: String(value),
           cls: "data",
-          sizeKey,
           extraStyles: {},
         });
-        cell[1] && nodeAppendList.push(cell[0]);
+        needAppend && nodeAppendList.push(cell);
+        this.#cellsToMeasure.push({ cell, sizeKey });
       }
     }
 
