@@ -1,5 +1,6 @@
 import {GridDataViewModel} from "./grid-data-viewmodel";
 import { GridConfig, defaultConfig } from "./config";
+import CellManager from "./core/cell-manager";
 import {PLayout} from "./core/layout-proto";
 import {PRenderer} from "./core/renderer-proto";
 import {addToRegistry, getFromRegistry} from "./registry";
@@ -18,6 +19,7 @@ export type { ViewState, SliceResult } from "./types";
 export default class Grid {
   #config: GridConfig;
   #data: GridDataViewModel | undefined;
+  #cellManager: CellManager;
   #layout: PLayout;
   #renderer: PRenderer;
   #renderCount = 0;
@@ -36,8 +38,9 @@ export default class Grid {
       throw new Error(`No layout of type ${this.#config.layoutType} is present in the registry. Register one first by calling \`Grid.register(..., ..., ...)\`.`);
     }
 
+    this.#cellManager = new CellManager();
     this.#layout = new StandardLayout(this.#config, mountPoint);
-    this.#renderer = new StandardRenderer(this.#config, mountPoint, this.#layout);
+    this.#renderer = new StandardRenderer(this.#config, mountPoint, this.#layout, this.#cellManager);
   }
 
   set data(value: GridDataViewModel) {

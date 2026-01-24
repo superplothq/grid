@@ -1,5 +1,6 @@
 import {GridConfig} from "../../config";
 import {ViewState} from "../../types";
+import CellManager from "../cell-manager";
 import {PLayout} from "../layout-proto";
 import {PRenderer} from "../renderer-proto";
 import {gridCss, gridShadowElsStyle} from "./grid-css.tmp";
@@ -16,30 +17,6 @@ interface CellToMeasure {
   sizeKey: number;
 }
 
-class CellPool {
-  #pool: HTMLElement[] = [];
-
-  acquire(): HTMLElement {
-    if (this.#pool.length > 0) {
-      return this.#pool.pop()!;
-    }
-    const cell = document.createElement("div");
-    cell.className = "cell";
-    return cell;
-  }
-
-  release(cell: HTMLElement): void {
-    cell.className = "cell";
-    cell.style.cssText = "";
-    cell.textContent = "";
-    this.#pool.push(cell);
-  }
-
-  get size(): number {
-    return this.#pool.length;
-  }
-}
-
 export default class StandardLayoutRenderer extends PRenderer {
   #con: HTMLElement;
   #virtualPanelEl: HTMLElement;
@@ -49,14 +26,11 @@ export default class StandardLayoutRenderer extends PRenderer {
   #renderCount = 0;
   #layoutBootstrapped = false;
 
-  #cellPool: CellPool = new CellPool();
-  #activeCells: Map<string, HTMLElement> = new Map();
-  #usedKeys: Set<string> = new Set();
   #cellsToMeasure: CellToMeasure[] = [];
   #postRenderAdjustCellsPerLevel: HTMLElement[][] = [];
 
-  constructor(config: GridConfig, mountPoint: HTMLElement, layout: PLayout) {
-    super(config, mountPoint, layout);
+  constructor(config: GridConfig, mountPoint: HTMLElement, layout: PLayout, cellManager: CellManager) {
+    super(config, mountPoint, layout, cellManager);
 
     [this.#con, , this.#virtualPanelEl, this.#gridClipEl] = this.#attachShadowDom();
 
@@ -105,7 +79,6 @@ export default class StandardLayoutRenderer extends PRenderer {
   #setupScrollListener(): void {
     if (this.#scrollListenerSet) return;
     this.#scrollListenerSet = true;
-
     this.mountPoint.addEventListener("scroll", () => {
       if (this.#scrollRAF) return;
 
@@ -161,15 +134,7 @@ export default class StandardLayoutRenderer extends PRenderer {
       transform?: string;
     };
   }): [HTMLElement, boolean] {
-    this.#usedKeys.add(opts.key);
-    let cell = this.#activeCells.get(opts.key);
-    let needAppend = false;
-    if (!cell) {
-      cell = this.#cellPool.acquire();
-      this.#activeCells.set(opts.key, cell);
-      // this.#con.appendChild(cell);
-      needAppend = true;
-    }
+    const [cell, needAppend] = this.cellManager.acquire(opts.key);
 
     cell.textContent = opts.content;
     cell.className = "cell " + opts.cls;
@@ -283,7 +248,7 @@ export default class StandardLayoutRenderer extends PRenderer {
     this.#con.style.gridTemplateColumns = template.columns;
     this.#con.style.gridTemplateRows = template.rows;
 
-    this.#usedKeys.clear();
+    this.cellManager.beginFrame();
     this.#cellsToMeasure = [];
 
     for (let i = 0; i < layout.numRowFacets; i++) {
@@ -375,12 +340,10 @@ export default class StandardLayoutRenderer extends PRenderer {
     // append all cells to the DOM in one go
     this.#con.append(...nodeAppendList);
 
-    for (const [key, cell] of this.#activeCells) {
-      if (!this.#usedKeys.has(key)) {
-        this.#con.removeChild(cell);
-        this.#cellPool.release(cell);
-        this.#activeCells.delete(key);
-      }
+    // endFrame returns cells that were not used this render cycle - remove them from DOM but hold it in the pool
+    const cellsToRemove = this.cellManager.endFrame();
+    for (const cell of cellsToRemove) {
+      this.#con.removeChild(cell);
     }
 
     this.#autosizeCells();
