@@ -124,11 +124,6 @@ export default class StandardLayoutRenderer extends PRenderer {
     this.#con.style.setProperty("--offset-y", `${vs.offsetY}px`);
   }
 
-  #setGridTemplate(columns: string, rows: string): void {
-    this.#con.style.gridTemplateColumns = columns;
-    this.#con.style.gridTemplateRows = rows;
-  }
-
   #autosizeCells(): void {
     if (this.#cellsToMeasure.length === 0) return;
 
@@ -285,7 +280,8 @@ export default class StandardLayoutRenderer extends PRenderer {
       numDataColsVisible,
       numDataRowsVisible
     );
-    this.#setGridTemplate(template.columns, template.rows);
+    this.#con.style.gridTemplateColumns = template.columns;
+    this.#con.style.gridTemplateRows = template.rows;
 
     this.#usedKeys.clear();
     this.#cellsToMeasure = [];
