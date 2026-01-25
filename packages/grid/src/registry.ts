@@ -1,4 +1,4 @@
-import {ComponentClass, GridWin} from "./types";
+import {GridWin, Constructor} from "./types";
 
 const win = window  as unknown as GridWin;
 
@@ -9,10 +9,10 @@ if (!win.__dataflow_grid__) {
 }
 export const REGISTRY = win.__dataflow_grid__.registry;
 
-export function addToRegistry<T extends ComponentClass>(
+export function addToRegistry<T>(
   type: string,
   name: string,
-  cls: T
+  cls: Constructor<T>
 ): void {
   if (!REGISTRY.has(type)) {
     REGISTRY.set(type, new Map());
@@ -20,6 +20,6 @@ export function addToRegistry<T extends ComponentClass>(
   REGISTRY.get(type)!.set(name, cls);
 }
 
-export function getFromRegistry<T extends ComponentClass>(type: string, name: string): T | null {
-  return (REGISTRY.get(type)?.get(name) as T) ?? null;
+export function getFromRegistry<T>(type: string, name: string): Constructor<T> | null {
+  return (REGISTRY.get(type)?.get(name) as Constructor<T>) ?? null;
 }

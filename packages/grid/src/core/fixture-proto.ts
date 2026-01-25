@@ -2,6 +2,7 @@ import {GridConfig} from "../config";
 import {GridDataViewModel} from "../grid-data-viewmodel";
 import CellManager from "./cell-manager";
 
+
 export default abstract class PFixture {
   data: GridDataViewModel | undefined;
   config: GridConfig;

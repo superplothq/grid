@@ -1,6 +1,6 @@
-export type ComponentClass = new (...args: any[]) => any;
+export type Constructor<T> = new (...args: any[]) => T;
 
-export type Registry = Map<string, Map<string, ComponentClass>>;
+export type Registry = Map<string, Map<string, Object>>;
 
 export type GridWin = Window & {
   __dataflow_grid__: {
@@ -16,6 +16,7 @@ export interface SliceResult {
   data?: any[][];
 }
 
+// TODO specific to registered component. Make it part of the component.
 export interface ViewState {
   x0: number;
   y0: number;

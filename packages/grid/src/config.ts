@@ -1,7 +1,6 @@
 import {LayoutFixtures} from "./types";
 
 export const REG_TYPE_LAYOUT = "layout";
-export const REG_TYPE_RENDERER = "renderer";
 export const REG_TYPE_FIXTURE = "fixture";
 export const REG_NAME_STD = "std";
 export const REG_NAME_ROW_FACETS = "row-facets";
