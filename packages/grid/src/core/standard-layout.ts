@@ -43,12 +43,6 @@ interface CellToMeasure {
 const StandardLayoutBase = WithCellPlacement(PLayout);
 
 export default class StandardLayout extends StandardLayoutBase {
-  // TODO get this information from data everytime. don't save it to layout instance, it complicates the code in view
-  // state calculation
-  numRowFacetLevels: number = 0;
-  numColFacetLevels: number = 0;
-  numRows = 0;
-  numCols = 0;
   // all column can be of different sizes hence those are tracked based on column indices
   colsWidth: { indices: number[]; override: number[] } = {
     indices: [],
@@ -216,7 +210,7 @@ export default class StandardLayout extends StandardLayoutBase {
     let width = 0;
     let count = 0;
 
-    while (width < viewWidth && startCol + count < this.numCols) {
+    while (width < viewWidth && startCol + count < this.data!.numCols) {
       width += this.getColumnWidth(rowHeaderCount + startCol + count);
       count++;
     }
@@ -226,13 +220,6 @@ export default class StandardLayout extends StandardLayoutBase {
 
   setData(data: GridDataViewModel): void {
     super.setData(data);
-
-    const slice = this.data!.getSlice(0, 0, 0, 0);
-    // these are total number of rows and columns (not slice's rows and cols)
-    this.numRows = slice.numRows;
-    this.numCols = slice.numCols;
-    this.numRowFacetLevels = data.numRowFacetLevels;
-    this.numColFacetLevels = data.numColFacetLevels;
   }
 
   calculateVerticalViewModel() {
@@ -242,8 +229,8 @@ export default class StandardLayout extends StandardLayoutBase {
     // if there are 3 header facets then there would be 3 rows created for it
     // hence that's the total height of header
     const heightPerFacetRow = this.rowHeightByType.facet;
-    const colFacetsHeight = this.numColFacetLevels * heightPerFacetRow;
-    const dataHeight = this.numRows * this.rowHeightByType.data;
+    const colFacetsHeight = this.data!.numColFacetLevels * heightPerFacetRow;
+    const dataHeight = this.data!.numRows * this.rowHeightByType.data;
     // total width of the grid if it was rendered fully
     // this value will be used to calculate scroll position there by setting dimension of virtual-panel
     const totalHeight = colFacetsHeight + dataHeight;
@@ -268,17 +255,17 @@ export default class StandardLayout extends StandardLayoutBase {
     // 0.5 (middle)    90 × 0.5 = 45   45–54
     // 1 (bottom)      90 × 1 = 90     90–99
     // It's mapping the scroll percentage (0–1) to the valid range of starting rows (0–90).
-    const scrollableRows  = Math.max(0, this.numRows - Math.floor(visibleDataHeight / this.rowHeightByType.data));
+    const scrollableRows  = Math.max(0, this.data!.numRows - Math.floor(visibleDataHeight / this.rowHeightByType.data));
 
     const startRowFloat = scrollableRows * scrollPercent;
     const startRow = Math.floor(startRowFloat);
     const visibleRows = Math.ceil(visibleDataHeight / this.rowHeightByType.data) + this.config.overscan;
-    const endRow = Math.min(this.numRows, startRow + visibleRows);
+    const endRow = Math.min(this.data!.numRows, startRow + visibleRows);
     const offsetY = (startRowFloat - startRow) * this.rowHeightByType.data;
 
     const colFacetsTopPositions: number[] = [];
     const facetRowHeight = this.getRowHeight("facet");
-    for (let i = 0; i < this.numColFacetLevels; i++) {
+    for (let i = 0; i < this.data!.numColFacetLevels; i++) {
       colFacetsTopPositions.push(i * facetRowHeight);
     }
 
@@ -304,8 +291,8 @@ export default class StandardLayout extends StandardLayoutBase {
     //   ____ ____ rf43 ... ...
     //   1. For config like this if rf12 is overflowing it can wrap it's content
     //   2. Individual row facet might have it's own maxWidth
-    const rowFacetsWidth = this.getColWidthTillIdx(this.numRowFacetLevels);
-    const totalWidth = this.getColWidthTillIdx(this.numRowFacetLevels + this.numCols);
+    const rowFacetsWidth = this.getColWidthTillIdx(this.data!.numRowFacetLevels);
+    const totalWidth = this.getColWidthTillIdx(this.data!.numRowFacetLevels + this.data!.numCols);
     const scrollableWidth = Math.max(1, totalWidth - viewWidth);
     const scrollPercentX = Math.min(1, scrollLeft / scrollableWidth);
     /*
@@ -335,25 +322,25 @@ export default class StandardLayout extends StandardLayoutBase {
      */
     const visibleDataWidth = viewWidth - rowFacetsWidth;
     let maxScrollWidth = 0;
-    let maxScrollCol = this.numCols;
+    let maxScrollCol = this.data!.numCols;
     let lastColWidth = -1;
     while (maxScrollWidth < visibleDataWidth && maxScrollCol > 0) {
       maxScrollCol--;
-      lastColWidth =  this.getColumnWidth(this.numRowFacetLevels + maxScrollCol);
+      lastColWidth =  this.getColumnWidth(this.data!.numRowFacetLevels + maxScrollCol);
       maxScrollWidth += lastColWidth;
     }
-    maxScrollCol = Math.min(this.numCols - 1, maxScrollCol + ((maxScrollWidth - visibleDataWidth)) / lastColWidth);
+    maxScrollCol = Math.min(this.data!.numCols - 1, maxScrollCol + ((maxScrollWidth - visibleDataWidth)) / lastColWidth);
 
     const startColFloat = maxScrollCol * scrollPercentX;
     const startCol = Math.floor(startColFloat);
-    const visibleCols = this.calcNumVisibleColumns(startCol, visibleDataWidth, this.numRowFacetLevels);
-    const endCol = Math.min(this.numCols, startCol + visibleCols);
+    const visibleCols = this.calcNumVisibleColumns(startCol, visibleDataWidth, this.data!.numRowFacetLevels);
+    const endCol = Math.min(this.data!.numCols, startCol + visibleCols);
 
-    const startColWidth = this.getColumnWidth(this.numRowFacetLevels + startCol);
+    const startColWidth = this.getColumnWidth(this.data!.numRowFacetLevels + startCol);
     const offsetX = (startColFloat - startCol) * startColWidth;
 
     const rowFacetsLeftPositions = [0];
-    for (let i = 0; i < this.numRowFacetLevels - 1; i++) {
+    for (let i = 0; i < this.data!.numRowFacetLevels - 1; i++) {
       rowFacetsLeftPositions.push(
         rowFacetsLeftPositions[i] + this.getColumnWidth(i)
       );
@@ -506,8 +493,8 @@ export default class StandardLayout extends StandardLayoutBase {
     const sliceData = this.data.getSlice(vs.x0, vs.y0, vs.x1, vs.y1);
 
     const template = this.getGridTemplate(
-      this.numRowFacetLevels,
-      this.numColFacetLevels,
+      this.data!.numRowFacetLevels,
+      this.data!.numColFacetLevels,
       numDataColsVisible,
       numDataRowsVisible
     );
@@ -517,20 +504,20 @@ export default class StandardLayout extends StandardLayoutBase {
     this.cellManager.beginFrame();
     this.#cellsToMeasure = [];
 
-    for (let i = 0; i < this.numRowFacetLevels; i++) {
+    for (let i = 0; i < this.data!.numRowFacetLevels; i++) {
       this.#postRenderAdjustCellsPerLevel.push([]);
     }
 
     let nodeAppendList = [];
-    for (let hRow = 0; hRow < this.numColFacetLevels; hRow++) {
-      for (let hCol = 0; hCol < this.numRowFacetLevels; hCol++) {
+    for (let hRow = 0; hRow < this.data!.numColFacetLevels; hRow++) {
+      for (let hCol = 0; hCol < this.data!.numRowFacetLevels; hCol++) {
         const key = `corner-${hRow}-${hCol}`;
         const [cell, needAppend] = this.placeCellInDom({
           key,
           gridRow: hRow + 1,
           gridCol: hCol + 1,
           content: "",
-          cls: `corner level-${hRow}${hCol === this.numRowFacetLevels - 1 ? " edge-r" : ""}${hRow === this.numColFacetLevels - 1 ? " edge-b" : ""}`,
+          cls: `corner level-${hRow}${hCol === this.data!.numRowFacetLevels - 1 ? " edge-r" : ""}${hRow === this.data!.numColFacetLevels - 1 ? " edge-b" : ""}`,
           extraStyles: {
             top: vs.colFacetsTopPositions[hRow],
             left: vs.rowFacetsLeftPositions[hCol],
@@ -542,15 +529,15 @@ export default class StandardLayout extends StandardLayoutBase {
       }
     }
 
-    let merges = this.#computeMerges(this.numColFacetLevels, numDataColsVisible, sliceData.columnFacets!);
+    let merges = this.#computeMerges(this.data!.numColFacetLevels, numDataColsVisible, sliceData.columnFacets!);
     for (const merge of merges) {
       const key = `col-h-${merge.level}-${vs.x0 + merge.start}`;
-      const sizeKey = this.numRowFacetLevels + vs.x0 + merge.start;
+      const sizeKey = this.data!.numRowFacetLevels + vs.x0 + merge.start;
       const colspan = merge.span;
       const [cell, needAppend] = this.placeCellInDom({
         key,
         gridRow: merge.level + 1,
-        gridCol: this.numRowFacetLevels + merge.start + 1,
+        gridCol: this.data!.numRowFacetLevels + merge.start + 1,
         content: merge.value,
         cls: `col-header level-${merge.level}`,
         extraStyles: {
@@ -565,12 +552,12 @@ export default class StandardLayout extends StandardLayoutBase {
     }
 
     merges.length = 0;
-    merges = this.#computeMerges(this.numRowFacetLevels, numDataRowsVisible, sliceData.rowFacets!);
+    merges = this.#computeMerges(this.data!.numRowFacetLevels, numDataRowsVisible, sliceData.rowFacets!);
     for (const merge of merges) {
       const key = `row-h-${merge.level}-${vs.y0 + merge.start}`;
       const [cell, needAppend] = this.placeCellInDom({
         key,
-        gridRow: this.numColFacetLevels + merge.start + 1,
+        gridRow: this.data!.numColFacetLevels + merge.start + 1,
         gridCol: merge.level + 1,
         content: merge.value,
         cls: `row-header level-${merge.level}`,
@@ -587,15 +574,15 @@ export default class StandardLayout extends StandardLayoutBase {
 
     for (let i = 0; i < numDataColsVisible; i++) {
       const colData = sliceData.data ? sliceData.data[i] ?? [] : [];
-      const gridCol = this.numRowFacetLevels + i + 1;
-      const sizeKey = this.numRowFacetLevels + vs.x0 + i;
+      const gridCol = this.data!.numRowFacetLevels + i + 1;
+      const sizeKey = this.data!.numRowFacetLevels + vs.x0 + i;
 
       for (let j = 0; j < numDataRowsVisible; j++) {
         const key = `data-${vs.x0 + i}-${vs.y0 + j}`;
         const value = colData[j] ?? "";
         const [cell, needAppend] = this.placeCellInDom({
           key,
-          gridRow: this.numColFacetLevels + j + 1,
+          gridRow: this.data!.numColFacetLevels + j + 1,
           gridCol,
           content: String(value),
           cls: "data",

@@ -25,6 +25,14 @@ export class GridDataViewModel {
     return this.#colFacets.length; // multiple level of cols i.e. facets are present
   }
 
+  get numRows() {
+    return this.#numRows;
+  }
+
+  get numCols() {
+    return this.#numCols;
+  }
+
   // TODO this can be optimized since this sits in the hot path of every render cycle
   //      we can operate using just pointers.
   getSlice(x0: number, y0: number, x1: number, y1: number): SliceResult {
