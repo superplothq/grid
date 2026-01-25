@@ -16,15 +16,17 @@ export class GridDataViewModel {
     this.#data = data;
   }
 
-  get numRowFacets() {
+  get numRowFacetLevels() {
     return this.#rowFacets?.length ?? 0;
   }
 
-  get numColFacets() {
+  get numColFacetLevels() {
     if (!(this.#colFacets[0] instanceof Array)) return 1; // Regular table with one level of columns
     return this.#colFacets.length; // multiple level of cols i.e. facets are present
   }
 
+  // TODO this can be optimized since this sits in the hot path of every render cycle
+  //      we can operate using just pointers.
   getSlice(x0: number, y0: number, x1: number, y1: number): SliceResult {
     if (x0 === x1 && y0 === y1) {
       return {
@@ -47,10 +49,10 @@ export class GridDataViewModel {
     }
 
     const rowFacets: string[][] = [];
-    if (this.numRowFacets) {
+    if (this.numRowFacetLevels) {
       for (let y = y0; y < y1; y++) {
         const facets: string[] = [];
-        for (let level = 0; level < this.numRowFacets; level++) {
+        for (let level = 0; level < this.numRowFacetLevels; level++) {
           facets.push(this.#rowFacets![level][y] || "");
         }
         rowFacets.push(facets);

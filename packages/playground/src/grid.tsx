@@ -201,7 +201,7 @@ const GridPlayground: React.FC = () => {
       gridRef.current = new Grid({}, gridConRef.current);
     }
 
-    console.log("Generated data:", { totalRows, totalCols, rowFacets: rowFacetRowMajor, colFacets: colFacetColMajor, data });
+    console.log("Generated data:", { totalRows, totalCols, rowFacets: rowFacetLevelMajor, colFacets: colFacetLevelMajor, data });
     gridRef.current.data = new GridDataViewModel(data, colFacetLevelMajor, rowFacetLevelMajor);
     gridRef.current.draw();
   };
