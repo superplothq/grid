@@ -2,11 +2,13 @@ import {GridConfig} from "../config";
 import {GridDataViewModel} from "../grid-data-viewmodel";
 import CellManager from "./cell-manager";
 
-export interface BaseViewModel {
+export interface BaseLayoutViewModel {
   x0: number;
   y0: number;
   x1: number;
   y1: number;
+  totalHeight: number;
+  totalWidth: number;
 }
 
 export default abstract class PLayout {
@@ -26,8 +28,8 @@ export default abstract class PLayout {
     this.data = data;
   }
 
-  abstract calculateViewModel(): BaseViewModel;
+  abstract viewModel(): BaseLayoutViewModel;
 
-  abstract render(viewModel: BaseViewModel): void;
+  abstract render(viewModel: BaseLayoutViewModel): void;
 }
 

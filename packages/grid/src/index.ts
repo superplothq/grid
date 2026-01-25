@@ -48,7 +48,7 @@ export default class Grid {
 
     if (!this.#data) throw new Error("Data is not set!");
 
-    const viewModel = this.#layout.calculateViewModel();
+    const viewModel = this.#layout.viewModel();
     this.#layout.render(viewModel);
   }
 

@@ -2,18 +2,16 @@ import {GridConfig, REG_TYPE_FIXTURE} from "../config";
 import {GridDataViewModel} from "../grid-data-viewmodel";
 import {getFromRegistry} from "../registry";
 import {Constructor} from "../types";
-import PLayout, {BaseViewModel} from "./layout-proto";
+import PLayout, {BaseLayoutViewModel} from "./layout-proto";
 
 import PFixture, {PHorizontalFixture, PVerticalFixture} from "./fixture-proto";
 import {gridCss, gridShadowElsStyle} from "./grid-css.tmp";
 import {WithCellPlacement} from "./mixins";
 import CellManager from "./cell-manager";
 
-export interface ViewModel extends BaseViewModel {
+export interface StandardLayoutViewModel extends BaseLayoutViewModel {
   offsetX: number;
   offsetY: number;
-  totalHeight: number;
-  totalWidth: number;
   rowFacetsWidth: number;
   colFacetsHeight: number;
   rowFacetsLeftPositions: number[];
@@ -25,8 +23,8 @@ interface Fixtures {
   left?: PFixture[];
   bottom?: PFixture[];
   right?: PFixture[];
-  columnFacetsFixtureCls: Constructor<PFixture>;
-  rowFacetsFixtureCls: Constructor<PFixture>;
+  ColumnFacetsFixtureCls: Constructor<PFixture>;
+  RowFacetsFixtureCls: Constructor<PFixture>;
 }
 
 interface MergeState {
@@ -55,7 +53,7 @@ export default class StandardLayout extends StandardLayoutBase {
     facet: 0,
     data: 0,
   }
-  #fixtures: Fixtures | null = null;
+  #fixtures: Fixtures;
   #con: HTMLElement;
   #virtualPanelEl: HTMLElement;
   #gridClipEl: HTMLElement;
@@ -123,20 +121,24 @@ export default class StandardLayout extends StandardLayoutBase {
 
       this.#scrollRAF = requestAnimationFrame(() => {
         this.#scrollRAF = null;
-        const vs = this.calculateViewModel();
+        const vs = this.viewModel();
         this.render(vs);
       });
     });
   }
 
+  // Validation rules:
+  // 1. top and bottom fixetures need to implement PVerticalFixture
+  // 2. left and right fixetures need to implement PHorizontalFixture
+  // 3. Must be one columnFacetsFixture and atmost one rowFacetsFixture should be present
   #validateFixtures(): Fixtures {
-    const columnFacetsFixtureCls = getFromRegistry<PFixture>(REG_TYPE_FIXTURE, this.config.columnFacetsFixtureType);
-    if (!(columnFacetsFixtureCls && columnFacetsFixtureCls.prototype instanceof PVerticalFixture)) {
-      throw new Error(`Error in fixture for column facet ${columnFacetsFixtureCls?.name}. Must implement ${PVerticalFixture.name}`);
+    const ColumnFacetsFixtureCls = getFromRegistry<PFixture>(REG_TYPE_FIXTURE, this.config.columnFacetsFixtureType);
+    if (!(ColumnFacetsFixtureCls && ColumnFacetsFixtureCls.prototype instanceof PVerticalFixture)) {
+      throw new Error(`Error in fixture for column facet ${ColumnFacetsFixtureCls?.name}. Must implement ${PVerticalFixture.name}`);
     }
-    const rowFacetsFixtureCls = getFromRegistry<PFixture>(REG_TYPE_FIXTURE, this.config.rowFacetsFixtureType);
-    if (!(rowFacetsFixtureCls && rowFacetsFixtureCls.prototype instanceof PHorizontalFixture)) {
-      throw new Error(`Error in fixture for row facet ${rowFacetsFixtureCls?.name}. Must implement ${PHorizontalFixture.name}`);
+    const RowFacetsFixtureCls = getFromRegistry<PFixture>(REG_TYPE_FIXTURE, this.config.rowFacetsFixtureType);
+    if (!(RowFacetsFixtureCls && RowFacetsFixtureCls.prototype instanceof PHorizontalFixture)) {
+      throw new Error(`Error in fixture for row facet ${RowFacetsFixtureCls?.name}. Must implement ${PHorizontalFixture.name}`);
     }
 
     const validatedFixtures: Fixtures = {
@@ -144,8 +146,8 @@ export default class StandardLayout extends StandardLayoutBase {
       right: [],
       top: [],
       bottom: [],
-      columnFacetsFixtureCls,
-      rowFacetsFixtureCls
+      ColumnFacetsFixtureCls: ColumnFacetsFixtureCls,
+      RowFacetsFixtureCls: RowFacetsFixtureCls
     }
     const layoutFixtures = this.config.layoutFixtures;
     let numColFacetFixtureImpl = 0;
@@ -153,26 +155,26 @@ export default class StandardLayout extends StandardLayoutBase {
     for (const type of ["top", "left", "bottom", "right"] as const) {
       const fixtureNames = layoutFixtures[type];
       for (const fixtureName of fixtureNames ?? []) {
-        const fixtureCls = getFromRegistry(REG_TYPE_FIXTURE, fixtureName);
-        if (!fixtureCls) {
+        const FixtureCls = getFromRegistry(REG_TYPE_FIXTURE, fixtureName);
+        if (!FixtureCls) {
           throw new Error(`Can't find entry in registery. Name ${fixtureName} of type ${REG_TYPE_FIXTURE}. Register one first by calling \`Grid.register(..., ..., ...)\`.`);
         }
 
-        const fixture = new fixtureCls();
+        const fixture = new FixtureCls();
         switch (type) {
         case "top":
         case "bottom":
           if (!(fixture instanceof PVerticalFixture)) {
             throw new Error(`${type} fixture ${fixtureName} must implement ${PVerticalFixture.name}`)
           }
-          if (fixture instanceof columnFacetsFixtureCls) numColFacetFixtureImpl++;
+          if (fixture instanceof ColumnFacetsFixtureCls) numColFacetFixtureImpl++;
           break;
         case "left":
         case "right":
           if (!(fixture instanceof PVerticalFixture)) {
             throw new Error(`${type} fixture ${fixtureName} must implement ${PHorizontalFixture.name}`)
           }
-          if (fixture instanceof rowFacetsFixtureCls) numRowFacetFixtureImpl++;
+          if (fixture instanceof RowFacetsFixtureCls) numRowFacetFixtureImpl++;
           break;
         }
 
@@ -183,8 +185,8 @@ export default class StandardLayout extends StandardLayoutBase {
     if (numColFacetFixtureImpl !== 1) {
       throw new Error(`There must be exactly one column facet fixture. Found ${numColFacetFixtureImpl}`);
     }
-    if (numRowFacetFixtureImpl !== 1) {
-      throw new Error(`There must be exactly one row facet fixture. Found ${numRowFacetFixtureImpl}`);
+    if (numRowFacetFixtureImpl > 1) {
+      throw new Error(`There must be atmost one row facet fixtures. Found ${numRowFacetFixtureImpl}`);
     }
 
     return validatedFixtures;
@@ -222,7 +224,7 @@ export default class StandardLayout extends StandardLayoutBase {
     super.setData(data);
   }
 
-  calculateVerticalViewModel() {
+  verticalViewModel() {
     const scrollTop = this.mountPoint.scrollTop;
     const viewHeight = this.mountPoint.clientHeight;
 
@@ -280,7 +282,7 @@ export default class StandardLayout extends StandardLayoutBase {
     }
   }
 
-  calculateHorizontalViewModel() {
+  horizontalViewModel() {
     const scrollLeft = this.mountPoint.scrollLeft;
     const viewWidth = this.mountPoint.clientWidth;
 
@@ -357,11 +359,11 @@ export default class StandardLayout extends StandardLayoutBase {
     }
   }
 
-  calculateViewModel(): ViewModel {
+  viewModel(): StandardLayoutViewModel {
     if (!this.data) throw new Error("Data is not set!");
 
-    const vsVertical = this.calculateVerticalViewModel();
-    const vsHorizontal = this.calculateHorizontalViewModel();
+    const vsVertical = this.verticalViewModel();
+    const vsHorizontal = this.horizontalViewModel();
 
     return {
       x0: vsHorizontal.startCol,
@@ -391,7 +393,7 @@ export default class StandardLayout extends StandardLayoutBase {
     };
   }
 
-  #updateVirtualPanel(vs: ViewModel): void {
+  #updateVirtualPanel(vs: StandardLayoutViewModel): void {
     this.#virtualPanelEl.style.width = `${vs.totalWidth}px`;
     this.#virtualPanelEl.style.height = `${vs.totalHeight}px`;
     this.#con.style.setProperty("--offset-x", `${vs.offsetX}px`);
@@ -470,7 +472,7 @@ export default class StandardLayout extends StandardLayoutBase {
     return results;
   }
 
-  #onLayoutBootstrap(viewModel: ViewModel): void {
+  #onLayoutBootstrap(viewModel: StandardLayoutViewModel): void {
     this.#updateVirtualPanel(viewModel);
 
     for (let i = 0; i < this.#postRenderAdjustCellsPerLevel.length; i++) {
@@ -482,7 +484,7 @@ export default class StandardLayout extends StandardLayoutBase {
     }
   }
 
-  render(vs: ViewModel): void {
+  render(vs: StandardLayoutViewModel): void {
     if (!this.data) throw new Error("Data is not set!");
     this.#renderCount++;
 
@@ -607,7 +609,7 @@ export default class StandardLayout extends StandardLayoutBase {
 
     if (!this.#layoutBootstrapped) {
       this.#layoutBootstrapped = true;
-      const vsUpdated = this.calculateViewModel();
+      const vsUpdated = this.viewModel();
       this.#onLayoutBootstrap(vsUpdated);
     }
 
