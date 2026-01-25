@@ -9,7 +9,7 @@ import StandardLayout from "./core/standard-layout";
 export { StandardLayout };
 export { GridConfig, defaultConfig } from "./config";
 export { PLayout, GridDataViewModel };
-export type { BaseViewModel as BaseViewState } from "./core/layout-proto";
+export type { BaseLayoutViewModel as BaseViewState } from "./core/layout-proto";
 export type { SliceResult } from "./types";
 
 export default class Grid {

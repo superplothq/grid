@@ -68,7 +68,7 @@ export default class StandardLayout extends StandardLayoutBase {
   constructor(config: GridConfig, mountPoint: HTMLElement, cellManager: CellManager) {
     super(config, mountPoint, cellManager);
 
-    // this.#fixtures = this.#validateFixtures();
+    this.#fixtures = this.#validateFixtures();
     [this.#con, , this.#virtualPanelEl, this.#gridClipEl] = this.#attachShadowDom();
     this.#measureRowHeight();
 

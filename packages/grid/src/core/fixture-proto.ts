@@ -16,6 +16,8 @@ export default abstract class PFixture {
     this.data = data;
   }
 
+  abstract viewModelKey(): string;
+
   abstract getElsToRender(): HTMLElement[];
 }
 
