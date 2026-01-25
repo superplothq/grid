@@ -1,13 +1,24 @@
 import {GridConfig, REG_TYPE_FIXTURE} from "../config";
 import {GridDataViewModel} from "../grid-data-viewmodel";
 import {getFromRegistry} from "../registry";
-import {ViewState, Constructor} from "../types";
-import PLayout from "./layout-proto";
+import {Constructor} from "../types";
+import PLayout, {BaseViewModel} from "./layout-proto";
+
 import PFixture, {PHorizontalFixture, PVerticalFixture} from "./fixture-proto";
 import {gridCss, gridShadowElsStyle} from "./grid-css.tmp";
 import {WithCellPlacement} from "./mixins";
 import CellManager from "./cell-manager";
 
+export interface ViewModel extends BaseViewModel {
+  offsetX: number;
+  offsetY: number;
+  totalHeight: number;
+  totalWidth: number;
+  rowFacetsWidth: number;
+  colFacetsHeight: number;
+  rowFacetsLeftPositions: number[];
+  colFacetsTopPositions: number[];
+}
 
 interface Fixtures {
   top?: PFixture[];
@@ -118,7 +129,7 @@ export default class StandardLayout extends StandardLayoutBase {
 
       this.#scrollRAF = requestAnimationFrame(() => {
         this.#scrollRAF = null;
-        const vs = this.calculateViewState();
+        const vs = this.calculateViewModel();
         this.render(vs);
       });
     });
@@ -224,7 +235,7 @@ export default class StandardLayout extends StandardLayoutBase {
     this.numColFacets = data.numColFacets;
   }
 
-  calculateVerticalViewState() {
+  calculateVerticalViewModel() {
     const scrollTop = this.mountPoint.scrollTop;
     const viewHeight = this.mountPoint.clientHeight;
 
@@ -282,7 +293,7 @@ export default class StandardLayout extends StandardLayoutBase {
     }
   }
 
-  calculateHorizontalViewState() {
+  calculateHorizontalViewModel() {
     const scrollLeft = this.mountPoint.scrollLeft;
     const viewWidth = this.mountPoint.clientWidth;
 
@@ -359,11 +370,11 @@ export default class StandardLayout extends StandardLayoutBase {
     }
   }
 
-  calculateViewState(): ViewState {
+  calculateViewModel(): ViewModel {
     if (!this.data) throw new Error("Data is not set!");
 
-    const vsVertical = this.calculateVerticalViewState();
-    const vsHorizontal = this.calculateHorizontalViewState();
+    const vsVertical = this.calculateVerticalViewModel();
+    const vsHorizontal = this.calculateHorizontalViewModel();
 
     return {
       x0: vsHorizontal.startCol,
@@ -393,7 +404,7 @@ export default class StandardLayout extends StandardLayoutBase {
     };
   }
 
-  #updateVirtualPanel(vs: ViewState): void {
+  #updateVirtualPanel(vs: ViewModel): void {
     this.#virtualPanelEl.style.width = `${vs.totalWidth}px`;
     this.#virtualPanelEl.style.height = `${vs.totalHeight}px`;
     this.#con.style.setProperty("--offset-x", `${vs.offsetX}px`);
@@ -472,19 +483,19 @@ export default class StandardLayout extends StandardLayoutBase {
     return results;
   }
 
-  #onLayoutBootstrap(vs: ViewState): void {
-    this.#updateVirtualPanel(vs);
+  #onLayoutBootstrap(viewModel: ViewModel): void {
+    this.#updateVirtualPanel(viewModel);
 
     for (let i = 0; i < this.#postRenderAdjustCellsPerLevel.length; i++) {
       const cells = this.#postRenderAdjustCellsPerLevel[i];
       for (let j = 0; j < cells.length; j++) {
         const cell = cells[j];
-        cell.style.left = `${vs.rowFacetsLeftPositions[i]}px`;
+        cell.style.left = `${viewModel.rowFacetsLeftPositions[i]}px`;
       }
     }
   }
 
-  render(vs: ViewState): void {
+  render(vs: ViewModel): void {
     if (!this.data) throw new Error("Data is not set!");
     this.#renderCount++;
 
@@ -609,7 +620,7 @@ export default class StandardLayout extends StandardLayoutBase {
 
     if (!this.#layoutBootstrapped) {
       this.#layoutBootstrapped = true;
-      const vsUpdated = this.calculateViewState();
+      const vsUpdated = this.calculateViewModel();
       this.#onLayoutBootstrap(vsUpdated);
     }
 

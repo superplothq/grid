@@ -9,7 +9,8 @@ import StandardLayout from "./core/standard-layout";
 export { StandardLayout };
 export { GridConfig, defaultConfig } from "./config";
 export { PLayout, GridDataViewModel };
-export type { ViewState, SliceResult } from "./types";
+export type { BaseViewModel as BaseViewState } from "./core/layout-proto";
+export type { SliceResult } from "./types";
 
 export default class Grid {
   #config: GridConfig;
@@ -47,8 +48,8 @@ export default class Grid {
 
     if (!this.#data) throw new Error("Data is not set!");
 
-    const vs = this.#layout.calculateViewState();
-    this.#layout.render(vs);
+    const viewModel = this.#layout.calculateViewModel();
+    this.#layout.render(viewModel);
   }
 
   static register<T>(type: string, name: string, cls: Constructor<T>): void {

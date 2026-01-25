@@ -1,7 +1,13 @@
 import {GridConfig} from "../config";
 import {GridDataViewModel} from "../grid-data-viewmodel";
-import {ViewState} from "../types";
 import CellManager from "./cell-manager";
+
+export interface BaseViewModel {
+  x0: number;
+  y0: number;
+  x1: number;
+  y1: number;
+}
 
 export default abstract class PLayout {
   data: GridDataViewModel | undefined;
@@ -20,10 +26,8 @@ export default abstract class PLayout {
     this.data = data;
   }
 
-  // TODO the ViewState value should generic. If a different layout to be registered, it expectes the same viewstate
-  // which is not correct
-  abstract calculateViewState(): ViewState;
+  abstract calculateViewModel(): BaseViewModel;
 
-  abstract render(viewState: ViewState): void;
+  abstract render(viewModel: BaseViewModel): void;
 }
 
