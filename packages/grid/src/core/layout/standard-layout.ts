@@ -1,14 +1,27 @@
+import {GridConfig, REG_TYPE_FIXTURE} from "../../config";
 import {GridDataViewModel} from "../../grid-data-viewmodel";
+import {getFromRegistry} from "../../registry";
 import {ViewState} from "../../types";
-import {PLayout} from "../layout-proto";
+import PLayout from "../layout-proto";
+import PFixture, {PHorizontalFixture, PVerticalFixture} from "../fixture-proto";
+
+interface Fixtures {
+  top?: PFixture[];
+  left?: PFixture[];
+  bottom?: PFixture[];
+  right?: PFixture[];
+  columnFacetsFixtureCls: PFixture;
+  rowFacetsFixtureCls: PFixture;
+}
 
 export default class StandardLayout extends PLayout {
+  // TODO get this information from data everytime. don't save it to layout instance, it complicates the code in view
+  // state calculation
   numRowFacets: number = 0;
   numColFacets: number = 0;
   numRows = 0;
   numCols = 0;
-  // all column can be of different sizes hence those are tracked based on
-  // column indices
+  // all column can be of different sizes hence those are tracked based on column indices
   colsWidth: { indices: number[]; override: number[] } = {
     indices: [],
     override: [],
@@ -19,6 +32,73 @@ export default class StandardLayout extends PLayout {
   rowHeightByType = {
     facet: 0,
     data: 0,
+  }
+  #fixtures: Fixtures;
+  
+  constructor(config: GridConfig, mountPoint: HTMLElement) {
+    super(config, mountPoint);
+    this.#fixtures = this.#validateFixtures();
+  }
+
+  #validateFixtures(): Fixtures {
+    const columnFacetsFixtureCls = getFromRegistry(REG_TYPE_FIXTURE, this.config.columnFacetsFixtureType);
+    if (!(columnFacetsFixtureCls && columnFacetsFixtureCls.prototype instanceof PVerticalFixture)) {
+      throw new Error(`Error in fixture for column facet ${columnFacetsFixtureCls?.name}. Must implement ${PVerticalFixture.name}`);
+    }
+    const rowFacetsFixtureCls = getFromRegistry(REG_TYPE_FIXTURE, this.config.rowFacetsFixtureType);
+    if (!(rowFacetsFixtureCls && rowFacetsFixtureCls.prototype instanceof PHorizontalFixture)) {
+      throw new Error(`Error in fixture for row facet ${rowFacetsFixtureCls?.name}. Must implement ${PHorizontalFixture.name}`);
+    }
+
+    const validatedFixtures: Fixtures = {
+      left: [],
+      right: [],
+      top: [],
+      bottom: [],
+      columnFacetsFixtureCls,
+      rowFacetsFixtureCls
+    }
+    const layoutFixtures = this.config.layoutFixtures;
+    let numColFacetFixtureImpl = 0;
+    let numRowFacetFixtureImpl = 0;
+    for (const type of ["top", "left", "bottom", "right"] as const) {
+      const fixtureNames = layoutFixtures[type];
+      for (const fixtureName of fixtureNames ?? []) {
+        const fixtureCls = getFromRegistry(REG_TYPE_FIXTURE, fixtureName);
+        if (!fixtureCls) {
+          throw new Error(`Can't find entry in registery. Name ${fixtureName} of type ${REG_TYPE_FIXTURE}. Register one first by calling \`Grid.register(..., ..., ...)\`.`);
+        }
+
+        const fixture = new fixtureCls();
+        switch (type) {
+        case "top":
+        case "bottom":
+          if (!(fixture instanceof PVerticalFixture)) {
+            throw new Error(`${type} fixture ${fixtureName} must implement ${PVerticalFixture.name}`)
+          }
+          if (fixture instanceof columnFacetsFixtureCls) numColFacetFixtureImpl++;
+          break;
+        case "left":
+        case "right":
+          if (!(fixture instanceof PVerticalFixture)) {
+            throw new Error(`${type} fixture ${fixtureName} must implement ${PHorizontalFixture.name}`)
+          }
+          if (fixture instanceof rowFacetsFixtureCls) numRowFacetFixtureImpl++;
+          break;
+        }
+
+        validatedFixtures[type]!.push(fixture);
+      }
+    }
+
+    if (numColFacetFixtureImpl !== 1) {
+      throw new Error(`There must be exactly one column facet fixture. Found ${numColFacetFixtureImpl}`);
+    }
+    if (numRowFacetFixtureImpl !== 1) {
+      throw new Error(`There must be exactly one row facet fixture. Found ${numRowFacetFixtureImpl}`);
+    }
+
+    return validatedFixtures;
   }
 
   getRowHeight(type: "facet" | "data") {
@@ -199,6 +279,7 @@ export default class StandardLayout extends PLayout {
   calculateViewState(): ViewState {
     if (!this.data) throw new Error("Data is not set!");
 
+    this.#validateFixtures();
     const vsVertical = this.calculateVerticalViewState();
     const vsHorizontal = this.calculateHorizontalViewState();
 
@@ -229,4 +310,14 @@ export default class StandardLayout extends PLayout {
       rows: `repeat(${numColFacets}, ${this.rowHeightByType.facet}px) repeat(${numDataRows}, ${this.rowHeightByType.data}px)`,
     };
   }
+
+
+  // TODO fixtures are not validated now. In a non hot path validate the fixtures
+  getLayoutFixtures(): LayoutFixtures {
+    return this.#fixtures;
+  }
+
+  static NAME_COLUMN_FACETS_FIXTURE = "ColumnFacetsFixture";
+  static NAME_ROW_FACETS_FIXTURE = "RowFacetsFixture";
+  static NAME_FACET_CORNER_FIXTURE = "RowFacetsFixture";
 }

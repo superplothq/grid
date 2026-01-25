@@ -31,3 +31,10 @@ export interface ViewState {
   colFacetsTopPositions: number[];
 }
 
+export interface  LayoutFixtures {
+  top?: string[];
+  left?: string[];
+  bottom?: string[];
+  right?: string[];
+}
+

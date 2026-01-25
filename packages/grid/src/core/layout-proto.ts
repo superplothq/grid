@@ -2,7 +2,7 @@ import {GridConfig} from "../config";
 import {GridDataViewModel} from "../grid-data-viewmodel";
 import {ViewState} from "../types";
 
-export abstract class PLayout {
+export default abstract class PLayout {
   data: GridDataViewModel | undefined;
   config: GridConfig;
   mountPoint: HTMLElement;

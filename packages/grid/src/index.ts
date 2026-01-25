@@ -1,5 +1,5 @@
 import {GridDataViewModel} from "./grid-data-viewmodel";
-import { GridConfig, defaultConfig } from "./config";
+import { GridConfig, REG_NAME_STD, REG_TYPE_LAYOUT, REG_TYPE_RENDERER, defaultConfig } from "./config";
 import CellManager from "./core/cell-manager";
 import {PLayout} from "./core/layout-proto";
 import {PRenderer} from "./core/renderer-proto";
@@ -28,14 +28,14 @@ export default class Grid {
   constructor(config: Partial<GridConfig>, mountPoint: HTMLElement) {
     this.#config = { ...defaultConfig, ...config };
 
-    const StandardLayout = getFromRegistry("layout", this.#config.layoutType);
+    const StandardLayout = getFromRegistry(REG_TYPE_LAYOUT, this.#config.layoutType);
     if (!StandardLayout) {
-      throw new Error(`No layout of type ${this.#config.layoutType} is present in the registry. Register one first by calling \`Grid.register(..., ..., ...)\`.`);
+      throw new Error(`Can't find entry in registery. Name ${this.#config.layoutType} of type ${REG_TYPE_RENDERER}. Register one first by calling \`Grid.register(..., ..., ...)\`.`);
 
     }
-    const StandardRenderer = getFromRegistry("renderer", this.#config.rendererType);
+    const StandardRenderer = getFromRegistry(REG_TYPE_RENDERER, this.#config.rendererType);
     if (!StandardRenderer) {
-      throw new Error(`No layout of type ${this.#config.layoutType} is present in the registry. Register one first by calling \`Grid.register(..., ..., ...)\`.`);
+      throw new Error(`Can't find entry in registery. Name ${this.#config.rendererType} of type ${REG_TYPE_RENDERER}. Register one first by calling \`Grid.register(..., ..., ...)\`.`);
     }
 
     this.#cellManager = new CellManager();
@@ -68,5 +68,5 @@ export default class Grid {
   }
 }
 
-Grid.register("layout", "standard", StandardLayout);
-Grid.register("renderer", "standard", StandardLayoutRenderer);
+Grid.register(REG_TYPE_LAYOUT, REG_NAME_STD, StandardLayout);
+Grid.register(REG_TYPE_RENDERER, REG_NAME_STD, StandardLayoutRenderer);
