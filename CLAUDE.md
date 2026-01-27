@@ -29,8 +29,9 @@ Already setup by the user and running.
 
 ## Notes
 
-- If you get lint errors, first run autofix to fix all autofixable errors, then run eslint again to see remaining errors
-  and fix them manually.
+- Don't write comments unless explicity asked to do so
+- Run lint `yarn workspace grid lint --fix 2>&1` to fix autofixable lints and report the rest which you can try fixing manually
+- Don't run playground build
 - All packages use TypeScript with strict mode enabled
 - The workspace uses yarn workspaces for dependency management
 - ESLint is configured but may need workspace-level configuration fixes
