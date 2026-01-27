@@ -22,10 +22,10 @@ export type LayoutEvents = {
   };
 };
 
-type SelectionProposal = [startRow: number, startCol: number, endRow: number, endCol:number] | [];  // [] is no selection
+type SelectionProposal = [startRow: number, startCol: number, endRow: number, endCol: number][];
 
 interface ViewModelProposal {
-  selection?: SelectionProposal;
+  selections?: SelectionProposal;
 }
 
 export interface SelectionState {
@@ -44,7 +44,7 @@ export interface ViewModel extends BaseViewModel {
   colFacetsHeight: number;
   rowFacetsLeftPositions: number[];
   colFacetsTopPositions: number[];
-  selection: SelectionState | null;
+  selections: SelectionState[];
 }
 
 interface MergeState {
@@ -76,7 +76,7 @@ export default class StandardLayout extends StandardLayoutBase {
   #con: HTMLElement;
   #virtualPanelEl: HTMLElement;
   #gridClipEl: HTMLElement;
-  #selectionEl: HTMLElement;
+  #selectionEls: HTMLElement[] = [];
   #scrollRAF: number | null = null;
   #scrollListenerSet = false;
   #renderCount = 0;
@@ -91,11 +91,6 @@ export default class StandardLayout extends StandardLayoutBase {
 
     [this.#con, , this.#virtualPanelEl, this.#gridClipEl] = this.#attachShadowDom();
     this.#measureRowHeight();
-
-    // Create selection overlay element
-    this.#selectionEl = document.createElement("div");
-    this.#selectionEl.className = "selection-overlay";
-    this.#con.appendChild(this.#selectionEl);
   }
 
   viewModelProposal(proposal: ViewModelProposal): void {
@@ -329,19 +324,17 @@ export default class StandardLayout extends StandardLayoutBase {
     const vsVertical = this.calculateVerticalViewModel();
     const vsHorizontal = this.calculateHorizontalViewModel();
 
-    // Resolve selection from proposal
-    let selection: SelectionState | null = null;
-    const selProp = this.#proposal.selection;
-    if (selProp && selProp.length === 4) {
-      const [startRow, startCol, endRow, endCol] = selProp;
-      selection = {
+    // Resolve selections from proposal
+    const selections: SelectionState[] = [];
+    const selProp = this.#proposal.selections || [];
+    for (const [startRow, startCol, endRow, endCol] of selProp) {
+      selections.push({
         fromRow: startRow,
         fromCol: startCol,
         toRow: Math.min(endRow, this.data.numRows - 1),   // Resolve Infinity
         toCol: Math.min(endCol, this.data.numCols - 1),   // Resolve Infinity
-      };
+      });
     }
-    // If selProp is [] (empty array), selection stays null
 
     return {
       x0: vsHorizontal.startCol,
@@ -356,7 +349,7 @@ export default class StandardLayout extends StandardLayoutBase {
       colFacetsHeight: vsVertical.colFacetsHeight,
       rowFacetsLeftPositions: vsHorizontal.rowFacetsLeftPositions,
       colFacetsTopPositions: vsVertical.colFacetsTopPositions,
-      selection,
+      selections,
     }
   }
 
@@ -451,31 +444,46 @@ export default class StandardLayout extends StandardLayoutBase {
     return results;
   }
 
-  #renderSelection(viewModel: ViewModel): void {
-    const sel = viewModel.selection;
-    if (!sel) {
-      this.#selectionEl.style.display = "none";
-      return;
+  #renderSelections(viewModel: ViewModel): void {
+    const selections = viewModel.selections;
+
+    // Ensure we have enough selection elements
+    while (this.#selectionEls.length < selections.length) {
+      const el = document.createElement("div");
+      el.className = "selection-overlay";
+      this.#con.appendChild(el);
+      this.#selectionEls.push(el);
     }
 
-    const visFromRow = Math.max(sel.fromRow, viewModel.y0);
-    const visToRow = Math.min(sel.toRow, viewModel.y1 - 1);
-    const visFromCol = Math.max(sel.fromCol, viewModel.x0);
-    const visToCol = Math.min(sel.toCol, viewModel.x1 - 1);
+    // Position each selection element
+    for (let i = 0; i < selections.length; i++) {
+      const sel = selections[i];
+      const el = this.#selectionEls[i];
 
-    if (visFromRow > visToRow || visFromCol > visToCol) {
-      this.#selectionEl.style.display = "none";
-      return;
+      const visFromRow = Math.max(sel.fromRow, viewModel.y0);
+      const visToRow = Math.min(sel.toRow, viewModel.y1 - 1);
+      const visFromCol = Math.max(sel.fromCol, viewModel.x0);
+      const visToCol = Math.min(sel.toCol, viewModel.x1 - 1);
+
+      if (visFromRow > visToRow || visFromCol > visToCol) {
+        el.style.display = "none";
+        continue;
+      }
+
+      el.style.display = "";
+      const rowStart = this.data!.numColFacetLevels + (visFromRow - viewModel.y0) + 1;
+      const rowSpan = visToRow - visFromRow + 1;
+      const colStart = this.data!.numRowFacetLevels + (visFromCol - viewModel.x0) + 1;
+      const colSpan = visToCol - visFromCol + 1;
+
+      el.style.gridRow = `${rowStart} / span ${rowSpan}`;
+      el.style.gridColumn = `${colStart} / span ${colSpan}`;
     }
 
-    this.#selectionEl.style.display = "";
-    const rowStart = this.data!.numColFacetLevels + (visFromRow - viewModel.y0) + 1;
-    const rowSpan = visToRow - visFromRow + 1;
-    const colStart = this.data!.numRowFacetLevels + (visFromCol - viewModel.x0) + 1;
-    const colSpan = visToCol - visFromCol + 1;
-
-    this.#selectionEl.style.gridRow = `${rowStart} / span ${rowSpan}`;
-    this.#selectionEl.style.gridColumn = `${colStart} / span ${colSpan}`;
+    // Hide excess elements
+    for (let i = selections.length; i < this.#selectionEls.length; i++) {
+      this.#selectionEls[i].style.display = "none";
+    }
   }
 
   #onLayoutBootstrap(viewModel: ViewModel): void {
@@ -618,10 +626,10 @@ export default class StandardLayout extends StandardLayoutBase {
       const vmUpdated = this.calculateViewModel();
       this.#onLayoutBootstrap(vmUpdated);
 
-      this.#renderSelection(vmUpdated);
+      this.#renderSelections(vmUpdated);
       this.#raiseRenderCompleteEvent(vmUpdated, ctx, nodeAppendList, cellsToRemove);
     } else {
-      this.#renderSelection(viewModel);
+      this.#renderSelections(viewModel);
       this.#raiseRenderCompleteEvent(viewModel, ctx, nodeAppendList, cellsToRemove);
     }
 
