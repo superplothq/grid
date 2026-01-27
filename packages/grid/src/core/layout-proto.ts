@@ -1,6 +1,7 @@
 import {GridConfig} from "../config";
 import {GridDataViewModel} from "../grid-data-viewmodel";
 import CellManager from "./cell-manager";
+import {BaseFixtureViewModel} from "./fixture-proto";
 
 export interface BaseLayoutViewModel {
   x0: number;
@@ -9,6 +10,7 @@ export interface BaseLayoutViewModel {
   y1: number;
   totalHeight: number;
   totalWidth: number;
+  fixtures: Record<string, BaseFixtureViewModel>;
 }
 
 export default abstract class PLayout {

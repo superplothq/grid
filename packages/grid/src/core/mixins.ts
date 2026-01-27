@@ -10,6 +10,7 @@ export interface PlaceCellOpts {
     colspan?: number;
     rowspan?: number;
     top?: number;
+    bottom?: number;
     left?: number;
     transform?: string;
   };
@@ -36,15 +37,10 @@ export function WithCellPlacement<TBase extends Constructor<HasCellManager>>(Bas
         ? `${opts.gridRow} / span ${opts.extraStyles.rowspan}`
         : `${opts.gridRow}`;
 
-      if (opts.extraStyles.top !== undefined) {
-        cell.style.top = `${opts.extraStyles.top}px`;
-      }
-      if (opts.extraStyles.left !== undefined) {
-        cell.style.left = `${opts.extraStyles.left}px`;
-      }
-      if (opts.extraStyles.transform !== undefined) {
-        cell.style.transform = opts.extraStyles.transform;
-      }
+      if (opts.extraStyles.top !== undefined) cell.style.top = `${opts.extraStyles.top}px`;
+      if (opts.extraStyles.bottom !== undefined) cell.style.bottom = `${opts.extraStyles.bottom}px`;
+      if (opts.extraStyles.left !== undefined) cell.style.left = `${opts.extraStyles.left}px`;
+      if (opts.extraStyles.transform !== undefined) cell.style.transform = opts.extraStyles.transform;
 
       return [cell, needAppend];
     }

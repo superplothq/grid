@@ -6,6 +6,9 @@ import {addToRegistry, getFromRegistry} from "./registry";
 import { Constructor } from "./types";
 import StandardLayout from "./core/standard-layout";
 
+// import has registration sideeffect
+import "./core/column-facets-fixture";
+
 export { StandardLayout };
 export { GridConfig, defaultConfig } from "./config";
 export { PLayout, GridDataViewModel };

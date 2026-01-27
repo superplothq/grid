@@ -66,6 +66,7 @@ export const gridCss = `
     border-bottom: 1px solid #616161;
     font-weight: 500;
     color: #424242;
+    transform: translate(0, calc(var(--offset-y) - 2px)); 
   }
 
   .cell.row-header {

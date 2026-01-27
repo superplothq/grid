@@ -1,46 +1,56 @@
-import {GridConfig, REG_TYPE_FIXTURE} from "../config";
+import {GridConfig, REG_NAME_COLUMN_FACETS, REG_NAME_ROW_FACETS, REG_TYPE_FIXTURE} from "../config";
 import {GridDataViewModel} from "../grid-data-viewmodel";
-import {getFromRegistry} from "../registry";
-import {Constructor} from "../types";
+import {addToRegistry, getFromRegistry} from "../registry";
+import {Constructor, SliceResult} from "../types";
 import PLayout, {BaseLayoutViewModel} from "./layout-proto";
 
-import PFixture, {PHorizontalFixture, PVerticalFixture} from "./fixture-proto";
+import PFixture, {BaseHFixtureViewModel, BaseVFixtureViewModel, CellToMeasure, PHorizontalFixture, PVerticalFixture} from "./fixture-proto";
 import {gridCss, gridShadowElsStyle} from "./grid-css.tmp";
 import {WithCellPlacement} from "./mixins";
 import CellManager from "./cell-manager";
 
-export interface StandardLayoutViewModel extends BaseLayoutViewModel {
-  offsetX: number;
-  offsetY: number;
-  rowFacetsWidth: number;
-  colFacetsHeight: number;
-  rowFacetsLeftPositions: number[];
-  colFacetsTopPositions: number[];
-}
-
-interface Fixtures {
-  top?: PFixture[];
-  left?: PFixture[];
-  bottom?: PFixture[];
-  right?: PFixture[];
-  ColumnFacetsFixtureCls: Constructor<PFixture>;
-  RowFacetsFixtureCls: Constructor<PFixture>;
-}
-
-interface MergeState {
+// TODO will be moved to mixin
+export interface MergeState {
   value: string | null;
   start: number;
   span: number;
 }
 
-interface CellToMeasure {
-  cell: HTMLElement;
-  sizeKey: number;
+export interface StandardLayoutViewModel extends BaseLayoutViewModel {
+  offsetX: number;
+  offsetY: number;
+  rowFacetsWidth: number;
+  // colFacetsHeight: number;
+  rowFacetsLeftPositions: number[];
+  // colFacetsTopPositions: number[];
 }
 
-const StandardLayoutBase = WithCellPlacement(PLayout);
+interface Fixtures {
+  top: PFixture[];
+  left: PFixture[];
+  bottom: PFixture[];
+  right: PFixture[];
+  ColumnFacetsFixtureCls: Constructor<PFixture>;
+  RowFacetsFixtureCls: Constructor<PFixture>;
+}
 
-export default class StandardLayout extends StandardLayoutBase {
+// TODO mock class
+class RowFactsFixtureMock extends PHorizontalFixture {
+  viewModelKey(): string {
+    throw new Error("Method not implemented.");
+  }
+  getCellsToRender(viewModel: BaseLayoutViewModel, sliceData: SliceResult): {nodesToAppend: HTMLElement[]; cellsToMeasure: CellToMeasure[];} {
+    throw new Error("Method not implemented.");
+  }
+  viewModel(): BaseHFixtureViewModel {
+    return {
+      width: 100,
+    }
+  }
+}
+addToRegistry(REG_TYPE_FIXTURE, REG_NAME_ROW_FACETS, RowFactsFixtureMock);
+
+export default class StandardLayout extends WithCellPlacement(PLayout) {
   // all column can be of different sizes hence those are tracked based on column indices
   colsWidth: { indices: number[]; override: number[] } = {
     indices: [],
@@ -68,16 +78,16 @@ export default class StandardLayout extends StandardLayoutBase {
   constructor(config: GridConfig, mountPoint: HTMLElement, cellManager: CellManager) {
     super(config, mountPoint, cellManager);
 
-    this.#fixtures = this.#validateFixtures();
     [this.#con, , this.#virtualPanelEl, this.#gridClipEl] = this.#attachShadowDom();
     this.#measureRowHeight();
-
+    this.#fixtures = this.#validateFixtures();
   }
 
   #attachShadowDom(): HTMLElement[] {
     const el = this.mountPoint;
     el.attachShadow({ mode: "open" });
-    el.style.overflow = "auto";
+    // TODO so that container size does not get reduced
+    el.style.overflow = "scroll";
     (el.shadowRoot as ShadowRoot).innerHTML = `
       <style>
         ${gridShadowElsStyle}
@@ -136,10 +146,10 @@ export default class StandardLayout extends StandardLayoutBase {
     if (!(ColumnFacetsFixtureCls && ColumnFacetsFixtureCls.prototype instanceof PVerticalFixture)) {
       throw new Error(`Error in fixture for column facet ${ColumnFacetsFixtureCls?.name}. Must implement ${PVerticalFixture.name}`);
     }
-    const RowFacetsFixtureCls = getFromRegistry<PFixture>(REG_TYPE_FIXTURE, this.config.rowFacetsFixtureType);
-    if (!(RowFacetsFixtureCls && RowFacetsFixtureCls.prototype instanceof PHorizontalFixture)) {
-      throw new Error(`Error in fixture for row facet ${RowFacetsFixtureCls?.name}. Must implement ${PHorizontalFixture.name}`);
-    }
+    // const RowFacetsFixtureCls = getFromRegistry<PFixture>(REG_TYPE_FIXTURE, this.config.rowFacetsFixtureType);
+    // if (!(RowFacetsFixtureCls && RowFacetsFixtureCls.prototype instanceof PHorizontalFixture)) {
+    //   throw new Error(`Error in fixture for row facet ${RowFacetsFixtureCls?.name}. Must implement ${PHorizontalFixture.name}`);
+    // }
 
     const validatedFixtures: Fixtures = {
       left: [],
@@ -147,7 +157,8 @@ export default class StandardLayout extends StandardLayoutBase {
       top: [],
       bottom: [],
       ColumnFacetsFixtureCls: ColumnFacetsFixtureCls,
-      RowFacetsFixtureCls: RowFacetsFixtureCls
+      // RowFacetsFixtureCls: RowFacetsFixtureCls
+      RowFacetsFixtureCls: RowFactsFixtureMock
     }
     const layoutFixtures = this.config.layoutFixtures;
     let numColFacetFixtureImpl = 0;
@@ -155,12 +166,12 @@ export default class StandardLayout extends StandardLayoutBase {
     for (const type of ["top", "left", "bottom", "right"] as const) {
       const fixtureNames = layoutFixtures[type];
       for (const fixtureName of fixtureNames ?? []) {
-        const FixtureCls = getFromRegistry(REG_TYPE_FIXTURE, fixtureName);
+        const FixtureCls = getFromRegistry<PFixture>(REG_TYPE_FIXTURE, fixtureName);
         if (!FixtureCls) {
           throw new Error(`Can't find entry in registery. Name ${fixtureName} of type ${REG_TYPE_FIXTURE}. Register one first by calling \`Grid.register(..., ..., ...)\`.`);
         }
 
-        const fixture = new FixtureCls();
+        const fixture = new FixtureCls(this.config, this.#con, this.cellManager);
         switch (type) {
         case "top":
         case "bottom":
@@ -171,10 +182,11 @@ export default class StandardLayout extends StandardLayoutBase {
           break;
         case "left":
         case "right":
-          if (!(fixture instanceof PVerticalFixture)) {
+          if (!(fixture instanceof PHorizontalFixture)) {
             throw new Error(`${type} fixture ${fixtureName} must implement ${PHorizontalFixture.name}`)
           }
-          if (fixture instanceof RowFacetsFixtureCls) numRowFacetFixtureImpl++;
+          // if (fixture instanceof RowFacetsFixtureCls) numRowFacetFixtureImpl++;
+          if (fixture instanceof RowFactsFixtureMock) numRowFacetFixtureImpl++;
           break;
         }
 
@@ -222,6 +234,9 @@ export default class StandardLayout extends StandardLayoutBase {
 
   setData(data: GridDataViewModel): void {
     super.setData(data);
+    for (const fixture of [...this.#fixtures.top, ...this.#fixtures.bottom, ...this.#fixtures.left, ...this.#fixtures.right]) {
+      fixture.setData(data);
+    }
   }
 
   verticalViewModel() {
@@ -230,19 +245,26 @@ export default class StandardLayout extends StandardLayoutBase {
 
     // if there are 3 header facets then there would be 3 rows created for it
     // hence that's the total height of header
-    const heightPerFacetRow = this.rowHeightByType.facet;
-    const colFacetsHeight = this.data!.numColFacetLevels * heightPerFacetRow;
+    // const heightPerFacetRow = this.rowHeightByType.facet;
+    // const colFacetsHeight = this.data!.numColFacetLevels * heightPerFacetRow;
+    const fixtureVms: Record<string, BaseVFixtureViewModel> = {};
+    let fixturesHeight = 0;
+    for (const fixture of this.#fixtures.top.concat(this.#fixtures.bottom)) {
+      let vm = fixture.viewModel() as BaseVFixtureViewModel;
+      fixtureVms[fixture.viewModelKey()] = vm;
+      fixturesHeight += vm.height;
+    }
     const dataHeight = this.data!.numRows * this.rowHeightByType.data;
     // total width of the grid if it was rendered fully
     // this value will be used to calculate scroll position there by setting dimension of virtual-panel
-    const totalHeight = colFacetsHeight + dataHeight;
+    const totalHeight = fixturesHeight + dataHeight;
 
     // Row range calculation
     // totalHeight <- full data height if it was rendered
     // viewHeight <- viewport height i.e. grid-content container height
     const scrollableHeight = Math.max(1, totalHeight - viewHeight);
     const scrollPercent = Math.min(1, scrollTop / scrollableHeight);
-    const visibleDataHeight = viewHeight - colFacetsHeight;
+    const visibleDataHeight = viewHeight - fixturesHeight;
 
     // scrollableRows is the maximum possible starting row.
     // Imagine the viewport scrolls from 0th row to xth row. Here we are trying to find x.
@@ -265,20 +287,22 @@ export default class StandardLayout extends StandardLayoutBase {
     const endRow = Math.min(this.data!.numRows, startRow + visibleRows);
     const offsetY = (startRowFloat - startRow) * this.rowHeightByType.data;
 
-    const colFacetsTopPositions: number[] = [];
-    const facetRowHeight = this.getRowHeight("facet");
-    for (let i = 0; i < this.data!.numColFacetLevels; i++) {
-      colFacetsTopPositions.push(i * facetRowHeight);
-    }
-
+    console.log(">>> diff", endRow - startRow, "visibleRows", visibleRows, "scrollableRows", scrollableRows);
+    // const colFacetsTopPositions: number[] = [];
+    // const facetRowHeight = this.getRowHeight("facet");
+    // for (let i = 0; i < this.data!.numColFacetLevels; i++) {
+    //   colFacetsTopPositions.push(i * facetRowHeight);
+    // }
     return {
       startRowFloat,
       startRow,
       endRow,
       totalHeight,
-      colFacetsHeight,
       offsetY,
-      colFacetsTopPositions
+      fixturesHeight,
+      // colFacetsHeight,
+      // colFacetsTopPositions
+      vertFixtureVms: fixtureVms,
     }
   }
 
@@ -375,9 +399,12 @@ export default class StandardLayout extends StandardLayoutBase {
       totalHeight: vsVertical.totalHeight,
       totalWidth: vsHorizontal.totalWidth,
       rowFacetsWidth: vsHorizontal.rowFacetsWidth,
-      colFacetsHeight: vsVertical.colFacetsHeight,
+      fixtures: {
+        ...vsVertical.vertFixtureVms
+      },
+      // colFacetsHeight: vsVertical.colFacetsHeight,
       rowFacetsLeftPositions: vsHorizontal.rowFacetsLeftPositions,
-      colFacetsTopPositions: vsVertical.colFacetsTopPositions,
+      // colFacetsTopPositions: vsVertical.colFacetsTopPositions,
     }
   }
 
@@ -511,49 +538,57 @@ export default class StandardLayout extends StandardLayoutBase {
     }
 
     let nodeAppendList = [];
-    for (let hRow = 0; hRow < this.data!.numColFacetLevels; hRow++) {
-      for (let hCol = 0; hCol < this.data!.numRowFacetLevels; hCol++) {
-        const key = `corner-${hRow}-${hCol}`;
-        const [cell, needAppend] = this.placeCellInDom({
-          key,
-          gridRow: hRow + 1,
-          gridCol: hCol + 1,
-          content: "",
-          cls: `corner level-${hRow}${hCol === this.data!.numRowFacetLevels - 1 ? " edge-r" : ""}${hRow === this.data!.numColFacetLevels - 1 ? " edge-b" : ""}`,
-          extraStyles: {
-            top: vs.colFacetsTopPositions[hRow],
-            left: vs.rowFacetsLeftPositions[hCol],
-          },
-        });
-        needAppend && nodeAppendList.push(cell);
-        this.#cellsToMeasure.push({ cell, sizeKey: hCol });
-        this.#postRenderAdjustCellsPerLevel[hCol].push(cell);
-      }
+    // draw it at the very end
+    // for (let hRow = 0; hRow < this.data!.numColFacetLevels; hRow++) {
+    //   for (let hCol = 0; hCol < this.data!.numRowFacetLevels; hCol++) {
+    //     const key = `corner-${hRow}-${hCol}`;
+    //     const [cell, needAppend] = this.placeCellInDom({
+    //       key,
+    //       gridRow: hRow + 1,
+    //       gridCol: hCol + 1,
+    //       content: "",
+    //       cls: `corner level-${hRow}${hCol === this.data!.numRowFacetLevels - 1 ? " edge-r" : ""}${hRow === this.data!.numColFacetLevels - 1 ? " edge-b" : ""}`,
+    //       extraStyles: {
+    //         top: vs.colFacetsTopPositions[hRow],
+    //         left: vs.rowFacetsLeftPositions[hCol],
+    //       },
+    //     });
+    //     needAppend && nodeAppendList.push(cell);
+    //     this.#cellsToMeasure.push({ cell, sizeKey: hCol });
+    //     this.#postRenderAdjustCellsPerLevel[hCol].push(cell);
+    //   }
+    // }
+
+    // TODO already moved to fixture class
+    // let merges = this.#computeMerges(this.data!.numColFacetLevels, numDataColsVisible, sliceData.columnFacets!);
+    // for (const merge of merges) {
+    //   const key = `col-h-${merge.level}-${vs.x0 + merge.start}`;
+    //   const sizeKey = this.data!.numRowFacetLevels + vs.x0 + merge.start;
+    //   const colspan = merge.span;
+    //   const [cell, needAppend] = this.placeCellInDom({
+    //     key,
+    //     gridRow: merge.level + 1,
+    //     gridCol: this.data!.numRowFacetLevels + merge.start + 1,
+    //     content: merge.value,
+    //     cls: `col-header level-${merge.level}`,
+    //     extraStyles: {
+    //       colspan,
+    //       top: vs.colFacetsTopPositions[merge.level],
+    //     },
+    //   });
+    //   needAppend && nodeAppendList.push(cell);
+    //   if (!(colspan && colspan > 1)) {
+    //     this.#cellsToMeasure.push({ cell, sizeKey });
+    //   }
+    // }
+
+    for (const fixture of this.#fixtures.top.concat(this.#fixtures.bottom)) {
+      const { nodesToAppend, cellsToMeasure } = fixture.getCellsToRender(vs, sliceData);
+      nodeAppendList.push(...nodesToAppend);
+      this.#cellsToMeasure.push(...cellsToMeasure);
     }
 
-    let merges = this.#computeMerges(this.data!.numColFacetLevels, numDataColsVisible, sliceData.columnFacets!);
-    for (const merge of merges) {
-      const key = `col-h-${merge.level}-${vs.x0 + merge.start}`;
-      const sizeKey = this.data!.numRowFacetLevels + vs.x0 + merge.start;
-      const colspan = merge.span;
-      const [cell, needAppend] = this.placeCellInDom({
-        key,
-        gridRow: merge.level + 1,
-        gridCol: this.data!.numRowFacetLevels + merge.start + 1,
-        content: merge.value,
-        cls: `col-header level-${merge.level}`,
-        extraStyles: {
-          colspan,
-          top: vs.colFacetsTopPositions[merge.level],
-        },
-      });
-      needAppend && nodeAppendList.push(cell);
-      if (!(colspan && colspan > 1)) {
-        this.#cellsToMeasure.push({ cell, sizeKey });
-      }
-    }
-
-    merges.length = 0;
+    let merges = [];
     merges = this.#computeMerges(this.data!.numRowFacetLevels, numDataRowsVisible, sliceData.rowFacets!);
     for (const merge of merges) {
       const key = `row-h-${merge.level}-${vs.y0 + merge.start}`;
@@ -584,7 +619,8 @@ export default class StandardLayout extends StandardLayoutBase {
         const value = colData[j] ?? "";
         const [cell, needAppend] = this.placeCellInDom({
           key,
-          gridRow: this.data!.numColFacetLevels + j + 1,
+          // gridRow: this.data!.numColFacetLevels + j + 1,
+          gridRow: j + 1,
           gridCol,
           content: String(value),
           cls: "data",

@@ -22,4 +22,3 @@ export interface  LayoutFixtures {
   bottom?: string[];
   right?: string[];
 }
-
