@@ -15,11 +15,3 @@ export interface SliceResult {
   rowFacets?: string[][];
   data?: any[][];
 }
-
-export interface  LayoutFixtures {
-  top?: string[];
-  left?: string[];
-  bottom?: string[];
-  right?: string[];
-}
-
