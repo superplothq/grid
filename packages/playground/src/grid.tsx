@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import "grid";
-import Grid, { GridDataViewModel, LayoutEvents } from "grid";
+import Grid, { GridDataViewModel, LayoutEvents, SelectionPayload } from "grid";
 
 // Declare the custom element for TypeScript
 declare global {
@@ -48,7 +48,7 @@ const GridPlayground: React.FC = () => {
   const [rangeSelection, setRangeSelection] = useState("");
   const [colSelection, setColSelection] = useState("");
   const [rowSelection, setRowSelection] = useState("");
-  const [deselectFn, setDeselectFn] = useState<(() => void) | null>(null);
+  const [activeSelections, setActiveSelections] = useState<Map<string, { label: string; unsub: () => void }>>(new Map());
 
   const handleRowFacetChange = (value: string) => {
     setRowFacetConfig(value);
@@ -74,47 +74,64 @@ const GridPlayground: React.FC = () => {
     localStorage.setItem("grid_cellSizeConfig", defaultCellSizeConfig);
   };
 
-  const handleClearSelection = () => {
-    if (deselectFn) {
-      deselectFn();
-      setDeselectFn(null);
-    }
+  const unsubFnsRef = useRef<Map<string, () => void>>(new Map());
+
+  const formatSelectionLabel = (p: SelectionPayload): string => {
+    if (p.fromRow === p.toRow && p.fromCol === p.toCol) return `Cell(${p.fromRow},${p.fromCol})`;
+    if (p.fromCol === 0 && p.toCol === Infinity) return `Row(${p.fromRow})`;
+    if (p.fromRow === 0 && p.toRow === Infinity) return `Col(${p.fromCol})`;
+    return `Range(${p.fromRow},${p.fromCol},${p.toRow},${p.toCol})`;
+  };
+
+  const handleSelectionAdded = (payload: SelectionPayload) => {
+    const unsub = unsubFnsRef.current.get(payload.hash);
+    if (!unsub) return;
+    setActiveSelections(prev => {
+      const next = new Map(prev);
+      next.set(payload.hash, { label: formatSelectionLabel(payload), unsub });
+      return next;
+    });
+  };
+
+  const handleSelectionRemoved = (payload: SelectionPayload) => {
+    unsubFnsRef.current.delete(payload.hash);
+    setActiveSelections(prev => {
+      const next = new Map(prev);
+      next.delete(payload.hash);
+      return next;
+    });
+  };
+
+  const handleSelect = (result: [string, () => void] | null) => {
+    if (result) unsubFnsRef.current.set(result[0], result[1]);
   };
 
   const handleSelectCell = () => {
     if (!gridRef.current || !cellSelection.trim()) return;
     const parts = cellSelection.split(",").map(s => parseInt(s.trim(), 10));
     if (parts.length !== 2 || parts.some(isNaN)) return;
-    handleClearSelection();
-    const deselect = gridRef.current.selectCellByDataIndex(parts[0], parts[1]);
-    setDeselectFn(() => deselect);
+    handleSelect(gridRef.current.selectCellByDataIndex(parts[0], parts[1]));
   };
 
   const handleSelectRange = () => {
     if (!gridRef.current || !rangeSelection.trim()) return;
     const parts = rangeSelection.split(",").map(s => parseInt(s.trim(), 10));
     if (parts.length !== 4 || parts.some(isNaN)) return;
-    handleClearSelection();
-    const deselect = gridRef.current.selectRangeByDataIndex(parts[0], parts[1], parts[2], parts[3]);
-    setDeselectFn(() => deselect);
+    handleSelect(gridRef.current.selectRangeByDataIndex(parts[0], parts[1], parts[2], parts[3]));
   };
 
   const handleSelectColumn = () => {
     if (!gridRef.current || !colSelection.trim()) return;
     const colIndex = parseInt(colSelection.trim(), 10);
     if (isNaN(colIndex)) return;
-    handleClearSelection();
-    const deselect = gridRef.current.selectColumnByDataIndex(colIndex);
-    setDeselectFn(() => deselect);
+    handleSelect(gridRef.current.selectColumnByDataIndex(colIndex));
   };
 
   const handleSelectRow = () => {
     if (!gridRef.current || !rowSelection.trim()) return;
     const rowIndex = parseInt(rowSelection.trim(), 10);
     if (isNaN(rowIndex)) return;
-    handleClearSelection();
-    const deselect = gridRef.current.selectRowByDataIndex(rowIndex);
-    setDeselectFn(() => deselect);
+    handleSelect(gridRef.current.selectRowByDataIndex(rowIndex));
   };
 
   const generateRandomNumber = (minDigits: number, maxDigits: number): string => {
@@ -251,12 +268,16 @@ const GridPlayground: React.FC = () => {
     // Create or update grid
     if (!gridRef.current) {
       gridRef.current = new Grid({}, gridConRef.current);
-      gridRef.current.on('renderComplete', (payload) => {
-        setEvents((prev) => [{ name: 'renderComplete', payload }, ...prev.slice(0, 49)]);
-      });
+      for (const e of ['renderComplete', 'selectionAdded', 'selectionRemoved']) {
+        gridRef.current.on(e as any, (payload) => {
+          setEvents((prev) => [{ name: e, payload }, ...prev.slice(0, 49)]);
+        });
+      }
       gridRef.current.on('debug_perf:metrics', (payload) => {
         setPerfMetrics(payload);
       });
+      gridRef.current.on('selectionAdded', handleSelectionAdded);
+      gridRef.current.on('selectionRemoved', handleSelectionRemoved);
     }
 
     console.log("Generated data:", { totalRows, totalCols, rowFacets: rowFacetLevelMajor, colFacets: colFacetLevelMajor, data });
@@ -361,13 +382,17 @@ const GridPlayground: React.FC = () => {
           />
         </label>
         <button onClick={handleSelectRow}>Select</button>
-        {deselectFn && (
-          <>
-            {" | "}
-            <button onClick={handleClearSelection}>Clear Selection</button>
-          </>
-        )}
       </div>
+      {activeSelections.size > 0 && (
+        <div>
+          Active Selections:{" "}
+          {Array.from(activeSelections.entries()).map(([hash, { label, unsub }]) => (
+            <button key={hash} onClick={unsub} style={{ marginRight: "4px" }}>
+              {label} (Clear)
+            </button>
+          ))}
+        </div>
+      )}
       <hr/>
       <div style={{
         position: "relative",

@@ -15,12 +15,32 @@ export type { SliceResult } from "./types";
 export type { LayoutEvents } from "./core/standard-layout";
 export type { EventEmitter };
 
-export type GridEvents = LayoutEvents;
+export type SelectionPayload = {
+  hash: string;
+  fromRow: number;
+  fromCol: number;
+  toRow: number;
+  toCol: number;
+};
+
+export type GridEvents = LayoutEvents & {
+  selectionAdded: SelectionPayload;
+  selectionRemoved: SelectionPayload;
+};
 
 class GridBase {}
 const GridWithEvents = WithEvents<GridEvents>()(GridBase);
 
 export type SelectionType = "cell" | "row" | "column" | "range";
+export type SelectionResult = [hash: string, unsub: () => void] | null;
+
+function fastHash(str: string): string {
+  let hash = 5381;
+  for (let i = 0; i < str.length; i++) {
+    hash = ((hash << 5) + hash) ^ str.charCodeAt(i);
+  }
+  return (hash >>> 0).toString(36);
+}
 
 export default class Grid extends GridWithEvents {
   #config: GridConfig;
@@ -84,21 +104,47 @@ export default class Grid extends GridWithEvents {
     return this.#getSelectionType(first[0], first[1], first[2], first[3]);
   }
 
-  #resolveConflictsAndAddSelection(fromRow: number, fromCol: number, toRow: number, toCol: number): string {
+  #resolveConflictsAndAddSelection(fromRow: number, fromCol: number, toRow: number, toCol: number): {
+    id: string;
+    hash: string;
+    isDuplicate: boolean;
+    removed: SelectionPayload[];
+    added: SelectionPayload[]
+  } {
     const newType = this.#getSelectionType(fromRow, fromCol, toRow, toCol);
     const currentType = this.#getCurrentSelectionType();
+    const id = this.#makeSelectionId(fromRow, fromCol, toRow, toCol);
+    const hash = fastHash(id);
+
+    if (this.#selections.has(id)) {
+      return { id, hash, isDuplicate: true, removed: [], added: [] };
+    }
+
+    const removed: SelectionPayload[] = [];
 
     // if range selection: then all previous selections are cleared including range
     // if cell selection: only keep if previous selection is cell
     // if col selection: only keep if previous selection is col
     // if row selection: only keep if previous selection is row
     if (newType === "range" || (currentType && currentType !== newType)) {
+      for (const [existingId, selection] of this.#selections) {
+        removed.push({ hash: fastHash(existingId), fromRow: selection[0], fromCol: selection[1], toRow: selection[2], toCol: selection[3] });
+      }
       this.#selections.clear();
     }
 
-    const id = this.#makeSelectionId(fromRow, fromCol, toRow, toCol);
     this.#selections.set(id, [fromRow, fromCol, toRow, toCol]);
-    return id;
+    const added: SelectionPayload[] = [{ hash, fromRow, fromCol, toRow, toCol }];
+    return { id, hash, isDuplicate: false, removed, added };
+  }
+
+  #raiseSelectionEvents(result: { removed: SelectionPayload[]; added: SelectionPayload[] }): void {
+    for (const r of result.removed) {
+      this.emit("selectionRemoved", r);
+    }
+    for (const a of result.added) {
+      this.emit("selectionAdded", a);
+    }
   }
 
   #syncSelectionsToLayout(): void {
@@ -106,54 +152,78 @@ export default class Grid extends GridWithEvents {
     this.#layout.viewModelProposal({ selections: selectionsArray });
   }
 
-  selectCellByDataIndex(row: number, col: number): () => void {
-    const id = this.#resolveConflictsAndAddSelection(row, col, row, col);
+  selectCellByDataIndex(row: number, col: number): SelectionResult {
+    const result = this.#resolveConflictsAndAddSelection(row, col, row, col);
+    if (result.isDuplicate) return null;
+
     this.#syncSelectionsToLayout();
     this.draw();
-    return () => {
-      this.#selections.delete(id);
+    this.#raiseSelectionEvents(result);
+
+    return [result.hash, () => {
+      if (!this.#selections.has(result.id)) return;
+      this.#selections.delete(result.id);
       this.#syncSelectionsToLayout();
       this.draw();
-    };
+      this.#raiseSelectionEvents({ removed: result.added, added: [] });
+    }];
   }
 
-  selectRangeByDataIndex(fromRow: number, fromCol: number, toRow: number, toCol: number): () => void {
+  selectRangeByDataIndex(fromRow: number, fromCol: number, toRow: number, toCol: number): SelectionResult {
     // Normalize to ensure from <= to
     const normFromRow = Math.min(fromRow, toRow);
     const normFromCol = Math.min(fromCol, toCol);
     const normToRow = Math.max(fromRow, toRow);
     const normToCol = Math.max(fromCol, toCol);
 
-    const id = this.#resolveConflictsAndAddSelection(normFromRow, normFromCol, normToRow, normToCol);
+    const result = this.#resolveConflictsAndAddSelection(normFromRow, normFromCol, normToRow, normToCol);
+    if (result.isDuplicate) return null;
+
     this.#syncSelectionsToLayout();
     this.draw();
-    return () => {
-      this.#selections.delete(id);
+    this.#raiseSelectionEvents(result);
+
+    return [result.hash, () => {
+      if (!this.#selections.has(result.id)) return;
+      this.#selections.delete(result.id);
       this.#syncSelectionsToLayout();
       this.draw();
-    };
+      this.#raiseSelectionEvents({ removed: result.added, added: [] });
+    }];
   }
 
-  selectColumnByDataIndex(colIndex: number): () => void {
-    const id = this.#resolveConflictsAndAddSelection(0, colIndex, Infinity, colIndex);
+  selectColumnByDataIndex(colIndex: number): SelectionResult {
+    const result = this.#resolveConflictsAndAddSelection(0, colIndex, Infinity, colIndex);
+    if (result.isDuplicate) return null;
+
     this.#syncSelectionsToLayout();
     this.draw();
-    return () => {
-      this.#selections.delete(id);
+    this.#raiseSelectionEvents(result);
+
+    return [result.hash, () => {
+      if (!this.#selections.has(result.id)) return;
+      this.#selections.delete(result.id);
       this.#syncSelectionsToLayout();
       this.draw();
-    };
+      this.#raiseSelectionEvents({ removed: result.added, added: [] });
+    }];
   }
 
-  selectRowByDataIndex(rowIndex: number): () => void {
-    const id = this.#resolveConflictsAndAddSelection(rowIndex, 0, rowIndex, Infinity);
+  selectRowByDataIndex(rowIndex: number): SelectionResult {
+    const result = this.#resolveConflictsAndAddSelection(rowIndex, 0, rowIndex, Infinity);
+    if (result.isDuplicate) return null;
+
     this.#syncSelectionsToLayout();
     this.draw();
-    return () => {
-      this.#selections.delete(id);
+    this.#raiseSelectionEvents(result);
+
+    return [result.hash, () => {
+      if (!this.#selections.has(result.id)) return;
+      this.#selections.delete(result.id);
       this.#syncSelectionsToLayout();
       this.draw();
-    };
+      this.#raiseSelectionEvents({ removed: result.added, added: [] });
+    }];
   }
 
   clearAllSelections(): void {
