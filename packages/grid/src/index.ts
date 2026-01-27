@@ -24,22 +24,21 @@ export default class Grid extends GridWithEvents {
   #config: GridConfig;
   #data: GridDataViewModel | undefined;
   #cellManager: CellManager;
-  #layout: PLayout;
+  #layout: StandardLayout;
   #renderCount = 0;
-  #layoutBootstrapped = false;
 
   constructor(config: Partial<GridConfig>, mountPoint: HTMLElement) {
     super();
     this.#config = { ...defaultConfig, ...config };
 
-    const StandardLayout = getFromRegistry<PLayout>(REG_TYPE_LAYOUT, this.#config.layoutType);
-    if (!StandardLayout) {
+    const LayoutClass = getFromRegistry<StandardLayout>(REG_TYPE_LAYOUT, this.#config.layoutType);
+    if (!LayoutClass) {
       throw new Error(`Can't find entry in registery. Name ${this.#config.layoutType} of type ${REG_TYPE_LAYOUT}. Register one first by calling \`Grid.register(..., ..., ...)\`.`);
 
     }
 
     this.#cellManager = new CellManager();
-    this.#layout = new StandardLayout(this.#config, mountPoint, this.#cellManager);
+    this.#layout = new LayoutClass(this.#config, mountPoint, this.#cellManager);
 
     // Forward layout events to Grid
     this.forwardFrom(this.#layout as unknown as EventEmitter<LayoutEvents>, ["renderComplete", "debug_perf:metrics"]);
@@ -62,6 +61,50 @@ export default class Grid extends GridWithEvents {
 
     const viewModel = this.#layout.calculateViewModel();
     this.#layout.render(viewModel, {t1: startTime});
+  }
+
+  selectCellByDataIndex(row: number, col: number): () => void {
+    this.#layout.viewModelProposal({ selection: [row, col, row, col] });
+    this.draw();
+    return () => {
+      this.#layout.viewModelProposal({ selection: [] });
+      this.draw();
+    };
+  }
+
+  selectRangeByDataIndex(fromRow: number, fromCol: number, toRow: number, toCol: number): () => void {
+    // Normalize to ensure from <= to
+    this.#layout.viewModelProposal({
+      selection: [
+        Math.min(fromRow, toRow),
+        Math.min(fromCol, toCol),
+        Math.max(fromRow, toRow),
+        Math.max(fromCol, toCol),
+      ]
+    });
+    this.draw();
+    return () => {
+      this.#layout.viewModelProposal({ selection: [] });
+      this.draw();
+    };
+  }
+
+  selectColumnByDataIndex(colIndex: number): () => void {
+    this.#layout.viewModelProposal({ selection: [0, colIndex, Infinity, colIndex] });
+    this.draw();
+    return () => {
+      this.#layout.viewModelProposal({ selection: [] });
+      this.draw();
+    };
+  }
+
+  selectRowByDataIndex(rowIndex: number): () => void {
+    this.#layout.viewModelProposal({ selection: [rowIndex, 0, rowIndex, Infinity] });
+    this.draw();
+    return () => {
+      this.#layout.viewModelProposal({ selection: [] });
+      this.draw();
+    };
   }
 
   static register<T>(type: string, name: string, cls: Constructor<T>): void {

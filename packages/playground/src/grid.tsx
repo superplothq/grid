@@ -43,6 +43,13 @@ const GridPlayground: React.FC = () => {
   const [events, setEvents] = useState<Array<{ name: string; payload: unknown }>>([]);
   const [perfMetrics, setPerfMetrics] = useState<LayoutEvents['debug_perf:metrics'] | null>(null);
 
+  // Selection state
+  const [cellSelection, setCellSelection] = useState("");
+  const [rangeSelection, setRangeSelection] = useState("");
+  const [colSelection, setColSelection] = useState("");
+  const [rowSelection, setRowSelection] = useState("");
+  const [deselectFn, setDeselectFn] = useState<(() => void) | null>(null);
+
   const handleRowFacetChange = (value: string) => {
     setRowFacetConfig(value);
     localStorage.setItem("grid_rowFacetConfig", value);
@@ -65,6 +72,49 @@ const GridPlayground: React.FC = () => {
     localStorage.setItem("grid_rowFacetConfig", defaultRowFacetConfig);
     localStorage.setItem("grid_colFacetConfig", defaultColFacetConfig);
     localStorage.setItem("grid_cellSizeConfig", defaultCellSizeConfig);
+  };
+
+  const handleClearSelection = () => {
+    if (deselectFn) {
+      deselectFn();
+      setDeselectFn(null);
+    }
+  };
+
+  const handleSelectCell = () => {
+    if (!gridRef.current || !cellSelection.trim()) return;
+    const parts = cellSelection.split(",").map(s => parseInt(s.trim(), 10));
+    if (parts.length !== 2 || parts.some(isNaN)) return;
+    handleClearSelection();
+    const deselect = gridRef.current.selectCellByDataIndex(parts[0], parts[1]);
+    setDeselectFn(() => deselect);
+  };
+
+  const handleSelectRange = () => {
+    if (!gridRef.current || !rangeSelection.trim()) return;
+    const parts = rangeSelection.split(",").map(s => parseInt(s.trim(), 10));
+    if (parts.length !== 4 || parts.some(isNaN)) return;
+    handleClearSelection();
+    const deselect = gridRef.current.selectRangeByDataIndex(parts[0], parts[1], parts[2], parts[3]);
+    setDeselectFn(() => deselect);
+  };
+
+  const handleSelectColumn = () => {
+    if (!gridRef.current || !colSelection.trim()) return;
+    const colIndex = parseInt(colSelection.trim(), 10);
+    if (isNaN(colIndex)) return;
+    handleClearSelection();
+    const deselect = gridRef.current.selectColumnByDataIndex(colIndex);
+    setDeselectFn(() => deselect);
+  };
+
+  const handleSelectRow = () => {
+    if (!gridRef.current || !rowSelection.trim()) return;
+    const rowIndex = parseInt(rowSelection.trim(), 10);
+    if (isNaN(rowIndex)) return;
+    handleClearSelection();
+    const deselect = gridRef.current.selectRowByDataIndex(rowIndex);
+    setDeselectFn(() => deselect);
   };
 
   const generateRandomNumber = (minDigits: number, maxDigits: number): string => {
@@ -265,6 +315,58 @@ const GridPlayground: React.FC = () => {
         <button onClick={handleGenerate}>Generate</button>
         <button onClick={handleReset}>Reset</button>
         <span> Total data points: {totalDataPoints}</span>
+      </div>
+      <hr/>
+      <div>
+        <label>
+          Cell <span style={{fontSize: '10px'}}>(row,col)</span>:
+          <input
+            type="text"
+            value={cellSelection}
+            onChange={(e) => setCellSelection(e.target.value)}
+            placeholder="0,0"
+          />
+        </label>
+        <button onClick={handleSelectCell}>Select</button>
+        {" | "}
+        <label>
+          Range <span style={{fontSize: '10px'}}>(fromRow,fromCol,toRow,toCol)</span>:
+          <input
+            type="text"
+            value={rangeSelection}
+            onChange={(e) => setRangeSelection(e.target.value)}
+            placeholder="0,0,2,2"
+          />
+        </label>
+        <button onClick={handleSelectRange}>Select</button>
+        {" | "}
+        <label>
+          Column:
+          <input
+            type="text"
+            value={colSelection}
+            onChange={(e) => setColSelection(e.target.value)}
+            placeholder="0"
+          />
+        </label>
+        <button onClick={handleSelectColumn}>Select</button>
+        {" | "}
+        <label>
+          Row:
+          <input
+            type="text"
+            value={rowSelection}
+            onChange={(e) => setRowSelection(e.target.value)}
+            placeholder="0"
+          />
+        </label>
+        <button onClick={handleSelectRow}>Select</button>
+        {deselectFn && (
+          <>
+            {" | "}
+            <button onClick={handleClearSelection}>Clear Selection</button>
+          </>
+        )}
       </div>
       <hr/>
       <div style={{
