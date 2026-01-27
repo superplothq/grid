@@ -4,23 +4,32 @@ import CellManager from "./core/cell-manager";
 import PLayout from "./core/layout-proto";
 import {addToRegistry, getFromRegistry} from "./registry";
 import { Constructor } from "./types";
-import StandardLayout from "./core/standard-layout";
+import StandardLayout, { LayoutEvents } from "./core/standard-layout";
+import { WithEvents, EventEmitter } from "./core/mixins";
 
 export { StandardLayout };
 export { GridConfig, defaultConfig } from "./config";
 export { PLayout, GridDataViewModel };
 export type { BaseViewModel as BaseViewState } from "./core/layout-proto";
 export type { SliceResult } from "./types";
+export type { LayoutEvents } from "./core/standard-layout";
+export type { EventEmitter };
 
-export default class Grid {
+export type GridEvents = LayoutEvents;
+
+class GridBase {}
+const GridWithEvents = WithEvents<GridEvents>()(GridBase);
+
+export default class Grid extends GridWithEvents {
   #config: GridConfig;
   #data: GridDataViewModel | undefined;
   #cellManager: CellManager;
   #layout: PLayout;
   #renderCount = 0;
-
+  #layoutBootstrapped = false;
 
   constructor(config: Partial<GridConfig>, mountPoint: HTMLElement) {
+    super();
     this.#config = { ...defaultConfig, ...config };
 
     const StandardLayout = getFromRegistry<PLayout>(REG_TYPE_LAYOUT, this.#config.layoutType);
@@ -31,6 +40,9 @@ export default class Grid {
 
     this.#cellManager = new CellManager();
     this.#layout = new StandardLayout(this.#config, mountPoint, this.#cellManager);
+
+    // Forward layout events to Grid
+    this.forwardFrom(this.#layout as unknown as EventEmitter<LayoutEvents>, ["renderComplete", "debug_perf:metrics"]);
   }
 
   set data(value: GridDataViewModel) {
@@ -49,7 +61,7 @@ export default class Grid {
     if (!this.#data) throw new Error("Data is not set!");
 
     const viewModel = this.#layout.calculateViewModel();
-    this.#layout.render(viewModel);
+    this.#layout.render(viewModel, {t1: startTime});
   }
 
   static register<T>(type: string, name: string, cls: Constructor<T>): void {

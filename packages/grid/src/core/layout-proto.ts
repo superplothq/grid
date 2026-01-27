@@ -9,6 +9,10 @@ export interface BaseViewModel {
   y1: number;
 }
 
+export interface RenderCtx {
+  t1: number;
+}
+
 export default abstract class PLayout {
   data: GridDataViewModel | undefined;
   config: GridConfig;
@@ -28,6 +32,6 @@ export default abstract class PLayout {
 
   abstract calculateViewModel(): BaseViewModel;
 
-  abstract render(viewModel: BaseViewModel): void;
+  abstract render(viewModel: BaseViewModel, ctx: RenderCtx): void;
 }
 

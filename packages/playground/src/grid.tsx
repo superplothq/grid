@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import "grid";
-import Grid, { GridDataViewModel } from "grid";
+import Grid, { GridDataViewModel, LayoutEvents } from "grid";
 
 // Declare the custom element for TypeScript
 declare global {
@@ -40,6 +40,8 @@ const GridPlayground: React.FC = () => {
     localStorage.getItem("grid_cellSizeConfig") ?? defaultCellSizeConfig
   );
   const [totalDataPoints, setTotalDataPoints] = useState(0);
+  const [events, setEvents] = useState<Array<{ name: string; payload: unknown }>>([]);
+  const [perfMetrics, setPerfMetrics] = useState<LayoutEvents['debug_perf:metrics'] | null>(null);
 
   const handleRowFacetChange = (value: string) => {
     setRowFacetConfig(value);
@@ -199,6 +201,12 @@ const GridPlayground: React.FC = () => {
     // Create or update grid
     if (!gridRef.current) {
       gridRef.current = new Grid({}, gridConRef.current);
+      gridRef.current.on('renderComplete', (payload) => {
+        setEvents((prev) => [{ name: 'renderComplete', payload }, ...prev.slice(0, 49)]);
+      });
+      gridRef.current.on('debug_perf:metrics', (payload) => {
+        setPerfMetrics(payload);
+      });
     }
 
     console.log("Generated data:", { totalRows, totalCols, rowFacets: rowFacetLevelMajor, colFacets: colFacetLevelMajor, data });
@@ -213,17 +221,21 @@ const GridPlayground: React.FC = () => {
 
   return (
     <>
-      <pre>
-{`Usage:
-- Row Facet Config: semicolon-separated counts (e.g., "5;10" = 2 levels, 5×10=50 rows)
-- Column Facet Config: semicolon-separated counts (e.g., "2;3;3" = 3 levels, 2×3×3=18 cols)
-- Cell Size Config: "ROWxCOL:LENGTH" where ! means strict position
-    50x4:30    = every 50th row AND every 4th col gets 30-char string
-    50!x4!:30  = only row 50 AND col 4 gets 30-char string
-    50x4!:30   = every 50th row AND only col 4
-    50!x4:30   = only row 50 AND every 4th col
-- Empty row/col config = no data; empty col config only = standard table`}
-      </pre>
+      <details>
+        <summary>Usage</summary>
+        <pre>
+  {`Usage:
+  - Row Facet Config: semicolon-separated counts (e.g., "5;10" = 2 levels, 5×10=50 rows)
+  - Column Facet Config: semicolon-separated counts (e.g., "2;3;3" = 3 levels, 2×3×3=18 cols)
+  - Cell Size Config: "ROWxCOL:LENGTH" where ! means strict position
+      50x4:30    = every 50th row AND every 4th col gets 30-char string
+      50!x4!:30  = only row 50 AND col 4 gets 30-char string
+      50x4!:30   = every 50th row AND only col 4
+      50!x4:30   = only row 50 AND every 4th col
+  - Empty row/col config = no data; empty col config only = standard table`}
+        </pre>
+      </details>
+      <hr/>
       <div>
         <label>
           Row Facet Config:
@@ -254,7 +266,7 @@ const GridPlayground: React.FC = () => {
         <button onClick={handleReset}>Reset</button>
         <span> Total data points: {totalDataPoints}</span>
       </div>
-      <pre id="pref-info"></pre>
+      <hr/>
       <div style={{
         position: "relative",
         background: "white",
@@ -267,6 +279,18 @@ const GridPlayground: React.FC = () => {
         contain: "layout style",
       }} ref={gridConRef}>
       </div>
+      <details>
+        <summary>Perf</summary>
+        <pre id="pref-info" style={{ maxHeight: "150px", overflow: "auto", fontSize: "11px", background: "#f5f5f5", padding: "8px" }}>
+          {perfMetrics ? JSON.stringify(perfMetrics, null, 2) : ''}
+        </pre>
+      </details>
+      <details>
+        <summary>Events ({events.length})</summary>
+        <pre style={{ maxHeight: "150px", overflow: "auto", fontSize: "11px", background: "#f5f5f5", padding: "8px" }}>
+{events.map((e, i) => `[${events.length - i}] ${e.name} ${JSON.stringify(e.payload)}`).join('\n')}
+        </pre>
+      </details>
     </>
   );
 };

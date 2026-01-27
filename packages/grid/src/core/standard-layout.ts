@@ -1,9 +1,26 @@
 import {GridConfig} from "../config";
 import {GridDataViewModel} from "../grid-data-viewmodel";
-import PLayout, {BaseViewModel} from "./layout-proto";
+import PLayout, {BaseViewModel, RenderCtx} from "./layout-proto";
 import {gridCss, gridShadowElsStyle} from "./grid-css.tmp";
-import {WithCellPlacement} from "./mixins";
+import {WithCellPlacement, WithEvents} from "./mixins";
 import CellManager from "./cell-manager";
+
+export type LayoutEvents = {
+  renderComplete: {
+    x0: number;
+    y0: number;
+    x1: number;
+    y1: number;
+  };
+  "debug_perf:metrics": {
+    timeToRender: number;
+    renderCount: number;
+    nodesActive: number;
+    nodesAppendedInThisFrame: number;
+    nodesDeletedInThisFrame: number;
+    poolSize: number;
+  };
+};
 
 export interface ViewModel extends BaseViewModel {
   offsetX: number;
@@ -27,7 +44,7 @@ interface CellToMeasure {
   sizeKey: number;
 }
 
-const StandardLayoutBase = WithCellPlacement(PLayout);
+const StandardLayoutBase = WithEvents<LayoutEvents>()(WithCellPlacement(PLayout));
 
 export default class StandardLayout extends StandardLayoutBase {
   // all column can be of different sizes hence those are tracked based on column indices
@@ -99,7 +116,7 @@ export default class StandardLayout extends StandardLayoutBase {
     console.log(`>>> Measured row height: ${height}px`);
   }
 
-  // TODO Move this up to the caller of layout
+  // TODO Decide if this to be moved  up to the caller of layout
   #setupScrollListener(): void {
     if (this.#scrollListenerSet) return;
     this.#scrollListenerSet = true;
@@ -108,8 +125,9 @@ export default class StandardLayout extends StandardLayoutBase {
 
       this.#scrollRAF = requestAnimationFrame(() => {
         this.#scrollRAF = null;
-        const vs = this.calculateViewModel();
-        this.render(vs);
+        const t1 = performance.now();
+        const viewModel = this.calculateViewModel();
+        this.render(viewModel, {t1});
       });
     });
   }
@@ -406,7 +424,7 @@ export default class StandardLayout extends StandardLayoutBase {
     }
   }
 
-  render(viewModel: ViewModel): void {
+  render(viewModel: ViewModel, ctx: RenderCtx): void {
     if (!this.data) throw new Error("Data is not set!");
     this.#renderCount++;
 
@@ -531,10 +549,31 @@ export default class StandardLayout extends StandardLayoutBase {
 
     if (!this.#layoutBootstrapped) {
       this.#layoutBootstrapped = true;
-      const vsUpdated = this.calculateViewModel();
-      this.#onLayoutBootstrap(vsUpdated);
+      const vmUpdated = this.calculateViewModel();
+      this.#onLayoutBootstrap(vmUpdated);
+      this.#raiseRenderCompleteEvent(vmUpdated, ctx, nodeAppendList, cellsToRemove);
+    } else {
+      this.#raiseRenderCompleteEvent(viewModel, ctx, nodeAppendList, cellsToRemove);
     }
 
     this.#postRenderAdjustCellsPerLevel.length = 0;
+  }
+
+  #raiseRenderCompleteEvent(viewModel: ViewModel, ctx: RenderCtx, nodeAppendList: HTMLElement[], cellsToRemove: HTMLElement[]): void {
+    this.emit("renderComplete", {
+      x0: viewModel.x0,
+      y0: viewModel.y0,
+      x1: viewModel.x1,
+      y1: viewModel.y1,
+    });
+
+    this.emit("debug_perf:metrics", {
+      timeToRender: +(performance.now() - ctx.t1).toFixed(2),
+      renderCount: this.#renderCount,
+      nodesActive: this.cellManager.activeCount,
+      nodesAppendedInThisFrame: nodeAppendList.length,
+      nodesDeletedInThisFrame: cellsToRemove.length,
+      poolSize: this.cellManager.poolSize,
+    });
   }
 }
