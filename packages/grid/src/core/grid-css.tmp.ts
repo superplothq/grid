@@ -90,7 +90,7 @@ export const gridCss = `
     border-right: 1px solid #616161 !important;
   }
 
-  .selection-overlay {
+  .cell.selection-overlay {
     pointer-events: none;
     background: rgba(0, 120, 215, 0.1);
     border: 2px solid #0078d7;

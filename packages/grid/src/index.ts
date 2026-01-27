@@ -4,7 +4,7 @@ import CellManager from "./core/cell-manager";
 import PLayout from "./core/layout-proto";
 import {addToRegistry, getFromRegistry} from "./registry";
 import { Constructor } from "./types";
-import StandardLayout, { LayoutEvents, SelectionType } from "./core/standard-layout";
+import StandardLayout, { LayoutEvents } from "./core/standard-layout";
 import { WithEvents, EventEmitter } from "./core/mixins";
 
 export { StandardLayout };
@@ -12,13 +12,15 @@ export { GridConfig, defaultConfig } from "./config";
 export { PLayout, GridDataViewModel };
 export type { BaseViewModel as BaseViewState } from "./core/layout-proto";
 export type { SliceResult } from "./types";
-export type { LayoutEvents, SelectionType } from "./core/standard-layout";
+export type { LayoutEvents } from "./core/standard-layout";
 export type { EventEmitter };
 
 export type GridEvents = LayoutEvents;
 
 class GridBase {}
 const GridWithEvents = WithEvents<GridEvents>()(GridBase);
+
+export type SelectionType = "cell" | "row" | "column" | "range";
 
 export default class Grid extends GridWithEvents {
   #config: GridConfig;

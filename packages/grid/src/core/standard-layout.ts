@@ -76,7 +76,6 @@ export default class StandardLayout extends StandardLayoutBase {
   #con: HTMLElement;
   #virtualPanelEl: HTMLElement;
   #gridClipEl: HTMLElement;
-  #selectionEls: HTMLElement[] = [];
   #scrollRAF: number | null = null;
   #scrollListenerSet = false;
   #renderCount = 0;
@@ -444,48 +443,6 @@ export default class StandardLayout extends StandardLayoutBase {
     return results;
   }
 
-  #renderSelections(viewModel: ViewModel): void {
-    const selections = viewModel.selections;
-
-    // Ensure we have enough selection elements
-    while (this.#selectionEls.length < selections.length) {
-      const el = document.createElement("div");
-      el.className = "selection-overlay";
-      this.#con.appendChild(el);
-      this.#selectionEls.push(el);
-    }
-
-    // Position each selection element
-    for (let i = 0; i < selections.length; i++) {
-      const sel = selections[i];
-      const el = this.#selectionEls[i];
-
-      const visFromRow = Math.max(sel.fromRow, viewModel.y0);
-      const visToRow = Math.min(sel.toRow, viewModel.y1 - 1);
-      const visFromCol = Math.max(sel.fromCol, viewModel.x0);
-      const visToCol = Math.min(sel.toCol, viewModel.x1 - 1);
-
-      if (visFromRow > visToRow || visFromCol > visToCol) {
-        el.style.display = "none";
-        continue;
-      }
-
-      el.style.display = "";
-      const rowStart = this.data!.numColFacetLevels + (visFromRow - viewModel.y0) + 1;
-      const rowSpan = visToRow - visFromRow + 1;
-      const colStart = this.data!.numRowFacetLevels + (visFromCol - viewModel.x0) + 1;
-      const colSpan = visToCol - visFromCol + 1;
-
-      el.style.gridRow = `${rowStart} / span ${rowSpan}`;
-      el.style.gridColumn = `${colStart} / span ${colSpan}`;
-    }
-
-    // Hide excess elements
-    for (let i = selections.length; i < this.#selectionEls.length; i++) {
-      this.#selectionEls[i].style.display = "none";
-    }
-  }
-
   #onLayoutBootstrap(viewModel: ViewModel): void {
     this.#updateVirtualPanel(viewModel);
 
@@ -523,8 +480,9 @@ export default class StandardLayout extends StandardLayoutBase {
     for (let i = 0; i < this.data!.numRowFacetLevels; i++) {
       this.#postRenderAdjustCellsPerLevel.push([]);
     }
-
     let nodeAppendList = [];
+
+    // render corner cells which results from intersection of row and column facets
     for (let hRow = 0; hRow < this.data!.numColFacetLevels; hRow++) {
       for (let hCol = 0; hCol < this.data!.numRowFacetLevels; hCol++) {
         const key = `corner-${hRow}-${hCol}`;
@@ -545,6 +503,7 @@ export default class StandardLayout extends StandardLayoutBase {
       }
     }
 
+    // render column facets
     let merges = this.#computeMerges(this.data!.numColFacetLevels, numDataColsVisible, sliceData.columnFacets!);
     for (const merge of merges) {
       const key = `col-h-${merge.level}-${viewModel.x0 + merge.start}`;
@@ -567,6 +526,7 @@ export default class StandardLayout extends StandardLayoutBase {
       }
     }
 
+    // render row facets
     merges.length = 0;
     merges = this.#computeMerges(this.data!.numRowFacetLevels, numDataRowsVisible, sliceData.rowFacets!);
     for (const merge of merges) {
@@ -588,6 +548,7 @@ export default class StandardLayout extends StandardLayoutBase {
       this.#postRenderAdjustCellsPerLevel[merge.level].push(cell);
     }
 
+    // render data cells
     for (let i = 0; i < numDataColsVisible; i++) {
       const colData = sliceData.data ? sliceData.data[i] ?? [] : [];
       const gridCol = this.data!.numRowFacetLevels + i + 1;
@@ -609,6 +570,30 @@ export default class StandardLayout extends StandardLayoutBase {
       }
     }
 
+    // draw selections if present
+    for (const sel of viewModel.selections) {
+      const visFromRow = Math.max(sel.fromRow, viewModel.y0);
+      const visToRow = Math.min(sel.toRow, viewModel.y1 - 1);
+      const visFromCol = Math.max(sel.fromCol, viewModel.x0);
+      const visToCol = Math.min(sel.toCol, viewModel.x1 - 1);
+
+      if (visFromRow > visToRow || visFromCol > visToCol) continue;
+
+      const [el, needAppend] = this.placeCellInDom({
+        key: `sel-${sel.fromRow};${sel.toRow};${sel.fromCol};${sel.toCol}`,
+        content: "",
+        cls: "selection-overlay",
+        gridRow: this.data!.numColFacetLevels + (visFromRow - viewModel.y0) + 1,
+        gridCol: this.data!.numRowFacetLevels + (visFromCol - viewModel.x0) + 1,
+        extraStyles: {
+          rowspan: visToRow - visFromRow + 1,
+          colspan: visToCol - visFromCol + 1,
+        },
+      });
+
+      needAppend && nodeAppendList.push(el);
+    }
+
     // append all cells to the DOM in one go
     this.#con.append(...nodeAppendList);
 
@@ -625,11 +610,8 @@ export default class StandardLayout extends StandardLayoutBase {
       this.#layoutBootstrapped = true;
       const vmUpdated = this.calculateViewModel();
       this.#onLayoutBootstrap(vmUpdated);
-
-      this.#renderSelections(vmUpdated);
       this.#raiseRenderCompleteEvent(vmUpdated, ctx, nodeAppendList, cellsToRemove);
     } else {
-      this.#renderSelections(viewModel);
       this.#raiseRenderCompleteEvent(viewModel, ctx, nodeAppendList, cellsToRemove);
     }
 
