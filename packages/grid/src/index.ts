@@ -16,6 +16,11 @@ export type { LayoutEvents } from "./core/standard-layout";
 export type { EventEmitter };
 export {
   textRenderer,
+  createChartRenderer,
+  defaultChartConfig,
+  type CellConfig,
+  type ChartConfig,
+  type CellWithConfigRenderer,
   type GridDataViewModelOptions,
   type RendererConfig,
   type CellRenderer,
