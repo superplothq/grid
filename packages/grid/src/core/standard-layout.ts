@@ -18,6 +18,7 @@ export type LayoutEvents = {
     nodesActive: number;
     nodesAppendedInThisFrame: number;
     nodesDeletedInThisFrame: number;
+    contentCellRerenderCount: number;
     poolSize: number;
   };
 };
@@ -118,20 +119,73 @@ export default class StandardLayout extends StandardLayoutBase {
     return [con, ...Array.from(el.shadowRoot!.children)] as HTMLElement[];
   }
 
+  // calculate both facet and data row heights
+  // check if both calculation needs to be separated as later on column header can have icons etc.
   #measureRowHeight(): void {
-    const sample = document.createElement("div");
-    sample.className = "cell";
-    sample.style.visibility = "hidden";
-    sample.textContent = "Mgy$123,456";
-    this.#con.appendChild(sample);
-    const rect = sample.getBoundingClientRect();
-    const height = rect.height;
-    this.#con.removeChild(sample);
+    const facetSample = document.createElement("div");
+    facetSample.className = "cell";
+    facetSample.style.visibility = "hidden";
+    facetSample.textContent = "Mgy$123,456";
+    this.#con.appendChild(facetSample);
+    this.rowHeightByType.facet = facetSample.getBoundingClientRect().height;
+    this.#con.removeChild(facetSample);
 
-    this.rowHeightByType.facet = height;
-    this.rowHeightByType.data = height;
+    if (!this.data) {
+      this.rowHeightByType.data = this.rowHeightByType.facet;
+      return;
+    }
 
-    console.log(`>>> Measured row height: ${height}px`);
+    const renderers = this.data.renderers;
+    const measureCells: HTMLElement[] = [];
+
+    for (let col = 0; col < this.data.numCols; col++) {
+      const r = renderers[col];
+      const cell = document.createElement("div");
+      cell.className = "cell data";
+      cell.style.visibility = "hidden";
+      cell.style.gridRow = "1";
+      cell.style.gridColumn = `${col + 1}`;
+
+      if (r.cellHeight !== undefined) {
+        cell.style.height = `${r.cellHeight}px`;
+      } else {
+        const sampleValue = r.sampleData ?? this.data.getSlice(col, 0, col + 1, 1).data?.[0]?.[0];
+        const content = r.renderer(sampleValue, {});
+        this.#setCellContent(cell, content);
+      }
+      measureCells.push(cell);
+    }
+
+    // gridTemplateColumns: max-content ensures columns don't constrain cell width during measurement
+    // (which could cause text wrapping and affect height). Row height is found by manually iterating
+    // cells and taking the max - we don't need gridTemplateRows: max-content since we need the pixel
+    // value anyway for rowHeightByType.data.
+    const prevTemplate = this.#con.style.gridTemplateColumns;
+    this.#con.style.gridTemplateColumns = `repeat(${this.data.numCols}, max-content)`;
+    this.#con.append(...measureCells);
+
+    let maxHeight = 0;
+    for (const cell of measureCells) {
+      maxHeight = Math.max(maxHeight, cell.getBoundingClientRect().height);
+    }
+    this.rowHeightByType.data = maxHeight || this.rowHeightByType.facet;
+
+    for (const cell of measureCells) {
+      this.#con.removeChild(cell);
+    }
+    this.#con.style.gridTemplateColumns = prevTemplate;
+
+    console.log(`>>> Measured data row height: ${this.rowHeightByType.data}px facet row height: ${this.rowHeightByType.facet}px`);
+  }
+
+  #setCellContent(cell: HTMLElement, content: string | HTMLElement | HTMLElement[]): void {
+    if (typeof content === "string") {
+      cell.innerHTML = content;
+    } else if (Array.isArray(content)) {
+      cell.replaceChildren(...content);
+    } else {
+      cell.replaceChildren(content);
+    }
   }
 
   // TODO Decide if this to be moved  up to the caller of layout
@@ -180,6 +234,7 @@ export default class StandardLayout extends StandardLayoutBase {
 
   setData(data: GridDataViewModel): void {
     super.setData(data);
+    this.#measureRowHeight();
   }
 
   calculateVerticalViewModel() {
@@ -549,24 +604,44 @@ export default class StandardLayout extends StandardLayoutBase {
     }
 
     // render data cells
+    const renderers = this.data!.renderers;
+
+    let contentCellRerenderCount = 0;
     for (let i = 0; i < numDataColsVisible; i++) {
       const colData = sliceData.data ? sliceData.data[i] ?? [] : [];
       const gridCol = this.data!.numRowFacetLevels + i + 1;
       const sizeKey = this.data!.numRowFacetLevels + viewModel.x0 + i;
+      const absoluteColIndex = viewModel.x0 + i;
+      const renderer = renderers[absoluteColIndex];
 
       for (let j = 0; j < numDataRowsVisible; j++) {
-        const key = `data-${viewModel.x0 + i}-${viewModel.y0 + j}`;
-        const value = colData[j] ?? "";
-        const [cell, needAppend] = this.placeCellInDom({
-          key,
-          gridRow: this.data!.numColFacetLevels + j + 1,
-          gridCol,
-          content: String(value),
-          cls: "data",
-          extraStyles: {},
-        });
+        const absoluteRowIndex = viewModel.y0 + j;
+        const key = `data-${absoluteColIndex}-${absoluteRowIndex}`;
+        const value = colData[j];
+        const [cell, needAppend] = this.cellManager.acquire(key);
+        const cij = `${absoluteRowIndex}:${absoluteColIndex}`;
+        const needsContentRerender = needAppend || cell.dataset.cij !== cij;
+
+        if (needsContentRerender) {
+          contentCellRerenderCount++;
+          const isNullish = value === null || value === undefined;
+          if (isNullish) {
+            cell.innerHTML = "";
+          } else {
+            const content = renderer.renderer(value, {});
+            this.#setCellContent(cell, content);
+          }
+          cell.dataset.cij = cij;
+        }
+
+        cell.className = "cell data" + (renderer.isCustom ? " custom-rendered" : "");
+        cell.style.gridColumn = `${gridCol}`;
+        cell.style.gridRow = `${this.data!.numColFacetLevels + j + 1}`;
+
         needAppend && nodeAppendList.push(cell);
-        this.#cellsToMeasure.push({ cell, sizeKey });
+        if (!renderer.isCustom) {
+          this.#cellsToMeasure.push({ cell, sizeKey });
+        }
       }
     }
 
@@ -610,15 +685,19 @@ export default class StandardLayout extends StandardLayoutBase {
       this.#layoutBootstrapped = true;
       const vmUpdated = this.calculateViewModel();
       this.#onLayoutBootstrap(vmUpdated);
-      this.#raiseRenderCompleteEvent(vmUpdated, ctx, nodeAppendList, cellsToRemove);
+      this.#raiseRenderCompleteEvent(vmUpdated, ctx, {nodeAppendList, cellsToRemove, contentCellRerenderCount});
     } else {
-      this.#raiseRenderCompleteEvent(viewModel, ctx, nodeAppendList, cellsToRemove);
+      this.#raiseRenderCompleteEvent(viewModel, ctx, {nodeAppendList, cellsToRemove, contentCellRerenderCount});
     }
 
     this.#postRenderAdjustCellsPerLevel.length = 0;
   }
 
-  #raiseRenderCompleteEvent(viewModel: ViewModel, ctx: RenderCtx, nodeAppendList: HTMLElement[], cellsToRemove: HTMLElement[]): void {
+  #raiseRenderCompleteEvent(viewModel: ViewModel, ctx: RenderCtx, additionalMetrics: {
+    nodeAppendList: HTMLElement[],
+    cellsToRemove: HTMLElement[],
+    contentCellRerenderCount: number,
+  }): void {
     this.emit("renderComplete", {
       x0: viewModel.x0,
       y0: viewModel.y0,
@@ -630,8 +709,9 @@ export default class StandardLayout extends StandardLayoutBase {
       timeToRender: +(performance.now() - ctx.t1).toFixed(2),
       renderCount: this.#renderCount,
       nodesActive: this.cellManager.activeCount,
-      nodesAppendedInThisFrame: nodeAppendList.length,
-      nodesDeletedInThisFrame: cellsToRemove.length,
+      nodesAppendedInThisFrame: additionalMetrics.nodeAppendList.length,
+      nodesDeletedInThisFrame: additionalMetrics.cellsToRemove.length,
+      contentCellRerenderCount: additionalMetrics.contentCellRerenderCount,
       poolSize: this.cellManager.poolSize,
     });
   }

@@ -14,6 +14,15 @@ export type { BaseViewModel as BaseViewState } from "./core/layout-proto";
 export type { SliceResult } from "./types";
 export type { LayoutEvents } from "./core/standard-layout";
 export type { EventEmitter };
+export {
+  textRenderer,
+  type GridDataViewModelOptions,
+  type RendererConfig,
+  type CellRenderer,
+  type ColumnQualifier,
+  type RendererContext,
+  type ResolvedRenderer,
+} from "./core/cell-renderers";
 
 export type SelectionPayload = {
   hash: string;
