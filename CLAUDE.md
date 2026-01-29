@@ -1,61 +1,36 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository. This repository creates a high performant js grid.
 
 ## Project Structure
 
-This is a yarn workspace with three packages:
+This is a yarn workspace with following packages:
 
-- **packages/utils**: Pure JavaScript library with utility functions (TypeScript compiled to CommonJS)
-- **packages/datamodel**: Business logic library that depends on utils (TypeScript compiled to CommonJS)
-- **packages/playground**: React web application that depends on datamodel (TypeScript + Webpack + React)
-
-## Common Commands
-
-### Development
-- `yarn start` - Start the grid React development server (runs on http://localhost:3000)
-- `yarn build` - Build all packages in the workspace
-- `yarn clean` - Clean all build outputs
-
-### Individual Package Commands
-- `yarn workspace utils build` - Build utils package
-- `yarn workspace datamodel build` - Build datamodel package
-- `yarn workspace grid build` - Build grid package for production
-- `yarn workspace grid start` - Start grid development server
-
-### Build Order
-Packages must be built in dependency order:
-1. utils (no dependencies)
-2. datamodel (depends on utils)
-3. grid (depends on datamodel)
-
-## Architecture
-
-### Package Dependencies
-```
-grid (React app)
-  └── datamodel (business logic)
-      └── utils (utility functions)
-```
-
-### Key Files
-- `packages/utils/src/index.ts` - Utility functions (add, multiply, subtract)
-- `packages/datamodel/src/index.ts` - Business logic that uses utils functions
-- `packages/grid/src/App.tsx` - Main React component
-- `packages/grid/src/index.tsx` - React app entry point
+- **packages/utils**: Ignore for now
+- **packages/datamodel**: Ignore for now
+- **packages/playground**: React web application that creates playground where samples of grid can get created during development / demo
+- **packages/grid**: High peformant Grid / pivot table implementation
 
 ### Technology Stack
 - **utils**: TypeScript, ESLint
 - **datamodel**: TypeScript, ESLint
-- **grid**: React 18, TypeScript, Webpack 5, ESLint
+- **grid**: TypeScript, ESLint
+- **playground**: React 18, TypeScript, Webpack 5, ESLint
 
 ### Development Server
-The grid package runs a webpack-dev-server on port 3000 with hot reloading enabled.
+Already setup by the user and running. 
+
+## Grid
+
+- Grid supports a ViewModel architecture with with explicit control via controller. ./packages/grid/src/index.ts is the controller and also the entry point. 
+- It has a open closed architecture where even the core grid is rendered by registering various components. You can look at ./packages/grid/src/index.ts Grid.register call
+- So far the controller expect components to comply to following protocol found in ./packages/grid/src/core/*-proto.ts files
+- ./packages/playground/src/grid.tsx uses the grid library to render the grid
 
 ## Notes
 
+- If you get lint errors, first run autofix to fix all autofixable errors, then run eslint again to see remaining errors
+  and fix them manually.
 - All packages use TypeScript with strict mode enabled
 - The workspace uses yarn workspaces for dependency management
 - ESLint is configured but may need workspace-level configuration fixes
-- Grid package outputs to `dist/` directory with webpack
-- Utils and datamodel compile to `dist/` with TypeScript compiler
