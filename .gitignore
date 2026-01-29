@@ -83,3 +83,6 @@ coverage/
 ehthumbs.db
 Thumbs.db
 .specstory
+
+# temporary until specs is fixed
+specs/
