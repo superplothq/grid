@@ -29,6 +29,7 @@ Already setup by the user and running.
 
 ## Notes
 
+- Generate the plan docs in ./specs directory
 - Don't write comments unless explicity asked to do so
 - Run lint `yarn workspace grid lint --fix 2>&1` to fix autofixable lints and report the rest which you can try fixing manually
 - Don't run playground build

@@ -1,6 +1,34 @@
 import React, { useEffect, useRef, useState } from "react";
 import "grid";
-import Grid, { GridDataViewModel, LayoutEvents, SelectionPayload } from "grid";
+import Grid, { GridDataViewModel, LayoutEvents, SelectionPayload, RendererConfig, createChartRenderer, CellRenderer } from "grid";
+
+interface TwoKeyData {
+  primary: string;
+  secondary: string;
+}
+
+const twoKeyRenderer: CellRenderer<TwoKeyData> = (data) => {
+  if (!data) return "";
+  return `<div style="display:flex;flex-direction:column;align-items:flex-start;line-height:1.2">
+    <div style="font-weight:bold">${data.primary}</div>
+    <div>${data.secondary}</div>
+  </div>`;
+};
+
+interface ThreeKeyData {
+  first: string;
+  second: string;
+  third: string;
+}
+
+const threeKeyRenderer: CellRenderer<ThreeKeyData> = (data) => {
+  if (!data) return "";
+  return `<div style="display:flex;flex-direction:column;align-items:flex-start;line-height:1.2;font-weight:bold">
+    <div>${data.first}</div>
+    <div>${data.second}</div>
+    <div>${data.third}</div>
+  </div>`;
+};
 
 // Declare the custom element for TypeScript
 declare global {
@@ -239,28 +267,57 @@ const GridPlayground: React.FC = () => {
       colFacetLevelMajor.push(colFacetColMajor.map(col => col[level]));
     }
 
+    // Determine which columns should have chart data (last facet ends with "_1")
+    const chartColumns = new Set<number>();
+    colFacetColMajor.forEach((facets, colIndex) => {
+      const lastFacet = facets[facets.length - 1];
+      if (lastFacet && lastFacet.endsWith("_1")) {
+        chartColumns.add(colIndex);
+      }
+    });
+
+    // Absolute column indices for special renderers
+    const twoKeyColIndex = 2;
+    const threeKeyColIndex = totalCols - 1;
+
     // Generate data
-    const data: string[][] = [];
+    const data: (string | number[] | TwoKeyData | ThreeKeyData)[][] = [];
     for (let row = 0; row < totalRows; row++) {
-      const rowData: string[] = [];
+      const rowData: (string | number[] | TwoKeyData | ThreeKeyData)[] = [];
       for (let col = 0; col < totalCols; col++) {
-        let cellValue = generateRandomNumber(4, 7);
+        if (col === twoKeyColIndex) {
+          rowData.push({
+            primary: generateRandomNumber(3, 5),
+            secondary: generateRandomNumber(3, 5),
+          });
+        } else if (col === threeKeyColIndex) {
+          rowData.push({
+            first: generateRandomNumber(3, 4),
+            second: generateRandomNumber(3, 4),
+            third: generateRandomNumber(3, 4),
+          });
+        } else if (chartColumns.has(col)) {
+          const chartData = Array.from({ length: 8 }, () => Math.floor(Math.random() * 100));
+          rowData.push(chartData);
+        } else {
+          let cellValue = generateRandomNumber(4, 7);
 
-        // Check if cell size config applies (1-indexed modulo)
-        if (cellSize) {
-          const rowMatch = cellSize.rowStrict
-            ? (row + 1) === cellSize.rowMod
-            : (row + 1) % cellSize.rowMod === 0;
-          const colMatch = cellSize.colStrict
-            ? (col + 1) === cellSize.colMod
-            : (col + 1) % cellSize.colMod === 0;
+          // Check if cell size config applies (1-indexed modulo)
+          if (cellSize) {
+            const rowMatch = cellSize.rowStrict
+              ? (row + 1) === cellSize.rowMod
+              : (row + 1) % cellSize.rowMod === 0;
+            const colMatch = cellSize.colStrict
+              ? (col + 1) === cellSize.colMod
+              : (col + 1) % cellSize.colMod === 0;
 
-          if (rowMatch && colMatch) {
-            cellValue = generateLongString(cellSize.length);
+            if (rowMatch && colMatch) {
+              cellValue = generateLongString(cellSize.length);
+            }
           }
-        }
 
-        rowData.push(cellValue);
+          rowData.push(cellValue);
+        }
       }
       data.push(rowData);
     }
@@ -280,8 +337,36 @@ const GridPlayground: React.FC = () => {
       gridRef.current.on('selectionRemoved', handleSelectionRemoved);
     }
 
+    // Create renderers for chart columns (columns where last facet is CF2_1)
+    const lineChart = createChartRenderer({ chartType: "line" });
+
+    // Get column qualifiers for absolute columns
+    const twoKeyQualifier = colFacetColMajor[twoKeyColIndex] || [];
+    const threeKeyQualifier = colFacetColMajor[threeKeyColIndex] || [];
+
+    const renderers = [
+      {
+        columnQualifier: ["*", "*", "CF2_1"],
+        renderer: lineChart,
+        cellHeight: 24,
+        sampleData: [50, 60, 70, 80, 90],
+      },
+      {
+        columnQualifier: twoKeyQualifier,
+        renderer: twoKeyRenderer,
+        cellHeight: 36,
+        sampleData: { primary: "12345", secondary: "67890" },
+      },
+      {
+        columnQualifier: threeKeyQualifier,
+        renderer: threeKeyRenderer,
+        cellHeight: 48,
+        sampleData: { first: "1234", second: "5678", third: "9012" },
+      },
+    ] as RendererConfig[];
+
     console.log("Generated data:", { totalRows, totalCols, rowFacets: rowFacetLevelMajor, colFacets: colFacetLevelMajor, data });
-    gridRef.current.data = new GridDataViewModel(data, colFacetLevelMajor, rowFacetLevelMajor);
+    gridRef.current.data = new GridDataViewModel(data, colFacetLevelMajor, rowFacetLevelMajor, { renderers });
     gridRef.current.draw();
   };
 

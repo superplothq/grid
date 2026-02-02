@@ -40,7 +40,8 @@ export default class CellManager {
   #release(cell: HTMLElement): void {
     cell.className = "cell";
     cell.style.cssText = "";
-    cell.textContent = "";
+    cell.innerHTML = "";
+    delete cell.dataset.cij;
     this.#pool.push(cell);
   }
 

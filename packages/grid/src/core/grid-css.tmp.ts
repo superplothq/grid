@@ -99,4 +99,9 @@ export const gridCss = `
     box-sizing: border-box;
   }
 
+  .cell.data.custom-rendered {
+    justify-content: center;
+    padding: 0;
+  }
+
 `;
