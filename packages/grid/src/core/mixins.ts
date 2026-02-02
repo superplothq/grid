@@ -51,3 +51,62 @@ export function WithCellPlacement<TBase extends Constructor<HasCellManager>>(Bas
   }
   return Mixed;
 }
+
+type EventHandler<T> = (payload: T) => void;
+
+export interface EventEmitter<TEvents extends Record<string, unknown>> {
+  on<K extends keyof TEvents>(event: K, handler: EventHandler<TEvents[K]>): () => void;
+  off<K extends keyof TEvents>(event: K, handler?: EventHandler<TEvents[K]>): void;
+  emit<K extends keyof TEvents>(event: K, payload: TEvents[K]): void;
+  forwardFrom<TSource extends Record<string, unknown>>(
+    source: EventEmitter<TSource>,
+    events: (keyof TSource & keyof TEvents)[]
+  ): () => void;
+}
+
+export function WithEvents<TEvents extends Record<string, unknown>>() {
+  return function <TBase extends Constructor>(Base: TBase) {
+    abstract class Mixed extends Base implements EventEmitter<TEvents> {
+      #listeners = new Map<keyof TEvents, Set<EventHandler<unknown>>>();
+
+      on<K extends keyof TEvents>(event: K, handler: EventHandler<TEvents[K]>): () => void {
+        if (!this.#listeners.has(event)) {
+          this.#listeners.set(event, new Set());
+        }
+        this.#listeners.get(event)!.add(handler as EventHandler<unknown>);
+        return () => this.off(event, handler);
+      }
+
+      off<K extends keyof TEvents>(event: K, handler?: EventHandler<TEvents[K]>): void {
+        if (!handler) {
+          this.#listeners.delete(event);
+        } else {
+          this.#listeners.get(event)?.delete(handler as EventHandler<unknown>);
+        }
+      }
+
+      emit<K extends keyof TEvents>(event: K, payload: TEvents[K]): void {
+        setTimeout(() => {
+          this.#listeners.get(event)?.forEach((handler) => handler(payload));
+        }, 0);
+      }
+
+      forwardFrom<TSource extends Record<string, unknown>>(
+        source: EventEmitter<TSource>,
+        events: (keyof TSource & keyof TEvents)[]
+      ): () => void {
+        const unsubscribers: (() => void)[] = [];
+
+        for (const event of events) {
+          const unsub = source.on(event, (payload) => {
+            this.emit(event as keyof TEvents, payload as unknown as TEvents[keyof TEvents]);
+          });
+          unsubscribers.push(unsub);
+        }
+
+        return () => unsubscribers.forEach((unsub) => unsub());
+      }
+    }
+    return Mixed;
+  };
+}

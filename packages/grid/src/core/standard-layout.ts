@@ -1,9 +1,39 @@
 import {GridConfig} from "../config";
 import {GridDataViewModel} from "../grid-data-viewmodel";
-import PLayout, {BaseViewModel} from "./layout-proto";
+import PLayout, {BaseViewModel, RenderCtx} from "./layout-proto";
 import {gridCss, gridShadowElsStyle} from "./grid-css.tmp";
-import {WithCellPlacement} from "./mixins";
+import {WithCellPlacement, WithEvents} from "./mixins";
 import CellManager from "./cell-manager";
+
+export type LayoutEvents = {
+  renderComplete: {
+    x0: number;
+    y0: number;
+    x1: number;
+    y1: number;
+  };
+  "debug_perf:metrics": {
+    timeToRender: number;
+    renderCount: number;
+    nodesActive: number;
+    nodesAppendedInThisFrame: number;
+    nodesDeletedInThisFrame: number;
+    poolSize: number;
+  };
+};
+
+type SelectionProposal = [startRow: number, startCol: number, endRow: number, endCol: number][];
+
+interface ViewModelProposal {
+  selections?: SelectionProposal;
+}
+
+export interface SelectionState {
+  fromRow: number;
+  fromCol: number;
+  toRow: number;
+  toCol: number;
+}
 
 export interface ViewModel extends BaseViewModel {
   offsetX: number;
@@ -14,6 +44,7 @@ export interface ViewModel extends BaseViewModel {
   colFacetsHeight: number;
   rowFacetsLeftPositions: number[];
   colFacetsTopPositions: number[];
+  selections: SelectionState[];
 }
 
 interface MergeState {
@@ -27,7 +58,7 @@ interface CellToMeasure {
   sizeKey: number;
 }
 
-const StandardLayoutBase = WithCellPlacement(PLayout);
+const StandardLayoutBase = WithEvents<LayoutEvents>()(WithCellPlacement(PLayout));
 
 export default class StandardLayout extends StandardLayoutBase {
   // all column can be of different sizes hence those are tracked based on column indices
@@ -51,6 +82,7 @@ export default class StandardLayout extends StandardLayoutBase {
   #layoutBootstrapped = false;
   #cellsToMeasure: CellToMeasure[] = [];
   #postRenderAdjustCellsPerLevel: HTMLElement[][] = [];
+  #proposal: ViewModelProposal = {};
 
   
   constructor(config: GridConfig, mountPoint: HTMLElement, cellManager: CellManager) {
@@ -58,7 +90,10 @@ export default class StandardLayout extends StandardLayoutBase {
 
     [this.#con, , this.#virtualPanelEl, this.#gridClipEl] = this.#attachShadowDom();
     this.#measureRowHeight();
+  }
 
+  viewModelProposal(proposal: ViewModelProposal): void {
+    Object.assign(this.#proposal, proposal);
   }
 
   #attachShadowDom(): HTMLElement[] {
@@ -99,7 +134,7 @@ export default class StandardLayout extends StandardLayoutBase {
     console.log(`>>> Measured row height: ${height}px`);
   }
 
-  // TODO Move this up to the caller of layout
+  // TODO Decide if this to be moved  up to the caller of layout
   #setupScrollListener(): void {
     if (this.#scrollListenerSet) return;
     this.#scrollListenerSet = true;
@@ -108,8 +143,9 @@ export default class StandardLayout extends StandardLayoutBase {
 
       this.#scrollRAF = requestAnimationFrame(() => {
         this.#scrollRAF = null;
-        const vs = this.calculateViewModel();
-        this.render(vs);
+        const t1 = performance.now();
+        const viewModel = this.calculateViewModel();
+        this.render(viewModel, {t1});
       });
     });
   }
@@ -287,6 +323,18 @@ export default class StandardLayout extends StandardLayoutBase {
     const vsVertical = this.calculateVerticalViewModel();
     const vsHorizontal = this.calculateHorizontalViewModel();
 
+    // Resolve selections from proposal
+    const selections: SelectionState[] = [];
+    const selProp = this.#proposal.selections || [];
+    for (const [startRow, startCol, endRow, endCol] of selProp) {
+      selections.push({
+        fromRow: startRow,
+        fromCol: startCol,
+        toRow: Math.min(endRow, this.data.numRows - 1),   // Resolve Infinity
+        toCol: Math.min(endCol, this.data.numCols - 1),   // Resolve Infinity
+      });
+    }
+
     return {
       x0: vsHorizontal.startCol,
       y0: vsVertical.startRow,
@@ -300,6 +348,7 @@ export default class StandardLayout extends StandardLayoutBase {
       colFacetsHeight: vsVertical.colFacetsHeight,
       rowFacetsLeftPositions: vsHorizontal.rowFacetsLeftPositions,
       colFacetsTopPositions: vsVertical.colFacetsTopPositions,
+      selections,
     }
   }
 
@@ -406,7 +455,7 @@ export default class StandardLayout extends StandardLayoutBase {
     }
   }
 
-  render(viewModel: ViewModel): void {
+  render(viewModel: ViewModel, ctx: RenderCtx): void {
     if (!this.data) throw new Error("Data is not set!");
     this.#renderCount++;
 
@@ -431,8 +480,9 @@ export default class StandardLayout extends StandardLayoutBase {
     for (let i = 0; i < this.data!.numRowFacetLevels; i++) {
       this.#postRenderAdjustCellsPerLevel.push([]);
     }
-
     let nodeAppendList = [];
+
+    // render corner cells which results from intersection of row and column facets
     for (let hRow = 0; hRow < this.data!.numColFacetLevels; hRow++) {
       for (let hCol = 0; hCol < this.data!.numRowFacetLevels; hCol++) {
         const key = `corner-${hRow}-${hCol}`;
@@ -453,6 +503,7 @@ export default class StandardLayout extends StandardLayoutBase {
       }
     }
 
+    // render column facets
     let merges = this.#computeMerges(this.data!.numColFacetLevels, numDataColsVisible, sliceData.columnFacets!);
     for (const merge of merges) {
       const key = `col-h-${merge.level}-${viewModel.x0 + merge.start}`;
@@ -475,6 +526,7 @@ export default class StandardLayout extends StandardLayoutBase {
       }
     }
 
+    // render row facets
     merges.length = 0;
     merges = this.#computeMerges(this.data!.numRowFacetLevels, numDataRowsVisible, sliceData.rowFacets!);
     for (const merge of merges) {
@@ -496,6 +548,7 @@ export default class StandardLayout extends StandardLayoutBase {
       this.#postRenderAdjustCellsPerLevel[merge.level].push(cell);
     }
 
+    // render data cells
     for (let i = 0; i < numDataColsVisible; i++) {
       const colData = sliceData.data ? sliceData.data[i] ?? [] : [];
       const gridCol = this.data!.numRowFacetLevels + i + 1;
@@ -517,6 +570,30 @@ export default class StandardLayout extends StandardLayoutBase {
       }
     }
 
+    // draw selections if present
+    for (const sel of viewModel.selections) {
+      const visFromRow = Math.max(sel.fromRow, viewModel.y0);
+      const visToRow = Math.min(sel.toRow, viewModel.y1 - 1);
+      const visFromCol = Math.max(sel.fromCol, viewModel.x0);
+      const visToCol = Math.min(sel.toCol, viewModel.x1 - 1);
+
+      if (visFromRow > visToRow || visFromCol > visToCol) continue;
+
+      const [el, needAppend] = this.placeCellInDom({
+        key: `sel-${sel.fromRow};${sel.toRow};${sel.fromCol};${sel.toCol}`,
+        content: "",
+        cls: "selection-overlay",
+        gridRow: this.data!.numColFacetLevels + (visFromRow - viewModel.y0) + 1,
+        gridCol: this.data!.numRowFacetLevels + (visFromCol - viewModel.x0) + 1,
+        extraStyles: {
+          rowspan: visToRow - visFromRow + 1,
+          colspan: visToCol - visFromCol + 1,
+        },
+      });
+
+      needAppend && nodeAppendList.push(el);
+    }
+
     // append all cells to the DOM in one go
     this.#con.append(...nodeAppendList);
 
@@ -531,10 +608,31 @@ export default class StandardLayout extends StandardLayoutBase {
 
     if (!this.#layoutBootstrapped) {
       this.#layoutBootstrapped = true;
-      const vsUpdated = this.calculateViewModel();
-      this.#onLayoutBootstrap(vsUpdated);
+      const vmUpdated = this.calculateViewModel();
+      this.#onLayoutBootstrap(vmUpdated);
+      this.#raiseRenderCompleteEvent(vmUpdated, ctx, nodeAppendList, cellsToRemove);
+    } else {
+      this.#raiseRenderCompleteEvent(viewModel, ctx, nodeAppendList, cellsToRemove);
     }
 
     this.#postRenderAdjustCellsPerLevel.length = 0;
+  }
+
+  #raiseRenderCompleteEvent(viewModel: ViewModel, ctx: RenderCtx, nodeAppendList: HTMLElement[], cellsToRemove: HTMLElement[]): void {
+    this.emit("renderComplete", {
+      x0: viewModel.x0,
+      y0: viewModel.y0,
+      x1: viewModel.x1,
+      y1: viewModel.y1,
+    });
+
+    this.emit("debug_perf:metrics", {
+      timeToRender: +(performance.now() - ctx.t1).toFixed(2),
+      renderCount: this.#renderCount,
+      nodesActive: this.cellManager.activeCount,
+      nodesAppendedInThisFrame: nodeAppendList.length,
+      nodesDeletedInThisFrame: cellsToRemove.length,
+      poolSize: this.cellManager.poolSize,
+    });
   }
 }
