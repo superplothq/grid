@@ -9,9 +9,18 @@ import { WithEvents, EventEmitter } from "./core/mixins";
 
 export { StandardLayout };
 export { GridConfig, defaultConfig } from "./config";
+export type {
+  IColAutoSize,
+  IColAutoSizeStrategyMaxCell,
+  IColAutoSizeStrategyFixedWidth,
+  ColAutoSizeConfig,
+  ColDef,
+  ResolvedColDef,
+  GridDataViewModelOptions,
+  SliceResult,
+} from "./types";
 export { PLayout, GridDataViewModel };
 export type { BaseViewModel as BaseViewState } from "./core/layout-proto";
-export type { SliceResult } from "./types";
 export type { LayoutEvents } from "./core/standard-layout";
 export type { EventEmitter };
 export {
@@ -21,12 +30,8 @@ export {
   type CellConfig,
   type ChartConfig,
   type CellWithConfigRenderer,
-  type GridDataViewModelOptions,
-  type RendererConfig,
   type CellRenderer,
-  type ColumnQualifier,
   type RendererContext,
-  type ResolvedRenderer,
 } from "./core/cell-renderers";
 
 export type SelectionPayload = {

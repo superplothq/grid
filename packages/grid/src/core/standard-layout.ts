@@ -1,5 +1,6 @@
 import {GridConfig} from "../config";
 import {GridDataViewModel} from "../grid-data-viewmodel";
+import {IColAutoSizeStrategyFixedWidth} from "../types";
 import PLayout, {BaseViewModel, RenderCtx} from "./layout-proto";
 import {gridCss, gridShadowElsStyle} from "./grid-css.tmp";
 import {WithCellPlacement, WithEvents} from "./mixins";
@@ -135,22 +136,22 @@ export default class StandardLayout extends StandardLayoutBase {
       return;
     }
 
-    const renderers = this.data.renderers;
+    const colDefs = this.data.colDefs;
     const measureCells: HTMLElement[] = [];
 
     for (let col = 0; col < this.data.numCols; col++) {
-      const r = renderers[col];
+      const colDef = colDefs[col];
       const cell = document.createElement("div");
       cell.className = "cell data";
       cell.style.visibility = "hidden";
       cell.style.gridRow = "1";
       cell.style.gridColumn = `${col + 1}`;
 
-      if (r.cellHeight !== undefined) {
-        cell.style.height = `${r.cellHeight}px`;
+      if (colDef.cellHeight !== undefined) {
+        cell.style.height = `${colDef.cellHeight}px`;
       } else {
-        const sampleValue = r.sampleData ?? this.data.getSlice(col, 0, col + 1, 1).data?.[0]?.[0];
-        const content = r.renderer(sampleValue, {});
+        const sampleValue = colDef.sampleData ?? this.data.getSlice(col, 0, col + 1, 1).data?.[0]?.[0];
+        const content = colDef.renderer(sampleValue, {});
         this.#setCellContent(cell, content);
       }
       measureCells.push(cell);
@@ -411,7 +412,7 @@ export default class StandardLayout extends StandardLayoutBase {
     numRowFacets: number,
     numColFacets: number,
     numDataCols: number,
-    numDataRows: number,
+    numDataRows: number
   ): { columns: string; rows: string } {
     return {
       columns: `repeat(${numRowFacets + numDataCols}, max-content)`,
@@ -559,20 +560,32 @@ export default class StandardLayout extends StandardLayoutBase {
     }
 
     // render column facets
+    const colDefs = this.data!.colDefs;
     let merges = this.#computeMerges(this.data!.numColFacetLevels, numDataColsVisible, sliceData.columnFacets!);
     for (const merge of merges) {
-      const key = `col-h-${merge.level}-${viewModel.x0 + merge.start}`;
-      const sizeKey = this.data!.numRowFacetLevels + viewModel.x0 + merge.start;
+      const colIndex = viewModel.x0 + merge.start;
+      const colDef = colDefs[colIndex];
+      const skipSizeClass = colDef.colSize.excludeColumnFacets ? " skp-sz" : "";
+      const key = `col-h-${merge.level}-${colIndex}`;
+      const sizeKey = this.data!.numRowFacetLevels + colIndex;
       const colspan = merge.span;
+
+      const isLeafLevel = merge.level === this.data!.numColFacetLevels - 1;
+      const shouldApplyWidth = isLeafLevel && colspan === 1 && !colDef.colSize.excludeColumnFacets && colDef.colSize.strategy === "fixed-width";
+      const fixedSize = shouldApplyWidth ? colDef.colSize as IColAutoSizeStrategyFixedWidth : null;
+
       const [cell, needAppend] = this.placeCellInDom({
         key,
         gridRow: merge.level + 1,
         gridCol: this.data!.numRowFacetLevels + merge.start + 1,
-        content: merge.value,
-        cls: `col-header level-${merge.level}`,
+        content: `<span class="content">${merge.value}</span>`,
+        cls: `col-header level-${merge.level}${skipSizeClass}`,
         extraStyles: {
           colspan,
           top: viewModel.colFacetsTopPositions[merge.level],
+          ...(fixedSize?.widthInPx !== undefined && { width: fixedSize.widthInPx }),
+          ...(fixedSize?.minWidthInPx !== undefined && { minWidth: fixedSize.minWidthInPx }),
+          ...(fixedSize?.maxWidthInPx !== undefined && { maxWidth: fixedSize.maxWidthInPx }),
         },
       });
       needAppend && nodeAppendList.push(cell);
@@ -604,15 +617,14 @@ export default class StandardLayout extends StandardLayoutBase {
     }
 
     // render data cells
-    const renderers = this.data!.renderers;
-
     let contentCellRerenderCount = 0;
     for (let i = 0; i < numDataColsVisible; i++) {
       const colData = sliceData.data ? sliceData.data[i] ?? [] : [];
       const gridCol = this.data!.numRowFacetLevels + i + 1;
       const sizeKey = this.data!.numRowFacetLevels + viewModel.x0 + i;
       const absoluteColIndex = viewModel.x0 + i;
-      const renderer = renderers[absoluteColIndex];
+      const colDef = colDefs[absoluteColIndex];
+      const fixedSize = colDef.colSize.strategy === "fixed-width" ? colDef.colSize as IColAutoSizeStrategyFixedWidth : null;
 
       for (let j = 0; j < numDataRowsVisible; j++) {
         const absoluteRowIndex = viewModel.y0 + j;
@@ -628,18 +640,22 @@ export default class StandardLayout extends StandardLayoutBase {
           if (isNullish) {
             cell.innerHTML = "";
           } else {
-            const content = renderer.renderer(value, {});
+            const content = colDef.renderer(value, {});
             this.#setCellContent(cell, content);
           }
           cell.dataset.cij = cij;
         }
 
-        cell.className = "cell data" + (renderer.isCustom ? " custom-rendered" : "");
+        cell.className = "cell data" + (colDef.isCustom ? " custom-rendered" : "");
         cell.style.gridColumn = `${gridCol}`;
         cell.style.gridRow = `${this.data!.numColFacetLevels + j + 1}`;
 
+        cell.style.width = fixedSize?.widthInPx !== undefined ? `${fixedSize.widthInPx}px` : "";
+        cell.style.minWidth = fixedSize?.minWidthInPx !== undefined ? `${fixedSize.minWidthInPx}px` : "";
+        cell.style.maxWidth = fixedSize?.maxWidthInPx !== undefined ? `${fixedSize.maxWidthInPx}px` : "";
+
         needAppend && nodeAppendList.push(cell);
-        if (!renderer.isCustom) {
+        if (!colDef.isCustom) {
           this.#cellsToMeasure.push({ cell, sizeKey });
         }
       }
