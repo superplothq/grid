@@ -1,6 +1,6 @@
 import {GridConfig} from "../config";
 import {GridDataViewModel} from "../grid-data-viewmodel";
-import {IColAutoSizeStrategyFixedWidth} from "../types";
+import {ColAutoSizeConfig, IColAutoSizeStrategyFixedWidth} from "../types";
 import PLayout, {BaseViewModel, RenderCtx} from "./layout-proto";
 import {gridCss, gridShadowElsStyle} from "./grid-css.tmp";
 import {WithCellPlacement, WithEvents} from "./mixins";
@@ -62,12 +62,20 @@ interface CellToMeasure {
 
 const StandardLayoutBase = WithEvents<LayoutEvents>()(WithCellPlacement(PLayout));
 
+interface ResizeState {
+  colDef: ColAutoSizeConfig;
+  widthBeforeResize: number;
+  currentWidth: number;
+  cells: HTMLElement[];
+}
+
 export default class StandardLayout extends StandardLayoutBase {
   // all column can be of different sizes hence those are tracked based on column indices
   colsWidth: { indices: number[]; override: number[] } = {
     indices: [],
     override: [],
   }
+  #resizeState: Map<number, ResizeState> = new Map();
   // facet row and data row can have spearate sizes hence those are tracked
   // based on row type. But then all facet rows would have same size and all
   // data rows would have same size.
@@ -435,6 +443,8 @@ export default class StandardLayout extends StandardLayoutBase {
     for (const { cell, sizeKey } of this.#cellsToMeasure) {
       const width = cell.getBoundingClientRect().width;
       if (!width) continue;
+      // sizeKey is the index of the column facet for the leaf column facet level (for which the data cells are aligned)
+      // For one column - calculate the max width of all the data cells in the column as that'd be the width of the column
       if (width > (indices[sizeKey] || 0)) {
         indices[sizeKey] = width;
       }
@@ -588,6 +598,9 @@ export default class StandardLayout extends StandardLayoutBase {
           ...(fixedSize?.maxWidthInPx !== undefined && { maxWidth: fixedSize.maxWidthInPx }),
         },
       });
+      if (isLeafLevel) {
+        cell.dataset.hix = String(colIndex);
+      }
       needAppend && nodeAppendList.push(cell);
       if (!(colspan && colspan > 1)) {
         this.#cellsToMeasure.push({ cell, sizeKey });
@@ -631,8 +644,7 @@ export default class StandardLayout extends StandardLayoutBase {
         const key = `data-${absoluteColIndex}-${absoluteRowIndex}`;
         const value = colData[j];
         const [cell, needAppend] = this.cellManager.acquire(key);
-        const cij = `${absoluteRowIndex}:${absoluteColIndex}`;
-        const needsContentRerender = needAppend || cell.dataset.cij !== cij;
+        const needsContentRerender = needAppend || cell.dataset.cclix !== String(absoluteColIndex) || cell.dataset.croix !== String(absoluteRowIndex);
 
         if (needsContentRerender) {
           contentCellRerenderCount++;
@@ -643,7 +655,8 @@ export default class StandardLayout extends StandardLayoutBase {
             const content = colDef.renderer(value, {});
             this.#setCellContent(cell, content);
           }
-          cell.dataset.cij = cij;
+          cell.dataset.cclix = String(absoluteColIndex); // cell column index
+          cell.dataset.croix = String(absoluteRowIndex); // cell row index
         }
 
         cell.className = "cell data" + (colDef.isCustom ? " custom-rendered" : "");
@@ -730,5 +743,109 @@ export default class StandardLayout extends StandardLayoutBase {
       contentCellRerenderCount: additionalMetrics.contentCellRerenderCount,
       poolSize: this.cellManager.poolSize,
     });
+  }
+
+  changeLeafColWidth(colIdx: number): {
+    byDelta: (dw: number) => number;
+    byAbsValue: (width: number) => number;
+    commit: () => number;
+    cancel: () => number;
+  } {
+    const cleanup = () => {
+      const state = this.#resizeState.get(colIdx);
+      if (!state) return;
+      for (const cell of state.cells) {
+        delete cell.dataset.stashedWidth;
+        delete cell.dataset.stashedMinWidth;
+        delete cell.dataset.stashedMaxWidth;
+      }
+      this.#resizeState.delete(colIdx);
+    };
+
+    if (this.#resizeState.has(colIdx)) {
+      console.warn(`Column ${colIdx} is already being resized. Cleaning up previous resize.`);
+    }
+    cleanup();
+
+    const headerCell = this.#con.querySelector<HTMLElement>(`[data-hix="${colIdx}"]`);
+    const dataCells = Array.from(this.#con.querySelectorAll<HTMLElement>(`[data-cclix="${colIdx}"]`));
+    const cells: HTMLElement[] = headerCell ? [headerCell, ...dataCells] : dataCells;
+
+    if (cells.length === 0) {
+      throw new Error(`No cells found for column ${colIdx}`);
+    }
+
+    const widthBeforeResize = cells[0].getBoundingClientRect().width;
+    const colDef = this.data!.colDefs[colIdx].colSize;
+
+    for (const cell of cells) {
+      if (cell.style.width) {
+        cell.dataset.stashedWidth = cell.style.width;
+      }
+      if (cell.style.minWidth) {
+        cell.dataset.stashedMinWidth = cell.style.minWidth;
+        cell.style.minWidth = "";
+      }
+      if (cell.style.maxWidth) {
+        cell.dataset.stashedMaxWidth = cell.style.maxWidth;
+        cell.style.maxWidth = "";
+      }
+      cell.style.width = `${widthBeforeResize}px`;
+    }
+
+    let resizeState = {
+      colDef,
+      widthBeforeResize,
+      currentWidth: widthBeforeResize,
+      cells,
+    };
+    this.#resizeState.set(colIdx, resizeState);
+
+    return {
+      byDelta: (dw: number): number => {
+        // 20 is minimum width that a column can be resized to
+        const newWidth = Math.max(20, resizeState.widthBeforeResize + dw);
+        resizeState.currentWidth = newWidth;
+        for (const cell of resizeState.cells) {
+          cell.style.width = `${newWidth}px`;
+        }
+        return newWidth;
+      },
+      byAbsValue: (width: number): number => {
+        const newWidth = Math.max(20, width);
+        resizeState.currentWidth = newWidth;
+        for (const cell of resizeState.cells) {
+          cell.style.width = `${newWidth}px`;
+        }
+        return newWidth;
+      },
+      commit: (): number => {
+        const finalWidth = resizeState.currentWidth;
+        this.data!.colDefs[colIdx].colSize = { strategy: "fixed-width", widthInPx: finalWidth };
+        this.colsWidth.override[colIdx] = finalWidth;
+        cleanup();
+        const viewModel = this.calculateViewModel();
+        this.render(viewModel, { t1: performance.now() });
+        return finalWidth;
+      },
+      cancel: (): number => {
+        const originalWidth = resizeState.widthBeforeResize;
+        for (const cell of resizeState.cells) {
+          if (cell.dataset.stashedWidth) {
+            cell.style.width = cell.dataset.stashedWidth;
+          } else {
+            cell.style.width = "";
+          }
+          if (cell.dataset.stashedMinWidth) {
+            cell.style.minWidth = cell.dataset.stashedMinWidth;
+          }
+          if (cell.dataset.stashedMaxWidth) {
+            cell.style.maxWidth = cell.dataset.stashedMaxWidth;
+          }
+        }
+        cleanup();
+        return originalWidth;
+      },
+    };
   }
 }
