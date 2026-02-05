@@ -43,6 +43,9 @@ export default class CellManager {
     cell.innerHTML = "";
     delete cell.dataset.cclix;
     delete cell.dataset.croix;
+    delete cell.dataset.cellType;
+    delete cell.dataset.hix;
+    delete cell.dataset.facetLevel;
     this.#pool.push(cell);
   }
 

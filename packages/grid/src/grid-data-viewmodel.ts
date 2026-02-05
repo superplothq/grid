@@ -49,6 +49,10 @@ export class GridDataViewModel {
     return this.#resolvedColDefs;
   }
 
+  setColSize(colIndex: number, colSize: ResolvedColDef["colSize"]): void {
+    this.#resolvedColDefs[colIndex].colSize = colSize;
+  }
+
   get numRowFacetLevels() {
     return this.#rowFacets?.length ?? 0;
   }
@@ -64,6 +68,15 @@ export class GridDataViewModel {
 
   get numCols() {
     return this.#numCols;
+  }
+
+  // TODO don't take column facet as a 1D flat array it opens up requirement for normalizatoin every where.
+  //      Always take it as a 2D array
+  get columnFacets(): string[][] {
+    if (!(this.#colFacets[0] instanceof Array)) {
+      return [this.#colFacets as string[]];
+    }
+    return this.#colFacets as string[][];
   }
 
   // TODO this can be optimized since this sits in the hot path of every render cycle

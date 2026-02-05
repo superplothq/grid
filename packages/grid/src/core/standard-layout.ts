@@ -1,6 +1,6 @@
 import {GridConfig} from "../config";
 import {GridDataViewModel} from "../grid-data-viewmodel";
-import {ColAutoSizeConfig, IColAutoSizeStrategyFixedWidth} from "../types";
+import {IColAutoSizeStrategyFixedWidth} from "../types";
 import PLayout, {BaseViewModel, RenderCtx} from "./layout-proto";
 import {gridCss, gridShadowElsStyle} from "./grid-css.tmp";
 import {WithCellPlacement, WithEvents} from "./mixins";
@@ -63,7 +63,6 @@ interface CellToMeasure {
 const StandardLayoutBase = WithEvents<LayoutEvents>()(WithCellPlacement(PLayout));
 
 interface ResizeState {
-  colDef: ColAutoSizeConfig;
   widthBeforeResize: number;
   currentWidth: number;
   cells: HTMLElement[];
@@ -104,6 +103,10 @@ export default class StandardLayout extends StandardLayoutBase {
 
   viewModelProposal(proposal: ViewModelProposal): void {
     Object.assign(this.#proposal, proposal);
+  }
+
+  get gridContainer(): HTMLElement {
+    return this.#con;
   }
 
   #attachShadowDom(): HTMLElement[] {
@@ -197,7 +200,6 @@ export default class StandardLayout extends StandardLayoutBase {
     }
   }
 
-  // TODO Decide if this to be moved  up to the caller of layout
   #setupScrollListener(): void {
     if (this.#scrollListenerSet) return;
     this.#scrollListenerSet = true;
@@ -574,10 +576,11 @@ export default class StandardLayout extends StandardLayoutBase {
     let merges = this.#computeMerges(this.data!.numColFacetLevels, numDataColsVisible, sliceData.columnFacets!);
     for (const merge of merges) {
       const colIndex = viewModel.x0 + merge.start;
+      // TODO[1]
       const colDef = colDefs[colIndex];
       const skipSizeClass = colDef.colSize.excludeColumnFacets ? " skp-sz" : "";
-      const key = `col-h-${merge.level}-${colIndex}`;
-      const sizeKey = this.data!.numRowFacetLevels + colIndex;
+      const absoluteColIndex = this.data!.numRowFacetLevels + colIndex;
+      const key = `col-h-${merge.level}-${absoluteColIndex}`;
       const colspan = merge.span;
 
       const isLeafLevel = merge.level === this.data!.numColFacetLevels - 1;
@@ -598,12 +601,24 @@ export default class StandardLayout extends StandardLayoutBase {
           ...(fixedSize?.maxWidthInPx !== undefined && { maxWidth: fixedSize.maxWidthInPx }),
         },
       });
-      if (isLeafLevel) {
-        cell.dataset.hix = String(colIndex);
-      }
+      cell.dataset.cellType = "column-facet";
+      cell.dataset.facetLevel = String(merge.level);
+      // For a nested column facet which is not at the last level (not leaf nodes), hix is the rightmost column index
+      // [f0_0, f0_0, f0_0, f0_0, f1_1, f1_1, f1_1, f1_1]
+      // [f1_0, f1_0, f1_1, f1_1, f1_0, f1_0, f1_1, f1_1]
+      // [f2_0, f2_1, f2_0, f2_1, f2_0, f2_1, f2_0, f2_1]
+      // Gets rendered as:
+      // | ----------- f0_0--------- | ----------- f0_1--------- |  <- level=0
+      // | -- f1_0 --  | -- f1_1 --  | -- f1_0 --  | -- f1_1 --  |  <- level=1
+      // | f2_0 | f2_1 | f2_0 | f2_1 | f2_0 | f2_1 | f2_0 | f2_1 |  <- level=2 / leaf nodes
+      // here hix attach to dom node
+      //   0       1      2       3     4       5     6      7      <- level=2 / leaf nodes
+      //           1              3             5            7      <- level=1
+      //                          3                          7      <- level=0
+      cell.dataset.hix = String(absoluteColIndex + colspan - 1);
       needAppend && nodeAppendList.push(cell);
       if (!(colspan && colspan > 1)) {
-        this.#cellsToMeasure.push({ cell, sizeKey });
+        this.#cellsToMeasure.push({ cell, sizeKey: absoluteColIndex });
       }
     }
 
@@ -624,6 +639,7 @@ export default class StandardLayout extends StandardLayoutBase {
           transform: merge.level === sliceData.rowFacets![0].length - 1 ? "" : "translate(0, calc(var(--offset-y)))",
         },
       });
+      cell.dataset.cellType = "row-facet";
       needAppend && nodeAppendList.push(cell);
       this.#cellsToMeasure.push({ cell, sizeKey: merge.level });
       this.#postRenderAdjustCellsPerLevel[merge.level].push(cell);
@@ -634,13 +650,13 @@ export default class StandardLayout extends StandardLayoutBase {
     for (let i = 0; i < numDataColsVisible; i++) {
       const colData = sliceData.data ? sliceData.data[i] ?? [] : [];
       const gridCol = this.data!.numRowFacetLevels + i + 1;
-      const sizeKey = this.data!.numRowFacetLevels + viewModel.x0 + i;
-      const absoluteColIndex = viewModel.x0 + i;
-      const colDef = colDefs[absoluteColIndex];
+      const absoluteColIndex = this.data!.numRowFacetLevels + viewModel.x0 + i;
+      // TODO[1]
+      const colDef = colDefs[absoluteColIndex - this.data!.numRowFacetLevels];
       const fixedSize = colDef.colSize.strategy === "fixed-width" ? colDef.colSize as IColAutoSizeStrategyFixedWidth : null;
 
       for (let j = 0; j < numDataRowsVisible; j++) {
-        const absoluteRowIndex = viewModel.y0 + j;
+        const absoluteRowIndex = this.data!.numColFacetLevels + viewModel.y0 + j;
         const key = `data-${absoluteColIndex}-${absoluteRowIndex}`;
         const value = colData[j];
         const [cell, needAppend] = this.cellManager.acquire(key);
@@ -655,11 +671,12 @@ export default class StandardLayout extends StandardLayoutBase {
             const content = colDef.renderer(value, {});
             this.#setCellContent(cell, content);
           }
-          cell.dataset.cclix = String(absoluteColIndex); // cell column index
-          cell.dataset.croix = String(absoluteRowIndex); // cell row index
+          cell.dataset.cclix = String(absoluteColIndex); // short for cell column index
+          cell.dataset.croix = String(absoluteRowIndex); // short for cell row index
         }
 
         cell.className = "cell data" + (colDef.isCustom ? " custom-rendered" : "");
+        cell.dataset.cellType = "value";
         cell.style.gridColumn = `${gridCol}`;
         cell.style.gridRow = `${this.data!.numColFacetLevels + j + 1}`;
 
@@ -669,7 +686,7 @@ export default class StandardLayout extends StandardLayoutBase {
 
         needAppend && nodeAppendList.push(cell);
         if (!colDef.isCustom) {
-          this.#cellsToMeasure.push({ cell, sizeKey });
+          this.#cellsToMeasure.push({ cell, sizeKey: absoluteColIndex });
         }
       }
     }
@@ -745,6 +762,7 @@ export default class StandardLayout extends StandardLayoutBase {
     });
   }
 
+  // colIdx is the absolute column index including row facets
   changeLeafColWidth(colIdx: number): {
     byDelta: (dw: number) => number;
     byAbsValue: (width: number) => number;
@@ -767,7 +785,14 @@ export default class StandardLayout extends StandardLayoutBase {
     }
     cleanup();
 
-    const headerCell = this.#con.querySelector<HTMLElement>(`[data-hix="${colIdx}"]`);
+    // For multiple level of column facets, the last level i.e. the leaf nodes are aligned with the cells of the column
+    // Meaning, for each vertical column these last level of column acts as a header. (we'll call these header)
+    // Meaning, the last level of column facet alongside the value cells form a standard table. You can think of the
+    // nested facets (level_n-1 where nth is leaf nodes) are nesting/hierarchy that aligns with the header cells.
+    // The sizing (width) always gets added to the last level of facets - the nested facets have colspan property set on
+    // them that css grid layout manages while creating the nesting/hierarchy.
+    const leafLevel = this.data!.numColFacetLevels - 1;
+    const headerCell = this.#con.querySelector<HTMLElement>(`[data-hix="${colIdx}"][data-facet-level="${leafLevel}"]`);
     const dataCells = Array.from(this.#con.querySelectorAll<HTMLElement>(`[data-cclix="${colIdx}"]`));
     const cells: HTMLElement[] = headerCell ? [headerCell, ...dataCells] : dataCells;
 
@@ -776,7 +801,6 @@ export default class StandardLayout extends StandardLayoutBase {
     }
 
     const widthBeforeResize = cells[0].getBoundingClientRect().width;
-    const colDef = this.data!.colDefs[colIdx].colSize;
 
     for (const cell of cells) {
       if (cell.style.width) {
@@ -794,7 +818,6 @@ export default class StandardLayout extends StandardLayoutBase {
     }
 
     let resizeState = {
-      colDef,
       widthBeforeResize,
       currentWidth: widthBeforeResize,
       cells,
@@ -821,11 +844,10 @@ export default class StandardLayout extends StandardLayoutBase {
       },
       commit: (): number => {
         const finalWidth = resizeState.currentWidth;
-        this.data!.colDefs[colIdx].colSize = { strategy: "fixed-width", widthInPx: finalWidth };
+        // TODO[1]
+        this.data!.setColSize(colIdx - this.data!.numRowFacetLevels, { strategy: "fixed-width", widthInPx: finalWidth });
         this.colsWidth.override[colIdx] = finalWidth;
         cleanup();
-        const viewModel = this.calculateViewModel();
-        this.render(viewModel, { t1: performance.now() });
         return finalWidth;
       },
       cancel: (): number => {

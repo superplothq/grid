@@ -63,6 +63,23 @@ export const gridCss = `
     border-bottom: 1px solid #616161;
     font-weight: 500;
     color: #424242;
+
+    /* show resize handler */
+    &::after {
+      content: '';
+      position: absolute;
+      top: 0;
+      right: 0;
+      width: 0px;
+      height: 100%;
+      cursor: col-resize;
+    }
+
+    &:hover::after {
+      background: #21212196;
+      width: 4px;
+      transition: width 0.2s ease-in-out;
+    }
   }
 
   .cell.col-header.skp-sz {

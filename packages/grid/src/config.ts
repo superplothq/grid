@@ -7,6 +7,7 @@ export interface GridConfig {
   defaultCellWidth: number;
   overscan: number;
   layoutType: string;
+  enableResizeUI: boolean;
 }
 
 export const defaultConfig: GridConfig = {
@@ -14,4 +15,5 @@ export const defaultConfig: GridConfig = {
   defaultCellWidth: 60,
   overscan: 2,
   layoutType: REG_NAME_STD,
+  enableResizeUI: true,
 };

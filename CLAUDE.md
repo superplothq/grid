@@ -31,6 +31,7 @@ Already setup by the user and running.
 
 - Do NOT make formatting changes (like adding/removing spaces, adding/removing newlines, etc) to existing code.
 - Do NOT write comments unless explicity asked to do so. But do NOT remove any existing comments.
+- Do NOT address TODO in code comments unless explicity asked to do so.
 - Run lint `yarn workspace grid lint --fix 2>&1` to fix autofixable lints and report the rest which you can try fixing manually
 - Do NOT run playground build
 - All packages use TypeScript with strict mode enabled
