@@ -2,7 +2,6 @@ import {GridConfig} from "../config";
 import {GridDataViewModel} from "../grid-data-viewmodel";
 import {IColAutoSizeStrategyFixedWidth} from "../types";
 import PLayout, {BaseViewModel, RenderCtx} from "./layout-proto";
-import {gridCss, gridShadowElsStyle} from "./grid-css.tmp";
 import {WithCellPlacement, WithEvents} from "./mixins";
 import CellManager from "./cell-manager";
 
@@ -115,15 +114,36 @@ export default class StandardLayout extends StandardLayoutBase {
     el.style.overflow = "auto";
     (el.shadowRoot as ShadowRoot).innerHTML = `
       <style>
-        ${gridShadowElsStyle}
+        * {
+          margin: 0;
+          padding: 0;
+          box-sizing: border-box;
+        }
+
+        /* Virtual scrollable area (creates scrollbar size) */
+        .virtual-panel {
+          position: absolute;
+          top: 0;
+          left: 0;
+          pointer-events: none;
+          z-index: 0;
+        }
+
+        /* Visible content clip area - sticks to viewport */
+        .grid-clip {
+          position: sticky;
+          top: 0;
+          left: 0;
+          overflow: hidden;
+          contain: layout style;
+          width: 100%;
+          height: 100%;
+        }
       </style>
       <div class="virtual-panel"></div>
       <div class="grid-clip"><slot></slot></div>
     `;
 
-    const style = document.createElement("style");
-    style.innerHTML = gridCss;
-    el.append(style);
     const con = document.createElement("div");
     con.className = "grid-content";
     el.appendChild(con);
@@ -573,6 +593,10 @@ export default class StandardLayout extends StandardLayoutBase {
 
     // render column facets
     const colDefs = this.data!.colDefs;
+    // Horizontal sticky scrolling for non leaf column facets are applied after auto sizing, hence here we store the
+    // value for which sticky scrolling should be applied.
+    const nonLeafColFacets: { cell: HTMLElement; mergeStart: number; mergeSpan: number }[] = [];
+
     let merges = this.#computeMerges(this.data!.numColFacetLevels, numDataColsVisible, sliceData.columnFacets!);
     for (const merge of merges) {
       const colIndex = viewModel.x0 + merge.start;
@@ -592,7 +616,7 @@ export default class StandardLayout extends StandardLayoutBase {
         gridRow: merge.level + 1,
         gridCol: this.data!.numRowFacetLevels + merge.start + 1,
         content: `<span class="content">${merge.value}</span>`,
-        cls: `col-header level-${merge.level}${skipSizeClass}`,
+        cls: `col-header level-${merge.level}${skipSizeClass}${!isLeafLevel ? " non-leaf" : ""}`,
         extraStyles: {
           colspan,
           top: viewModel.colFacetsTopPositions[merge.level],
@@ -601,6 +625,9 @@ export default class StandardLayout extends StandardLayoutBase {
           ...(fixedSize?.maxWidthInPx !== undefined && { maxWidth: fixedSize.maxWidthInPx }),
         },
       });
+      if (!isLeafLevel) {
+        nonLeafColFacets.push({ cell, mergeStart: merge.start, mergeSpan: merge.span });
+      }
       cell.dataset.cellType = "column-facet";
       cell.dataset.facetLevel = String(merge.level);
       // For a nested column facet which is not at the last level (not leaf nodes), hix is the rightmost column index
@@ -625,20 +652,215 @@ export default class StandardLayout extends StandardLayoutBase {
     // render row facets
     merges.length = 0;
     merges = this.#computeMerges(this.data!.numRowFacetLevels, numDataRowsVisible, sliceData.rowFacets!);
+    const rowHeight = this.rowHeightByType.data;
+    const visibleDataHeight = this.mountPoint.clientHeight - viewModel.colFacetsHeight;
+
     for (const merge of merges) {
-      const key = `row-h-${merge.level}-${viewModel.y0 + merge.start}`;
+      const isLeaf = merge.level === sliceData.rowFacets![0].length - 1;
+      const absoluteStart = viewModel.y0 + merge.start;
+      const key = `row-h-${merge.level}-${absoluteStart}`;
+
+      let labelOffset = 0;
+
+      // Sticky label positioning for non-leaf row facet cells.
+      //
+      // Non-leaf cells span multiple rows. Flexbox (align-items:center) centers the label vertically
+      // in the full cell height. But the container height is not equal to the visible area height,
+      // making the labels not centered vertically visually. Although wrt flex container it's centered properly.
+      //
+      // On top of that - while scrolling, transform is applied on the grid container and when
+      // transform is reset then grid layout is recalculated as new rows might be added or removed.
+      // This behaviour makes label scroll while the transform is applied while scrolling, and then jumped
+      // back to grid position when transform is reset and grid layout is recalculated - causing visual jitter.
+      //
+      // Moreover, since ach cell is independent, they are not in sync (aligned with surrounding facet) causing visual
+      // anomalies and additional treatment for matching borders.
+      //
+      // We compute a translateY offset to keepthe label centered within the visible portion, clamped at cell edges.
+      //
+      // The cell itself is translated (moving content + borders). To keep horizontal borders aligned with facet-leaf cells,
+      // the bottom border is drawn via a ::after pseudo-element that counter-translates using --label-offset CSS var (see grid.less).
+      // This is requried to keep the non leaf facet border aligned with the leaf cell borders.
+      //
+      // Four states of a non-leaf cell:
+      //
+      // 1. Fully visible (clippedTop=0, clippedBottom=0):
+      //    No transform. Label is naturally centered by CSS. Borders align.
+      //    Flex center is visual center
+      //
+      //    ┌─────────── viewport ───────────┐
+      //    │                                │
+      //    │   ┌── cell ──┐                 │
+      //    │   │          │                 │
+      //    │   │  label   │ ← centered      │
+      //    │   │          │                 │
+      //    │   └──────────┘                 │
+      //    │                                │
+      //    └────────────────────────────────┘
+      //
+      // 2. Some invisible top (group extends above viewport):
+      //    Flex center is ABOVE visual center
+      //    Label shifts down to center in the visible portion.
+      //
+      //    ╔══ cell ══╗  ← above viewport (clippedTop)
+      //    ║          ║
+      //    ┌────────────────────────────────┐
+      //    ║          ║                     │
+      //    ║  label   ║ ← shifted down      │
+      //    ║          ║                     │
+      //    ╚══════════╝                     │
+      //    │                                │
+      //    └────────────────────────────────┘
+      //
+      // 3. Some invisible bottom (group extends below viewport):
+      //    Flex center is BELOW visual center
+      //    Label shifts up to center in the visible portion.
+      //
+      //    ┌────────────────────────────────┐
+      //    │                                │
+      //    ╔══ cell ══╗                     │
+      //    ║          ║                     │
+      //    ║  label   ║ ← shifted up        │
+      //    ║          ║                     │
+      //    └────────────────────────────────┘
+      //    ║          ║  ← below viewport (clippedBottom)
+      //    ╚══════════╝
+      //
+      // 4. Both top and bottom invisible (cell taller than viewport):
+      //    Flex center is NOT visual center if clippedTop != clippedBottom
+      //    Label centered in the visible data area.
+      //
+      //    ╔══ cell ══╗  ← above viewport (clippedTop)
+      //    ║          ║
+      //    ┌────────────────────────────────┐
+      //    ║          ║                     │
+      //    ║  label   ║ ← centered in view  │
+      //    ║          ║                     │
+      //    └────────────────────────────────┘
+      //    ║          ║  ← below viewport (clippedBottom)
+      //    ╚══════════╝
+      //
+      //  cellHeight          - total pixel height of this merged cell: span * rowHeight
+      //                        (as the row is merged and spanned across multiple rows)
+      //  cellTopInDataArea   - top edge of cell relative to viewport top of data area.
+      //                        Negative when cell starts above the viewport.
+      //  cellBottomInDataArea- bottom edge of cell relative to viewport top of data area.
+      //                        Values > visibleDataHeight means cell extends below viewport.
+      //  clippedTop          - pixels of the cell hidden above viewport (0 if top is visible)
+      //  clippedBottom       - pixels of the cell hidden below viewport (0 if bottom is visible)
+      //  rawOffset           - The visibleHeight of the cell is (cellHeight - clippedTop - clippedBottom).
+      //                        Its center sits at clippedTop + visibleHeight/2 from cell top.
+      //                        The label's natural center (from flexbox) is at cellHeight/2.
+      //                        Amount of transform requires = The difference between where the label should be
+      //                        and where it naturally is: (clippedTop + visibleHeight/2) - cellHeight/2
+      //                        which simplifies to (clippedTop - clippedBottom) / 2.
+      //                        Positive = push label down (top is clipped), negative = push
+      //                        label up (bottom is clipped), zero = fully visible.
+      //                        If you look at this calculation - this is calculating how much of the container is
+      //                        bleeding outside the visible area and then applying the tranform WRT the current center
+      //                        that css flex box computed.
+      //  maxOffset           - Now rawOffset takes care of the part where there is uniform bleeding from both top and
+      //                        bottom.
+      //                        rawOffset alone could push the label outside the cell. Consider
+      //                        a 4-row cell where 3 rows are clipped above: rawOffset wants to
+      //                        push the label far down, but it can't go past the bottom edge.
+      //                        The label occupies ~1 row of height and sits at the cell center.
+      //                        The farthest it can travel from center before hitting an edge is
+      //                        (span - 1) * rowHeight / 2. This is the clamping bound.
+      //  labelOffset         - rawOffset clamped to [-maxOffset, maxOffset] - The expression below does this clamping.
+      //                        This is the final value applied as translateY on the cell. Also stored as
+      //                        --label-offset CSS var so the ::after border pseudo-element can
+      //                        counter-translate to stay aligned with leaf cell borders.
+      //
+      //  Offset diagrams (4-row cell, rowHeight=30, cellHeight=120):
+      //
+      //  Case: clipped top (60px above viewport)
+      //    clippedTop=60, clippedBottom=0, visibleHeight=60
+      //
+      //         cell
+      //    ┌────────────┐ ─┐
+      //    │            │  │ clippedTop=60
+      //    │  label(N)  │  │ ← natural center at cellHeight/2 = 60
+      //  ──┼────────────┼──┘─── viewport top
+      //    │            │  │
+      //    │  label(*)  │  │ visibleHeight=60  ← desired center at 60 + 30 = 90
+      //    │            │  │
+      //    └────────────┘──┘─── viewport bottom
+      //
+      //    rawOffset  = (60 - 0) / 2 = +30    (push label 30px down from natural center)
+      //    maxOffset  = (4-1) * 30 / 2 = 45   (label can travel ±45px from center)
+      //    labelOffset = clamp(30, -45, 45) = 30 ✓ within bounds
+      //
+      //  Case: clipped bottom (60px below viewport)
+      //    clippedTop=0, clippedBottom=60, visibleHeight=60
+      //
+      //         cell
+      //    ┌────────────┐──┐─── viewport top
+      //    │            │  │
+      //    │  label(*)  │  │ visibleHeight=60  ← desired center at 0 + 30 = 30
+      //    │            │  │
+      //  ──┼────────────┼──┘─── viewport bottom
+      //    │  label(N)  │  │ ← natural center at 60
+      //    │            │  │ clippedBottom=60
+      //    └────────────┘ ─┘
+      //
+      //    rawOffset  = (0 - 60) / 2 = -30    (push label 30px up from natural center)
+      //    maxOffset  = 45
+      //    labelOffset = clamp(-30, -45, 45) = -30 ✓ within bounds
+      //
+      //  Case: clipped both (cell taller than viewport, 60px above, 30px below)
+      //    clippedTop=60, clippedBottom=30, visibleHeight=30
+      //
+      //         cell
+      //    ┌────────────┐ ─┐
+      //    │            │  │ clippedTop=60
+      //    │  label(N)  │  │ ← natural center at 60
+      //  ──┼────────────┼──┘─── viewport top
+      //    │  label(*)  │  │ visibleHeight=30  ← desired center at 60 + 15 = 75
+      //  ──┼────────────┼──┘─── viewport bottom
+      //    │            │  │ clippedBottom=30
+      //    └────────────┘ ─┘
+      //
+      //    rawOffset  = (60 - 30) / 2 = +15   (push label 15px down from natural center)
+      //    maxOffset  = 45
+      //    labelOffset = clamp(15, -45, 45) = 15 ✓ within bounds
+      //
+      //    If clippedTop were 110 (almost fully scrolled out, only 10px visible at bottom):
+      //    rawOffset  = (110 - 0) / 2 = +55   (wants to push 55px down)
+      //    maxOffset  = 45                     (but label would exit the cell)
+      //    labelOffset = clamp(55, -45, 45) = 45 ← clamped, label sticks near bottom edge
+      //
+      //  Cells from leaf facets does not require this tereatment as they are not merged cells.
+      if (!isLeaf) {
+        const cellHeight = merge.span * rowHeight;
+        const cellTopInDataArea = merge.start * rowHeight - viewModel.offsetY;
+        const cellBottomInDataArea = cellTopInDataArea + cellHeight;
+
+        const clippedTop = Math.max(0, -cellTopInDataArea);
+        const clippedBottom = Math.max(0, cellBottomInDataArea - visibleDataHeight);
+
+        const rawOffset = (clippedTop - clippedBottom) / 2;
+        const maxOffset = Math.max(0, (merge.span - 1) * rowHeight / 2);
+        labelOffset = Math.max(-maxOffset, Math.min(maxOffset, rawOffset));
+      }
+
       const [cell, needAppend] = this.placeCellInDom({
         key,
         gridRow: this.data!.numColFacetLevels + merge.start + 1,
         gridCol: merge.level + 1,
-        content: merge.value,
-        cls: `row-header level-${merge.level}`,
+        content: `<span class="content">${merge.value}</span>`,
+        cls: `row-header level-${merge.level}${isLeaf ? "" : " non-leaf"}`,
         extraStyles: {
           rowspan: merge.span,
           left: viewModel.rowFacetsLeftPositions[merge.level],
-          transform: merge.level === sliceData.rowFacets![0].length - 1 ? "" : "translate(0, calc(var(--offset-y)))",
+          transform: "",
         },
       });
+      if (!isLeaf) {
+        // TODO transform is applied to cell's content. Find a better way to do this as the content could be custom
+        // component
+        (cell.firstElementChild as HTMLElement).style.transform = labelOffset !== 0 ? `translateY(${labelOffset}px)` : "";
+      }
       cell.dataset.cellType = "row-facet";
       needAppend && nodeAppendList.push(cell);
       this.#cellsToMeasure.push({ cell, sizeKey: merge.level });
@@ -725,6 +947,38 @@ export default class StandardLayout extends StandardLayoutBase {
     }
 
     this.#autosizeCells();
+
+    // After autosizing of column, should we apply sticky scrolling for column facets
+    // very similar to row facets sticky scrolling calculation
+    if (nonLeafColFacets.length > 0) {
+      const visibleDataWidth = this.mountPoint.clientWidth - viewModel.rowFacetsWidth;
+      const colLeftPositions: number[] = [];
+      let accWidth = -viewModel.offsetX;
+      for (let i = 0; i < numDataColsVisible; i++) {
+        colLeftPositions[i] = accWidth;
+        accWidth += this.getColumnWidth(this.data!.numRowFacetLevels + viewModel.x0 + i);
+      }
+
+      for (const { cell, mergeStart, mergeSpan } of nonLeafColFacets) {
+        let cellWidth = 0;
+        for (let i = 0; i < mergeSpan; i++) {
+          cellWidth += this.getColumnWidth(this.data!.numRowFacetLevels + viewModel.x0 + mergeStart + i);
+        }
+        const cellLeftInDataArea = colLeftPositions[mergeStart];
+        const cellRightInDataArea = cellLeftInDataArea + cellWidth;
+
+        const clippedLeft = Math.max(0, -cellLeftInDataArea);
+        const clippedRight = Math.max(0, cellRightInDataArea - visibleDataWidth);
+
+        const rawOffset = (clippedLeft - clippedRight) / 2;
+        const firstColWidth = this.getColumnWidth(this.data!.numRowFacetLevels + viewModel.x0 + mergeStart);
+        const maxOffset = Math.max(0, (cellWidth - firstColWidth) / 2);
+        const labelOffset = Math.max(-maxOffset, Math.min(maxOffset, rawOffset));
+
+        (cell.firstElementChild as HTMLElement).style.transform = labelOffset !== 0 ? `translateX(${labelOffset}px)` : "";
+      }
+    }
+
     this.#setupScrollListener();
 
     if (!this.#layoutBootstrapped) {
