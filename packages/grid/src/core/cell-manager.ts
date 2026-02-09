@@ -41,7 +41,11 @@ export default class CellManager {
     cell.className = "cell";
     cell.style.cssText = "";
     cell.innerHTML = "";
-    delete cell.dataset.cij;
+    delete cell.dataset.cclix;
+    delete cell.dataset.croix;
+    delete cell.dataset.cellType;
+    delete cell.dataset.hix;
+    delete cell.dataset.facetLevel;
     this.#pool.push(cell);
   }
 

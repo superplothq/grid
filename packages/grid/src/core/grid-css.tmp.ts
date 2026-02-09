@@ -35,8 +35,6 @@ export const gridCss = `
     /* Sub-cell offset for smooth scrolling */
     top: calc(-1 * var(--offset-y, 0px));
     left: calc(-1 * var(--offset-x, 0px));
-    /* Animate column width changes (Chrome/Edge) */
-    transition: grid-template-columns 1s ease-out;
   }
 
     /* Base cell styling */
@@ -52,7 +50,6 @@ export const gridCss = `
     font-size: 12px;
     display: flex;
     align-items: center;
-    padding: 1px 3px
   }
 
   /* Column headers */
@@ -66,6 +63,34 @@ export const gridCss = `
     border-bottom: 1px solid #616161;
     font-weight: 500;
     color: #424242;
+
+    /* show resize handler */
+    &::after {
+      content: '';
+      position: absolute;
+      top: 0;
+      right: 0;
+      width: 0px;
+      height: 100%;
+      cursor: col-resize;
+    }
+
+    &:hover::after {
+      background: #21212196;
+      width: 4px;
+      transition: width 0.2s ease-in-out;
+    }
+  }
+
+  .cell.col-header.skp-sz {
+    contain: inline-size;
+  }
+
+  .cell.col-header > .content {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    min-width: 0;
   }
 
   .cell.row-header {

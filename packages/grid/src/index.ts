@@ -9,9 +9,18 @@ import { WithEvents, EventEmitter } from "./core/mixins";
 
 export { StandardLayout };
 export { GridConfig, defaultConfig } from "./config";
+export type {
+  IColAutoSize,
+  IColAutoSizeStrategyMaxCell,
+  IColAutoSizeStrategyFixedWidth,
+  ColAutoSizeConfig,
+  ColDef,
+  ResolvedColDef,
+  GridDataViewModelOptions,
+  SliceResult,
+} from "./types";
 export { PLayout, GridDataViewModel };
 export type { BaseViewModel as BaseViewState } from "./core/layout-proto";
-export type { SliceResult } from "./types";
 export type { LayoutEvents } from "./core/standard-layout";
 export type { EventEmitter };
 export {
@@ -21,12 +30,8 @@ export {
   type CellConfig,
   type ChartConfig,
   type CellWithConfigRenderer,
-  type GridDataViewModelOptions,
-  type RendererConfig,
   type CellRenderer,
-  type ColumnQualifier,
   type RendererContext,
-  type ResolvedRenderer,
 } from "./core/cell-renderers";
 
 export type SelectionPayload = {
@@ -79,6 +84,115 @@ export default class Grid extends GridWithEvents {
 
     // Forward layout events to Grid
     this.forwardFrom(this.#layout as unknown as EventEmitter<LayoutEvents>, ["renderComplete", "debug_perf:metrics"]);
+
+    this.#setupResizeHandler();
+  }
+
+  #setupResizeHandler(): void {
+    if (!this.#config.enableResizeUI) return;
+
+    const container = this.#layout.gridContainer;
+    const EDGE_THRESHOLD = 4;
+
+    const isNearRightEdge = (cell: HTMLElement, clientX: number): boolean => {
+      const rect = cell.getBoundingClientRect();
+      return clientX >= rect.right - EDGE_THRESHOLD;
+    };
+
+    const getHeaderCell = (target: EventTarget | null): HTMLElement | null => {
+      if (!(target instanceof HTMLElement)) return null;
+      return target.closest<HTMLElement>("[data-cell-type='column-facet']");
+    };
+
+    const findFullColumnRange = (level: number, rightPtr: number): { start: number; end: number } => {
+      const facets = this.#layout.data!.columnFacets;
+      const facetValue = facets[level][rightPtr];
+
+      let leftPtr = rightPtr;
+      while (leftPtr > 0 && facets[level][leftPtr - 1] === facetValue) {
+        leftPtr--;
+      }
+
+      return { start: leftPtr, end: rightPtr };
+    };
+
+    const getVisibleLeafColumns = (rangeStart: number, rangeEnd: number): number[] => {
+      const leafLevel = this.#layout.data!.numColFacetLevels - 1;
+      const leafCells = container.querySelectorAll<HTMLElement>(
+        `[data-cell-type='column-facet'][data-facet-level='${leafLevel}']`
+      );
+
+      const visibleCols: number[] = [];
+      leafCells.forEach(cell => {
+        const hix = parseInt(cell.dataset.hix!, 10);
+        if (hix >= rangeStart && hix <= rangeEnd) {
+          visibleCols.push(hix);
+        }
+      });
+
+      return visibleCols.sort((a, b) => a - b);
+    };
+
+    container.addEventListener("mousedown", (e: MouseEvent) => {
+      const cell = getHeaderCell(e.target);
+      if (!cell || !isNearRightEdge(cell, e.clientX)) return;
+
+      const level = parseInt(cell.dataset.facetLevel!, 10);
+      // See the diagram in the comment on standard-layout.ts
+      // since for facets level < leaf levels, columns are merged (by applying colspan), rightPtr contains the right
+      // most index of the merged column facet value from the data view model.
+
+      // TODO[1] this confusing rowFacetAdjustment is necessary because the dataset indices (hix, cclix)
+      //      includes row facets while computing the indices. But column facets / col defs in data view model
+      //      does not include row facets header.
+      //      This is a temporary fix. To fix it properly - add rowFacet headers in both colDefs and columnFacets
+      //      (we will need it when we have to show row header / enable row resizing).
+      const rowFacetAdjustment = this.#layout.data!.numRowFacetLevels;
+      const rightPtr = parseInt(cell.dataset.hix!, 10) - rowFacetAdjustment;
+
+      // column facets level = leaf levels provides header cells for data cells. These two essentially create a standard table.
+      // Column facets level < leaf levels create hierarchy/nesting and spans over multiple leaf level columns.
+      // Here we find out : for a given level and value of column facet what are the leaf level columns over which the
+      // column facet spans. This would contain columns that are in viewport and that are invisible and not in dom
+      // because of virtualization
+      const fullRange = findFullColumnRange(level, rightPtr);
+      const totalColCount = fullRange.end - fullRange.start + 1;
+      const startX = e.clientX;
+
+      // Find out out of all leaf level nodes over which the column being dragged spans, which columns are in dom
+      // TODO[1]
+      const visibleCols = getVisibleLeafColumns(fullRange.start + rowFacetAdjustment, fullRange.end + rowFacetAdjustment);
+      // TODO for cells that are not currently in dom atm, but would appear in dom as we scroll / reduce size of columns
+      //      we need to update the change in size of columns to be considered as they appears on the dom
+
+      type ResizeController = ReturnType<StandardLayout["changeLeafColWidth"]>;
+      const resizeControllers: { idx: number; ctrl: ResizeController }[] = [];
+      for (const colIdx of visibleCols) {
+        resizeControllers.push({ idx: colIdx, ctrl: this.#layout.changeLeafColWidth(colIdx) });
+      }
+
+
+      const onMouseMove = (moveEvent: MouseEvent) => {
+        container.style.cursor = "col-resize";
+        const deltaX = moveEvent.clientX - startX;
+        const lastPerColDelta = deltaX / totalColCount;
+        resizeControllers.forEach(c => c.ctrl.byDelta(lastPerColDelta));
+      };
+
+      const onMouseUp = () => {
+        document.removeEventListener("mousemove", onMouseMove);
+        document.removeEventListener("mouseup", onMouseUp);
+        container.style.cursor = "";
+
+        resizeControllers.forEach(c => c.ctrl.commit());
+        this.draw();
+      };
+
+      document.addEventListener("mousemove", onMouseMove);
+      document.addEventListener("mouseup", onMouseUp);
+
+      e.preventDefault();
+    });
   }
 
   set data(value: GridDataViewModel) {

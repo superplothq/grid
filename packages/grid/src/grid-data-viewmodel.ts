@@ -1,11 +1,7 @@
-import { SliceResult } from "./types";
-import {
-  GridDataViewModelOptions,
-  RendererConfig,
-  ResolvedRenderer,
-  ColumnQualifier,
-  textRenderer,
-} from "./core/cell-renderers";
+import { SliceResult, GridDataViewModelOptions, ColDef, ResolvedColDef, ColAutoSizeConfig } from "./types";
+import { textRenderer } from "./core/cell-renderers";
+
+const defaultColAutoSize: ColAutoSizeConfig = { strategy: "max-cell" };
 
 export class GridDataViewModel {
   #numRows: number;
@@ -13,7 +9,7 @@ export class GridDataViewModel {
   #colFacets: string[] | string[][];
   #rowFacets?: string[][];
   #data: any[][];
-  #renderers: ResolvedRenderer[];
+  #resolvedColDefs: ResolvedColDef[];
 
   constructor(data: any[][], columnFacets: string[] | string[][], rowFacets?: string[][], options?: GridDataViewModelOptions) {
     this.#numRows = data.length;
@@ -21,73 +17,40 @@ export class GridDataViewModel {
     this.#colFacets = columnFacets;
     this.#rowFacets = rowFacets;
     this.#data = data;
-    this.#renderers = this.#normalizeRenderers(options?.renderers ?? []);
+    this.#resolvedColDefs = this.#normalizeColDefs(options?.colDefs ?? []);
   }
 
-  #normalizeRenderers(configs: RendererConfig[]): ResolvedRenderer[] {
-    const result: ResolvedRenderer[] = [];
+  #normalizeColDefs(colDefs: ColDef[]): ResolvedColDef[] {
+    const result: ResolvedColDef[] = [];
 
     for (let col = 0; col < this.#numCols; col++) {
-      const colFacets = this.#getColumnFacets(col);
-      let matched: ResolvedRenderer | null = null;
-
-      for (const config of configs) {
-        if (this.#matchesQualifier(colFacets, config.columnQualifier)) {
-          matched = {
-            renderer: config.renderer,
-            cellHeight: config.cellHeight,
-            sampleData: config.sampleData,
-            isCustom: true,
-          };
-          break;
-        }
+      const def = colDefs[col];
+      if (def?.renderer) {
+        result.push({
+          renderer: def.renderer,
+          cellHeight: def.cellHeight,
+          sampleData: def.sampleData,
+          isCustom: true,
+          colSize: def.colSize ?? defaultColAutoSize,
+        });
+      } else {
+        result.push({
+          renderer: textRenderer,
+          isCustom: false,
+          colSize: def?.colSize ?? defaultColAutoSize,
+        });
       }
-
-      result.push(matched ?? {
-        renderer: textRenderer,
-        isCustom: false,
-      });
     }
 
     return result;
   }
 
-  /*
-    * Column facts are in this format
-    * [[ "CF0_0", "CF0_0", "CF0_0", "CF0_0", "CF0_0", "CF0_0", "CF0_0", "CF0_0", "CF0_0", "CF0_1", "CF0_1", "CF0_1", "CF0_1", "CF0_1", "CF0_1", "CF0_1", "CF0_1", "CF0_1" ], // l2
-    *  [ "CF1_0", "CF1_0", "CF1_0", "CF1_1", "CF1_1", "CF1_1", "CF1_2", "CF1_2", "CF1_2", "CF1_0", "CF1_0", "CF1_0", "CF1_1", "CF1_1", "CF1_1", "CF1_2", "CF1_2", "CF1_2" ], // l1
-    *  [ "CF2_0", "CF2_1", "CF2_2", "CF2_0", "CF2_1", "CF2_2", "CF2_0", "CF2_1", "CF2_2", "CF2_0", "CF2_1", "CF2_2", "CF2_0", "CF2_1", "CF2_2", "CF2_0", "CF2_1", "CF2_2" ]] // l0
-    */
-  #getColumnFacets(colIndex: number): string[] {
-    if (!(this.#colFacets[0] instanceof Array)) {
-      return [this.#colFacets[colIndex] as string];
-    }
-    const facets: string[] = [];
-    for (let level = 0; level < this.#colFacets.length; level++) {
-      facets.push((this.#colFacets[level] as string[])[colIndex] || "");
-    }
-    return facets;
+  get colDefs(): ResolvedColDef[] {
+    return this.#resolvedColDefs;
   }
 
-  #matchesQualifier(colFacets: string[], qualifier: ColumnQualifier): boolean {
-    if (qualifier.length !== colFacets.length) return false;
-
-    for (let level = 0; level < qualifier.length; level++) {
-      const pattern = qualifier[level];
-      const value = colFacets[level];
-
-      if (pattern === "*") continue;
-      if (Array.isArray(pattern)) {
-        if (!pattern.includes(value)) return false;
-      } else {
-        if (pattern !== value) return false;
-      }
-    }
-    return true;
-  }
-
-  get renderers(): ResolvedRenderer[] {
-    return this.#renderers;
+  setColSize(colIndex: number, colSize: ResolvedColDef["colSize"]): void {
+    this.#resolvedColDefs[colIndex].colSize = colSize;
   }
 
   get numRowFacetLevels() {
@@ -105,6 +68,15 @@ export class GridDataViewModel {
 
   get numCols() {
     return this.#numCols;
+  }
+
+  // TODO don't take column facet as a 1D flat array it opens up requirement for normalizatoin every where.
+  //      Always take it as a 2D array
+  get columnFacets(): string[][] {
+    if (!(this.#colFacets[0] instanceof Array)) {
+      return [this.#colFacets as string[]];
+    }
+    return this.#colFacets as string[][];
   }
 
   // TODO this can be optimized since this sits in the hot path of every render cycle

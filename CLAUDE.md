@@ -29,10 +29,11 @@ Already setup by the user and running.
 
 ## Notes
 
-- Generate the plan docs in ./specs directory
-- Don't write comments unless explicity asked to do so
+- Do NOT make formatting changes (like adding/removing spaces, adding/removing newlines, etc) to existing code.
+- Do NOT write comments unless explicity asked to do so. But do NOT remove any existing comments.
+- Do NOT address TODO in code comments unless explicity asked to do so.
 - Run lint `yarn workspace grid lint --fix 2>&1` to fix autofixable lints and report the rest which you can try fixing manually
-- Don't run playground build
+- Do NOT run playground build
 - All packages use TypeScript with strict mode enabled
 - The workspace uses yarn workspaces for dependency management
 - ESLint is configured but may need workspace-level configuration fixes

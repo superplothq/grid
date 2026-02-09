@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import "grid";
-import Grid, { GridDataViewModel, LayoutEvents, SelectionPayload, RendererConfig, createChartRenderer, CellRenderer } from "grid";
+import Grid, { GridDataViewModel, LayoutEvents, SelectionPayload, ColDef, ColAutoSizeConfig, createChartRenderer, CellRenderer } from "grid";
 
 interface TwoKeyData {
   primary: string;
@@ -57,6 +57,8 @@ const GridPlayground: React.FC = () => {
   const defaultRowFacetConfig = "5;10";
   const defaultColFacetConfig = "2;3;3";
   const defaultCellSizeConfig = "";
+  const defaultColSizeConfigExample = `0,2:[strategy=max;excludeColumnFacets=1]
+5-8:[strategy=fixed;widthInPx=90]`;
 
   const [rowFacetConfig, setRowFacetConfig] = useState(() =>
     localStorage.getItem("grid_rowFacetConfig") ?? defaultRowFacetConfig
@@ -66,6 +68,12 @@ const GridPlayground: React.FC = () => {
   );
   const [cellSizeConfig, setCellSizeConfig] = useState(() =>
     localStorage.getItem("grid_cellSizeConfig") ?? defaultCellSizeConfig
+  );
+  const [colSizeConfig, setColSizeConfig] = useState(() =>
+    localStorage.getItem("grid_colSizeConfig") ?? defaultColSizeConfigExample
+  );
+  const [appliedColSizeConfig, setAppliedColSizeConfig] = useState(() =>
+    localStorage.getItem("grid_colSizeConfig") ?? ""
   );
   const [totalDataPoints, setTotalDataPoints] = useState(0);
   const [events, setEvents] = useState<Array<{ name: string; payload: unknown }>>([]);
@@ -195,6 +203,83 @@ const GridPlayground: React.FC = () => {
       colStrict: match[4] === "!",
       length: parseInt(match[5], 10),
     };
+  };
+
+  const parseColSizeConfig = (config: string): Map<number, ColAutoSizeConfig> => {
+    const result = new Map<number, ColAutoSizeConfig>();
+    if (!config.trim()) return result;
+
+    const lines = config.split("\n");
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (!trimmed || trimmed.startsWith("//")) continue;
+
+      // Format: indices:[key=value;key=value] // optional comment
+      const match = trimmed.match(/^([^:]+):\[([^\]]*)\]/);
+      if (!match) continue;
+
+      const indicesStr = match[1].trim();
+      const settingsStr = match[2].trim();
+
+      // Parse indices: "0,2" or "5-8"
+      const colIndices: number[] = [];
+      const parts = indicesStr.split(",");
+      for (const part of parts) {
+        const rangePart = part.trim();
+        if (rangePart.includes("-")) {
+          const [start, end] = rangePart.split("-").map(s => parseInt(s.trim(), 10));
+          if (!isNaN(start) && !isNaN(end)) {
+            for (let i = start; i <= end; i++) {
+              colIndices.push(i);
+            }
+          }
+        } else {
+          const idx = parseInt(rangePart, 10);
+          if (!isNaN(idx)) colIndices.push(idx);
+        }
+      }
+
+      // Parse settings: "strategy=max;excludeColumnFacets=1"
+      const settings: Record<string, string> = {};
+      const settingParts = settingsStr.split(";");
+      for (const sp of settingParts) {
+        const [key, value] = sp.split("=").map(s => s.trim());
+        if (key && value !== undefined) {
+          settings[key] = value;
+        }
+      }
+
+      // Build ColAutoSizeConfig
+      const colSizeConfig: ColAutoSizeConfig = settings.strategy === "fixed"
+        ? {
+            strategy: "fixed-width",
+            excludeColumnFacets: settings.excludeColumnFacets === "1",
+            ...(settings.widthInPx && { widthInPx: parseInt(settings.widthInPx, 10) }),
+            ...(settings.minWidthInPx && { minWidthInPx: parseInt(settings.minWidthInPx, 10) }),
+            ...(settings.maxWidthInPx && { maxWidthInPx: parseInt(settings.maxWidthInPx, 10) }),
+          }
+        : {
+            strategy: "max-cell",
+            excludeColumnFacets: settings.excludeColumnFacets === "1",
+          };
+
+      for (const idx of colIndices) {
+        result.set(idx, colSizeConfig);
+      }
+    }
+
+    return result;
+  };
+
+  const handleApplyColSizeConfig = () => {
+    localStorage.setItem("grid_colSizeConfig", colSizeConfig);
+    setAppliedColSizeConfig(colSizeConfig);
+  };
+
+  const handleResetColSizeConfig = () => {
+    localStorage.removeItem("grid_colSizeConfig");
+    setColSizeConfig(defaultColSizeConfigExample);
+    setAppliedColSizeConfig("");
   };
 
   const handleGenerate = () => {
@@ -340,33 +425,29 @@ const GridPlayground: React.FC = () => {
     // Create renderers for chart columns (columns where last facet is CF2_1)
     const lineChart = createChartRenderer({ chartType: "line" });
 
-    // Get column qualifiers for absolute columns
-    const twoKeyQualifier = colFacetColMajor[twoKeyColIndex] || [];
-    const threeKeyQualifier = colFacetColMajor[threeKeyColIndex] || [];
+    // Parse applied col size config
+    const colSizeOverrides = parseColSizeConfig(appliedColSizeConfig);
 
-    const renderers = [
-      {
-        columnQualifier: ["*", "*", "CF2_1"],
-        renderer: lineChart,
-        cellHeight: 24,
-        sampleData: [50, 60, 70, 80, 90],
-      },
-      {
-        columnQualifier: twoKeyQualifier,
-        renderer: twoKeyRenderer,
-        cellHeight: 36,
-        sampleData: { primary: "12345", secondary: "67890" },
-      },
-      {
-        columnQualifier: threeKeyQualifier,
-        renderer: threeKeyRenderer,
-        cellHeight: 48,
-        sampleData: { first: "1234", second: "5678", third: "9012" },
-      },
-    ] as RendererConfig[];
+    // Build colDefs array - one entry per column
+    const colDefs: ColDef[] = [];
+    for (let col = 0; col < totalCols; col++) {
+      const colFacetsForCol = colFacetColMajor[col];
+      const lastFacet = colFacetsForCol[colFacetsForCol.length - 1];
+      const colSize = colSizeOverrides.get(col);
+
+      if (lastFacet && lastFacet.endsWith("_1")) {
+        colDefs[col] = { renderer: lineChart, cellHeight: 24, sampleData: [50, 60, 70, 80, 90], colSize };
+      } else if (col === twoKeyColIndex) {
+        colDefs[col] = { renderer: twoKeyRenderer, cellHeight: 36, colSize };
+      } else if (col === threeKeyColIndex) {
+        colDefs[col] = { renderer: threeKeyRenderer, cellHeight: 48, sampleData: { first: "1234", second: "5678", third: "9012" }, colSize };
+      } else if (colSize) {
+        colDefs[col] = { colSize };
+      }
+    }
 
     console.log("Generated data:", { totalRows, totalCols, rowFacets: rowFacetLevelMajor, colFacets: colFacetLevelMajor, data });
-    gridRef.current.data = new GridDataViewModel(data, colFacetLevelMajor, rowFacetLevelMajor, { renderers });
+    gridRef.current.data = new GridDataViewModel(data, colFacetLevelMajor, rowFacetLevelMajor, { colDefs });
     gridRef.current.draw();
   };
 
@@ -421,6 +502,21 @@ const GridPlayground: React.FC = () => {
         <button onClick={handleGenerate}>Generate</button>
         <button onClick={handleReset}>Reset</button>
         <span> Total data points: {totalDataPoints}</span>
+      </div>
+      <div style={{ marginTop: "8px" }}>
+        <label style={{ verticalAlign: "top" }}>
+          Col Size Config:
+          <textarea
+            value={colSizeConfig}
+            onChange={(e) => setColSizeConfig(e.target.value)}
+            rows={3}
+            cols={50}
+            style={{ marginLeft: "4px", fontFamily: "monospace", fontSize: "11px" }}
+          />
+        </label>
+        <button onClick={() => { handleApplyColSizeConfig(); handleGenerate(); }}>Apply</button>
+        <button onClick={() => { handleResetColSizeConfig(); handleGenerate(); }}>Reset</button>
+        {appliedColSizeConfig && <span style={{ marginLeft: "8px", color: "green" }}>✓ Applied</span>}
       </div>
       <hr/>
       <div>

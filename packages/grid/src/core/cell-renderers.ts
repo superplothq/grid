@@ -5,27 +5,6 @@ export interface RendererContext {}
 
 export type CellRenderer<T> = (data: T, ctx: RendererContext) => string | HTMLElement | HTMLElement[];
 
-export type ColumnQualifierLevel = "*" | string | string[];
-export type ColumnQualifier = ColumnQualifierLevel[];
-
-export interface RendererConfig<T = unknown> {
-  columnQualifier: ColumnQualifier;
-  renderer: CellRenderer<T>;
-  cellHeight?: number;
-  sampleData?: T;
-}
-
-export interface GridDataViewModelOptions {
-  renderers?: RendererConfig[];
-}
-
-export interface ResolvedRenderer {
-  renderer: CellRenderer<unknown>;
-  cellHeight?: number;
-  sampleData?: unknown;
-  isCustom: boolean;
-}
-
 export const textRenderer: CellRenderer<unknown> = (data) => {
   return data == null ? "" : String(data);
 };

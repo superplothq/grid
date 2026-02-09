@@ -12,6 +12,9 @@ export interface PlaceCellOpts {
     top?: number;
     left?: number;
     transform?: string;
+    width?: number;
+    minWidth?: number;
+    maxWidth?: number;
   };
 }
 
@@ -27,7 +30,7 @@ export function WithCellPlacement<TBase extends Constructor<HasCellManager>>(Bas
     placeCellInDom(opts: PlaceCellOpts): [HTMLElement, boolean] {
       const [cell, needAppend] = this.cellManager.acquire(opts.key);
 
-      cell.textContent = opts.content;
+      cell.innerHTML = opts.content;
       cell.className = "cell " + opts.cls;
       cell.style.gridColumn = opts.extraStyles.colspan
         ? `${opts.gridCol} / span ${opts.extraStyles.colspan}`
@@ -44,6 +47,15 @@ export function WithCellPlacement<TBase extends Constructor<HasCellManager>>(Bas
       }
       if (opts.extraStyles.transform !== undefined) {
         cell.style.transform = opts.extraStyles.transform;
+      }
+      if (opts.extraStyles.width !== undefined) {
+        cell.style.width = `${opts.extraStyles.width}px`;
+      }
+      if (opts.extraStyles.minWidth !== undefined) {
+        cell.style.minWidth = `${opts.extraStyles.minWidth}px`;
+      }
+      if (opts.extraStyles.maxWidth !== undefined) {
+        cell.style.maxWidth = `${opts.extraStyles.maxWidth}px`;
       }
 
       return [cell, needAppend];
