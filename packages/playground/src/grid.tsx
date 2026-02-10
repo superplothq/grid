@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
-import "grid";
+import "grid/dist/grid.css";
 import Grid, { GridDataViewModel, LayoutEvents, SelectionPayload, ColDef, ColAutoSizeConfig, createChartRenderer, CellRenderer } from "grid";
 
 interface TwoKeyData {
