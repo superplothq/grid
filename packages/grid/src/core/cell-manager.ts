@@ -10,7 +10,8 @@ export default class CellManager {
   acquire(key: string): [HTMLElement, doesNodeRequireAppend: boolean] {
     this.#usedKeys.add(key);
     let cell = this.#activeCells.get(key);
-    if (cell) return [cell, false];
+    if (cell)
+      return [cell, false];
 
     if (this.#pool.length > 0) {
       cell = this.#pool.pop()!;
@@ -19,7 +20,6 @@ export default class CellManager {
       cell.className = "cell";
     }
     this.#activeCells.set(key, cell);
-
     return [cell, true];
   }
 
@@ -46,6 +46,8 @@ export default class CellManager {
     delete cell.dataset.cellType;
     delete cell.dataset.hix;
     delete cell.dataset.facetLevel;
+    delete cell.dataset.path;
+    delete cell.dataset.evac;
     this.#pool.push(cell);
   }
 
@@ -53,7 +55,22 @@ export default class CellManager {
     return this.#pool.length;
   }
 
+  entries(): IterableIterator<[string, HTMLElement]> {
+    return this.#activeCells.entries();
+  }
+
+  getByKey(key: string): HTMLElement | undefined {
+    return this.#activeCells.get(key);
+  }
+
   get activeCount(): number {
     return this.#activeCells.size;
+  }
+
+  evacuate(key: string): HTMLElement {
+    const cell = this.#activeCells.get(key);
+    this.#activeCells.delete(key);
+    this.#usedKeys.delete(key);
+    return cell!;
   }
 }

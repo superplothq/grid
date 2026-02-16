@@ -11,6 +11,7 @@ export interface BaseViewModel {
 
 export interface RenderCtx {
   t1: number;
+  animate?: boolean;
 }
 
 export default abstract class PLayout {

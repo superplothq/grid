@@ -204,14 +204,17 @@ export default class Grid extends GridWithEvents {
     return this.#data;
   }
 
-  draw(): void {
+  draw(options?: { animate?: boolean }): void {
     const startTime = performance.now();
     this.#renderCount++;
 
     if (!this.#data) throw new Error("Data is not set!");
 
     const viewModel = this.#layout.calculateViewModel();
-    this.#layout.render(viewModel, {t1: startTime});
+    this.#layout.render(viewModel, {
+      t1: startTime,
+      animate: options?.animate && this.#config.enableAnimation,
+    });
   }
 
   #makeSelectionId(fromRow: number, fromCol: number, toRow: number, toCol: number): string {

@@ -8,6 +8,9 @@ export interface GridConfig {
   overscan: number;
   layoutType: string;
   enableResizeUI: boolean;
+  enableAnimation: boolean;
+  animationDuration: number;
+  animationEasing: string;
 }
 
 export const defaultConfig: GridConfig = {
@@ -16,4 +19,8 @@ export const defaultConfig: GridConfig = {
   overscan: 2,
   layoutType: REG_NAME_STD,
   enableResizeUI: true,
+  enableAnimation: true,
+  animationDuration: 1000,
+  // animationEasing: "linear",
+  animationEasing: "ease-out",
 };

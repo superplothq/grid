@@ -80,6 +80,11 @@ export class GridDataViewModel {
     return (this.#colFacets[level] as string[])[colIndex];
   }
 
+  getRowFacetValue(level: number, rowIndex: number): string | undefined {
+    if (!this.#rowFacets || level >= this.#rowFacets.length) return undefined;
+    return this.#rowFacets[level][rowIndex];
+  }
+
   // TODO don't take column facet as a 1D flat array it opens up requirement for normalizatoin every where.
   //      Always take it as a 2D array
   get columnFacets(): string[][] {

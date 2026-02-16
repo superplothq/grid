@@ -382,7 +382,7 @@ const GridPlayground: React.FC = () => {
             third: generateRandomNumber(3, 4),
           });
         } else if (chartColumns.has(col)) {
-          const chartData = Array.from({ length: 8 }, () => Math.floor(Math.random() * 100));
+          const chartData = Array.from({ length: 20 }, () => Math.floor(Math.random() * 100));
           rowData.push(chartData);
         } else {
           let cellValue = generateRandomNumber(4, 7);
@@ -424,19 +424,21 @@ const GridPlayground: React.FC = () => {
 
     // Create renderers for chart columns (columns where last facet is CF2_1)
     const lineChart = createChartRenderer({ chartType: "line" });
+    const barChart = createChartRenderer({ chartType: "bar" });
 
     // Parse applied col size config
     const colSizeOverrides = parseColSizeConfig(appliedColSizeConfig);
 
     // Build colDefs array - one entry per column
     const colDefs: ColDef[] = [];
+    let k = 0;
     for (let col = 0; col < totalCols; col++) {
       const colFacetsForCol = colFacetColMajor[col];
       const lastFacet = colFacetsForCol[colFacetsForCol.length - 1];
       const colSize = colSizeOverrides.get(col);
 
       if (lastFacet && lastFacet.endsWith("_1")) {
-        colDefs[col] = { renderer: lineChart, cellHeight: 24, sampleData: [50, 60, 70, 80, 90], colSize };
+        colDefs[col] = { renderer: k++ % 2 ? lineChart: barChart, cellHeight: 24, sampleData: Array(20).map(() => Math.floor(Math.random() * 100) | 0), colSize };
       } else if (col === twoKeyColIndex) {
         colDefs[col] = { renderer: twoKeyRenderer, cellHeight: 36, colSize };
       } else if (col === threeKeyColIndex) {
@@ -448,7 +450,7 @@ const GridPlayground: React.FC = () => {
 
     console.log("Generated data:", { totalRows, totalCols, rowFacets: rowFacetLevelMajor, colFacets: colFacetLevelMajor, data });
     gridRef.current.data = new GridDataViewModel(data, colFacetLevelMajor, rowFacetLevelMajor, { colDefs });
-    gridRef.current.draw();
+    gridRef.current.draw({animate: true});
   };
 
   // Generate grid on page load with current input values

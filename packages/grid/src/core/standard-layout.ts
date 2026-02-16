@@ -1,9 +1,22 @@
-import {GridConfig} from "../config";
-import {GridDataViewModel} from "../grid-data-viewmodel";
-import {IColAutoSizeStrategyFixedWidth} from "../types";
-import PLayout, {BaseViewModel, RenderCtx} from "./layout-proto";
-import {WithCellPlacement, WithEvents} from "./mixins";
+import { GridConfig } from "../config";
+import { GridDataViewModel } from "../grid-data-viewmodel";
+import { IColAutoSizeStrategyFixedWidth } from "../types";
+import {getGridTemplateValsFromEl} from "../utils";
+import {
+  DiffModelSnapshot,
+  EditAction,
+  EditEntry,
+  FacetMatrixWithFacetCellMap,
+  SEPARATOR,
+  buildDiffModel,
+  buildEditset,
+  buildFacetMatrix,
+  buildPhasedKeyFrames,
+  collectEvacuationKeys,
+} from "./animation";
 import CellManager from "./cell-manager";
+import PLayout, { BaseViewModel, RenderCtx } from "./layout-proto";
+import { WithCellPlacement, WithEvents } from "./mixins";
 
 export type LayoutEvents = {
   renderComplete: {
@@ -49,7 +62,8 @@ export interface ViewModel extends BaseViewModel {
 }
 
 interface MergeState {
-  value: string | null;
+  value: string;
+  path: string;
   start: number;
   span: number;
 }
@@ -67,12 +81,63 @@ interface ResizeState {
   cells: HTMLElement[];
 }
 
+type ColSizeState = { indices: number[]; override: number[] };
+
+
+// TODO unit test this
+function computeMerges(facetCount: number, itemCount: number, facets: string[][]): Array<{ level: number; } & MergeState> {
+  const results: Array<{ level: number; } & MergeState> = [];
+  const mergeState: MergeState[] = [];
+
+  for (let level = 0; level < facetCount; level++) {
+    mergeState[level] = { value: "", path: "", start: 0, span: 0 };
+  }
+
+  for (let i = 0; i < itemCount; i++) {
+    const facet = facets[i] || [];
+    for (let level = 0; level < facetCount; level++) {
+      const value = facet[level] || "";
+      const state = mergeState[level];
+
+      if (value === state.value && i > 0) {
+        state.span++;
+      } else {
+        if (state.span > 0) {
+          results.push({
+            level,
+            path: state.path,
+            value: state.value,
+            start: state.start,
+            span: state.span
+          });
+        }
+        state.path = facet.slice(0, level + 1).join(SEPARATOR);
+        state.value = value;
+        state.start = i;
+        state.span = 1;
+      }
+    }
+  }
+
+  for (let level = 0; level < facetCount; level++) {
+    const state = mergeState[level];
+    if (state.span > 0) {
+      results.push({
+        level,
+        path: state.path,
+        value: state.value,
+        start: state.start,
+        span: state.span
+      });
+    }
+  }
+
+  return results;
+}
+
 export default class StandardLayout extends StandardLayoutBase {
   // all column can be of different sizes hence those are tracked based on column indices
-  colsWidth: { indices: number[]; override: number[] } = {
-    indices: [],
-    override: [],
-  }
+  colsWidth:ColSizeState;
   #resizeState: Map<number, ResizeState> = new Map();
   // facet row and data row can have spearate sizes hence those are tracked
   // based on row type. But then all facet rows would have same size and all
@@ -87,21 +152,32 @@ export default class StandardLayout extends StandardLayoutBase {
   #scrollRAF: number | null = null;
   #scrollListenerSet = false;
   #renderCount = 0;
-  #layoutBootstrapped = false;
+  #layoutBootstrapped;
   #cellsToMeasure: CellToMeasure[] = [];
   #postRenderAdjustCellsPerLevel: HTMLElement[][] = [];
   #proposal: ViewModelProposal = {};
+  #prevDiffSnapshot: DiffModelSnapshot | null = null;
+  #prevFacetMatrix: FacetMatrixWithFacetCellMap | null = null;
+  #runningAnimations: Animation[] = [];
+  #evacuatedCells: HTMLElement[] = [];
 
-  
   constructor(config: GridConfig, mountPoint: HTMLElement, cellManager: CellManager) {
     super(config, mountPoint, cellManager);
 
     [this.#con, , this.#virtualPanelEl, this.#gridClipEl] = this.#attachShadowDom();
+    [this.#layoutBootstrapped, this.colsWidth] = this.#resetAndGetColumnSizeState();
     this.#measureRowHeight();
   }
 
   viewModelProposal(proposal: ViewModelProposal): void {
     Object.assign(this.#proposal, proposal);
+  }
+
+  #resetAndGetColumnSizeState(): [layoutBootstrapped: boolean, colSizeState: ColSizeState] {
+    return [false, {
+      indices: [],
+      override: [],
+    }]
   }
 
   get gridContainer(): HTMLElement {
@@ -265,6 +341,7 @@ export default class StandardLayout extends StandardLayoutBase {
 
   setData(data: GridDataViewModel): void {
     super.setData(data);
+    [this.#layoutBootstrapped, this.colsWidth] = this.#resetAndGetColumnSizeState();
     this.#measureRowHeight();
   }
 
@@ -349,7 +426,7 @@ export default class StandardLayout extends StandardLayoutBase {
      *
      *    ───────────────────────── 110
      *    ··································· 160
-     *       1          2         3       4  
+     *       1          2         3       4
      *    ┌──────┬────────────┬─────────┬────┐
      *    │      │            │         │    │
      *    │      │            │         │    │
@@ -480,57 +557,6 @@ export default class StandardLayout extends StandardLayoutBase {
     this.#cellsToMeasure = [];
   }
 
-  #computeMerges(
-    facetCount: number,
-    itemCount: number,
-    facets: string[][]
-  ): Array<{ level: number; value: string; start: number; span: number }> {
-    const results: Array<{ level: number; value: string; start: number; span: number }> = [];
-    const mergeState: MergeState[] = [];
-
-    for (let level = 0; level < facetCount; level++) {
-      mergeState[level] = { value: null, start: 0, span: 0 };
-    }
-
-    for (let i = 0; i < itemCount; i++) {
-      const facet = facets[i] || [];
-      for (let level = 0; level < facetCount; level++) {
-        const value = facet[level] || "";
-        const state = mergeState[level];
-
-        if (value === state.value && i > 0) {
-          state.span++;
-        } else {
-          if (state.span > 0) {
-            results.push({
-              level,
-              value: state.value as string,
-              start: state.start,
-              span: state.span
-            });
-          }
-          state.value = value;
-          state.start = i;
-          state.span = 1;
-        }
-      }
-    }
-
-    for (let level = 0; level < facetCount; level++) {
-      const state = mergeState[level];
-      if (state.span > 0) {
-        results.push({
-          level,
-          value: state.value as string,
-          start: state.start,
-          span: state.span
-        });
-      }
-    }
-
-    return results;
-  }
-
   #onLayoutBootstrap(viewModel: ViewModel): void {
     this.#updateVirtualPanel(viewModel);
 
@@ -543,9 +569,78 @@ export default class StandardLayout extends StandardLayoutBase {
     }
   }
 
-  render(viewModel: ViewModel, ctx: RenderCtx): void {
+  async render(viewModel: ViewModel, ctx: RenderCtx): Promise<void> {
     if (!this.data) throw new Error("Data is not set!");
     this.#renderCount++;
+
+    const shouldAnimate = ctx.animate === true && this.#prevDiffSnapshot !== null && this.#prevFacetMatrix !== null;
+    // Pre render phase to calculate details before it can be animated
+    let colEditset: EditEntry[] | null = null;
+    let rowEditset: EditEntry[] | null = null;
+    let hasAnimatable = false;
+
+    // TODO if facet levels are not equal, then don't do animation as it'll be very confusing
+    //
+    // Calculte bunch of details before the render function draws the new layout. This is not FLIP sytle animation.
+    // We draw the new layout with deleted columns / rows inserted then animate the deleted columns from width -> 0px
+    // (slide out) and animate the inserted columns from 0px -> width
+    // The detection of what needs to be animated is done automatically (right now it's columns / rows anaimation
+    // including facets).
+    if (shouldAnimate) {
+      for (const anim of this.#runningAnimations) anim.cancel();
+      this.#runningAnimations.length = 0;
+
+      // Generates the model based on which diff will be calculated (previous render vs current render) - this diff is
+      // used to animate the columns / rows
+      const newColKeysOnly = buildDiffModel({
+        fromPtr: viewModel.x0,
+        toPtr: viewModel.x1,
+        levels: this.data!.numColFacetLevels,
+        getFacetValue: (level: number, idx: number) => this.data!.getColFacetValue(level, idx),
+      });
+      const newRowKeysOnly = buildDiffModel({
+        fromPtr: viewModel.y0,
+        toPtr: viewModel.y1,
+        levels: this.data!.numRowFacetLevels,
+        getFacetValue: (level: number, idx: number) => this.data!.getRowFacetValue(level, idx),
+      });
+
+      // editSet is an (LCS) edit script that transfroms old facet config -> new facet config
+      // Hence this set contains information about per facet KEEP / DELETE / INSERT in ordered fashion
+      colEditset = buildEditset(this.#prevDiffSnapshot!.columns, newColKeysOnly);
+      rowEditset = buildEditset(this.#prevDiffSnapshot!.rows, newRowKeysOnly);
+
+      hasAnimatable = colEditset.some(e => e.action !== EditAction.KEEP) || rowEditset.some(e => e.action !== EditAction.KEEP);
+      if (hasAnimatable) {
+        // Keep the deleted elements in dom by taking ownership of cells out of cell manager (evac) and later deleteing
+        // those cells on complete of animation
+        //
+        // TODO what happens when a full facet gets deleted (let's say level1 facet)? - does it contain evackeys for 
+        // non leaf facets.
+        const colEvac = collectEvacuationKeys({ editset: colEditset, matrix: this.#prevFacetMatrix!, axis: "col" });
+        const rowEvac = collectEvacuationKeys({ editset: rowEditset, matrix: this.#prevFacetMatrix!, axis: "row" });
+        for (const group of [...colEvac, ...rowEvac]) {
+          for (const cellKey of group.cellKeys) {
+            let el = this.cellManager.evacuate(cellKey);
+            if (!el) {
+              // This happens when the cell is already evacuated. Think about a case where a row and cols got deleted in
+              // the same time and the element in the intersection of deleted rows and cols would be returned twice (by colEvac
+              // as well as rowEvac), hence it'll be evacuated twice.
+              // When this happens element won't be present in cellManager then we would find that element in the list
+              // of evacuated cells.
+              el = this.#evacuatedCells.find(cell => cell.dataset.cellKey === cellKey)!;
+              el.dataset[`${group.axis}FacetPathKey`] = group.facetPathKey;
+              continue;
+            } else {
+              el.dataset.cellKey = cellKey;
+              el.dataset[`${group.axis}FacetPathKey`] = group.facetPathKey;
+            }
+            el.dataset.evac = "1";
+            this.#evacuatedCells.push(el);
+          }
+        }
+      }
+    }
 
     const numDataColsVisible = viewModel.x1 - viewModel.x0;
     const numDataRowsVisible = viewModel.y1 - viewModel.y0;
@@ -585,6 +680,7 @@ export default class StandardLayout extends StandardLayoutBase {
             left: viewModel.rowFacetsLeftPositions[hCol],
           },
         });
+        cell.dataset.cellType = "corner";
         needAppend && nodeAppendList.push(cell);
         this.#cellsToMeasure.push({ cell, sizeKey: hCol });
         this.#postRenderAdjustCellsPerLevel[hCol].push(cell);
@@ -597,7 +693,8 @@ export default class StandardLayout extends StandardLayoutBase {
     // value for which sticky scrolling should be applied.
     const nonLeafColFacets: { cell: HTMLElement; mergeStart: number; mergeSpan: number }[] = [];
 
-    let merges = this.#computeMerges(this.data!.numColFacetLevels, numDataColsVisible, sliceData.columnFacets!);
+    let merges = computeMerges(this.data!.numColFacetLevels, numDataColsVisible, sliceData.columnFacets!);
+    const colFacetPathToCellMap = new Map<string, string>();
     for (const merge of merges) {
       const colIndex = viewModel.x0 + merge.start;
       // TODO[1]
@@ -605,6 +702,7 @@ export default class StandardLayout extends StandardLayoutBase {
       const skipSizeClass = colDef.colSize.excludeColumnFacets ? " skp-sz" : "";
       const absoluteColIndex = this.data!.numRowFacetLevels + colIndex;
       const key = `col-h-${merge.level}-${absoluteColIndex}`;
+      colFacetPathToCellMap.set(merge.path, key);
       const colspan = merge.span;
 
       const isLeafLevel = merge.level === this.data!.numColFacetLevels - 1;
@@ -628,6 +726,7 @@ export default class StandardLayout extends StandardLayoutBase {
       if (!isLeafLevel) {
         nonLeafColFacets.push({ cell, mergeStart: merge.start, mergeSpan: merge.span });
       }
+      cell.dataset.path = merge.path;
       cell.dataset.cellType = "column-facet";
       cell.dataset.facetLevel = String(merge.level);
       // For a nested column facet which is not at the last level (not leaf nodes), hix is the rightmost column index
@@ -651,14 +750,15 @@ export default class StandardLayout extends StandardLayoutBase {
 
     // render row facets
     merges.length = 0;
-    merges = this.#computeMerges(this.data!.numRowFacetLevels, numDataRowsVisible, sliceData.rowFacets!);
+    merges = computeMerges(this.data!.numRowFacetLevels, numDataRowsVisible, sliceData.rowFacets!);
+    const rowFacetPathToCellMap = new Map<string, string>();
     const rowHeight = this.rowHeightByType.data;
     const visibleDataHeight = this.mountPoint.clientHeight - viewModel.colFacetsHeight;
-
     for (const merge of merges) {
       const isLeaf = merge.level === sliceData.rowFacets![0].length - 1;
       const absoluteStart = viewModel.y0 + merge.start;
       const key = `row-h-${merge.level}-${absoluteStart}`;
+      rowFacetPathToCellMap.set(merge.path, key);
 
       let labelOffset = 0;
 
@@ -861,7 +961,9 @@ export default class StandardLayout extends StandardLayoutBase {
         // component
         (cell.firstElementChild as HTMLElement).style.transform = labelOffset !== 0 ? `translateY(${labelOffset}px)` : "";
       }
+      cell.dataset.path = merge.path;
       cell.dataset.cellType = "row-facet";
+      cell.dataset.facetLevel = String(merge.level);
       needAppend && nodeAppendList.push(cell);
       this.#cellsToMeasure.push({ cell, sizeKey: merge.level });
       this.#postRenderAdjustCellsPerLevel[merge.level].push(cell);
@@ -979,6 +1081,172 @@ export default class StandardLayout extends StandardLayoutBase {
       }
     }
 
+    // TODO if this eats up frames during scrolling (as scrolling performance needs to be super fast - currently low of
+    // 3ms) then prform this at the very end of the scrolling (delayed by setTimeout 16ms -> combine -> calculate at
+    // once)
+    const newSnapshot: DiffModelSnapshot = {
+      columns: buildDiffModel({
+        fromPtr: viewModel.x0,
+        toPtr: viewModel.x1,
+        levels: this.data!.numColFacetLevels,
+        getFacetValue: (level: number, colIdx: number) => this.data!.getColFacetValue(level, colIdx),
+        getMeasurement: (colIdx: number) => this.getColumnWidth(this.data!.numRowFacetLevels + colIdx)
+      }),
+      rows: buildDiffModel({
+        fromPtr: viewModel.y0,
+        toPtr: viewModel.y1,
+        levels: this.data!.numRowFacetLevels,
+        getFacetValue: (level: number, rowIdx: number) => this.data!.getRowFacetValue(level, rowIdx),
+        getMeasurement: () => this.rowHeightByType.data,
+      })
+    };
+    const facetMatrix: FacetMatrixWithFacetCellMap = {
+      ...buildFacetMatrix({
+        data: this.data,
+        x0: Math.abs(viewModel.x0),
+        y0: Math.abs(viewModel.y0),
+        x1: Math.abs(viewModel.x1),
+        y1: Math.abs(viewModel.y1),
+        numRowFacetLevels: this.data.numRowFacetLevels,
+        numColFacetLevels: this.data.numColFacetLevels,
+      }),
+      numRowFacetLevels: this.data.numRowFacetLevels,
+      numColFacetLevels: this.data.numColFacetLevels,
+      rowFacetPathToCellMap,
+      colFacetPathToCellMap
+    };
+
+    // Execute animatinos
+    if (shouldAnimate && hasAnimatable && colEditset && rowEditset) {
+      // Remap active cells' gridColumn to merged positions (account for DELETE tracks)
+      // We are creating a merged layout of previous and new columns (or rows) -> slideout the deleted columns (to
+      // width 0) -> reset the merged layout to new layout. Logically the merged layout with deleted columns width = 0 is
+      // equal to the new layout.
+      const colDeleteShifts = this.#computeDeleteShifts(colEditset);
+      const rowDeleteShifts = this.#computeDeleteShifts(rowEditset);
+      const mergedColFacetAnimState = this.#computeMergeFacetForAnimState(colEditset, this.data!.numColFacetLevels);
+      const mergedRowFacetAnimState = this.#computeMergeFacetForAnimState(rowEditset, this.data!.numRowFacetLevels);
+
+      // INFO: cellManager.entries() return all kind of cells (facets cells, value cells, corner cells)
+      // but deleteShift is computed from editset that calculate deletion / insertion of column / rows (stack of value cells)
+      // for only value cells
+      for (const [, cell] of this.cellManager.entries()) {
+        if (cell.dataset.cellType === "corner") continue;
+        
+        // For facets that are non leaf, we need to adjust span + start properly - there are multiple edge cases here
+        // For example: 
+        // |     l0_0    |    l0_1      |
+        // | l1_0 | l1_1 | l1_0 |  l1_1 |
+        //    1      2      3      4
+        // If 2 gets deleted we have to reduce start of l0_1 & reduce span of l0_0;
+        // but if 3 gets deleted we have to reduce start & span of l0_1
+        // Similarly if a new column gets added between 2 and 3 we have to figure out is it part of l0_0 or l0_1
+        // and adjust start and span accordingly
+        // We do this by contructing the merged state of the facets and then runing merges again on the combined layout
+        if (cell.dataset.cellType === "column-facet" && +cell.dataset.facetLevel! < this.data!.numColFacetLevels - 1) {
+          const mergeState = mergedColFacetAnimState[cell.dataset.path!];
+          cell.dataset.buGridColumn = cell.style.gridColumn;
+          cell.style.gridColumn = `${this.data!.numRowFacetLevels + mergeState.start + 1} / span ${mergeState.span}`;
+          cell.dataset.dirtyAfterAnimation = "1";
+          continue;
+        }
+        if (cell.dataset.cellType === "row-facet" && +cell.dataset.facetLevel! < this.data!.numRowFacetLevels - 1) {
+          const mergeState = mergedRowFacetAnimState[cell.dataset.path!];
+          cell.dataset.buGridRow = cell.style.gridRow;
+          cell.style.gridRow = `${this.data!.numColFacetLevels + mergeState.start + 1} / span ${mergeState.span}`;
+          cell.dataset.dirtyAfterAnimation = "1";
+          continue;
+        }
+
+        // Apply the shift to current rows/ columns so that deleted cells can be inserted
+        // At this point the layout contains the current layout but it makes space for (empty tracks) deleted columns
+        // This gets applied only on last level of facet and value cells
+        this.#remapCellPosition(cell, colDeleteShifts, this.data!.numRowFacetLevels, "gridColumn");
+        this.#remapCellPosition(cell, rowDeleteShifts, this.data!.numColFacetLevels, "gridRow");
+      }
+
+      // Since the layout has changed to reflect merged data - update the grid templates
+      this.#con.dataset.buColTemplate = this.#con.style.gridTemplateColumns;
+      this.#con.dataset.buRowTemplate = this.#con.style.gridTemplateRows;
+      const newTemplate = this.getGridTemplate(
+        this.data!.numRowFacetLevels,
+        this.data!.numColFacetLevels,
+        colEditset.length,
+        rowEditset.length);
+      this.#con.style.gridTemplateColumns = newTemplate.columns;
+      this.#con.style.gridTemplateRows = newTemplate.rows;
+
+      // Place evacuated cells at merged DELETE positions
+      // So far deleted rows/columns were logically accounted for, now we render the deleted cells.
+      // Once this is done it the new layout exactly matches the old layout and we have everything we need for
+      // animation
+      this.#placeEvacuatedCells(colEditset, rowEditset, this.data!.numRowFacetLevels, this.data!.numColFacetLevels, colDeleteShifts, rowDeleteShifts);
+
+      const computedStyle = getComputedStyle(this.#con);
+      const newColTemplate = computedStyle.gridTemplateColumns.split(/\s+/);
+      const newRowTemplate = computedStyle.gridTemplateRows.split(/\s+/);
+
+      // Calculate all the keyframes in one shot (we use offset to achieve staggered animation)
+      const [colKeyframes, totalColAnimStages] = buildPhasedKeyFrames({
+        editset: colEditset,
+        cssTemplate: newColTemplate,
+        prop: "gridTemplateColumns",
+        trackOffset: this.data!.numRowFacetLevels,
+      });
+      const [rowKeyframes, totalRowAnimStages] = buildPhasedKeyFrames({
+        editset: rowEditset,
+        cssTemplate: newRowTemplate,
+        prop: "gridTemplateRows",
+        trackOffset: this.data!.numColFacetLevels,
+      });
+
+      const colAnimDuration =  totalColAnimStages / (totalColAnimStages + totalRowAnimStages) * this.config.animationDuration;
+      const rowAnimDuration = totalRowAnimStages / (totalColAnimStages + totalRowAnimStages) * this.config.animationDuration;
+
+      if (totalColAnimStages > 0) {
+        this.#runningAnimations.push(
+          this.#con.animate(colKeyframes, {
+            duration: colAnimDuration,
+            easing: this.config.animationEasing,
+          })
+        )
+      }
+      if (totalRowAnimStages > 0) {
+        this.#runningAnimations.push(
+          this.#con.animate(rowKeyframes, {
+            duration: rowAnimDuration,
+            easing: this.config.animationEasing,
+          })
+        )
+      }
+
+      const cleanup = () => {
+        console.log(">>> TODO cleanuped");
+        // return;
+        this.#cleanupEvacuatedCells();
+        // reset the columns / rows to it's original position
+        this.#con.querySelectorAll("*[data-dirty-after-animation=\"1\"]").forEach(elm => {
+          const el = elm as HTMLElement;
+          if (el.dataset.buGridColumn) el.style.gridColumn = el.dataset.buGridColumn;
+          if (el.dataset.buGridRow) el.style.gridRow = el.dataset.buGridRow;
+          delete el.dataset.buGridColumn;
+          delete el.dataset.buGridRow;
+          delete el.dataset.dirtyAfterAnimation;
+          this.#runningAnimations.length = 0;
+
+          delete this.#con.dataset.buRowTemplate;
+          delete this.#con.dataset.buColTemplate;
+
+        });
+        this.#con.style.gridTemplateColumns = this.#con.dataset.buColTemplate!;
+        this.#con.style.gridTemplateRows = this.#con.dataset.buRowTemplate!;
+      };
+      Promise.all(this.#runningAnimations.map(a => a.finished)).then(cleanup, cleanup);
+    }
+
+    this.#prevDiffSnapshot = newSnapshot;
+    this.#prevFacetMatrix = facetMatrix;
+
     this.#setupScrollListener();
 
     if (!this.#layoutBootstrapped) {
@@ -991,6 +1259,132 @@ export default class StandardLayout extends StandardLayoutBase {
     }
 
     this.#postRenderAdjustCellsPerLevel.length = 0;
+  }
+
+  #computeMergeFacetForAnimState(editset: EditEntry[], facetCount: number) {
+    const keys = editset.map(e => e.key);
+    const facetForMergedAnimState: string[][] = new Array(keys.length);
+    for (let i = 0; i < keys.length; i++) {
+      facetForMergedAnimState[i] = keys[i].split(SEPARATOR);
+    }
+    return computeMerges(facetCount, keys.length, facetForMergedAnimState)
+      .reduce((store, val) => (store[val.path] = val, store), {} as Record<string, MergeState>);
+  }
+
+  #cleanupEvacuatedCells(): void {
+    for (const el of this.#evacuatedCells) el.remove();
+    this.#evacuatedCells.length = 0;
+  }
+
+  // old facet [a, b, c, d]
+  // new facet [a, d, x]
+  // b, c deleted from old layout and not present in new layout
+  // So while creating a merged layout we need to shift new layout from [a, d, x] to [a, b_del, c_del, d, x]
+  // This method returns an array FOR NEW LAYOUT that keep tracks on how many shift requires to enter the deleted
+  // columns / rows
+  // So in this case the result is: [0, 2, 2] i.e.
+  // No shift for a -> 2 shifts for d (to allocate space for b and c) -> 2 shifts for x
+  #computeDeleteShifts(editset: EditEntry[]): number[] {
+    const shifts: number[] = [];
+    let deleteCount = 0;
+    for (const entry of editset) {
+      if (entry.action === EditAction.DELETE) {
+        deleteCount++;
+      } else {
+        shifts.push(deleteCount);
+      }
+    }
+    return shifts;
+  }
+  
+
+  // Ajust gridColumn and gridRow values for asuuming that deleted rows / columns are now part of the grid
+  // - For value cells and last level of facet cells this is straight forward and can be done by deleteShifts directly
+  // - For facet cells with level < leaf level, we have to calculate merging based on leaf cells.
+  #remapCellPosition(cell: HTMLElement, deleteShifts: number[], facetTrackCount: number, prop: "gridColumn" | "gridRow"): void {
+    const [start, span] = getGridTemplateValsFromEl(cell, prop);
+    if (start === -1 || span === -1) return;
+
+    // the grid returns track index with facet adjustment
+    // For facet cells in one axis and delete in another axis datPos is negative,
+    // hence we dont' change the grid values
+    // For example column facet cell 
+    let dataPos = start - facetTrackCount - 1;
+    if (dataPos < 0) return;
+    const shift = deleteShifts[dataPos];
+    cell.dataset[`bu${prop === "gridColumn" ? "GridColumn": "GridRow"}`] = cell.style[prop];
+    cell.dataset.dirtyAfterAnimation = "1";
+    if (cell.dataset.cellType === "row-facet" || cell.dataset.cellType === "column-facet") {
+
+      const newStart = start + shift;
+      const end = start + span - 1;
+      const newEnd = end + deleteShifts[end - facetTrackCount - 1];
+      cell.style[prop] = `${newStart} / span ${newEnd - newStart + 1}`;
+    } else if (cell.dataset.cellType === "value"){
+      cell.style[prop] = `${start + shift}`;
+    }
+  }
+
+  #placeEvacuatedCells(
+    colEditset: EditEntry[],
+    rowEditset: EditEntry[],
+    facetColTrackCount: number,
+    facetRowTrackCount: number,
+    colDeleteShifts: number[],
+    rowDeleteShifts: number[],
+  ): void {
+    const colDeletePositions = this.#buildDeletePositionMap(colEditset, facetColTrackCount);
+    const rowDeletePositions = this.#buildDeletePositionMap(rowEditset, facetRowTrackCount);
+
+    for (const el of this.#evacuatedCells) {
+      const cellType = el.dataset.cellType;
+      if (cellType === "value") {
+        const cclix = parseInt(el.dataset.cclix!, 10);
+        const croix = parseInt(el.dataset.croix!, 10);
+
+        const colFacetKey = el.dataset.colFacetPathKey;
+        const rowFacetKey = el.dataset.rowFacetPathKey;
+
+        if (colFacetKey) {
+          // cell got deleted and reason for deletion was column got deleted
+          el.style.gridColumn = `${colDeletePositions.get(colFacetKey)}`;
+        } else {
+          // cell got deleted and reason for deletion was row got deleted
+          const colDataPos = cclix - facetColTrackCount;
+          el.style.gridColumn = `${cclix + 1 + colDeleteShifts[colDataPos]}`;
+        }
+
+        if (rowFacetKey) {
+          // cell got deleted and reason for deletion was row got deleted
+          el.style.gridRow = `${rowDeletePositions.get(rowFacetKey)}`;
+        } else {
+          const rowDataPos = croix - facetRowTrackCount;
+          el.style.gridRow = `${croix + 1 + rowDeleteShifts[rowDataPos]}`;
+        }
+      } else if (cellType === "column-facet") {
+        const colFacetKey = el.dataset.colFacetPathKey;
+        if (colFacetKey) {
+          el.style.gridColumn = `${colDeletePositions.get(colFacetKey)}`;
+        }
+      } else if (cellType === "row-facet") {
+        const rowFacetKey = el.dataset.rowFacetPathKey;
+        if (rowFacetKey) {
+          el.style.gridRow = `${rowDeletePositions.get(rowFacetKey)}`;
+        }
+      }
+    }
+  }
+
+  #buildDeletePositionMap(editset: EditEntry[], facetTrackCount: number): Map<string, number> {
+    const positions = new Map<string, number>();
+    let mergedIdx = 0;
+    for (const entry of editset) {
+      if (entry.action === EditAction.DELETE) {
+        positions.set(entry.key, facetTrackCount + mergedIdx + 1);
+      }
+      mergedIdx++;
+    }
+    return positions;
   }
 
   #raiseRenderCompleteEvent(viewModel: ViewModel, ctx: RenderCtx, additionalMetrics: {
