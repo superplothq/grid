@@ -223,7 +223,7 @@ export function collectEvacuationKeys(opts: {
 // slide out animation for b (width -> 0px)
 // slide in animation for c (0px -> width)
 // happens one after another
-export function buildPhasedKeyFrames(opts: {
+export function buildPhasedKeyframes(opts: {
   editset: EditEntry[];
   cssTemplate: string[];
   prop: "gridTemplateColumns" | "gridTemplateRows";
