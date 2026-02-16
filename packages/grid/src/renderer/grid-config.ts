@@ -1,19 +1,15 @@
-export const REG_TYPE_LAYOUT = "layout";
-export const REG_NAME_STD = "std";
-
-
 export interface GridConfig {
   defaultCellHeight: number;
   defaultCellWidth: number;
   overscan: number;
-  layoutType: string;
   enableResizeUI: boolean;
+  theme: string;
 }
 
 export const defaultConfig: GridConfig = {
   defaultCellHeight: 19,
   defaultCellWidth: 60,
   overscan: 2,
-  layoutType: REG_NAME_STD,
   enableResizeUI: true,
+  theme: "light",
 };

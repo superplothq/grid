@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import "grid/dist/grid.css";
-import Grid, { GridDataViewModel, LayoutEvents, SelectionPayload, ColDef, ColAutoSizeConfig, createChartRenderer, CellRenderer } from "grid";
+import Grid, { GridDataViewModel, LayoutEvents, SelectionPayload, ColDef, ColAutoSizeConfig, createChartRenderer, CellRenderer } from "grid/dist/renderer";
 
 interface TwoKeyData {
   primary: string;
@@ -365,25 +365,25 @@ const GridPlayground: React.FC = () => {
     const twoKeyColIndex = 2;
     const threeKeyColIndex = totalCols - 1;
 
-    // Generate data
+    // Generate data in column-major format: data[col][row]
     const data: (string | number[] | TwoKeyData | ThreeKeyData)[][] = [];
-    for (let row = 0; row < totalRows; row++) {
-      const rowData: (string | number[] | TwoKeyData | ThreeKeyData)[] = [];
-      for (let col = 0; col < totalCols; col++) {
+    for (let col = 0; col < totalCols; col++) {
+      const colData: (string | number[] | TwoKeyData | ThreeKeyData)[] = [];
+      for (let row = 0; row < totalRows; row++) {
         if (col === twoKeyColIndex) {
-          rowData.push({
+          colData.push({
             primary: generateRandomNumber(3, 5),
             secondary: generateRandomNumber(3, 5),
           });
         } else if (col === threeKeyColIndex) {
-          rowData.push({
+          colData.push({
             first: generateRandomNumber(3, 4),
             second: generateRandomNumber(3, 4),
             third: generateRandomNumber(3, 4),
           });
         } else if (chartColumns.has(col)) {
           const chartData = Array.from({ length: 8 }, () => Math.floor(Math.random() * 100));
-          rowData.push(chartData);
+          colData.push(chartData);
         } else {
           let cellValue = generateRandomNumber(4, 7);
 
@@ -401,10 +401,10 @@ const GridPlayground: React.FC = () => {
             }
           }
 
-          rowData.push(cellValue);
+          colData.push(cellValue);
         }
       }
-      data.push(rowData);
+      data.push(colData);
     }
 
     // Create or update grid
@@ -580,7 +580,7 @@ const GridPlayground: React.FC = () => {
         background: "white",
         height: "calc(100vh - 400px)",
         width: "calc(100vw - 200px)",
-        border: "1px solid #616161",
+        border: "1px solid #eaeaea",
         margin: 0,
         padding: 0,
         boxSizing: "border-box",

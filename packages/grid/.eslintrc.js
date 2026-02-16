@@ -1,6 +1,9 @@
 module.exports = {
   root: false,
   extends: ["../../.eslintrc.js"],
+  rules: {
+    semi: ["error", "always"],
+  },
   ignorePatterns: ["dist/**"],
   overrides: [
     {

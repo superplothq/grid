@@ -85,5 +85,5 @@ export const createChartRenderer: CellWithConfigRenderer<ChartConfig, number[]> 
       </svg>`;
     }
   };
-}
+};
 

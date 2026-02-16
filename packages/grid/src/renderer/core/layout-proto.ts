@@ -1,4 +1,4 @@
-import {GridConfig} from "../config";
+import {GridConfig} from "../grid-config";
 import {GridDataViewModel} from "../grid-data-viewmodel";
 import CellManager from "./cell-manager";
 
