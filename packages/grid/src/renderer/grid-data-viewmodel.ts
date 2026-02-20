@@ -6,12 +6,12 @@ const defaultColAutoSize: ColAutoSizeConfig = { strategy: "max-cell" };
 export class GridDataViewModel {
   #numRows: number;
   #numCols: number;
-  #colFacets: string[][];
-  #rowFacets?: string[][];
+  #colFacets: (string | null)[][];
+  #rowFacets?: (string | null)[][];
   #data: any[][];
   #resolvedColDefs: ResolvedColDef[];
 
-  constructor(data: any[][], columnFacets: string[][], rowFacets?: string[][], options?: GridDataViewModelOptions) {
+  constructor(data: any[][], columnFacets: (string | null)[][], rowFacets?: (string | null)[][], options?: GridDataViewModelOptions) {
     this.#numCols = data.length;
     this.#numRows = data[0].length;
     this.#colFacets = columnFacets;
@@ -69,15 +69,15 @@ export class GridDataViewModel {
     return this.#numCols;
   }
 
-  getColFacetValue(level: number, colIndex: number): string | undefined {
-    return (this.#colFacets[level] as string[])[colIndex];
+  getColFacetValue(level: number, colIndex: number): string | null | undefined {
+    return this.#colFacets[level][colIndex];
   }
 
-  get columnFacets(): string[][] {
-    return this.#colFacets as string[][];
+  get columnFacets(): (string | null)[][] {
+    return this.#colFacets;
   }
 
-  get rowFacets(): string[][] {
+  get rowFacets(): (string | null)[][] {
     return this.#rowFacets || [];
   }
 
@@ -91,19 +91,19 @@ export class GridDataViewModel {
       };
     }
 
-    const columnFacets: string[][] = [];
+    const columnFacets: (string | null)[][] = [];
     for (let x = x0; x < x1; x++) {
-      const facets: string[] = [];
+      const facets: (string | null)[] = [];
       for (let level = 0; level < this.#colFacets.length; level++) {
-        facets.push((this.#colFacets[level] as string[])[x]);
+        facets.push(this.#colFacets[level][x]);
       }
       columnFacets.push(facets);
     }
 
-    const rowFacets: string[][] = [];
+    const rowFacets: (string | null)[][] = [];
     if (this.numRowFacetLevels) {
       for (let y = y0; y < y1; y++) {
-        const facets: string[] = [];
+        const facets: (string | null)[] = [];
         for (let level = 0; level < this.numRowFacetLevels; level++) {
           facets.push(this.#rowFacets![level][y]);
         }

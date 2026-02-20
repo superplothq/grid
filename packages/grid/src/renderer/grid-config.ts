@@ -8,7 +8,7 @@ export interface GridConfig {
 
 export const defaultConfig: GridConfig = {
   defaultCellHeight: 19,
-  defaultCellWidth: 60,
+  defaultCellWidth: 50,
   overscan: 2,
   enableResizeUI: true,
   theme: "light",

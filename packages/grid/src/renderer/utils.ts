@@ -5,7 +5,8 @@ export interface MergeState {
   value: string;
   path: string;
   start: number;
-  span: number;
+  spanPrimary: number;
+  spanSecondary: number;
 }
 
 // computeMerges computes cell merge spans for facet headers (both row and column facets).
@@ -65,50 +66,74 @@ export interface MergeState {
 //   i=6: level1=null, level2=null → l0_1's cell gets colspan=3
 //   i=7: level1=null, level2=null → l0_2's cell gets colspan=3
 //
-export function computeMerges(facetLevel: number, itemCount: number, facets: string[][]): Array<MergeState> {
+export function computeMerges(facetLevel: number, itemCount: number, facets: (string | null)[][]): Array<MergeState> {
   const results: Array<MergeState> = [];
-  const mergeState: MergeState[] = [];
+  const mergeState: (MergeState & { lastIndex: number })[] = [];
 
   for (let level = 0; level < facetLevel; level++) {
-    mergeState[level] = { value: "", path: "", start: 0, span: 0, level };
+    mergeState[level] = { value: "", path: "", start: 0, spanPrimary: 0, spanSecondary: 1, level, lastIndex: -1 };
   }
 
   for (let i = 0; i < itemCount; i++) {
     const facet = facets[i] || [];
     for (let level = 0; level < facetLevel; level++) {
       const value = facet[level];
+
+      if (value == null) continue;
+
+      let spanSecondary = 1;
+      for (let l = level + 1; l < facetLevel && facet[l] == null; l++) {
+        spanSecondary++;
+      }
+
       const path = facet.slice(0, level + 1).join(SEPARATOR);
       const state = mergeState[level];
 
-      if (path === state.path && i > 0) {
-        state.span++;
+      // Extend the current vertical merge only when ALL of these hold:
+      //   spanPrimary > 0          — there's an active merge (not the initial empty state)
+      //   path === state.path      — same facet hierarchy (original vertical merge condition)
+      //   spanSecondary matches    — same horizontal shape; e.g. ["l0_2", null, null] (spanSecondary=3)
+      //                              can't merge with ["l0_2", "l1_0", null] (spanSecondary=1) even
+      //                              though both share path "l0_2"
+      //   i === state.lastIndex+1  — items are consecutive (no gap from null-skipped rows).
+      //                              Without this, ["A","X",null] at i=0 and i=2 would merge at level 1
+      //                              (same path "A\0X", same spanSecondary=2) into spanPrimary=2 covering
+      //                              rows 0-1, but row 1 (["A",null,null]) has no level-1 cell — it's
+      //                              absorbed by level 0's horizontal merge.
+      if (state.spanPrimary > 0 && path === state.path && state.spanSecondary === spanSecondary && i === state.lastIndex + 1) {
+        state.spanPrimary++;
+        state.lastIndex = i;
       } else {
-        if (state.span > 0) {
+        if (state.spanPrimary > 0) {
           results.push({
             level,
             path: state.path,
             value: state.value as string,
             start: state.start,
-            span: state.span
+            spanPrimary: state.spanPrimary,
+            spanSecondary: state.spanSecondary,
           });
         }
         state.value = value;
         state.path = path;
         state.start = i;
-        state.span = 1;
+        state.spanPrimary = 1;
+        state.spanSecondary = spanSecondary;
+        state.lastIndex = i;
       }
     }
   }
 
   for (let level = 0; level < facetLevel; level++) {
     const state = mergeState[level];
-    if (state.span > 0) {
+    if (state.spanPrimary > 0) {
       results.push({
         level,
         path: state.path,
         value: state.value as string,
         start: state.start,
-        span: state.span
+        spanPrimary: state.spanPrimary,
+        spanSecondary: state.spanSecondary,
       });
     }
   }
