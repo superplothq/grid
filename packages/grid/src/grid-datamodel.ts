@@ -115,6 +115,11 @@ export function cross(...args: AxisExpr[]): AxisExpr {
  *   ┌──────────────────┬──────────────────┐
  *   │ Profit ──────▶   │ Sales ──────▶    │
  *   └──────────────────┴──────────────────┘
+ *
+ * TODO concat right now only supports single level of facet space. Hence it should only take string
+ *      it does not work with output of cross, hierarchy
+ *      and concat(concat(a,b),c) is essentially concat(a,b,c)
+ *      Later if needed we can support multiple levels of concat
  */
 export function concat(...args: AxisExpr[]): AxisExpr {
   return { type: "concat" as const, children: args };

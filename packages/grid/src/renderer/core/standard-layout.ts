@@ -5,6 +5,7 @@ import {getTheme} from "../registry";
 import PLayout, {BaseViewModel, RenderCtx} from "./layout-proto";
 import {WithCellPlacement, WithEvents} from "./mixins";
 import CellManager from "./cell-manager";
+import { computeMerges } from "../utils";
 
 export type LayoutEvents = {
   renderComplete: {
@@ -49,13 +50,6 @@ export interface ViewModel extends BaseViewModel {
   selections: SelectionState[];
 }
 
-interface MergeState {
-  value: string;
-  path: string;
-  start: number;
-  span: number;
-}
-
 interface CellToMeasure {
   cell: HTMLElement;
   sizeKey: number;
@@ -69,7 +63,6 @@ interface ResizeState {
   cells: HTMLElement[];
 }
 
-const SEPARATOR = "\0";
 
 export default class StandardLayout extends StandardLayoutBase {
   // all column can be of different sizes hence those are tracked based on column indices
@@ -492,58 +485,7 @@ export default class StandardLayout extends StandardLayoutBase {
     }
 
     this.#cellsToMeasure = [];
-  }
-
-  #computeMerges(facetLevel: number, itemCount: number, facets: string[][]): Array<{ level: number; } & MergeState> {
-    const results: Array<{ level: number; } & MergeState> = [];
-    const mergeState: MergeState[] = [];
-
-    for (let level = 0; level < facetLevel; level++) {
-      mergeState[level] = { value: "", path: "", start: 0, span: 0 };
-    }
-
-    for (let i = 0; i < itemCount; i++) {
-      const facet = facets[i] || [];
-      for (let level = 0; level < facetLevel; level++) {
-        const value = facet[level];
-        const path = facet.slice(0, level + 1).join(SEPARATOR);
-        const state = mergeState[level];
-
-        if (path === state.path && i > 0) {
-          state.span++;
-        } else {
-          if (state.span > 0) {
-            results.push({
-              level,
-              path: state.path,
-              value: state.value as string,
-              start: state.start,
-              span: state.span
-            });
-          }
-          state.value = value;
-          state.path = path;
-          state.start = i;
-          state.span = 1;
-        }
-      }
-    }
-
-    for (let level = 0; level < facetLevel; level++) {
-      const state = mergeState[level];
-      if (state.span > 0) {
-        results.push({
-          level,
-          path: state.path,
-          value: state.value as string,
-          start: state.start,
-          span: state.span
-        });
-      }
-    }
-
-    return results;
-  }
+  } 
 
   #onLayoutBootstrap(viewModel: ViewModel): void {
     this.#updateVirtualPanel(viewModel);
@@ -611,7 +553,7 @@ export default class StandardLayout extends StandardLayoutBase {
     // value for which sticky scrolling should be applied.
     const nonLeafColFacets: { cell: HTMLElement; mergeStart: number; mergeSpan: number }[] = [];
 
-    let merges = this.#computeMerges(this.data!.numColFacetLevels, numDataColsVisible, sliceData.columnFacets!);
+    let merges = computeMerges(this.data!.numColFacetLevels, numDataColsVisible, sliceData.columnFacets!);
     for (const merge of merges) {
       const colIndex = viewModel.x0 + merge.start;
       // TODO[1]
@@ -666,7 +608,7 @@ export default class StandardLayout extends StandardLayoutBase {
 
     // render row facets
     merges.length = 0;
-    merges = this.#computeMerges(this.data!.numRowFacetLevels, numDataRowsVisible, sliceData.rowFacets!);
+    merges = computeMerges(this.data!.numRowFacetLevels, numDataRowsVisible, sliceData.rowFacets!);
     const rowHeight = this.rowHeightByType.data;
     const visibleDataHeight = this.mountPoint.clientHeight - viewModel.colFacetsHeight;
 
