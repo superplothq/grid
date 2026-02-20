@@ -464,11 +464,19 @@ export default class StandardLayout extends StandardLayoutBase {
     this.#con.style.setProperty("--offset-y", `${vs.offsetY}px`);
   }
 
+  // INFO: This function figures out width of each columns in the grid
+  // The width calcualtion is tricky because row facets can have horizontal (secondary span) spans if they are null.
+  // Hence we don't calculate width from row facets at all - rather we calculate it from header cells
+  // (In order to get the width from css layout) 
+  // This puts constraints on header cells (in future)
+  // - header cells can't be merged
+  // - header cells can't be (contain: inline-size;) to skip header size from calculation
   #autosizeCells(): void {
     if (this.#cellsToMeasure.length === 0) return;
 
     const indices: number[] = [];
 
+    let cornerCells: HTMLElement[][] = [];
     for (const { cell, sizeKey } of this.#cellsToMeasure) {
       const width = cell.getBoundingClientRect().width;
       if (!width) continue;
@@ -477,11 +485,31 @@ export default class StandardLayout extends StandardLayoutBase {
       if (width > (indices[sizeKey] || 0)) {
         indices[sizeKey] = width;
       }
+
+      if (cell.classList.contains("corner")) {
+        let cellsInIndex = cornerCells[sizeKey];
+        if (!cellsInIndex)  cellsInIndex = cornerCells[sizeKey] = [];
+        cellsInIndex.push(cell);
+      }
     }
 
     for (let i = 0; i < indices.length; i++) {
       if (indices[i] === undefined) continue;
       this.colsWidth.indices[i] = indices[i];
+    }
+
+
+    // Sometimes when there is a row facet width change at the edge of the data, the corner cells are not rendered properly
+    // as after autosize size readjustments are not applied
+    // This is a workaround to fix that
+    let left = 0;
+    for (let i = 0; i < cornerCells.length; i++) {
+      if (i > 0) left = left + this.getColumnWidth(i - 1);
+      const cells = cornerCells[i];
+      if (!cells) continue;
+      for (const cell of cells) {
+        cell.style.left = `${left}px`;
+      }
     }
 
     this.#cellsToMeasure = [];
@@ -561,13 +589,13 @@ export default class StandardLayout extends StandardLayoutBase {
       const skipSizeClass = colDef.colSize.excludeColumnFacets ? " skp-sz" : "";
       const absoluteColIndex = this.data!.numRowFacetLevels + colIndex;
       const key = `col-h-${merge.level}-${absoluteColIndex}`;
-      const colspan = merge.span;
+      const colspan = merge.spanPrimary;
 
       const isLeafLevel = merge.level === this.data!.numColFacetLevels - 1;
       const shouldApplyWidth = isLeafLevel && colspan === 1 && !colDef.colSize.excludeColumnFacets && colDef.colSize.strategy === "fixed-width";
       const fixedSize = shouldApplyWidth ? colDef.colSize as IColAutoSizeStrategyFixedWidth : null;
 
-      let boundaryCellCls = merge.start === 0 ? "l-edge" : (merge.start + merge.span === numDataColsVisible ? "r-edge" : "");
+      let boundaryCellCls = merge.start === 0 ? "l-edge" : (merge.start + merge.spanPrimary === numDataColsVisible ? "r-edge" : "");
       const [cell, needAppend] = this.placeCellInDom({
         key,
         gridRow: merge.level + 1,
@@ -577,13 +605,14 @@ export default class StandardLayout extends StandardLayoutBase {
         extraStyles: {
           colspan,
           top: viewModel.colFacetsTopPositions[merge.level],
+          ...(merge.spanSecondary > 1 && { rowspan: merge.spanSecondary }),
           ...(fixedSize?.widthInPx !== undefined && { width: fixedSize.widthInPx }),
           ...(fixedSize?.minWidthInPx !== undefined && { minWidth: fixedSize.minWidthInPx }),
           ...(fixedSize?.maxWidthInPx !== undefined && { maxWidth: fixedSize.maxWidthInPx }),
         },
       });
       if (!isLeafLevel) {
-        nonLeafColFacets.push({ cell, mergeStart: merge.start, mergeSpan: merge.span });
+        nonLeafColFacets.push({ cell, mergeStart: merge.start, mergeSpan: merge.spanPrimary });
       }
       cell.dataset.cellType = "column-facet";
       cell.dataset.facetLevel = String(merge.level);
@@ -613,7 +642,7 @@ export default class StandardLayout extends StandardLayoutBase {
     const visibleDataHeight = this.mountPoint.clientHeight - viewModel.colFacetsHeight;
 
     for (const merge of merges) {
-      const isLeaf = merge.level === sliceData.rowFacets![0].length - 1;
+      const isLeaf = merge.level + merge.spanSecondary - 1 === sliceData.rowFacets![0].length - 1;
       const absoluteStart = viewModel.y0 + merge.start;
       const key = `row-h-${merge.level}-${absoluteStart}`;
 
@@ -789,7 +818,7 @@ export default class StandardLayout extends StandardLayoutBase {
       //
       //  Cells from leaf facets does not require this tereatment as they are not merged cells.
       if (!isLeaf) {
-        const cellHeight = merge.span * rowHeight;
+        const cellHeight = merge.spanPrimary * rowHeight;
         const cellTopInDataArea = merge.start * rowHeight - viewModel.offsetY;
         const cellBottomInDataArea = cellTopInDataArea + cellHeight;
 
@@ -797,11 +826,11 @@ export default class StandardLayout extends StandardLayoutBase {
         const clippedBottom = Math.max(0, cellBottomInDataArea - visibleDataHeight);
 
         const rawOffset = (clippedTop - clippedBottom) / 2;
-        const maxOffset = Math.max(0, (merge.span - 1) * rowHeight / 2);
+        const maxOffset = Math.max(0, (merge.spanPrimary - 1) * rowHeight / 2);
         labelOffset = Math.max(-maxOffset, Math.min(maxOffset, rawOffset));
       }
 
-      let boundaryCellCls = isLeaf ? "r-edge" : (merge.level === 0 ? "l-edge" : "");
+      const boundaryCellCls = `${isLeaf ? "r-edge" : ""} ${merge.level === 0 ? "l-edge" : ""}`;
       const [cell, needAppend] = this.placeCellInDom({
         key,
         gridRow: this.data!.numColFacetLevels + merge.start + 1,
@@ -809,8 +838,9 @@ export default class StandardLayout extends StandardLayoutBase {
         content: `<span class="content">${merge.value}</span>`,
         cls: `row-header level-${merge.level}${isLeaf ? "" : " non-leaf"} ${boundaryCellCls}`,
         extraStyles: {
-          rowspan: merge.span,
+          rowspan: merge.spanPrimary,
           left: viewModel.rowFacetsLeftPositions[merge.level],
+          ...(merge.spanSecondary > 1 && { colspan: merge.spanSecondary }),
           transform: "",
         },
       });
@@ -821,7 +851,10 @@ export default class StandardLayout extends StandardLayoutBase {
       }
       cell.dataset.cellType = "row-facet";
       needAppend && nodeAppendList.push(cell);
-      this.#cellsToMeasure.push({ cell, sizeKey: merge.level });
+      // NOTE: we don't add row facets for column width measurement as corner cells are sent with for measurement
+      // itself. This is important as row cells might have span that would would divide the track to equal parts in case
+      // secondary span is present. However since corner cells are never merged, they'd provide correct track
+      // mesasurement.
       this.#postRenderAdjustCellsPerLevel[merge.level].push(cell);
     }
 

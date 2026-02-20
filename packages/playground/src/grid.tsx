@@ -50,6 +50,59 @@ declare global {
 //   ]
 // };
 
+const NullFacetDemo: React.FC = () => {
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!ref.current) return;
+
+    // 3 row facet levels, 8 rows — matches the computeMerges comment example
+    // const rowFacetLevel0: (string | null)[] = ["l0_0", "l0_0", "l0_0", "l0_0", "l0_0", "l0_0", "l0_1", "l0_2", "l0_3", "l0_1", "l0_3", "l0_5" ];
+    // const rowFacetLevel1: (string | null)[] = [null,   "l1_0", "l1_0", "l1_0", "l1_1", "l1_1", null,   null, null,   'he', null, null];
+    // const rowFacetLevel2: (string | null)[] = [null,   "a",    "b",    "b",    null,   "c",    null,   null, null,   null, null, 'de'];
+
+    let testsliceidx = 0;
+    const rowFacetLevel0: (string | null)[] = ["l0_0", "l0_0", "l0_0", "l0_0", "l0_0", "l0_0", "l0_1", "l0_2", "l0_3", "l0_1", "l0_3", "l0_5" ].slice(testsliceidx);
+    const rowFacetLevel1: (string | null)[] = [null,   "l1_0", "l1_0", "l1_0", "l1_1", "l1_1", null,   null, null,   'he', null, null].slice(testsliceidx);
+    const rowFacetLevel2: (string | null)[] = [null,   "aa",    "bb",    "bb",    null,   "cc",    null,   null, null,   null, null, 'de'].slice(testsliceidx);
+
+    // 3 col facet levels, 8 cols — same structure for columns
+    const colFacetLevel0: (string | null)[] = ["c0_0", "c0_0", "c0_0", "c0_0", "c0_0", "c0_0", "c0_1", "c0_2"];
+    const colFacetLevel1: (string | null)[] = [null,   "c1_0", "c1_0", "c1_0", "c1_1", "c1_1", null,   null];
+    const colFacetLevel2: (string | null)[] = [null,   "xx",    "yy",    "yy",    null,   "zz",    null,   null];
+
+    // 8 cols × 8 rows of simple numeric data
+    const data: number[][] = [];
+    for (let col = 0; col < colFacetLevel0.length; col++) {
+      const colData: number[] = [];
+      for (let row = 0; row < rowFacetLevel0.length; row++) {
+        colData.push(col * 8 + row + 1);
+      }
+      data.push(colData);
+    }
+
+    const grid = new Grid({}, ref.current);
+    grid.data = new GridDataViewModel(
+      data,
+      [colFacetLevel0, colFacetLevel1, colFacetLevel2],
+      [rowFacetLevel0, rowFacetLevel1, rowFacetLevel2]
+    );
+    grid.draw();
+  }, []);
+
+  return (
+    <div style={{
+      position: "relative",
+      background: "white",
+      height: "200px",
+      width: "400px",
+      border: "1px solid #eaeaea",
+      contain: "layout style",
+      marginBottom: "40px",
+    }} ref={ref} />
+  );
+};
+
 const GridPlayground: React.FC = () => {
   const gridConRef = useRef<HTMLDivElement>(null);
   const gridRef = useRef<Grid | null>(null);
@@ -599,6 +652,9 @@ const GridPlayground: React.FC = () => {
 {events.map((e, i) => `[${events.length - i}] ${e.name} ${JSON.stringify(e.payload)}`).join('\n')}
         </pre>
       </details>
+      <hr/>
+      <h3>Null-Facet Secondary Axis Merge Demo</h3>
+      <NullFacetDemo />
     </>
   );
 };
