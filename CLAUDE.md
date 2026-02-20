@@ -17,15 +17,30 @@ This is a yarn workspace with following packages:
 - **grid**: TypeScript, ESLint
 - **playground**: React 18, TypeScript, Webpack 5, ESLint
 
+### package.json scripts
+- grid unit tests: yarn workspace grid test:unit
+- grid lint: yarn workspace grid lint --fix
+- build: yarn workspace grid build && yarn workspace grid build:css
+- playground build: yarn workspace playground build
+
 ### Development Server
 Already setup by the user and running. 
 
 ## Grid
 
-- Grid supports a ViewModel architecture with with explicit control via controller. ./packages/grid/src/index.ts is the controller and also the entry point. 
-- It has a open closed architecture where even the core grid is rendered by registering various components. You can look at ./packages/grid/src/index.ts Grid.register call
-- So far the controller expect components to comply to following protocol found in ./packages/grid/src/core/*-proto.ts files
+- Renderer and datamodel are decoupled; `GridDataViewModel` is the bridge contract between them
 - ./packages/playground/src/grid.tsx uses the grid library to render the grid
+
+### Datamodel side
+- `GridDataModel` (abstract) → `SqlDataModel` (abstract, SQL-based pivot) → `DuckDBDataModel` (node) → `InMemoryDataModel` (node in-memory)
+- `SqlDataModel` → `DuckDBWasmDataModel` (browser wasm) → `BrowserInMemoryDataModel` (browser in-memory)
+- `GridDataModel.getViewModelData(PivotConfig)` resolves facet spaces, fetches aggregated data, reshapes into pivot table, returns `GridDataViewModel`
+- Subclasses implement `resolveFacetValues()` and `getData()` — the actual data fetching
+
+### Renderer side
+- `Grid` (controller/entry point) receives `GridDataViewModel` via `grid.data = viewModel`
+- `Grid` delegates to `StandardLayout` (extends `PLayout` abstract protocol)
+- Layout uses `viewModel.getSlice()` for virtualized rendering of visible cells
 
 ## Notes
 - Do NOT write defensive code unless explicity asked to do so. It's better to get runtime error than to create bugs with defensive code.

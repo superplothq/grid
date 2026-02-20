@@ -41,7 +41,7 @@ import {
  *   │                      "Jan","Feb","Mar","Apr","May","Jun"]               │
  *   └──────────────────────────────────────────────────────────────────────────┘
  */
-function cartesianProduct(spaces: string[][][]): string[][] {
+function cartesianProduct(spaces: (string | null)[][][]): (string | null)[][] {
   if (spaces.length === 0) return [];
   if (spaces.length === 1) return spaces[0];
 
@@ -54,7 +54,7 @@ function cartesianProduct(spaces: string[][][]): string[][] {
     const numCombosNext = next[0]?.length ?? 0;
     const totalCombos = numCombosCurrent * numCombosNext;
 
-    const result: string[][] = [];
+    const result: (string | null)[][] = [];
     for (let f = 0; f < numFieldsCurrent + numFieldsNext; f++) {
       result.push(new Array(totalCombos));
     }
@@ -116,10 +116,6 @@ export function cross(...args: AxisExpr[]): AxisExpr {
  *   │ Profit ──────▶   │ Sales ──────▶    │
  *   └──────────────────┴──────────────────┘
  *
- * TODO concat right now only supports single level of facet space. Hence it should only take string
- *      it does not work with output of cross, hierarchy
- *      and concat(concat(a,b),c) is essentially concat(a,b,c)
- *      Later if needed we can support multiple levels of concat
  */
 export function concat(...args: AxisExpr[]): AxisExpr {
   return { type: "concat" as const, children: args };
@@ -147,19 +143,19 @@ export function hierarchy(...fields: string[]): AxisExpr {
 interface Branch {
   dimensions: string[];
   measures: Measure[];
-  dimRemap?: Map<string, string>;
+  padLevels?: number;
 }
 
 interface ResolvedAxis {
-  facetSpace: string[][];
+  facetSpace: (string | null)[][];
   branches: Branch[];
 }
 
-function buildInvertedIndex(facetSpace: string[][]): Map<string, number> {
+function buildInvertedIndex(facetSpace: (string | null)[][]): Map<string, number> {
   const index = new Map<string, number>();
   const numPositions = facetSpace[0]?.length ?? 0;
   for (let i = 0; i < numPositions; i++) {
-    const key = facetSpace.map(level => level[i]).join("\0");
+    const key = facetSpace.map(level => level[i] ?? "").join("\0");
     index.set(key, i);
   }
   return index;
@@ -174,9 +170,11 @@ function buildLookupKey(
   const keyParts: string[] = [];
   for (const dim of branch.dimensions) {
     const colIdx = groupResult.columns.indexOf(dim);
-    let val = String(groupResult.data[colIdx][r]);
-    if (branch.dimRemap?.has(val)) val = branch.dimRemap.get(val)!;
+    const val = String(groupResult.data[colIdx][r]);
     keyParts.push(val);
+  }
+  for (let p = 0; p < (branch.padLevels ?? 0); p++) {
+    keyParts.push("");
   }
   if (currentMeasure) {
     keyParts.push(currentMeasure.field);
@@ -282,9 +280,11 @@ export abstract class GridDataModel {
         const combined: Branch[] = [];
         for (const a of branches) {
           for (const b of next) {
+            const combinedPad = (a.padLevels ?? 0) + (b.padLevels ?? 0);
             combined.push({
               dimensions: [...a.dimensions, ...b.dimensions],
               measures: [...a.measures, ...b.measures],
+              ...(combinedPad > 0 ? { padLevels: combinedPad } : {}),
             });
           }
         }
@@ -295,52 +295,42 @@ export abstract class GridDataModel {
     }
 
     // concat
+    // NOTE: No disambiguation is done here. If two children produce overlapping facet values
+    // (e.g. concat("source","channel") where both have "Online"), the caller must ensure
+    // uniqueness. To add disambiguation: track seen values per child, and when a collision is
+    // detected, qualify the value with a prefix (e.g. "source/Online", "channel/Online") and
+    // store the remap on the branch (via a dimRemap field) so buildLookupKey can translate
+    // raw data values to the qualified names used in the facet space.
     const childResults: ResolvedAxis[] = [];
     const resolved = await Promise.all(expr.children.map(child => this.resolveAxis(child)));
     childResults.push(...resolved);
 
-    const concatFacets: string[] = [];
-    const childRemaps: Map<string, string>[] = expr.children.map(() => new Map());
-    const seen = new Map<string, [index: number, childIdx: number, qualified: boolean]>();
+    const maxLevels = Math.max(...childResults.map(r => r.facetSpace.length));
+    const concatFacets: (string | null)[][] = Array.from({ length: maxLevels }, () => []);
+
     for (let ci = 0; ci < childResults.length; ci++) {
-      const childFacet = childResults[ci].facetSpace[0] ?? [];
-      for (const v of childFacet) {
-        const prev = seen.get(v);
-        if (prev && prev[1] !== ci) {
-          if (!prev[2]) {
-            const prevQualified = `${this.getSourceName(expr.children[prev[1]])}/${v}`;
-            concatFacets[prev[0]] = prevQualified;
-            childRemaps[prev[1]].set(v, prevQualified);
-            prev[2] = true;
-          }
-          const qualified = `${this.getSourceName(expr.children[ci])}/${v}`;
-          concatFacets.push(qualified);
-          childRemaps[ci].set(v, qualified);
-        } else {
-          seen.set(v, [concatFacets.length, ci, false]);
-          concatFacets.push(v);
+      const childSpace = childResults[ci].facetSpace;
+      const numPositions = childSpace[0]?.length ?? 0;
+      for (let j = 0; j < numPositions; j++) {
+        for (let level = 0; level < maxLevels; level++) {
+          concatFacets[level].push(level < childSpace.length ? childSpace[level][j] : null);
         }
       }
     }
 
     const allBranches: Branch[] = [];
     for (let ci = 0; ci < childResults.length; ci++) {
-      const remap = childRemaps[ci];
+      const padLevels = maxLevels - childResults[ci].facetSpace.length;
       for (const branch of childResults[ci].branches) {
-        allBranches.push(remap.size > 0 ? { ...branch, dimRemap: remap } : branch);
+        const totalPad = (branch.padLevels ?? 0) + padLevels;
+        allBranches.push(totalPad > 0 ? { ...branch, padLevels: totalPad } : branch);
       }
     }
 
     return {
-      facetSpace: [concatFacets],
+      facetSpace: concatFacets,
       branches: allBranches,
     };
-  }
-
-  private getSourceName(expr: AxisExpr): string {
-    if (typeof expr === "string") return expr;
-    if (expr.type === "hierarchy") return expr.fields[0];
-    return expr.type;
   }
 
   async getViewModelData(config: PivotConfig): Promise<GridDataViewModel> {
