@@ -560,38 +560,31 @@ export abstract class GridDataModel {
     };
   }
 
+  private async resolveAxisConfig(config: AxisConfig): Promise<ResolvedAxis> {
+    if (config.drilldown) {
+      const { crossFields, hierarchyFields } = splitCrossAndHierarchy(config.field);
+      const normalizedRules = normalizeDrilldownRules(hierarchyFields, config.drilldown);
+      const branches = generateDrilldownBranches(crossFields, hierarchyFields, normalizedRules);
+      return { facetSpace: [], branches };
+    }
+    return this.resolveAxis(config.field);
+  }
+
   async getViewModelData(config: PivotConfig): Promise<GridDataViewModel> {
     const colConfig = normalizeAxisConfig(config.columns);
+    // TODO make it mandatory to have a row config
     const rowConfig = config.rows ? normalizeAxisConfig(config.rows) : undefined;
 
-    let colResult: ResolvedAxis;
-    let rowResult: ResolvedAxis | null = null;
-    let drilldownMeta: { allRowFields: string[] } | null = null;
+    // Get the facet values (dimensional values) -> based on table algebra (concat, hierarchy, cross) create facet space
+    // We get the data from server but the facet space calculation + table reshaping is done in client
+    // This can become a potential point in failure if a high cardinality field is added with cross operation (as it
+    // creates cartesia product) leading to huge fan out.
+    // TODO detect high cardinality fields and throw an error (like tableau does)
+    const [colResult, rowResult] = await Promise.all([
+      this.resolveAxisConfig(colConfig),
+      rowConfig ? this.resolveAxisConfig(rowConfig) : null,
+    ]);
 
-    if (rowConfig?.drilldown) {
-      colResult = await this.resolveAxis(colConfig.field);
-      const { crossFields, hierarchyFields } = splitCrossAndHierarchy(rowConfig.field);
-      const normalizedRules = normalizeDrilldownRules(hierarchyFields, rowConfig.drilldown);
-      const branches = generateDrilldownBranches(crossFields, hierarchyFields, normalizedRules);
-      rowResult = { facetSpace: [], branches };
-      drilldownMeta = { allRowFields: [...crossFields, ...hierarchyFields] };
-    } else {
-      // Get the facet values (dimensional values) -> based on table algebra (concat, hierarchy, cross) create facet space
-      // We get the data from server but the facet space calculation + table reshaping is done in client
-      // This can become a potential point in failure if a high cardinality field is added with cross operation (as it
-      // creates cartesia product) leading to huge fan out.
-      // TODO detect high cardinality fields and throw an error (like tableau does)
-      const [col, row] = await Promise.all([
-        this.resolveAxis(colConfig.field),
-        rowConfig ? this.resolveAxis(rowConfig.field) : null,
-      ]);
-      colResult = col;
-      rowResult = row;
-    }
-
-    // Based on the facet space, create inverted index for lookups later
-    // When data appears from server this reverse lookup used to assign cells from data from server -> data to pivot
-    // table leading to reshaping of table
     const rowBranches = rowResult?.branches ?? [{ dimensions: [], measures: [] }];
 
     // Concat across multiple dimensions is a tricky operation. For example
@@ -632,11 +625,14 @@ export abstract class GridDataModel {
     // representation)
     const results = await this.getData({ type: "pivot", groups });
 
+    // For drilldown axes, the facet space is built from query results (not resolved upfront).
+    // Detect this by checking for an empty facet space.
     let rowDefs: (RowDef | undefined)[] | undefined;
-    if (drilldownMeta) {
+    if (rowResult && rowResult.facetSpace.length === 0) {
+      const numFields = rowResult.branches[0].dimensions.length + (rowResult.branches[0].padLevels ?? 0);
       const drilldownRowBranches = branchPairs.map(([rb]) => rb);
-      const built = buildDrilldownFacetSpace(results, drilldownRowBranches, drilldownMeta.allRowFields.length);
-      rowResult = { facetSpace: built.facetSpace, branches: rowResult!.branches };
+      const built = buildDrilldownFacetSpace(results, drilldownRowBranches, numFields);
+      rowResult.facetSpace = built.facetSpace;
       rowDefs = built.rowDefs;
     }
 
