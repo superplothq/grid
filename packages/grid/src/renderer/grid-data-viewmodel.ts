@@ -1,4 +1,5 @@
 import { SliceResult, GridDataViewModelOptions, ColDef, ResolvedColDef, ColAutoSizeConfig } from "./types";
+import { RowDef } from "../types";
 import { textRenderer } from "./core/cell-renderers";
 
 const defaultColAutoSize: ColAutoSizeConfig = { strategy: "max-cell" };
@@ -9,6 +10,7 @@ export class GridDataViewModel {
   #colFacets: (string | null)[][];
   #rowFacets?: (string | null)[][];
   #data: any[][];
+  #rowDefs?: (RowDef | undefined)[];
   #resolvedColDefs: ResolvedColDef[];
 
   constructor(data: any[][], columnFacets: (string | null)[][], rowFacets?: (string | null)[][], options?: GridDataViewModelOptions) {
@@ -17,6 +19,7 @@ export class GridDataViewModel {
     this.#colFacets = columnFacets;
     this.#rowFacets = rowFacets;
     this.#data = data;
+    this.#rowDefs = options?.rowDefs;
     this.#resolvedColDefs = this.#normalizeColDefs(options?.colDefs ?? []);
   }
 
@@ -79,6 +82,10 @@ export class GridDataViewModel {
 
   get rowFacets(): (string | null)[][] {
     return this.#rowFacets || [];
+  }
+
+  get rowDefs(): (RowDef | undefined)[] | undefined {
+    return this.#rowDefs;
   }
 
   // TODO this can be optimized since this sits in the hot path of every render cycle

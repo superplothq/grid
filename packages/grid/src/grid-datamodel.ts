@@ -3,11 +3,17 @@ import {
   Schema,
   MeasureSchema,
   AxisExpr,
+  AxisConfig,
+  DrilldownRule,
   PivotConfig,
+  PivotGroup,
   Measure,
+  Filter,
   FacetQuery,
   PivotQuery,
   PivotGroupResult,
+  RowDef,
+  ROLLUP_MARKER,
 } from "./types";
 
 /*
@@ -140,10 +146,231 @@ export function hierarchy(...fields: string[]): AxisExpr {
   return { type: "hierarchy", fields };
 }
 
+function normalizeAxisConfig(axis: AxisExpr | AxisConfig): AxisConfig {
+  if (typeof axis === "object" && "field" in axis) return axis;
+  return { field: axis };
+}
+
+function splitCrossAndHierarchy(expr: AxisExpr): { crossFields: string[], hierarchyFields: string[] } {
+  if (typeof expr === "string") {
+    return { crossFields: [], hierarchyFields: [expr] };
+  }
+  if (expr.type === "hierarchy") {
+    return { crossFields: [], hierarchyFields: expr.fields };
+  }
+  if (expr.type === "cross") {
+    const crossFields: string[] = [];
+    let hierarchyFields: string[] = [];
+    for (const child of expr.children) {
+      if (typeof child === "string") {
+        crossFields.push(child);
+      } else if (child.type === "hierarchy") {
+        hierarchyFields = child.fields;
+      }
+    }
+    return { crossFields, hierarchyFields };
+  }
+  return { crossFields: [], hierarchyFields: [] };
+}
+
+function normalizeDrilldownRules(fields: string[], rules: DrilldownRule[]): DrilldownRule[] {
+  const fieldIndex = new Map(fields.map((f, i) => [f, i]));
+  const rulesByLevel = new Map<number, { where: "*" | Record<string, string[]> }[]>();
+
+  for (const rule of rules) {
+    const targetIdx = fieldIndex.get(rule.toLevel);
+    if (targetIdx === undefined) {
+      throw new Error(`Drilldown toLevel "${rule.toLevel}" not found in hierarchy fields: [${fields.join(", ")}]`);
+    }
+
+    if (!rulesByLevel.has(targetIdx)) rulesByLevel.set(targetIdx, []);
+    rulesByLevel.get(targetIdx)!.push({ where: rule.where });
+
+    if (rule.where !== "*") {
+      for (let level = 1; level <= targetIdx - 1; level++) {
+        if (!rulesByLevel.has(level)) rulesByLevel.set(level, []);
+        const parentWhere: Record<string, string[]> = {};
+        for (let fi = 0; fi < level; fi++) {
+          const fieldName = fields[fi];
+          if ((rule.where as Record<string, string[]>)[fieldName]) {
+            parentWhere[fieldName] = (rule.where as Record<string, string[]>)[fieldName];
+          }
+        }
+        rulesByLevel.get(level)!.push({ where: Object.keys(parentWhere).length > 0 ? parentWhere : "*" });
+      }
+    } else {
+      for (let level = 1; level <= targetIdx - 1; level++) {
+        if (!rulesByLevel.has(level)) rulesByLevel.set(level, []);
+        rulesByLevel.get(level)!.push({ where: "*" });
+      }
+    }
+  }
+
+  if (!rulesByLevel.has(0)) rulesByLevel.set(0, []);
+  rulesByLevel.get(0)!.push({ where: "*" });
+
+  const normalized: DrilldownRule[] = [];
+  for (const [levelIdx, levelRules] of [...rulesByLevel.entries()].sort((a, b) => a[0] - b[0])) {
+    const fieldName = fields[levelIdx];
+
+    if (levelRules.some(r => r.where === "*")) {
+      normalized.push({ toLevel: fieldName, where: "*" });
+      continue;
+    }
+
+    const mergedWhere: Record<string, Set<string>> = {};
+    for (const rule of levelRules) {
+      const w = rule.where as Record<string, string[]>;
+      for (const [field, values] of Object.entries(w)) {
+        if (!mergedWhere[field]) mergedWhere[field] = new Set();
+        for (const v of values) mergedWhere[field].add(v);
+      }
+    }
+
+    const where: Record<string, string[]> = {};
+    for (const [field, values] of Object.entries(mergedWhere)) {
+      where[field] = [...values].sort();
+    }
+
+    normalized.push({ toLevel: fieldName, where });
+  }
+
+  return normalized;
+}
+
+function generateDrilldownBranches(
+  crossFields: string[],
+  hierarchyFields: string[],
+  normalizedRules: DrilldownRule[]
+): Branch[] {
+  const allRowFields = [...crossFields, ...hierarchyFields];
+  const symmetricSets: string[][] = [];
+  const filteredDrilldownBranches: { branch: Branch; filters: Filter[] }[] = [];
+
+  for (const rule of normalizedRules) {
+    const levelIdx = hierarchyFields.indexOf(rule.toLevel);
+    const dims = [...crossFields, ...hierarchyFields.slice(0, levelIdx + 1)];
+
+    if (rule.where === "*") {
+      symmetricSets.push(dims);
+    } else {
+      const padLevels = allRowFields.length - dims.length;
+      const filters: Filter[] = [];
+      const where = rule.where as Record<string, string[]>;
+      for (const [field, values] of Object.entries(where)) {
+        filters.push({
+          field,
+          op: values.length === 1 ? "eq" : "in",
+          value: values.length === 1 ? values[0] : values,
+        });
+      }
+      filteredDrilldownBranches.push({
+        branch: { dimensions: dims, measures: [], ...(padLevels > 0 ? { padLevels } : {}) },
+        filters,
+      });
+    }
+  }
+
+  symmetricSets.unshift(crossFields.length > 0 ? [...crossFields] : []);
+
+  const rowBranches: Branch[] = [];
+
+  if (symmetricSets.length > 0) {
+    const unionDims = new Set<string>();
+    for (const set of symmetricSets) {
+      for (const d of set) unionDims.add(d);
+    }
+    const gsDims = allRowFields.filter(f => unionDims.has(f));
+    const padLevels = allRowFields.length - gsDims.length;
+    rowBranches.push({
+      dimensions: gsDims,
+      measures: [],
+      groupingSets: symmetricSets,
+      ...(padLevels > 0 ? { padLevels } : {}),
+    });
+  }
+
+  for (const { branch, filters } of filteredDrilldownBranches) {
+    rowBranches.push({ ...branch, filters });
+  }
+
+  return rowBranches;
+}
+
+function buildDrilldownFacetSpace(
+  results: PivotGroupResult[],
+  branches: Branch[],
+  numFields: number
+): { facetSpace: (string | null)[][], rowDefs: (RowDef | undefined)[] } {
+  const tupleSet = new Set<string>();
+  const tuples: string[][] = [];
+
+  for (let gi = 0; gi < results.length; gi++) {
+    const result = results[gi];
+    const branch = branches[gi];
+    const numRows = result.data[0]?.length ?? 0;
+    const numDims = branch.dimensions.length;
+    const pad = branch.padLevels ?? 0;
+
+    for (let r = 0; r < numRows; r++) {
+      const tuple: string[] = [];
+      for (let d = 0; d < numDims; d++) {
+        tuple.push(String(result.data[d][r]));
+      }
+      for (let p = 0; p < pad; p++) {
+        tuple.push("");
+      }
+
+      const key = tuple.join("\0");
+      if (!tupleSet.has(key)) {
+        tupleSet.add(key);
+        tuples.push(tuple);
+      }
+    }
+  }
+
+  const ordinals: Map<string, number>[] = Array.from({ length: numFields }, () => new Map());
+  for (const tuple of tuples) {
+    for (let f = 0; f < numFields; f++) {
+      if (!ordinals[f].has(tuple[f])) {
+        ordinals[f].set(tuple[f], ordinals[f].size);
+      }
+    }
+  }
+
+  tuples.sort((a, b) => {
+    for (let i = 0; i < a.length; i++) {
+      const oa = a[i] === ROLLUP_MARKER ? -2 : a[i] === "" ? -1 : (ordinals[i].get(a[i]) ?? 0);
+      const ob = b[i] === ROLLUP_MARKER ? -2 : b[i] === "" ? -1 : (ordinals[i].get(b[i]) ?? 0);
+      if (oa !== ob) return oa - ob;
+    }
+    return 0;
+  });
+
+  const facetSpace: (string | null)[][] = Array.from({ length: numFields }, () => []);
+  const rowDefs: (RowDef | undefined)[] = [];
+  for (const tuple of tuples) {
+    if (tuple[0] === ROLLUP_MARKER) {
+      rowDefs.push({ type: "agg", root: true });
+    } else if (tuple.some(v => v === "")) {
+      rowDefs.push({ type: "agg" });
+    } else {
+      rowDefs.push(undefined);
+    }
+    for (let f = 0; f < numFields; f++) {
+      facetSpace[f].push(tuple[f] === "" ? null : tuple[f]);
+    }
+  }
+
+  return { facetSpace, rowDefs };
+}
+
 interface Branch {
   dimensions: string[];
   measures: Measure[];
   padLevels?: number;
+  filters?: Filter[];
+  groupingSets?: string[][];
 }
 
 interface ResolvedAxis {
@@ -334,21 +561,37 @@ export abstract class GridDataModel {
   }
 
   async getViewModelData(config: PivotConfig): Promise<GridDataViewModel> {
-    // Get the facet values (dimensional values) -> based on table algebra (concat, hierarchy, cross) create facet space
-    // We get the data from server but the facet space calculation + table reshaping is done in client
-    // This can become a potential point in failure if a high cardinality field is added with cross operation (as it
-    // creates cartesia product) leading to huge fan out.
-    // TODO detect high cardinality fields and throw an error (like tableau does)
-    const [colResult, rowResult] = await Promise.all([
-      this.resolveAxis(config.columns),
-      config.rows ? this.resolveAxis(config.rows) : null,
-    ]);
+    const colConfig = normalizeAxisConfig(config.columns);
+    const rowConfig = config.rows ? normalizeAxisConfig(config.rows) : undefined;
+
+    let colResult: ResolvedAxis;
+    let rowResult: ResolvedAxis | null = null;
+    let drilldownMeta: { allRowFields: string[] } | null = null;
+
+    if (rowConfig?.drilldown) {
+      colResult = await this.resolveAxis(colConfig.field);
+      const { crossFields, hierarchyFields } = splitCrossAndHierarchy(rowConfig.field);
+      const normalizedRules = normalizeDrilldownRules(hierarchyFields, rowConfig.drilldown);
+      const branches = generateDrilldownBranches(crossFields, hierarchyFields, normalizedRules);
+      rowResult = { facetSpace: [], branches };
+      drilldownMeta = { allRowFields: [...crossFields, ...hierarchyFields] };
+    } else {
+      // Get the facet values (dimensional values) -> based on table algebra (concat, hierarchy, cross) create facet space
+      // We get the data from server but the facet space calculation + table reshaping is done in client
+      // This can become a potential point in failure if a high cardinality field is added with cross operation (as it
+      // creates cartesia product) leading to huge fan out.
+      // TODO detect high cardinality fields and throw an error (like tableau does)
+      const [col, row] = await Promise.all([
+        this.resolveAxis(colConfig.field),
+        rowConfig ? this.resolveAxis(rowConfig.field) : null,
+      ]);
+      colResult = col;
+      rowResult = row;
+    }
 
     // Based on the facet space, create inverted index for lookups later
     // When data appears from server this reverse lookup used to assign cells from data from server -> data to pivot
     // table leading to reshaping of table
-    const colIndex = buildInvertedIndex(colResult.facetSpace);
-    const rowIndex = rowResult ? buildInvertedIndex(rowResult.facetSpace) : new Map([["", 0]]);
     const rowBranches = rowResult?.branches ?? [{ dimensions: [], measures: [] }];
 
     // Concat across multiple dimensions is a tricky operation. For example
@@ -371,13 +614,15 @@ export abstract class GridDataModel {
     // So you can see group by region union all group by channel is ran on server
     // Since two group by-s are run with different dimensional values, it creates two branches
     // So for concat mulitiple branches (grouped data) would be returned from server, other wise one
-    const groups: { dimensions: string[]; measures: Measure[] }[] = [];
+    const groups: PivotGroup[] = [];
     const branchPairs: [Branch, Branch][] = [];
     for (const rowBranch of rowBranches) {
       for (const colBranch of colResult.branches) {
         groups.push({
           dimensions: [...rowBranch.dimensions, ...colBranch.dimensions],
           measures: [...rowBranch.measures, ...colBranch.measures],
+          ...(rowBranch.filters ? { filters: rowBranch.filters } : {}),
+          ...(rowBranch.groupingSets ? { groupingSets: rowBranch.groupingSets } : {}),
         });
         branchPairs.push([rowBranch, colBranch]);
       }
@@ -387,14 +632,24 @@ export abstract class GridDataModel {
     // representation)
     const results = await this.getData({ type: "pivot", groups });
 
+    let rowDefs: (RowDef | undefined)[] | undefined;
+    if (drilldownMeta) {
+      const drilldownRowBranches = branchPairs.map(([rb]) => rb);
+      const built = buildDrilldownFacetSpace(results, drilldownRowBranches, drilldownMeta.allRowFields.length);
+      rowResult = { facetSpace: built.facetSpace, branches: rowResult!.branches };
+      rowDefs = built.rowDefs;
+    }
+
+    const colIndex = buildInvertedIndex(colResult.facetSpace);
+    const rowIndex = rowResult ? buildInvertedIndex(rowResult.facetSpace) : new Map([["", 0]]);
+
     // Prepare stub for output data. Here the data reshaping is done
     const numCols = colResult.facetSpace[0].length;
-    const numRows = rowResult ? (rowResult.facetSpace[0].length) : 1;
+    const numRows = rowResult ? rowResult.facetSpace[0].length : 1;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const data: any[][] = [];
     for (let c = 0; c < numCols; c++) {
-      const col = new Array(numRows).fill(null);
-      data.push(col);
+      data.push(new Array(numRows).fill(null));
     }
 
     // Iterate over data returned by server and reshape it to pivot table format
@@ -419,6 +674,6 @@ export abstract class GridDataModel {
       }
     }
 
-    return new GridDataViewModel(data, colResult.facetSpace, rowResult?.facetSpace);
+    return new GridDataViewModel(data, colResult.facetSpace, rowResult?.facetSpace, rowDefs ? { rowDefs } : undefined);
   }
 }

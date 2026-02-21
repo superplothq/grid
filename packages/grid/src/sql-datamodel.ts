@@ -6,6 +6,7 @@ import {
   FacetQuery,
   PivotQuery,
   PivotGroupResult,
+  ROLLUP_MARKER,
 } from "./types";
 
 export abstract class SqlDataModel extends GridDataModel {
@@ -57,6 +58,11 @@ export abstract class SqlDataModel extends GridDataModel {
       const allFilters = [...(query.filters ?? []), ...(group.filters ?? [])];
       const where = this.buildWhereClause(allFilters.length > 0 ? allFilters : undefined);
 
+      if (group.groupingSets) {
+        results.push(await this.getGroupingSetsData(group, where));
+        continue;
+      }
+
       const dimSelect = group.dimensions.map(d => `"${d}"`);
       const measureSelect = group.measures.map(m => {
         const agg = m.aggregation.toUpperCase();
@@ -68,7 +74,8 @@ export abstract class SqlDataModel extends GridDataModel {
         ? ` GROUP BY ${dimSelect.join(", ")}`
         : "";
 
-      const sql = `SELECT ${selectClause} FROM "${this.table}"${where}${groupByClause}`;
+      const orderBy = group.dimensions.length > 0 ? " ORDER BY MIN(rowid)" : "";
+      const sql = `SELECT ${selectClause} FROM "${this.table}"${where}${groupByClause}${orderBy}`;
       const rows = await this.runSQL(sql);
 
       const columns = [...group.dimensions, ...group.measures.map(m => m.field)];
@@ -84,6 +91,49 @@ export abstract class SqlDataModel extends GridDataModel {
     }
 
     return results;
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  private async getGroupingSetsData(group: PivotQuery["groups"][0], where: string): Promise<PivotGroupResult> {
+    const dims = group.dimensions;
+    const dimSelect = dims.map(d => `"${d}"`);
+    const measureSelect = group.measures.map(m => {
+      const agg = m.aggregation.toUpperCase();
+      return `${agg}("${m.field}") AS "${m.field}"`;
+    });
+
+    const groupingExpr = `GROUPING(${dimSelect.join(", ")}) AS "_grp"`;
+    const selectClause = [...dimSelect, groupingExpr, ...measureSelect].join(", ");
+    const sets = group.groupingSets!.map(set =>
+      set.length === 0 ? "()" : `(${set.map(d => `"${d}"`).join(", ")})`
+    ).join(", ");
+    const groupByClause = ` GROUP BY GROUPING SETS (${sets})`;
+
+    const sql = `SELECT ${selectClause} FROM "${this.table}"${where}${groupByClause} ORDER BY MIN(rowid)`;
+    const rows = await this.runSQL(sql);
+
+    const columns = [...dims, ...group.measures.map(m => m.field)];
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const data: any[][] = columns.map(() => []);
+
+    for (const row of rows) {
+      const grp = Number(row["_grp"]);
+      const allRolledUp = grp === (1 << dims.length) - 1;
+
+      for (let i = 0; i < dims.length; i++) {
+        if (grp & (1 << (dims.length - 1 - i))) {
+          data[i].push(allRolledUp && i === 0 ? ROLLUP_MARKER : "");
+        } else {
+          data[i].push(String(row[dims[i]]));
+        }
+      }
+
+      for (let i = 0; i < group.measures.length; i++) {
+        data[dims.length + i].push(row[group.measures[i].field]);
+      }
+    }
+
+    return { columns, data };
   }
 
   protected getAggregation(fieldName: string): string {

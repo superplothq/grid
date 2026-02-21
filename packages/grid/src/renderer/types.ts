@@ -1,4 +1,5 @@
 import { CellRenderer } from "./core/cell-renderers";
+import { RowDef } from "../types";
 
 export type Constructor<T> = new (...args: any[]) => T;
 
@@ -51,6 +52,7 @@ export interface ColDef<T = any> {
 
 export interface GridDataViewModelOptions {
   colDefs?: ColDef[];
+  rowDefs?: (RowDef | undefined)[];
 }
 
 export interface ResolvedColDef extends ColDef {

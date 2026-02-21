@@ -1,6 +1,6 @@
 import { expect } from "chai";
 import { InMemoryDataModel } from "./in-memory-datamodel";
-import { Schema } from "./types";
+import { Schema, ROLLUP_MARKER } from "./types";
 import { cross, concat, hierarchy } from "./grid-datamodel";
 
 // 24 rows, 8 dimensions + 4 measures (column-major format)
@@ -771,6 +771,210 @@ describe("GridDataModel pivot (SUM aggregation)", () => {
         [7000, 3380],     // Online/revenue
         [2330, 3250],     // Retail/revenue
         [490,  750],      // Wholesale/revenue
+      ]);
+    });
+  });
+
+  // ── Drilldown tests ─────────────────────────────────────────────────────
+  //
+  // Revenue aggregations used across drilldown tests:
+  //   Grand total: 17200
+  //   Europe: 7380,  North America: 9820
+  //   Europe/Germany: 4030,  Europe/UK: 3350
+  //   North America/Canada: 2180,  North America/USA: 7640
+  //   Europe/Germany/Berlin: 4030,  Europe/UK/London: 3350
+  //   North America/Canada/Toronto: 2180
+  //   North America/USA/Chicago: 2540,  North America/USA/New York: 5100
+  //
+  // Apparel total: 3400,  Electronics total: 13800
+  // Apparel/Europe: 1730,  Apparel/Europe/Germany: 630,  Apparel/Europe/UK: 1100
+  // Apparel/NA: 1670
+  // Electronics/Europe: 5650,  Electronics/Europe/Germany: 3400,  Electronics/Europe/UK: 2250
+  // Electronics/NA: 8150
+  describe("drilldown", () => {
+    const RUP = ROLLUP_MARKER;
+
+    it("top level only", async () => {
+      const model = await makeModel();
+      const vm = await model.getViewModelData({
+        rows: { field: hierarchy("region", "country", "city"), drilldown: [{ toLevel: "region", where: "*" }] },
+        columns: "revenue",
+      });
+
+      expect(vm.rowFacets).to.deep.equal([
+        [RUP, "North America", "Europe"],
+        [null, null, null],
+        [null, null, null],
+      ]);
+      expect(vm.getSlice(0, 0, 1, 3).data).to.deep.equal([
+        [17200, 9820, 7380],
+      ]);
+      expect(vm.rowDefs).to.deep.equal([
+        { type: "agg", root: true },
+        { type: "agg" },
+        { type: "agg" },
+      ]);
+    });
+
+    it("symmetric expand to country", async () => {
+      const model = await makeModel();
+      const vm = await model.getViewModelData({
+        rows: { field: hierarchy("region", "country", "city"), drilldown: [{ toLevel: "country", where: "*" }] },
+        columns: "revenue",
+      });
+
+      expect(vm.rowFacets).to.deep.equal([
+        [RUP, "North America", "North America", "North America", "Europe", "Europe", "Europe"],
+        [null, null, "USA", "Canada", null, "UK", "Germany"],
+        [null, null, null, null, null, null, null],
+      ]);
+      expect(vm.getSlice(0, 0, 1, 7).data).to.deep.equal([
+        [17200, 9820, 7640, 2180, 7380, 3350, 4030],
+      ]);
+      expect(vm.rowDefs).to.deep.equal([
+        { type: "agg", root: true },
+        { type: "agg" },
+        { type: "agg" },
+        { type: "agg" },
+        { type: "agg" },
+        { type: "agg" },
+        { type: "agg" },
+      ]);
+    });
+
+    it("full expansion to city", async () => {
+      const model = await makeModel();
+      const vm = await model.getViewModelData({
+        rows: { field: hierarchy("region", "country", "city"), drilldown: [{ toLevel: "city", where: "*" }] },
+        columns: "revenue",
+      });
+
+      expect(vm.rowFacets).to.deep.equal([
+        [RUP, "North America", "North America", "North America", "North America", "North America", "North America", "Europe", "Europe", "Europe", "Europe", "Europe"],
+        [null, null, "USA", "USA", "USA", "Canada", "Canada", null, "UK", "UK", "Germany", "Germany"],
+        [null, null, null, "New York", "Chicago", null, "Toronto", null, null, "London", null, "Berlin"],
+      ]);
+      expect(vm.getSlice(0, 0, 1, 12).data).to.deep.equal([
+        [17200, 9820, 7640, 5100, 2540, 2180, 2180, 7380, 3350, 3350, 4030, 4030],
+      ]);
+      expect(vm.rowDefs).to.deep.equal([
+        { type: "agg", root: true },
+        { type: "agg" },
+        { type: "agg" },
+        undefined,
+        undefined,
+        { type: "agg" },
+        undefined,
+        { type: "agg" },
+        { type: "agg" },
+        undefined,
+        { type: "agg" },
+        undefined,
+      ]);
+    });
+
+    it("asymmetric single region", async () => {
+      const model = await makeModel();
+      const vm = await model.getViewModelData({
+        rows: {
+          field: hierarchy("region", "country", "city"),
+          drilldown: [{ toLevel: "country", where: { region: ["Europe"] } }],
+        },
+        columns: "revenue",
+      });
+
+      expect(vm.rowFacets).to.deep.equal([
+        [RUP, "North America", "Europe", "Europe", "Europe"],
+        [null, null, null, "UK", "Germany"],
+        [null, null, null, null, null],
+      ]);
+      expect(vm.getSlice(0, 0, 1, 5).data).to.deep.equal([
+        [17200, 9820, 7380, 3350, 4030],
+      ]);
+    });
+
+    it("asymmetric multi-level", async () => {
+      const model = await makeModel();
+      const vm = await model.getViewModelData({
+        rows: {
+          field: hierarchy("region", "country", "city"),
+          drilldown: [
+            { toLevel: "country", where: { region: ["Europe"] } },
+            { toLevel: "city", where: { region: ["North America"], country: ["USA"] } },
+          ],
+        },
+        columns: "revenue",
+      });
+
+      expect(vm.rowFacets).to.deep.equal([
+        [RUP, "North America", "North America", "North America", "North America", "North America", "Europe", "Europe", "Europe"],
+        [null, null, "USA", "USA", "USA", "Canada", null, "UK", "Germany"],
+        [null, null, null, "New York", "Chicago", null, null, null, null],
+      ]);
+      expect(vm.getSlice(0, 0, 1, 9).data).to.deep.equal([
+        [17200, 9820, 7640, 5100, 2540, 2180, 7380, 3350, 4030],
+      ]);
+    });
+
+    it("implicit parent expansion", async () => {
+      const model = await makeModel();
+      const vm = await model.getViewModelData({
+        rows: {
+          field: hierarchy("region", "country", "city"),
+          drilldown: [
+            { toLevel: "city", where: { region: ["North America"], country: ["USA"] } },
+          ],
+        },
+        columns: "revenue",
+      });
+
+      expect(vm.rowFacets).to.deep.equal([
+        [RUP, "North America", "North America", "North America", "North America", "North America", "Europe"],
+        [null, null, "USA", "USA", "USA", "Canada", null],
+        [null, null, null, "New York", "Chicago", null, null],
+      ]);
+      expect(vm.getSlice(0, 0, 1, 7).data).to.deep.equal([
+        [17200, 9820, 7640, 5100, 2540, 2180, 7380],
+      ]);
+    });
+
+    it("concat on columns with drilldown on rows", async () => {
+      const model = await makeModel();
+      const vm = await model.getViewModelData({
+        rows: {
+          field: hierarchy("region", "country"),
+          drilldown: [{ toLevel: "country", where: "*" }],
+        },
+        columns: concat("revenue", "cost"),
+      });
+
+      expect(vm.rowFacets).to.deep.equal([
+        [RUP, "North America", "North America", "North America", "Europe", "Europe", "Europe"],
+        [null, null, "USA", "Canada", null, "UK", "Germany"],
+      ]);
+      expect(vm.getSlice(0, 0, 2, 7).data).to.deep.equal([
+        [17200, 9820, 7640, 2180, 7380, 3350, 4030],
+        [10745, 6160, 4770, 1390, 4585, 2020, 2565],
+      ]);
+    });
+
+    it("cross with drilldown", async () => {
+      const model = await makeModel();
+      const vm = await model.getViewModelData({
+        rows: {
+          field: cross("department", hierarchy("region", "country")),
+          drilldown: [{ toLevel: "country", where: { region: ["Europe"] } }],
+        },
+        columns: "revenue",
+      });
+
+      expect(vm.rowFacets).to.deep.equal([
+        ["Electronics", "Electronics", "Electronics", "Electronics", "Electronics", "Apparel", "Apparel", "Apparel", "Apparel", "Apparel"],
+        [null, "North America", "Europe", "Europe", "Europe", null, "North America", "Europe", "Europe", "Europe"],
+        [null, null, null, "UK", "Germany", null, null, null, "UK", "Germany"],
+      ]);
+      expect(vm.getSlice(0, 0, 1, 10).data).to.deep.equal([
+        [13800, 8150, 5650, 2250, 3400, 3400, 1670, 1730, 1100, 630],
       ]);
     });
   });

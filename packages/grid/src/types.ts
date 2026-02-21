@@ -28,9 +28,26 @@ export type AxisExpr =
   | { type: "concat"; children: AxisExpr[] }
   | { type: "hierarchy"; fields: string[] };
 
+export const ROLLUP_MARKER = "<__RUP__>";
+
+export interface DrilldownRule {
+  toLevel: string;
+  where: "*" | Record<string, string[]>;
+}
+
+export interface AxisConfig {
+  field: AxisExpr;
+  drilldown?: DrilldownRule[];
+}
+
+export interface RowDef {
+  type: "agg";
+  root?: true;
+}
+
 export interface PivotConfig {
-  rows?: AxisExpr;
-  columns: AxisExpr;
+  rows?: AxisExpr | AxisConfig;
+  columns: AxisExpr | AxisConfig;
 }
 
 // ── IR types (new) ───────────────────────────────────────
@@ -58,6 +75,7 @@ export interface PivotGroup {
   dimensions: string[];
   measures: Measure[];
   filters?: Filter[];
+  groupingSets?: string[][];
 }
 
 export interface Measure {
