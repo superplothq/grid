@@ -279,12 +279,12 @@ describe("GridDataModel pivot (SUM aggregation)", () => {
   //
   // Electronics: all elec rows → 1200+1500+800+1100+900+1000+700+1400+850+1300+750+950+1350 = 13800
   // Apparel: all app rows → 300+350+250+280+200+400+320+350+280+380+290 = 3400
-  // eslint-disable-next-line mocha/no-skipped-tests
   describe.skip("Columns only (no rows)", () => {
     it("columns=cross(department,revenue)", async () => {
       const model = await makeModel();
       const vm = await model.getViewModelData({
         columns: cross("department", "revenue"),
+        rows: "" // TODO if this is supported, remove this
       });
 
       expect(vm.columnFacets).to.deep.equal([
