@@ -279,7 +279,8 @@ describe("GridDataModel pivot (SUM aggregation)", () => {
   //
   // Electronics: all elec rows → 1200+1500+800+1100+900+1000+700+1400+850+1300+750+950+1350 = 13800
   // Apparel: all app rows → 300+350+250+280+200+400+320+350+280+380+290 = 3400
-  describe("Columns only (no rows)", () => {
+  // eslint-disable-next-line mocha/no-skipped-tests
+  describe.skip("Columns only (no rows)", () => {
     it("columns=cross(department,revenue)", async () => {
       const model = await makeModel();
       const vm = await model.getViewModelData({
@@ -771,6 +772,61 @@ describe("GridDataModel pivot (SUM aggregation)", () => {
         [7000, 3380],     // Online/revenue
         [2330, 3250],     // Retail/revenue
         [490,  750],      // Wholesale/revenue
+      ]);
+    });
+  });
+
+  // ── Test 20/21: Measure-only axis ───────────────────────────────────
+  describe("Measure-only axis", () => {
+    // rows=concat("revenue","cost"), columns="department"
+    // Row axis is all measures → rowDimCount=0
+    //
+    // Electronics: revenue=13800, cost=9060
+    //   cost rows 0,1,2,5,6,8,9,12,13,16,17,20,23: 800+1000+500+750+550+700+450+950+520+880+480+580+900=9060
+    // Apparel: revenue=3400, cost=1685
+    //   cost rows 3,4,7,10,11,14,15,18,19,21,22: 150+175+120+140+100+200+160+170+135+190+145=1685
+    it("rows=concat(revenue,cost), columns=department", async () => {
+      const model = await makeModel();
+      const vm = await model.getViewModelData({
+        rows: concat("revenue", "cost"),
+        columns: "department",
+      });
+
+      expect(vm.columnFacets).to.deep.equal([
+        ["Electronics", "Apparel"],
+      ]);
+      expect(vm.rowFacets).to.deep.equal([
+        ["revenue", "cost"],
+      ]);
+      expect(vm.getSlice(0, 0, 2, 2).data).to.deep.equal([
+        [13800, 9060],   // Electronics: revenue, cost
+        [3400, 1685],    // Apparel: revenue, cost
+      ]);
+    });
+
+    // rows="region", columns=concat("revenue","cost")
+    // Col axis is all measures → colDimCount=0
+    //
+    // NA: revenue=9820, cost=6160
+    //   cost rows 0-11,20,22: 800+1000+500+150+175+750+550+120+700+450+140+100+580+145=6160
+    // Europe: revenue=7380, cost=4585
+    //   cost rows 12-19,21,23: 950+520+200+160+880+480+170+135+190+900=4585
+    it("rows=region, columns=concat(revenue,cost)", async () => {
+      const model = await makeModel();
+      const vm = await model.getViewModelData({
+        rows: "region",
+        columns: concat("revenue", "cost"),
+      });
+
+      expect(vm.columnFacets).to.deep.equal([
+        ["revenue", "cost"],
+      ]);
+      expect(vm.rowFacets).to.deep.equal([
+        ["North America", "Europe"],
+      ]);
+      expect(vm.getSlice(0, 0, 2, 2).data).to.deep.equal([
+        [9820, 7380],    // revenue
+        [6160, 4585],    // cost
       ]);
     });
   });

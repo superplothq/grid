@@ -29,7 +29,7 @@ export type AxisExpr =
   | { type: "hierarchy"; fields: string[] };
 
 export interface PivotConfig {
-  rows?: AxisExpr;
+  rows: AxisExpr;
   columns: AxisExpr;
 }
 
@@ -48,26 +48,28 @@ export interface FacetQuery {
   filters?: Filter[];
 }
 
-export interface PivotQuery {
-  type: "pivot";
-  groups: PivotGroup[];
-  filters?: Filter[];
-}
-
-export interface PivotGroup {
-  dimensions: string[];
-  measures: Measure[];
-  filters?: Filter[];
-}
-
 export interface Measure {
   field: string;
   aggregation: AggregateFn;
 }
 
+// ── DimSpec IR types ─────────────────────────────────────
+
+export type DimSpec =
+  | { type: "none" }
+  | { type: "simple"; field: string }
+  | { type: "hierarchy"; fields: string[] }
+  | { type: "cross"; children: DimSpec[] }
+  | { type: "concat"; children: DimSpec[] };
+
+export interface IR {
+  dimSpec: DimSpec;
+  measures: Measure[];
+}
+
 // ── Result types ─────────────────────────────────────────
 
-export interface PivotGroupResult {
+export interface RawDataFromIR {
   columns: string[];
   data: any[][];          // column-major
 }
@@ -78,7 +80,7 @@ export interface ViewModelDataTransformationConfig {
   columns: string[];
   data: any[][];
   pivotConfig?: {
-    rows?: AxisExpr;
+    rows: AxisExpr;
     columns: AxisExpr;
   };
   colDefs?: ColDef[];
