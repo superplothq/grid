@@ -164,8 +164,10 @@ function splitCrossAndHierarchy(expr: AxisExpr): { crossFields: string[], hierar
     for (const child of expr.children) {
       if (typeof child === "string") {
         crossFields.push(child);
-      } else if (child.type === "hierarchy") {
-        hierarchyFields = child.fields;
+      } else {
+        const result = splitCrossAndHierarchy(child);
+        crossFields.push(...result.crossFields);
+        hierarchyFields = result.hierarchyFields;
       }
     }
     return { crossFields, hierarchyFields };

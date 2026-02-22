@@ -958,6 +958,70 @@ describe("GridDataModel pivot (SUM aggregation)", () => {
       ]);
     });
 
+    it("nested cross with drilldown", async () => {
+      const model = await makeModel();
+      const vm = await model.getViewModelData({
+        rows: {
+          field: cross(cross("department", "channel"), hierarchy("region", "country")),
+          drilldown: [{ toLevel: "region", where: "*" }],
+        },
+        columns: "revenue",
+      });
+
+      expect(vm.rowFacets!.length).to.equal(4);
+      const numRows = vm.rowFacets![0].length;
+      expect(numRows).to.equal(16);
+
+      const slice = vm.getSlice(0, 0, 1, numRows);
+      const rowFacets = slice.rowFacets!;
+
+      // Elec/Online subtotal
+      const elecOnlineSubtotal = rowFacets.findIndex(
+        (r: (string | null)[]) => r[0] === "Electronics" && r[1] === "Online" && r[2] === null
+      );
+      expect(elecOnlineSubtotal).to.be.greaterThanOrEqual(0);
+      expect(slice.data![0][elecOnlineSubtotal]).to.equal(9150);
+
+      // Elec/Online/NA
+      const elecOnlineNA = rowFacets.findIndex(
+        (r: (string | null)[]) => r[0] === "Electronics" && r[1] === "Online" && r[2] === "North America"
+      );
+      expect(elecOnlineNA).to.be.greaterThanOrEqual(0);
+      expect(slice.data![0][elecOnlineNA]).to.equal(6450);
+
+      // Apparel/Retail/Europe
+      const appRetailEU = rowFacets.findIndex(
+        (r: (string | null)[]) => r[0] === "Apparel" && r[1] === "Retail" && r[2] === "Europe"
+      );
+      expect(appRetailEU).to.be.greaterThanOrEqual(0);
+      expect(slice.data![0][appRetailEU]).to.equal(1050);
+
+      // subtotal should come before its children
+      expect(elecOnlineSubtotal).to.be.lessThan(elecOnlineNA);
+    });
+
+    it("concat on drilldown axis", async () => {
+      const model = await makeModel();
+      const vm = await model.getViewModelData({
+        rows: {
+          field: concat(hierarchy("region", "country"), "department"),
+          drilldown: [{ toLevel: "country", where: "*" }],
+        },
+        columns: "revenue",
+      });
+
+      // Hierarchy part is drilled down: grand total + regions + countries
+      // Department part is resolved normally: Electronics, Apparel
+      // Concat unions them, padding department to 2 levels
+      expect(vm.rowFacets).to.deep.equal([
+        [RUP, "North America", "North America", "North America", "Europe", "Europe", "Europe", "Electronics", "Apparel"],
+        [null, null, "USA", "Canada", null, "UK", "Germany", null, null],
+      ]);
+      expect(vm.getSlice(0, 0, 1, 9).data).to.deep.equal([
+        [17200, 9820, 7640, 2180, 7380, 3350, 4030, 13800, 3400],
+      ]);
+    });
+
     it("cross with drilldown", async () => {
       const model = await makeModel();
       const vm = await model.getViewModelData({
