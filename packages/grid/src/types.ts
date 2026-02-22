@@ -1,7 +1,5 @@
 import {ColDef} from "./renderer/types";
 
-// ── Existing types (carried over) ────────────────────────
-
 // TODO [Later] remember there might be custom aggregate function as well
 //   (those functions will be registered separately and the name will be used here)
 type AggregateFn = "sum" | "avg" | "count" | "min" | "max";
@@ -33,8 +31,6 @@ export interface PivotConfig {
   columns: AxisExpr;
 }
 
-// ── IR types (new) ───────────────────────────────────────
-
 export interface Filter {
   field: string;
   op: "eq" | "neq" | "in" | "not_in";
@@ -53,8 +49,6 @@ export interface Measure {
   aggregation: AggregateFn;
 }
 
-// ── DimSpec IR types ─────────────────────────────────────
-
 export type DimSpec =
   | { type: "none" }
   | { type: "simple"; field: string }
@@ -67,14 +61,10 @@ export interface IR {
   measures: Measure[];
 }
 
-// ── Result types ─────────────────────────────────────────
-
 export interface RawDataFromIR {
   columns: string[];
-  data: any[][];          // column-major
+  data: any[][];
 }
-
-// ── ViewModel config (carried over) ─────────────────────
 
 export interface ViewModelDataTransformationConfig {
   columns: string[];
