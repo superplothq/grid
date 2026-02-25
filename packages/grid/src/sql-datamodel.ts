@@ -1,5 +1,6 @@
 import { GridDataModel } from "./grid-datamodel";
 import {
+  CrossSegment,
   DimSpec,
   FacetQuery,
   Filter,
@@ -7,6 +8,7 @@ import {
   MeasureSchema,
   RawDataFromIR,
   Schema,
+  SegmentFilter,
 } from "./types";
 
 /*
@@ -46,6 +48,42 @@ import {
  * in definition order. The final ORDER BY follows the tree traversal order, ensuring
  * the result is in row-major order (row dims first, then col dims).
  */
+function filterToWhere(filter: SegmentFilter): string {
+  const parts: string[] = [];
+  for (const c of filter.pass) {
+    const valList = c.values.map(v => `'${v}'`).join(",");
+    parts.push(`"${c.field}" IN (${valList})`);
+  }
+  if (filter.fail.length > 0) {
+    const failParts = filter.fail.map(c => {
+      const valList = c.values.map(v => `'${v}'`).join(",");
+      return `COALESCE("${c.field}" IN (${valList}), FALSE)`;
+    });
+    parts.push(`NOT (${failParts.join(" AND ")})`);
+  }
+  return parts.join(" AND ");
+}
+
+function filterToWhereQualified(filter: SegmentFilter, fieldToCte: Map<string, string>): string {
+  const parts: string[] = [];
+  for (const c of filter.pass) {
+    const valList = c.values.map(v => `'${v}'`).join(",");
+    const cte = fieldToCte.get(c.field);
+    const fieldRef = cte ? `${cte}."${c.field}"` : `"${c.field}"`;
+    parts.push(`${fieldRef} IN (${valList})`);
+  }
+  if (filter.fail.length > 0) {
+    const failParts = filter.fail.map(c => {
+      const valList = c.values.map(v => `'${v}'`).join(",");
+      const cte = fieldToCte.get(c.field);
+      const fieldRef = cte ? `${cte}."${c.field}"` : `"${c.field}"`;
+      return `COALESCE(${fieldRef} IN (${valList}), FALSE)`;
+    });
+    parts.push(`NOT (${failParts.join(" AND ")})`);
+  }
+  return parts.join(" AND ");
+}
+
 export abstract class SqlDataModel extends GridDataModel {
   protected constructor(schema: Schema[], table: string) {
     super(schema, table);
@@ -149,7 +187,6 @@ export abstract class SqlDataModel extends GridDataModel {
     const orderByClause = orderParts.length > 0 ? ` ORDER BY ${orderParts.join(", ")}` : "";
 
     const sql = `WITH ${allCTEs.join(",\n     ")}\nSELECT ${selectClause}\nFROM ${gridCte}\nLEFT JOIN "${this.table}" T${joinClause}${groupByClause}${orderByClause}`;
-
     const rows = await this.runSQL(sql);
     const columns = [...dimFields, ...measures.map(m => m.field)];
     if (srcColumns.length > 0) {
@@ -202,14 +239,55 @@ export abstract class SqlDataModel extends GridDataModel {
         orderExprs: [{ type: "ord", expr: ordCol }],
         srcColumns: [],
         concatInfos: [],
+        nullableFields: [],
       };
     }
 
     case "hierarchy": {
       const name = `__d__${counter.n++}`;
       const ordCol = `__ord__${counter.n - 1}`;
-      const fieldList = spec.fields.map(f => `"${f}"`).join(", ");
-      const cte = `${name} AS (SELECT ${fieldList}, MIN(rowid) AS "${ordCol}" FROM "${this.table}" GROUP BY ${fieldList})`;
+
+      if (!spec.segments) {
+        const fieldList = spec.fields.map(f => `"${f}"`).join(", ");
+        const cte = `${name} AS (SELECT ${fieldList}, MIN(rowid) AS "${ordCol}" FROM "${this.table}" GROUP BY ${fieldList})`;
+        return {
+          cteName: name,
+          ctes: [cte],
+          fields: [...spec.fields],
+          orderExprs: [{ type: "ord", expr: ordCol }],
+          srcColumns: [],
+          concatInfos: [],
+          nullableFields: [],
+        };
+      }
+
+      const unionParts: string[] = [];
+      const nullableSet = new Set<string>();
+
+      for (const seg of spec.segments) {
+        const groupFields = seg.groupBy;
+        const nullFields = spec.fields.filter(f => !groupFields.includes(f));
+        for (const nf of nullFields) nullableSet.add(nf);
+
+        const selectParts = [
+          ...groupFields.map(f => `"${f}"`),
+          ...nullFields.map(f => `CAST(NULL AS VARCHAR) AS "${f}"`),
+          `MIN(rowid) AS "${ordCol}"`,
+        ];
+        const groupByList = groupFields.map(f => `"${f}"`).join(", ");
+
+        let whereClause = "";
+        if (seg.filter) {
+          whereClause = ` WHERE ${filterToWhere(seg.filter)}`;
+        }
+
+        unionParts.push(`SELECT ${selectParts.join(", ")} FROM "${this.table}"${whereClause} GROUP BY ${groupByList}`);
+      }
+
+      const cte = unionParts.length === 1
+        ? `${name} AS (${unionParts[0]})`
+        : `${name} AS (\n       ${unionParts.join("\n       UNION ALL\n       ")}\n     )`;
+
       return {
         cteName: name,
         ctes: [cte],
@@ -217,16 +295,23 @@ export abstract class SqlDataModel extends GridDataModel {
         orderExprs: [{ type: "ord", expr: ordCol }],
         srcColumns: [],
         concatInfos: [],
+        nullableFields: [...nullableSet],
       };
     }
 
     case "cross": {
       const childResults = spec.children.map(c => this.generateCTEs(c, counter, srcCounter, concatFieldCounter));
+
+      if (spec.segments) {
+        return this.generateCrossSegmentCTEs(spec.segments, childResults, counter);
+      }
+
       const allCTEs: string[] = [];
       const allFields: string[] = [];
       const allOrderExprs: OrderExpr[] = [];
       const allSrcColumns: string[] = [];
       const allConcatInfos: ConcatInfo[] = [];
+      const allNullableFields: string[] = [];
 
       for (const child of childResults) {
         allCTEs.push(...child.ctes);
@@ -234,10 +319,11 @@ export abstract class SqlDataModel extends GridDataModel {
         allOrderExprs.push(...child.orderExprs);
         allSrcColumns.push(...child.srcColumns);
         allConcatInfos.push(...child.concatInfos);
+        allNullableFields.push(...(child.nullableFields || []));
       }
 
       if (childResults.length === 1) {
-        return childResults[0];
+        return { ...childResults[0], nullableFields: allNullableFields };
       }
 
       const gridName = `__d__${counter.n++}`;
@@ -252,6 +338,7 @@ export abstract class SqlDataModel extends GridDataModel {
         orderExprs: allOrderExprs,
         srcColumns: allSrcColumns,
         concatInfos: allConcatInfos,
+        nullableFields: allNullableFields,
       };
     }
 
@@ -267,7 +354,10 @@ export abstract class SqlDataModel extends GridDataModel {
 
       const srcCol = this.srcColName(srcCounter.n);
       srcCounter.n++;
-      const cordCol = `__cord__${srcCounter.n - 1}`;
+      const cordBase = `__cord__${srcCounter.n - 1}`;
+
+      const maxOrdExprs = Math.max(...childResults.map(c => c.orderExprs.length), 1);
+      const cordCols = Array.from({ length: maxOrdExprs }, (_, i) => `${cordBase}_${i}`);
 
       const concatName = `__d__${counter.n++}`;
       const unionParts: string[] = [];
@@ -276,6 +366,7 @@ export abstract class SqlDataModel extends GridDataModel {
 
       for (let ci = 0; ci < childResults.length; ci++) {
         const childResult = childResults[ci];
+        const childNullable = new Set(childResult.nullableFields || []);
 
         const srcValue = `${ci}:${childResult.fields.join(",")}`;
         const fieldMap: Record<string, string> = {};
@@ -286,15 +377,17 @@ export abstract class SqlDataModel extends GridDataModel {
             selectParts.push(`${childResult.cteName}."${childResult.fields[fi]}" AS "${concatFields[fi]}"`);
             fieldMap[concatFields[fi]] = childResult.fields[fi];
           } else {
-            selectParts.push(`NULL AS "${concatFields[fi]}"`);
+            selectParts.push(`CAST(NULL AS VARCHAR) AS "${concatFields[fi]}"`);
           }
         }
 
-        const ordExpr = childResult.orderExprs.length > 0 ? childResult.orderExprs[0].expr : "0";
-        selectParts.push(`${ordExpr} AS "${cordCol}"`);
+        for (let oi = 0; oi < maxOrdExprs; oi++) {
+          const ordExpr = oi < childResult.orderExprs.length ? childResult.orderExprs[oi].expr : "0";
+          selectParts.push(`${ordExpr} AS "${cordCols[oi]}"`);
+        }
 
         unionParts.push(`SELECT ${selectParts.join(", ")} FROM ${childResult.cteName}`);
-        concatInfo.branches.push({ srcValue, fieldMap });
+        concatInfo.branches.push({ srcValue, fieldMap, nullableFields: childNullable });
       }
 
       const cte = `${concatName} AS (\n       ${unionParts.join("\n       UNION ALL\n       ")}\n     )`;
@@ -303,9 +396,13 @@ export abstract class SqlDataModel extends GridDataModel {
         cteName: concatName,
         ctes: [...childResults.flatMap(c => c.ctes), cte],
         fields: concatFields,
-        orderExprs: [{ type: "src", expr: srcCol }, { type: "ord", expr: cordCol }],
+        orderExprs: [
+          { type: "src" as const, expr: srcCol },
+          ...cordCols.map(c => ({ type: "ord" as const, expr: c })),
+        ],
         srcColumns: [srcCol],
         concatInfos: [concatInfo],
+        nullableFields: [],
       };
     }
     default:
@@ -313,13 +410,175 @@ export abstract class SqlDataModel extends GridDataModel {
     }
   }
 
+  private generateCrossSegmentCTEs(
+    segments: CrossSegment[],
+    childResults: CTEResult[],
+    counter: { n: number },
+  ): CTEResult {
+    const allChildCTEs: string[] = childResults.flatMap(c => c.ctes);
+    const allFields: string[] = childResults.flatMap(c => c.fields);
+    const allOrderExprs: OrderExpr[] = childResults.flatMap(c => c.orderExprs);
+    const allSrcColumns: string[] = childResults.flatMap(c => c.srcColumns);
+    const allConcatInfos: ConcatInfo[] = childResults.flatMap(c => c.concatInfos);
+    const allNullableFields: string[] = childResults.flatMap(c => c.nullableFields || []);
+
+    const fieldToChildCte = new Map<string, string>();
+    for (const child of childResults) {
+      for (const f of child.fields) {
+        fieldToChildCte.set(f, child.cteName);
+      }
+    }
+
+    if (segments.length === 1 && !segments[0].filter) {
+      const seg = segments[0];
+      const visibleResults = childResults.slice(0, seg.visibleChildren);
+      const nullResults = childResults.slice(seg.visibleChildren);
+      const nullFieldsList = nullResults.flatMap(c => c.fields);
+      for (const f of nullFieldsList) allNullableFields.push(f);
+
+      const nullOrdParts = nullResults.flatMap(c => c.orderExprs.filter(oe => oe.type !== "src").map(oe => `0 AS "${oe.expr}"`));
+      const nullSrcParts = nullResults.flatMap(c => c.srcColumns.map(s => `CAST(NULL AS VARCHAR) AS "${s}"`));
+      const nullPadParts = [
+        ...nullFieldsList.map(f => `CAST(NULL AS VARCHAR) AS "${f}"`),
+        ...nullOrdParts,
+        ...nullSrcParts,
+      ];
+
+      if (visibleResults.length === 1 && nullPadParts.length > 0) {
+        const wrapName = `__d__${counter.n++}`;
+        const wrapCte = `${wrapName} AS (SELECT ${visibleResults[0].cteName}.*, ${nullPadParts.join(", ")} FROM ${visibleResults[0].cteName})`;
+        allChildCTEs.push(wrapCte);
+        return {
+          cteName: wrapName,
+          ctes: allChildCTEs,
+          fields: allFields,
+          orderExprs: allOrderExprs,
+          srcColumns: allSrcColumns,
+          concatInfos: allConcatInfos,
+          nullableFields: allNullableFields,
+        };
+      }
+
+      if (visibleResults.length > 1) {
+        const gridName = `__d__${counter.n++}`;
+        const joinParts = visibleResults.map(c => c.cteName).join(" CROSS JOIN ");
+        if (nullPadParts.length > 0) {
+          const gridCte = `${gridName} AS (SELECT ${joinParts.split(" CROSS JOIN ").map(n => `${n}.*`).join(", ")}, ${nullPadParts.join(", ")} FROM ${joinParts})`;
+          allChildCTEs.push(gridCte);
+        } else {
+          const gridCte = `${gridName} AS (SELECT * FROM ${joinParts})`;
+          allChildCTEs.push(gridCte);
+        }
+        return {
+          cteName: gridName,
+          ctes: allChildCTEs,
+          fields: allFields,
+          orderExprs: allOrderExprs,
+          srcColumns: allSrcColumns,
+          concatInfos: allConcatInfos,
+          nullableFields: allNullableFields,
+        };
+      }
+
+      return {
+        cteName: visibleResults[0]?.cteName ?? childResults[0].cteName,
+        ctes: allChildCTEs,
+        fields: allFields,
+        orderExprs: allOrderExprs,
+        srcColumns: allSrcColumns,
+        concatInfos: allConcatInfos,
+        nullableFields: allNullableFields,
+      };
+    }
+
+    const unionParts: string[] = [];
+
+    for (const seg of segments) {
+      const visibleResults = childResults.slice(0, seg.visibleChildren);
+      const nullResults = childResults.slice(seg.visibleChildren);
+
+      for (const child of nullResults) {
+        for (const f of child.fields) {
+          if (!allNullableFields.includes(f)) allNullableFields.push(f);
+        }
+      }
+
+      const selectParts: string[] = [];
+      for (const child of visibleResults) {
+        for (const f of child.fields) {
+          selectParts.push(`${child.cteName}."${f}"`);
+        }
+      }
+      for (const child of nullResults) {
+        for (const f of child.fields) {
+          selectParts.push(`CAST(NULL AS VARCHAR) AS "${f}"`);
+        }
+      }
+      for (const child of visibleResults) {
+        for (const oe of child.orderExprs) {
+          if (oe.type === "src") continue;
+          selectParts.push(`${child.cteName}."${oe.expr}"`);
+        }
+      }
+      for (const child of nullResults) {
+        for (const oe of child.orderExprs) {
+          if (oe.type === "src") continue;
+          selectParts.push(`0 AS "${oe.expr}"`);
+        }
+      }
+      for (const child of visibleResults) {
+        for (const src of child.srcColumns) {
+          selectParts.push(`${child.cteName}."${src}"`);
+        }
+      }
+      for (const child of nullResults) {
+        for (const src of child.srcColumns) {
+          selectParts.push(`CAST(NULL AS VARCHAR) AS "${src}"`);
+        }
+      }
+
+      const fromCtes = visibleResults.map(c => c.cteName);
+      const fromClause = fromCtes.length > 1 ? fromCtes.join(" CROSS JOIN ") : fromCtes[0];
+
+      let whereClause = "";
+      if (seg.filter) {
+        whereClause = ` WHERE ${filterToWhereQualified(seg.filter, fieldToChildCte)}`;
+      }
+
+      unionParts.push(`SELECT ${selectParts.join(", ")} FROM ${fromClause}${whereClause}`);
+    }
+
+    const wrapName = `__d__${counter.n++}`;
+    const cte = unionParts.length === 1
+      ? `${wrapName} AS (${unionParts[0]})`
+      : `${wrapName} AS (\n       ${unionParts.join("\n       UNION ALL\n       ")}\n     )`;
+    allChildCTEs.push(cte);
+
+    return {
+      cteName: wrapName,
+      ctes: allChildCTEs,
+      fields: allFields,
+      orderExprs: allOrderExprs,
+      srcColumns: allSrcColumns,
+      concatInfos: allConcatInfos,
+      nullableFields: allNullableFields,
+    };
+  }
+
   private buildJoinConditions(
     spec: DimSpec,
     gridCte: string,
     cteResult: CTEResult,
   ): string[] {
+    const nullableSet = new Set(cteResult.nullableFields || []);
+
     if (cteResult.concatInfos.length === 0) {
-      return cteResult.fields.map(f => `T."${f}" = ${gridCte}."${f}"`);
+      return cteResult.fields.map(f => {
+        if (nullableSet.has(f)) {
+          return `(T."${f}" = ${gridCte}."${f}" OR ${gridCte}."${f}" IS NULL)`;
+        }
+        return `T."${f}" = ${gridCte}."${f}"`;
+      });
     }
 
     const nonConcatFields: string[] = [];
@@ -329,7 +588,11 @@ export abstract class SqlDataModel extends GridDataModel {
 
     const conditions: string[] = [];
     for (const f of nonConcatFields) {
-      conditions.push(`T."${f}" = ${gridCte}."${f}"`);
+      if (nullableSet.has(f)) {
+        conditions.push(`(T."${f}" = ${gridCte}."${f}" OR ${gridCte}."${f}" IS NULL)`);
+      } else {
+        conditions.push(`T."${f}" = ${gridCte}."${f}"`);
+      }
     }
 
     if (concatInfos.length === 1) {
@@ -337,10 +600,15 @@ export abstract class SqlDataModel extends GridDataModel {
       const orParts = info.branches.map(b => {
         const eqParts = [`${gridCte}."${info.srcColumn}" = '${b.srcValue}'`];
         for (const [alias, orig] of Object.entries(b.fieldMap)) {
-          eqParts.push(`T."${orig}" = ${gridCte}."${alias}"`);
+          if (b.nullableFields.has(orig)) {
+            eqParts.push(`(T."${orig}" = ${gridCte}."${alias}" OR ${gridCte}."${alias}" IS NULL)`);
+          } else {
+            eqParts.push(`T."${orig}" = ${gridCte}."${alias}"`);
+          }
         }
         return `(${eqParts.join(" AND ")})`;
       });
+      orParts.push(`${gridCte}."${info.srcColumn}" IS NULL`);
       conditions.push(`(\n    ${orParts.join("\n    OR ")}\n  )`);
     } else {
       const combos = this.cartesianBranches(concatInfos);
@@ -351,11 +619,17 @@ export abstract class SqlDataModel extends GridDataModel {
           const branch = combo[i];
           eqParts.push(`${gridCte}."${info.srcColumn}" = '${branch.srcValue}'`);
           for (const [alias, orig] of Object.entries(branch.fieldMap)) {
-            eqParts.push(`T."${orig}" = ${gridCte}."${alias}"`);
+            if (branch.nullableFields.has(orig)) {
+              eqParts.push(`(T."${orig}" = ${gridCte}."${alias}" OR ${gridCte}."${alias}" IS NULL)`);
+            } else {
+              eqParts.push(`T."${orig}" = ${gridCte}."${alias}"`);
+            }
           }
         }
         return `(${eqParts.join(" AND ")})`;
       });
+      const allSrcNull = concatInfos.map(info => `${gridCte}."${info.srcColumn}" IS NULL`).join(" AND ");
+      orParts.push(`(${allSrcNull})`);
       conditions.push(`(\n    ${orParts.join("\n    OR ")}\n  )`);
     }
 
@@ -411,6 +685,7 @@ export abstract class SqlDataModel extends GridDataModel {
 interface ConcatBranch {
   srcValue: string;
   fieldMap: Record<string, string>;
+  nullableFields: Set<string>;
 }
 
 interface ConcatInfo {
@@ -430,4 +705,5 @@ interface CTEResult {
   orderExprs: OrderExpr[];
   srcColumns: string[];
   concatInfos: ConcatInfo[];
+  nullableFields: string[];
 }

@@ -1,7 +1,7 @@
 import { expect } from "chai";
+import { concat, cross, hierarchy } from "./grid-datamodel";
 import { InMemoryDataModel } from "./in-memory-datamodel";
 import { Schema } from "./types";
-import { cross, concat, hierarchy } from "./grid-datamodel";
 
 // 24 rows, 8 dimensions + 4 measures (column-major format)
 //
@@ -827,6 +827,1164 @@ describe("GridDataModel pivot (SUM aggregation)", () => {
       expect(vm.getSlice(0, 0, 2, 2).data).to.deep.equal([
         [9820, 7380],    // revenue
         [6160, 4585],    // cost
+      ]);
+    });
+  });
+
+  // ── Drilldown tests ─────────────────────────────────────────────────────
+  // Progressive drilldown with hierarchy, cross, and concat combinations.
+  // Uses AxisConfig form: { expr: AxisExpr, drilldown: DrilldownPath[] }
+  //
+  // Level assignment for cross(hierarchy("region","country","city"), concat("department","channel")):
+  //   cross child 0: hierarchy → region=L0, country=L1, city=L2
+  //   cross child 1: concat(simple, simple) → L3 (concat is transparent, each simple is one level)
+  //
+  // drilldown: []                                                  → only L0 visible (region + nothing else)
+  // drilldown: [{ open: "*" }]                                     → L0,L1 visible (region, country)
+  // drilldown: [{ open: "*", next: { open: "*" } }]                → L0,L1,L2 visible (region, country, city)
+  // drilldown: [{ open: "*", next: { open: "*", next: { open: "*" } } }]  → all visible (full expand)
+  describe("Drilldown", () => {
+
+    // ── Test: Hierarchy base drilldown ──────────────────────────────────
+    // rows=hierarchy("region","country","city"), columns=cross(concat("department","channel"), "revenue")
+    // drilldown: [] → show only region, country=null, city=null
+    //
+    // NA × Electronics: 8150    NA × Online: 7000    NA × Retail: 2330    NA × Wholesale: 490
+    // NA × Apparel: 1670        Europe × Online: 3380  Europe × Retail: 3250  Europe × Wholesale: 750
+    // Europe × Electronics: 5650  Europe × Apparel: 1730
+    it("hierarchy base drilldown (L0 only)", async () => {
+      const model = await makeModel();
+      const vm = await model.getViewModelData({
+        rows: { expr: hierarchy("region", "country", "city"), drilldown: [] },
+        columns: cross(concat("department", "channel"), "revenue"),
+      });
+
+      expect(vm.rowFacets).to.deep.equal([
+        ["North America", "Europe"],
+        [null, null],
+        [null, null],
+      ]);
+      expect(vm.columnFacets).to.deep.equal([
+        ["Electronics", "Apparel", "Online", "Retail", "Wholesale"],
+        ["revenue", "revenue", "revenue", "revenue", "revenue"],
+      ]);
+      expect(vm.getSlice(0, 0, 5, 2).data).to.deep.equal([
+        [8150, 5650],    // Electronics/revenue
+        [1670, 1730],    // Apparel/revenue
+        [7000, 3380],    // Online/revenue
+        [2330, 3250],    // Retail/revenue
+        [490,  750],     // Wholesale/revenue
+      ]);
+    });
+
+    // ── Test: Selective drilldown ────────────────────────────────────────
+    // drilldown: [{ open: ["North America"] }]
+    // → expand country for NA only, Europe stays collapsed
+    //
+    // NA/USA × Electronics: 6450       NA/Canada × Electronics: 1700
+    // NA/USA × Apparel: 1190           NA/Canada × Apparel: 480
+    // NA/USA × Online: 5300            NA/Canada × Online: 1700
+    // NA/USA × Retail: 2050            NA/Canada × Retail: 280
+    // NA/USA × Wholesale: 290          NA/Canada × Wholesale: 200
+    // Europe × (same as base)
+    it("selective drilldown (expand country for NA only)", async () => {
+      const model = await makeModel();
+      const vm = await model.getViewModelData({
+        rows: { expr: hierarchy("region", "country", "city"), drilldown: [{ open: ["North America"] }] },
+        columns: cross(concat("department", "channel"), "revenue"),
+      });
+
+      expect(vm.rowFacets).to.deep.equal([
+        ["North America", "North America", "Europe"],
+        ["USA", "Canada", null],
+        [null, null, null],
+      ]);
+      expect(vm.columnFacets).to.deep.equal([
+        ["Electronics", "Apparel", "Online", "Retail", "Wholesale"],
+        ["revenue", "revenue", "revenue", "revenue", "revenue"],
+      ]);
+      expect(vm.getSlice(0, 0, 5, 3).data).to.deep.equal([
+        [6450, 1700, 5650],    // Electronics/revenue
+        [1190, 480,  1730],    // Apparel/revenue
+        [5300, 1700, 3380],    // Online/revenue
+        [2050, 280,  3250],    // Retail/revenue
+        [290,  200,  750],     // Wholesale/revenue
+      ]);
+    });
+
+    // ── Test: Progressive drilldown with selective city expansion ────────
+    // drilldown: [{ open: "*", next: { open: ["USA"] } }]
+    // → all countries visible, then expand city for USA only
+    //
+    // NA/USA/NewYork, NA/USA/Chicago, NA/Canada(city=null), Europe/UK(city=null), Europe/Germany(city=null)
+    it("progressive drilldown (all countries, city for USA only)", async () => {
+      const model = await makeModel();
+      const vm = await model.getViewModelData({
+        rows: { expr: hierarchy("region", "country", "city"), drilldown: [{ open: "*", next: { open: ["USA"] } }] },
+        columns: cross(concat("department", "channel"), "revenue"),
+      });
+
+      expect(vm.rowFacets).to.deep.equal([
+        ["North America", "North America", "North America", "Europe", "Europe"],
+        ["USA", "USA", "Canada", "UK", "Germany"],
+        ["New York", "Chicago", null, null, null],
+      ]);
+      expect(vm.columnFacets).to.deep.equal([
+        ["Electronics", "Apparel", "Online", "Retail", "Wholesale"],
+        ["revenue", "revenue", "revenue", "revenue", "revenue"],
+      ]);
+      expect(vm.getSlice(0, 0, 5, 5).data).to.deep.equal([
+        [4450, 2000, 1700, 2250, 3400],  // Electronics/revenue
+        [650,  540,  480,  1100, 630],    // Apparel/revenue
+        [3950, 1350, 1700, 1800, 1580],   // Online/revenue
+        [1150, 900,  280,  1550, 1700],    // Retail/revenue
+        [null, 290,  200,  null, 750],     // Wholesale/revenue
+      ]);
+    });
+
+    // ── Test: Drilldown on both axes ────────────────────────────────────
+    // rows: hierarchy("region","country") with drilldown: [] → region only
+    // columns: cross(hierarchy("department","product"), concat("revenue","cost")) with drilldown: [] → department only
+    it("drilldown on both axes (base state)", async () => {
+      const model = await makeModel();
+      const vm = await model.getViewModelData({
+        rows: { expr: hierarchy("region", "country"), drilldown: [] },
+        columns: { expr: cross(hierarchy("department", "product"), concat("revenue", "cost")), drilldown: [] },
+      });
+
+      expect(vm.rowFacets).to.deep.equal([
+        ["North America", "Europe"],
+        [null, null],
+      ]);
+      expect(vm.columnFacets).to.deep.equal([
+        ["Electronics", "Electronics", "Apparel", "Apparel"],
+        [null, null, null, null],
+        ["revenue", "cost", "revenue", "cost"],
+      ]);
+      expect(vm.getSlice(0, 0, 4, 2).data).to.deep.equal([
+        [8150, 5650],   // Electronics/null/revenue
+        [5330, 3730],   // Electronics/null/cost
+        [1670, 1730],   // Apparel/null/revenue
+        [830,  855],    // Apparel/null/cost
+      ]);
+    });
+
+    // ── Test: Drill both axes deeper ────────────────────────────────────
+    // rows: hierarchy("region","country") with drilldown: [{ open: "*" }] → country visible
+    // columns: cross(hierarchy("department","product"), concat("revenue","cost")) with drilldown: [{ open: "*" }] → product visible
+    it("drilldown on both axes (fully expanded)", async () => {
+      const model = await makeModel();
+      const vm = await model.getViewModelData({
+        rows: { expr: hierarchy("region", "country"), drilldown: [{ open: "*" }] },
+        columns: { expr: cross(hierarchy("department", "product"), concat("revenue", "cost")), drilldown: [{ open: "*" }] },
+      });
+
+      expect(vm.rowFacets).to.deep.equal([
+        ["North America", "North America", "Europe", "Europe"],
+        ["USA", "Canada", "UK", "Germany"],
+      ]);
+      expect(vm.columnFacets).to.deep.equal([
+        ["Electronics", "Electronics", "Electronics", "Electronics", "Apparel", "Apparel", "Apparel", "Apparel"],
+        ["Laptop", "Laptop", "Phone", "Phone", "Jacket", "Jacket", "Shoes", "Shoes"],
+        ["revenue", "cost", "revenue", "cost", "revenue", "cost", "revenue", "cost"],
+      ]);
+      expect(vm.getSlice(0, 0, 8, 4).data).to.deep.equal([
+        [3800, 1000, 1400, 2650],   // Elec/Laptop/revenue
+        [2550, 700,  950,  1780],   // Elec/Laptop/cost
+        [2650, 700,  850,  750],    // Elec/Phone/revenue
+        [1630, 450,  520,  480],    // Elec/Phone/cost
+        [940,  280,  780,  350],    // App/Jacket/revenue
+        [470,  140,  390,  170],    // App/Jacket/cost
+        [250,  200,  320,  280],    // App/Shoes/revenue
+        [120,  100,  160,  135],    // App/Shoes/cost
+      ]);
+    });
+
+    // ── Test: Backward compatibility ────────────────────────────────────
+    // Plain AxisExpr (no drilldown) should work exactly as before
+    it("backward compatible — plain AxisExpr unchanged", async () => {
+      const model = await makeModel();
+      const vm = await model.getViewModelData({
+        rows: hierarchy("region", "country"),
+        columns: cross("department", "revenue"),
+      });
+
+      expect(vm.rowFacets).to.deep.equal([
+        ["North America", "North America", "Europe", "Europe"],
+        ["USA", "Canada", "UK", "Germany"],
+      ]);
+      expect(vm.columnFacets).to.deep.equal([
+        ["Electronics", "Apparel"],
+        ["revenue", "revenue"],
+      ]);
+      expect(vm.getSlice(0, 0, 2, 4).data).to.deep.equal([
+        [6450, 1700, 2250, 3400],
+        [1190, 480,  1100, 630],
+      ]);
+    });
+
+    // ── Concat hierarchy drilldown ──────────────────────────────────────
+    // concat(hierarchy("region","country","city"), hierarchy("department","product"))
+    //
+    // Level ranges (concat is transparent):
+    //   hierarchy(region,country,city) [0,2]    region=L0, country=L1, city=L2
+    //   hierarchy(department,product)  [0,1]    department=L0, product=L1
+    //
+    // Ordering (MIN rowid):
+    //   Regions: NA=0, Europe=12  |  Departments: Electronics=0, Apparel=3
+    //   Countries: USA=0, Canada=8, UK=12, Germany=16
+    //   Products: Laptop=0, Phone=2, Jacket=3, Shoes=7
+    //   Cities: New York=0, Chicago=5, Toronto=8, London=12, Berlin=16
+    const concatRows = concat(
+      hierarchy("region", "country", "city"),
+      hierarchy("department", "product"),
+    );
+
+    it("concat hierarchy L0 only", async () => {
+      const model = await makeModel();
+      const vm = await model.getViewModelData({
+        rows: { expr: concatRows, drilldown: [] },
+        columns: "revenue",
+      });
+
+      // Branch A: region only (country=null, city=null)
+      // Branch B: department only (product=null)
+      expect(vm.rowFacets).to.deep.equal([
+        ["North America", "Europe", "Electronics", "Apparel"],
+        [null, null, null, null],
+        [null, null, null, null],
+      ]);
+      expect(vm.columnFacets).to.deep.equal([["revenue"]]);
+      expect(vm.getSlice(0, 0, 1, 4).data).to.deep.equal([
+        [9820, 7380, 13800, 3400],
+      ]);
+    });
+
+    it("concat hierarchy L1 wildcard", async () => {
+      const model = await makeModel();
+      const vm = await model.getViewModelData({
+        rows: { expr: concatRows, drilldown: [{ open: "*" }] },
+        columns: "revenue",
+      });
+
+      // Branch A: region+country visible, city=null
+      // Branch B: department+product visible (fully expanded)
+      expect(vm.rowFacets).to.deep.equal([
+        ["North America", "North America", "Europe", "Europe",
+          "Electronics", "Electronics", "Apparel", "Apparel"],
+        ["USA", "Canada", "UK", "Germany",
+          "Laptop", "Phone", "Jacket", "Shoes"],
+        [null, null, null, null, null, null, null, null],
+      ]);
+      expect(vm.columnFacets).to.deep.equal([["revenue"]]);
+      expect(vm.getSlice(0, 0, 1, 8).data).to.deep.equal([
+        [7640, 2180, 3350, 4030, 8850, 4950, 2350, 1050],
+      ]);
+    });
+
+    it("concat hierarchy L2 wildcard", async () => {
+      const model = await makeModel();
+      const vm = await model.getViewModelData({
+        rows: { expr: concatRows, drilldown: [{ open: "*", next: { open: "*" } }] },
+        columns: "revenue",
+      });
+
+      // Branch A: fully expanded (region/country/city)
+      // Branch B: already fully expanded at L1, L2 beyond range — unchanged
+      expect(vm.rowFacets).to.deep.equal([
+        ["North America", "North America", "North America",
+          "Europe", "Europe",
+          "Electronics", "Electronics", "Apparel", "Apparel"],
+        ["USA", "USA", "Canada", "UK", "Germany",
+          "Laptop", "Phone", "Jacket", "Shoes"],
+        ["New York", "Chicago", "Toronto", "London", "Berlin",
+          null, null, null, null],
+      ]);
+      expect(vm.columnFacets).to.deep.equal([["revenue"]]);
+      expect(vm.getSlice(0, 0, 1, 9).data).to.deep.equal([
+        [5100, 2540, 2180, 3350, 4030, 8850, 4950, 2350, 1050],
+      ]);
+    });
+
+    it("concat hierarchy L1 selective — expand country for Europe only", async () => {
+      const model = await makeModel();
+      const vm = await model.getViewModelData({
+        rows: { expr: concatRows, drilldown: [{ open: ["Europe"] }] },
+        columns: "revenue",
+      });
+
+      // Branch A: selective on region — Europe expands to country, NA stays at region
+      // Branch B: "region" not in department/product fields — stays at L0
+      expect(vm.rowFacets).to.deep.equal([
+        ["North America", "Europe", "Europe", "Electronics", "Apparel"],
+        [null, "UK", "Germany", null, null],
+        [null, null, null, null, null],
+      ]);
+      expect(vm.columnFacets).to.deep.equal([["revenue"]]);
+      expect(vm.getSlice(0, 0, 1, 5).data).to.deep.equal([
+        [9820, 3350, 4030, 13800, 3400],
+      ]);
+    });
+
+    it("concat hierarchy L1 selective — expand product for Electronics only", async () => {
+      const model = await makeModel();
+      const vm = await model.getViewModelData({
+        rows: { expr: concatRows, drilldown: [{ open: ["Electronics"] }] },
+        columns: "revenue",
+      });
+
+      // Branch A: "department" not in region/country/city fields — stays at L0
+      // Branch B: selective — Electronics expands to product, Apparel stays
+      expect(vm.rowFacets).to.deep.equal([
+        ["North America", "Europe", "Electronics", "Electronics", "Apparel"],
+        [null, null, "Laptop", "Phone", null],
+        [null, null, null, null, null],
+      ]);
+      expect(vm.columnFacets).to.deep.equal([["revenue"]]);
+      expect(vm.getSlice(0, 0, 1, 5).data).to.deep.equal([
+        [9820, 7380, 8850, 4950, 3400],
+      ]);
+    });
+
+    it("concat hierarchy L1 selective + L2 wildcard", async () => {
+      const model = await makeModel();
+      const vm = await model.getViewModelData({
+        rows: { expr: concatRows, drilldown: [{ open: ["Europe"], next: { open: "*" } }] },
+        columns: "revenue",
+      });
+
+      // Branch A: Europe expanded to country at L1, then L2 wildcard expands city
+      //   NA stayed at L0 (selective didn't open it), L2 can't expand what L1 didn't open
+      // Branch B: L1 selective didn't apply (no "region" field) so branch stayed at L0.
+      //   L2 wildcard can't expand what L1 didn't open — stays at L0 (department only)
+      expect(vm.rowFacets).to.deep.equal([
+        ["North America", "Europe", "Europe",
+          "Electronics", "Apparel"],
+        [null, "UK", "Germany",
+          null, null],
+        [null, "London", "Berlin", null, null],
+      ]);
+      expect(vm.columnFacets).to.deep.equal([["revenue"]]);
+      expect(vm.getSlice(0, 0, 1, 5).data).to.deep.equal([
+        [9820, 3350, 4030, 13800, 3400],
+      ]);
+    });
+
+    // ── Cross with hierarchy drilldown ──────────────────────────────────
+    // cross("region", hierarchy("department","product"))
+    //
+    // Level ranges:
+    //   cross [0,2]
+    //   ├── simple(region) [0,0]              region=L0
+    //   └── hierarchy(department,product) [1,2]  department=L1, product=L2
+    //
+    // Ordering (MIN rowid):
+    //   Regions: NA=0, Europe=12
+    //   Departments: Electronics=0, Apparel=3
+    //   Products: Laptop=0, Phone=2, Jacket=3, Shoes=7
+    const crossHierRows = cross("region", hierarchy("department", "product"));
+
+    it("cross-hierarchy L0 only", async () => {
+      const model = await makeModel();
+      const vm = await model.getViewModelData({
+        rows: { expr: crossHierRows, drilldown: [] },
+        columns: "revenue",
+      });
+
+      // region visible, department/product null → cross segments groupTill:0
+      expect(vm.rowFacets).to.deep.equal([
+        ["North America", "Europe"],
+        [null, null],
+        [null, null],
+      ]);
+      expect(vm.columnFacets).to.deep.equal([["revenue"]]);
+      expect(vm.getSlice(0, 0, 1, 2).data).to.deep.equal([
+        [9820, 7380],
+      ]);
+    });
+
+    it("cross-hierarchy L1 wildcard", async () => {
+      const model = await makeModel();
+      const vm = await model.getViewModelData({
+        rows: { expr: crossHierRows, drilldown: [{ open: "*" }] },
+        columns: "revenue",
+      });
+
+      // region + department visible, product null
+      expect(vm.rowFacets).to.deep.equal([
+        ["North America", "North America", "Europe", "Europe"],
+        ["Electronics", "Apparel", "Electronics", "Apparel"],
+        [null, null, null, null],
+      ]);
+      expect(vm.columnFacets).to.deep.equal([["revenue"]]);
+      expect(vm.getSlice(0, 0, 1, 4).data).to.deep.equal([
+        [8150, 1670, 5650, 1730],
+      ]);
+    });
+
+    it("cross-hierarchy L2 wildcard", async () => {
+      const model = await makeModel();
+      const vm = await model.getViewModelData({
+        rows: { expr: crossHierRows, drilldown: [{ open: "*", next: { open: "*" } }] },
+        columns: "revenue",
+      });
+
+      // fully expanded: region × department × product
+      expect(vm.rowFacets).to.deep.equal([
+        ["North America", "North America", "North America", "North America",
+          "Europe", "Europe", "Europe", "Europe"],
+        ["Electronics", "Electronics", "Apparel", "Apparel",
+          "Electronics", "Electronics", "Apparel", "Apparel"],
+        ["Laptop", "Phone", "Jacket", "Shoes",
+          "Laptop", "Phone", "Jacket", "Shoes"],
+      ]);
+      expect(vm.columnFacets).to.deep.equal([["revenue"]]);
+      expect(vm.getSlice(0, 0, 1, 8).data).to.deep.equal([
+        [4800, 3350, 1220, 450, 4050, 1600, 1130, 600],
+      ]);
+    });
+
+    it("cross-hierarchy L1+L2 selective — expand product for Electronics only", async () => {
+      const model = await makeModel();
+      const vm = await model.getViewModelData({
+        rows: { expr: crossHierRows, drilldown: [{ open: "*", next: { open: ["Electronics"] } }] },
+        columns: "revenue",
+      });
+
+      // L1 wildcard opens department for all regions
+      // L2 selective: department is the field at L1 (parent of L2), matches hierarchy
+      //   Electronics expands to product, Apparel stays at department
+      expect(vm.rowFacets).to.deep.equal([
+        ["North America", "North America", "North America",
+          "Europe", "Europe", "Europe"],
+        ["Electronics", "Electronics", "Apparel",
+          "Electronics", "Electronics", "Apparel"],
+        ["Laptop", "Phone", null, "Laptop", "Phone", null],
+      ]);
+      expect(vm.columnFacets).to.deep.equal([["revenue"]]);
+      expect(vm.getSlice(0, 0, 1, 6).data).to.deep.equal([
+        [4800, 3350, 1670, 4050, 1600, 1730],
+      ]);
+    });
+
+    // ── Nested cross with hierarchy drilldown ───────────────────────────
+    // cross(cross("channel","quarter"), hierarchy("department","product"))
+    //
+    // Level ranges:
+    //   outer cross [0,3]
+    //   ├── inner cross [0,1]                     channel=L0, quarter=L1
+    //   └── hierarchy(department,product) [2,3]   department=L2, product=L3
+    //
+    // Ordering (MIN rowid):
+    //   Channels: Online=0, Retail=2, Wholesale=11
+    //   Quarters: Q1=0, Q2=1, Q3=20
+    //   Departments: Electronics=0, Apparel=3
+    //   Products: Laptop=0, Phone=2, Jacket=3, Shoes=7
+    const nestedCrossRows = cross(cross("channel", "quarter"), hierarchy("department", "product"));
+
+    it("nested-cross L0 only", async () => {
+      const model = await makeModel();
+      const vm = await model.getViewModelData({
+        rows: { expr: nestedCrossRows, drilldown: [] },
+        columns: "revenue",
+      });
+
+      // channel visible, quarter/department/product null
+      expect(vm.rowFacets).to.deep.equal([
+        ["Online", "Retail", "Wholesale"],
+        [null, null, null],
+        [null, null, null],
+        [null, null, null],
+      ]);
+      expect(vm.columnFacets).to.deep.equal([["revenue"]]);
+      expect(vm.getSlice(0, 0, 1, 3).data).to.deep.equal([
+        [10380, 5580, 1240],
+      ]);
+    });
+
+    it("nested-cross L1 wildcard", async () => {
+      const model = await makeModel();
+      const vm = await model.getViewModelData({
+        rows: { expr: nestedCrossRows, drilldown: [{ open: "*" }] },
+        columns: "revenue",
+      });
+
+      // channel+quarter visible, department/product null
+      // Wholesale/Q1 has no data → null revenue
+      expect(vm.rowFacets).to.deep.equal([
+        ["Online", "Online", "Online",
+          "Retail", "Retail", "Retail",
+          "Wholesale", "Wholesale", "Wholesale"],
+        ["Q1", "Q2", "Q3", "Q1", "Q2", "Q3", "Q1", "Q2", "Q3"],
+        [null, null, null, null, null, null, null, null, null],
+        [null, null, null, null, null, null, null, null, null],
+      ]);
+      expect(vm.columnFacets).to.deep.equal([["revenue"]]);
+      expect(vm.getSlice(0, 0, 1, 9).data).to.deep.equal([
+        [6550, 2880, 950, 2280, 1570, 1730, null, 950, 290],
+      ]);
+    });
+
+    it("nested-cross L2 wildcard", async () => {
+      const model = await makeModel();
+      const vm = await model.getViewModelData({
+        rows: { expr: nestedCrossRows, drilldown: [{ open: "*", next: { open: "*" } }] },
+        columns: "revenue",
+      });
+
+      // channel+quarter+department visible, product null
+      // 3 channels × 3 quarters × 2 departments = 18 combos
+      expect(vm.rowFacets).to.deep.equal([
+        ["Online", "Online", "Online", "Online", "Online", "Online",
+          "Retail", "Retail", "Retail", "Retail", "Retail", "Retail",
+          "Wholesale", "Wholesale", "Wholesale", "Wholesale", "Wholesale", "Wholesale"],
+        ["Q1", "Q1", "Q2", "Q2", "Q3", "Q3",
+          "Q1", "Q1", "Q2", "Q2", "Q3", "Q3",
+          "Q1", "Q1", "Q2", "Q2", "Q3", "Q3"],
+        ["Electronics", "Apparel", "Electronics", "Apparel", "Electronics", "Apparel",
+          "Electronics", "Apparel", "Electronics", "Apparel", "Electronics", "Apparel",
+          "Electronics", "Apparel", "Electronics", "Apparel", "Electronics", "Apparel"],
+        [null, null, null, null, null, null,
+          null, null, null, null, null, null,
+          null, null, null, null, null, null],
+      ]);
+      expect(vm.columnFacets).to.deep.equal([["revenue"]]);
+      expect(vm.getSlice(0, 0, 1, 18).data).to.deep.equal([
+        [6000, 550, 2200, 680, 950, null,
+          1650, 630, 900, 670, 1350, 380,
+          null, null, 750, 200, null, 290],
+      ]);
+    });
+
+    it("nested-cross L3 selective — expand product for Electronics only", async () => {
+      const model = await makeModel();
+      const vm = await model.getViewModelData({
+        rows: { expr: nestedCrossRows, drilldown: [{ open: "*", next: { open: "*", next: { open: ["Electronics"] } } }] },
+        columns: "revenue",
+      });
+
+      // L1+L2 open quarter+department for all channels
+      // L3 selective: department="Electronics" is in hierarchy fields → match
+      //   Electronics expands to product, Apparel stays at department
+      // 3 channels × 3 quarters × (2 Elec products + 1 Apparel) = 27 combos
+      expect(vm.rowFacets).to.deep.equal([
+        ["Online", "Online", "Online", "Online", "Online", "Online", "Online", "Online", "Online",
+          "Retail", "Retail", "Retail", "Retail", "Retail", "Retail", "Retail", "Retail", "Retail",
+          "Wholesale", "Wholesale", "Wholesale", "Wholesale", "Wholesale", "Wholesale", "Wholesale", "Wholesale", "Wholesale"],
+        ["Q1", "Q1", "Q1", "Q2", "Q2", "Q2", "Q3", "Q3", "Q3",
+          "Q1", "Q1", "Q1", "Q2", "Q2", "Q2", "Q3", "Q3", "Q3",
+          "Q1", "Q1", "Q1", "Q2", "Q2", "Q2", "Q3", "Q3", "Q3"],
+        ["Electronics", "Electronics", "Apparel", "Electronics", "Electronics", "Apparel", "Electronics", "Electronics", "Apparel",
+          "Electronics", "Electronics", "Apparel", "Electronics", "Electronics", "Apparel", "Electronics", "Electronics", "Apparel",
+          "Electronics", "Electronics", "Apparel", "Electronics", "Electronics", "Apparel", "Electronics", "Electronics", "Apparel"],
+        ["Laptop", "Phone", null, "Laptop", "Phone", null, "Laptop", "Phone", null,
+          "Laptop", "Phone", null, "Laptop", "Phone", null, "Laptop", "Phone", null,
+          "Laptop", "Phone", null, "Laptop", "Phone", null, "Laptop", "Phone", null],
+      ]);
+      expect(vm.columnFacets).to.deep.equal([["revenue"]]);
+      expect(vm.getSlice(0, 0, 1, 27).data).to.deep.equal([
+        [6000, null, 550,  1500, 700, 680,  null, 950, null,
+          null, 1650, 630,  null, 900, 670,  1350, null, 380,
+          null, null, null,  null, 750, 200,  null, null, 290],
+      ]);
+    });
+
+    // ── Cross with two hierarchies — global chain rule ───────────────────
+    // cross(hierarchy("region","country"), hierarchy("department","product"))
+    //
+    // Level ranges:
+    //   outer cross [0,3]
+    //   ├── hierarchy(region,country) [0,1]            region=L0, country=L1
+    //   └── hierarchy(department,product) [2,3]        department=L2, product=L3
+    //
+    // Key scenario: selective L1 where:{region:["Europe"]} + L2 wildcard
+    //   L1 only opens Europe → L2 should only expand department for Europe rows.
+    //   North America rows stay fully collapsed (country=null, department=null).
+    const crossHierHierRows = cross(hierarchy("region", "country"), hierarchy("department", "product"));
+
+    it("cross(hier,hier) selective L1 + L2 — global chain gates second child", async () => {
+      const model = await makeModel();
+      const vm = await model.getViewModelData({
+        rows: { expr: crossHierHierRows, drilldown: [{ open: ["Europe"], next: { open: "*" } }] },
+        // rows: { expr: crossHierHierRows, drilldown: [
+        //   { open: ["Europe"], next: { open: "*" } },
+        //   { open: ["Europe"], next: { open: ["London"] } },
+        //   { open: ["North America"], next: { open: ["USA"], next: { open: ["Electronics"], next: { open: "*" } } } },
+        // ] },
+        columns: "revenue",
+      });
+
+      // L1 selective: country visible only for Europe. NA stays collapsed.
+      // L2 wildcard: department expands, but only for Europe (because L1 only opened Europe).
+      //
+      // Expected rows:
+      //   North America / null / null / null   → all NA: 9820
+      //   Europe / UK / Electronics / null     → rows 12,13 = 1400+850 = 2250
+      //   Europe / UK / Apparel / null         → rows 14,15,21 = 400+320+380 = 1100
+      //   Europe / Germany / Electronics / null → rows 16,17,23 = 1300+750+1350 = 3400
+      //   Europe / Germany / Apparel / null    → rows 18,19 = 350+280 = 630
+      expect(vm.rowFacets).to.deep.equal([
+        ["North America", "Europe", "Europe", "Europe", "Europe"],
+        [null, "UK", "UK", "Germany", "Germany"],
+        [null, "Electronics", "Apparel", "Electronics", "Apparel"],
+        [null, null, null, null, null],
+      ]);
+      expect(vm.columnFacets).to.deep.equal([["revenue"]]);
+      expect(vm.getSlice(0, 0, 1, 5).data).to.deep.equal([
+        [9820, 2250, 1100, 3400, 630],
+      ]);
+    });
+
+    // ── Test: Deep nesting drilldown ──────────────────────────────────────
+    // rows = concat(
+    //   cross(hierarchy("region","country"), "department"),   ← branch A
+    //   cross("channel", "department")                       ← branch B
+    // )
+    // columns = "revenue"
+    //
+    // DimSpec tree with level assignments:
+    //   concat [0,2]                       ← transparent
+    //   ├── cross:A [0,2]
+    //   │   ├── hierarchy(region,country) [0,1]   region=L0, country=L1
+    //   │   └── simple(department) [2,2]          department=L2
+    //   └── cross:B [0,1]
+    //       ├── simple(channel) [0,0]             channel=L0
+    //       └── simple(department) [1,1]          department=L1
+    //
+    // concat range = max(2,1) = [0,2], aliased to __c__0, __c__1, __c__2
+    //
+    // drilldown:[] (L0 only):
+    //   Branch A: hierarchy → region only (country=null), dept at L2 → null
+    //   Branch B: channel visible, dept at L1 → null
+    //   Rows: NA, Europe, Online, Retail, Wholesale  (all with __c__1=null, __c__2=null)
+    //
+    // drilldown:[{level:1}] (L0+L1):
+    //   Branch A: hierarchy → region+country, dept at L2 → null
+    //   Branch B: channel visible, dept at L1 → visible
+    //   Rows: NA/USA, NA/Canada, Europe/UK, Europe/Germany,
+    //         Online/Electronics, Online/Apparel, Retail/Electronics, Retail/Apparel,
+    //         Wholesale/Electronics, Wholesale/Apparel
+    //
+    // drilldown:[{level:1},{level:2}] (all visible):
+    //   Branch A: hierarchy fully expanded, dept visible
+    //   Branch B: unchanged from L1 (already fully expanded at L1)
+    //   Rows: NA/USA/Elec, NA/USA/App, ..., Online/Elec/null, ...
+    describe("Deep nesting drilldown", () => {
+      const deepRows = concat(
+        cross(hierarchy("region", "country"), "department"),
+        cross("channel", "department"),
+      );
+
+      it("L0 only — regions and channels", async () => {
+        const model = await makeModel();
+        const vm = await model.getViewModelData({
+          rows: { expr: deepRows, drilldown: [] },
+          columns: "revenue",
+        });
+
+        expect(vm.rowFacets).to.deep.equal([
+          ["North America", "Europe", "Online", "Retail", "Wholesale"],
+          [null, null, null, null, null],
+          [null, null, null, null, null],
+        ]);
+        expect(vm.columnFacets).to.deep.equal([["revenue"]]);
+        expect(vm.getSlice(0, 0, 1, 5).data).to.deep.equal([
+          [9820, 7380, 10380, 5580, 1240],
+        ]);
+      });
+
+      it("L0+L1 — countries and channel×department", async () => {
+        const model = await makeModel();
+        const vm = await model.getViewModelData({
+          rows: { expr: deepRows, drilldown: [{ open: "*" }] },
+          columns: "revenue",
+        });
+
+        expect(vm.rowFacets).to.deep.equal([
+          ["North America", "North America", "Europe", "Europe",
+            "Online", "Online", "Retail", "Retail", "Wholesale", "Wholesale"],
+          ["USA", "Canada", "UK", "Germany",
+            "Electronics", "Apparel", "Electronics", "Apparel", "Electronics", "Apparel"],
+          [null, null, null, null, null, null, null, null, null, null],
+        ]);
+        expect(vm.columnFacets).to.deep.equal([["revenue"]]);
+        expect(vm.getSlice(0, 0, 1, 10).data).to.deep.equal([
+          [7640, 2180, 3350, 4030, 9150, 1230, 3900, 1680, 750, 490],
+        ]);
+      });
+
+      it("L0+L1+L2 — full expansion", async () => {
+        const model = await makeModel();
+        const vm = await model.getViewModelData({
+          rows: { expr: deepRows, drilldown: [{ open: "*", next: { open: "*" } }] },
+          columns: "revenue",
+        });
+
+        expect(vm.rowFacets).to.deep.equal([
+          ["North America", "North America", "North America", "North America",
+            "Europe", "Europe", "Europe", "Europe",
+            "Online", "Online", "Retail", "Retail", "Wholesale", "Wholesale"],
+          ["USA", "USA", "Canada", "Canada", "UK", "UK", "Germany", "Germany",
+            "Electronics", "Apparel", "Electronics", "Apparel", "Electronics", "Apparel"],
+          ["Electronics", "Apparel", "Electronics", "Apparel",
+            "Electronics", "Apparel", "Electronics", "Apparel",
+            null, null, null, null, null, null],
+        ]);
+        expect(vm.columnFacets).to.deep.equal([["revenue"]]);
+        expect(vm.getSlice(0, 0, 1, 14).data).to.deep.equal([
+          [6450, 1190, 1700, 480, 2250, 1100, 3400, 630,
+            9150, 1230, 3900, 1680, 750, 490],
+        ]);
+      });
+
+      it("selective drilldown — expand country for Europe only", async () => {
+        const model = await makeModel();
+        const vm = await model.getViewModelData({
+          rows: { expr: deepRows, drilldown: [{ open: ["Europe"] }] },
+          columns: "revenue",
+        });
+
+        // Branch A: hierarchy with selective → Europe gets country, NA stays collapsed
+        //   Segments: [{groupTill:"country", filter:{region,["Europe"],include:true}},
+        //             {groupTill:"region", filter:{region,["Europe"],include:false}}]
+        //   dept at L2 still null
+        // Branch B: channel visible, dept at L1... selective where references region
+        //   which isn't in branch B's fields. maxVisible=1, so dept at L1 becomes visible.
+        //
+        // Branch A rows: Europe/UK/null, Europe/Germany/null, North America/null/null
+        // Branch B rows: Online/Electronics/null, Online/Apparel/null, Retail/Electronics/null,
+        //                Retail/Apparel/null, Wholesale/Electronics/null, Wholesale/Apparel/null
+        expect(vm.rowFacets).to.deep.equal([
+          ["North America", "Europe", "Europe",
+            "Online", "Online", "Retail", "Retail", "Wholesale", "Wholesale"],
+          [null, "UK", "Germany",
+            "Electronics", "Apparel", "Electronics", "Apparel", "Electronics", "Apparel"],
+          [null, null, null, null, null, null, null, null, null],
+        ]);
+        expect(vm.columnFacets).to.deep.equal([["revenue"]]);
+        expect(vm.getSlice(0, 0, 1, 9).data).to.deep.equal([
+          [9820, 3350, 4030, 9150, 1230, 3900, 1680, 750, 490],
+        ]);
+      });
+    });
+
+    describe("Cross hierarchy+concat multi-branch drilldown", () => {
+      const crossHierConcatRows = cross(
+        hierarchy("region", "country", "city"),
+        concat(hierarchy("department", "product"), "channel"),
+      );
+
+      it("multi-branch — NA deep to city+product, Europe shallow to country", async () => {
+        const model = await makeModel();
+        const vm = await model.getViewModelData({
+          rows: {
+            expr: crossHierConcatRows,
+            drilldown: [
+              { open: ["North America"], next: { open: ["USA"], next: { open: "*", next: { open: ["Electronics"] } } } },
+              { open: ["Europe"] },
+            ],
+          },
+          columns: "revenue",
+        });
+
+        // Path 1: NA → USA → all cities → Electronics (reveals product)
+        //   hierarchy(region,country,city) segments:
+        //     seg1: groupBy[region,country,city] WHERE region IN (NA,Europe) AND country IN (USA)
+        //       → NA/USA/New York, NA/USA/Chicago
+        //     seg2: groupBy[region,country] WHERE region IN (NA,Europe) AND country NOT IN (USA)
+        //       → NA/Canada, Europe/UK, Europe/Germany
+        //   concat(hierarchy(dept,product),channel) receives [{ open: ["Electronics"] }]:
+        //     hierarchy(dept,product) segments:
+        //       seg1: groupBy[dept,product] WHERE dept IN (Electronics)
+        //         → Electronics/Laptop, Electronics/Phone
+        //       seg2: groupBy[dept] WHERE dept NOT IN (Electronics)
+        //         → Apparel/null
+        //     channel: Online, Retail, Wholesale
+        //
+        // Path 2: Europe → countries only (no city, no child1)
+        //
+        // Cross gating: child0 selective → only NA/USA rows get cross-joined with child1
+        //   seg1: both children visible WHERE region IN (NA,Europe) AND country IN (USA)
+        //   seg2: child0 only, child1 null WHERE NOT(region IN (NA,Europe) AND country IN (USA))
+        //
+        // Rows (15 total):
+        //   New York × (Elec/Laptop, Elec/Phone, Apparel, Online, Retail, Wholesale)
+        //   Chicago  × (Elec/Laptop, Elec/Phone, Apparel, Online, Retail, Wholesale)
+        //   Canada/null, UK/null, Germany/null
+        expect(vm.rowFacets).to.deep.equal([
+          [
+            "North America", "North America", "North America", "North America", "North America", "North America",
+            "North America", "North America", "North America", "North America", "North America", "North America",
+            "North America", "Europe", "Europe",
+          ],
+          [
+            "USA", "USA", "USA", "USA", "USA", "USA",
+            "USA", "USA", "USA", "USA", "USA", "USA",
+            "Canada", "UK", "Germany",
+          ],
+          [
+            "New York", "New York", "New York", "New York", "New York", "New York",
+            "Chicago", "Chicago", "Chicago", "Chicago", "Chicago", "Chicago",
+            null, null, null,
+          ],
+          [
+            "Electronics", "Electronics", "Apparel", "Online", "Retail", "Wholesale",
+            "Electronics", "Electronics", "Apparel", "Online", "Retail", "Wholesale",
+            null, null, null,
+          ],
+          [
+            "Laptop", "Phone", null, null, null, null,
+            "Laptop", "Phone", null, null, null, null,
+            null, null, null,
+          ],
+        ]);
+        expect(vm.columnFacets).to.deep.equal([["revenue"]]);
+        expect(vm.getSlice(0, 0, 1, 15).data).to.deep.equal([
+          [
+            2700, 1750, 650, 3950, 1150, null,
+            1100, 900, 540, 1350, 900, 290,
+            2180, 3350, 4030,
+          ],
+        ]);
+      });
+    });
+
+    // ── Progressive multi-path hierarchy drilldown ──────────────────────
+    // hierarchy("region","country","city"), columns="revenue"
+    //
+    // Verifies per-value subtree splitting: different parent values can have
+    // independent expansion depths. The old flat-merge algorithm would merge
+    // wildcards globally, incorrectly expanding all subtrees.
+    describe("Progressive multi-path hierarchy drilldown", () => {
+
+      // Step 1: Europe expanded to city level, NA collapsed
+      // paths: [{ open: ["Europe"], next: { open: "*" } }]
+      //   Europe wildcard at country → all Europe cities visible
+      //   NA not opened → region only
+      //
+      // Europe/Germany/Berlin: 1300+750+350+280+1350 = 4030
+      // Europe/UK/London: 1400+850+400+320+380 = 3350
+      // North America/null/null: 9820
+      it("step — Europe cities expanded, NA collapsed", async () => {
+        const model = await makeModel();
+        const vm = await model.getViewModelData({
+          rows: { expr: hierarchy("region", "country", "city"), drilldown: [{ open: ["Europe"], next: { open: "*" } }] },
+          columns: "revenue",
+        });
+
+        expect(vm.rowFacets).to.deep.equal([
+          ["North America", "Europe", "Europe"],
+          [null, "UK", "Germany"],
+          [null, "London", "Berlin"],
+        ]);
+        expect(vm.columnFacets).to.deep.equal([["revenue"]]);
+        expect(vm.getSlice(0, 0, 1, 3).data).to.deep.equal([
+          [9820, 3350, 4030],
+        ]);
+      });
+
+      // Step 2: Adding a subset path for Europe/Germany — should not change result
+      // since path 1 already wildcards all Europe countries
+      // paths: [{ open: ["Europe"], next: { open: "*" } }, { open: ["Europe"], next: { open: ["Germany"] } }]
+      it("step — subset path absorbed by wildcard", async () => {
+        const model = await makeModel();
+        const vm = await model.getViewModelData({
+          rows: {
+            expr: hierarchy("region", "country", "city"),
+            drilldown: [
+              { open: ["Europe"], next: { open: "*" } },
+              { open: ["Europe"], next: { open: ["Germany"] } },
+            ],
+          },
+          columns: "revenue",
+        });
+
+        expect(vm.rowFacets).to.deep.equal([
+          ["North America", "Europe", "Europe"],
+          [null, "UK", "Germany"],
+          [null, "London", "Berlin"],
+        ]);
+        expect(vm.columnFacets).to.deep.equal([["revenue"]]);
+        expect(vm.getSlice(0, 0, 1, 3).data).to.deep.equal([
+          [9820, 3350, 4030],
+        ]);
+      });
+
+      // Step 3: Add NA path that selectively expands USA to city level
+      // paths: [
+      //   { open: ["Europe"], next: { open: "*" } },
+      //   { open: ["Europe"], next: { open: ["Germany"] } },
+      //   { open: ["North America"], next: { open: ["USA"], next: { open: "*" } } }
+      // ]
+      //
+      // Europe: all cities (wildcard at country level)
+      //   Europe/Germany/Berlin: 4030
+      //   Europe/UK/London: 3350
+      // NA/USA: all cities (wildcard at city level for USA)
+      //   NA/USA/Chicago: 1100+900+250+290 = 2540
+      //   NA/USA/New York: 1200+1500+800+300+350+950 = 5100
+      // NA/Canada: country visible but no city (not expanded)
+      //   NA/Canada/null: 1000+700+280+200 = 2180
+      it("step — per-value subtree splitting", async () => {
+        const model = await makeModel();
+        const vm = await model.getViewModelData({
+          rows: {
+            expr: hierarchy("region", "country", "city"),
+            drilldown: [
+              { open: ["Europe"], next: { open: "*" } },
+              { open: ["Europe"], next: { open: ["Germany"] } },
+              { open: ["North America"], next: { open: ["USA"], next: { open: "*" } } },
+            ],
+          },
+          columns: "revenue",
+        });
+
+        expect(vm.rowFacets).to.deep.equal([
+          ["North America", "North America", "North America", "Europe", "Europe"],
+          ["USA", "USA", "Canada", "UK", "Germany"],
+          ["New York", "Chicago", null, "London", "Berlin"],
+        ]);
+        expect(vm.columnFacets).to.deep.equal([["revenue"]]);
+        expect(vm.getSlice(0, 0, 1, 5).data).to.deep.equal([
+          [5100, 2540, 2180, 3350, 4030],
+        ]);
+      });
+    });
+
+    // ── 4-level hierarchy progressive drilldown ─────────────────────────
+    // hierarchy("region","country","city","department")
+    //
+    // Demonstrates that opening a value reveals all its children (siblings
+    // can't be excluded), and each subtree expands independently.
+    it("4-level hierarchy progressive drilldown", async () => {
+      const model = await makeModel();
+      const hier4 = hierarchy("region", "country", "city", "department");
+
+      // Base: region only
+      const vm0 = await model.getViewModelData({
+        rows: { expr: hier4, drilldown: [] },
+        columns: "revenue",
+      });
+      expect(vm0.rowFacets).to.deep.equal([
+        ["North America", "Europe"],
+        [null, null],
+        [null, null],
+        [null, null],
+      ]);
+
+      // Open Europe → all Europe countries visible
+      const vm1 = await model.getViewModelData({
+        rows: { expr: hier4, drilldown: [{ open: ["Europe"] }] },
+        columns: "revenue",
+      });
+      expect(vm1.rowFacets).to.deep.equal([
+        ["North America", "Europe", "Europe"],
+        [null, "UK", "Germany"],
+        [null, null, null],
+        [null, null, null],
+      ]);
+
+      // Open Europe countries → all Europe cities visible
+      const vm2 = await model.getViewModelData({
+        rows: { expr: hier4, drilldown: [{ open: ["Europe"], next: { open: "*" } }] },
+        columns: "revenue",
+      });
+      expect(vm2.rowFacets).to.deep.equal([
+        ["North America", "Europe", "Europe"],
+        [null, "UK", "Germany"],
+        [null, "London", "Berlin"],
+        [null, null, null],
+      ]);
+
+      // Also open NA, expand only USA to city
+      const vm3 = await model.getViewModelData({
+        rows: {
+          expr: hier4,
+          drilldown: [
+            { open: ["Europe"], next: { open: "*" } },
+            { open: ["North America"], next: { open: ["USA"] } },
+          ],
+        },
+        columns: "revenue",
+      });
+      expect(vm3.rowFacets).to.deep.equal([
+        ["North America", "North America", "North America", "Europe", "Europe"],
+        ["USA", "USA", "Canada", "UK", "Germany"],
+        ["New York", "Chicago", null, "London", "Berlin"],
+        [null, null, null, null, null],
+      ]);
+
+      // Expand New York to department — Chicago and Canada stay collapsed
+      const vm4 = await model.getViewModelData({
+        rows: {
+          expr: hier4,
+          drilldown: [
+            { open: ["Europe"], next: { open: "*" } },
+            { open: ["North America"], next: { open: ["USA"], next: { open: ["New York"] } } },
+          ],
+        },
+        columns: "revenue",
+      });
+      expect(vm4.rowFacets).to.deep.equal([
+        ["North America", "North America", "North America", "North America", "Europe", "Europe"],
+        ["USA", "USA", "USA", "Canada", "UK", "Germany"],
+        ["New York", "New York", "Chicago", null, "London", "Berlin"],
+        ["Electronics", "Apparel", null, null, null, null],
+      ]);
+    });
+
+    // ── Cross two hierarchies progressive drilldown ─────────────────────
+    // cross(hierarchy("region","country","city"), hierarchy("department","product"))
+    //
+    // Levels: region=L0, country=L1, city=L2 (child 0), department=L3, product=L4 (child 1)
+    // Paths flow left-to-right: child 1 only becomes visible once paths traverse child 0's full range.
+    it("cross(hier,hier) progressive drilldown with selective values", async () => {
+      const model = await makeModel();
+      const crossHH = cross(hierarchy("region", "country", "city"), hierarchy("department", "product"));
+
+      // Step 0: base state — region only, child 1 invisible
+      const vm0 = await model.getViewModelData({
+        rows: { expr: crossHH, drilldown: [] },
+        columns: "revenue",
+      });
+      expect(vm0.rowFacets).to.deep.equal([
+        ["North America", "Europe"],
+        [null, null],
+        [null, null],
+        [null, null],
+        [null, null],
+      ]);
+
+      // Step 1: open Europe → Europe countries visible, NA collapsed
+      const vm1 = await model.getViewModelData({
+        rows: { expr: crossHH, drilldown: [{ open: ["Europe"] }] },
+        columns: "revenue",
+      });
+      expect(vm1.rowFacets).to.deep.equal([
+        ["North America", "Europe", "Europe"],
+        [null, "UK", "Germany"],
+        [null, null, null],
+        [null, null, null],
+        [null, null, null],
+      ]);
+
+      // Step 2: open UK → Europe/UK cities visible, Europe/Germany stays at country, NA collapsed
+      const vm2 = await model.getViewModelData({
+        rows: { expr: crossHH, drilldown: [{ open: ["Europe"], next: { open: ["UK"] } }] },
+        columns: "revenue",
+      });
+      expect(vm2.rowFacets).to.deep.equal([
+        ["North America", "Europe", "Europe"],
+        [null, "UK", "Germany"],
+        [null, "London", null],
+        [null, null, null],
+        [null, null, null],
+      ]);
+
+      // Step 3: open London → paths traverse child 0's full range for Europe/UK/London.
+      // Cross gating: EU/UK/London rows see child 1 (department base state), others don't.
+      // Note: UK only has London in the data, so the city NOT IN (London) segment is empty.
+      const vm3 = await model.getViewModelData({
+        rows: { expr: crossHH, drilldown: [{ open: ["Europe"], next: { open: ["UK"], next: { open: ["London"] } } }] },
+        columns: "revenue",
+      });
+      expect(vm3.rowFacets).to.deep.equal([
+        ["North America", "Europe", "Europe", "Europe"],
+        [null, "UK", "UK", "Germany"],
+        [null, "London", "London", null],
+        [null, "Electronics", "Apparel", null],
+        [null, null, null, null],
+      ]);
+
+      // Step 4: two paths — Europe drills into child 1 (Electronics→product),
+      // NA opens all countries (wildcard) then selectively opens New York to reach child 0's edge.
+      //
+      // Path 2 uses open:"*" at country level, so all NA countries are visible with cities.
+      // Only New York reaches child 0's edge → cross gating lets London and New York see child 1.
+      // Chicago, Toronto, Germany see only child 0.
+      //
+      // NA/USA/New York × Elec/Laptop:   rows 0,1 → 2700
+      // NA/USA/New York × Elec/Phone:    rows 2,20 → 1750
+      // NA/USA/New York × Apparel/null:  rows 3,4 → 650
+      // NA/USA/Chicago/null/null:        rows 5,6,7,22 → 2540
+      // NA/Canada/Toronto/null/null:     rows 8,9,10,11 → 2180
+      // EU/UK/London × Elec/Laptop:      row 12 → 1400
+      // EU/UK/London × Elec/Phone:       row 13 → 850
+      // EU/UK/London × Apparel/null:     rows 14,15,21 → 1100
+      // EU/Germany/null/null/null:       rows 16,17,18,19,23 → 4030
+      const vm4 = await model.getViewModelData({
+        rows: {
+          expr: crossHH,
+          drilldown: [
+            { open: ["Europe"], next: { open: ["UK"], next: { open: ["London"], next: { open: ["Electronics"] } } } },
+            { open: ["North America"], next: { open: "*", next: { open: ["New York"] } } },
+          ],
+        },
+        columns: "revenue",
+      });
+      expect(vm4.rowFacets).to.deep.equal([
+        ["North America", "North America", "North America", "North America", "North America",
+          "Europe", "Europe", "Europe", "Europe"],
+        ["USA", "USA", "USA", "USA", "Canada",
+          "UK", "UK", "UK", "Germany"],
+        ["New York", "New York", "New York", "Chicago", "Toronto",
+          "London", "London", "London", null],
+        ["Electronics", "Electronics", "Apparel", null, null,
+          "Electronics", "Electronics", "Apparel", null],
+        ["Laptop", "Phone", null, null, null,
+          "Laptop", "Phone", null, null],
+      ]);
+      expect(vm4.columnFacets).to.deep.equal([["revenue"]]);
+      expect(vm4.getSlice(0, 0, 1, 9).data).to.deep.equal([
+        [2700, 1750, 650, 2540, 2180, 1400, 850, 1100, 4030],
+      ]);
+    });
+
+    it("cross(hier,hier,hier) multi-child gating", async () => {
+      const model = await makeModel();
+      // 3-child cross: child 0 = hierarchy(region,country), child 1 = hierarchy(department,product), child 2 = simple(channel)
+      const crossHHH = cross(hierarchy("region", "country"), hierarchy("department", "product"), "channel");
+
+      // Drilldown: Europe → UK → Electronics → Laptop → Online
+      // Paths traverse all 3 children. Each child has selective values → each is a gating boundary.
+      //
+      // Child 0: hierarchy(region,country) with open Europe → UK
+      //   Segments: EU/UK | EU/Germany | NA
+      //
+      // Child 1: hierarchy(dept,product) with open Electronics → Laptop
+      //   Segments: Elec/Laptop | Elec/Phone | Apparel(dept only)
+      //
+      // Child 2: simple(channel) — fully expanded (Online, Retail, Wholesale)
+      //
+      // Expected 3 tiers of gating:
+      //   Tier 1: EU/UK × Elec/Laptop × channel (all 3 children)
+      //   Tier 2: EU/UK × {Elec/Phone, Apparel} (child 0 × child 1, no child 2)
+      //   Tier 3: {EU/Germany, NA} (child 0 only)
+      //
+      // 7 rows total:
+      //   NA         | null    | null        | null   | null
+      //   EU/UK      | Elec   | Laptop      | Online
+      //   EU/UK      | Elec   | Laptop      | Retail
+      //   EU/UK      | Elec   | Laptop      | Wholesale
+      //   EU/UK      | Elec   | Phone       | null
+      //   EU/UK      | Apparel| null        | null
+      //   EU/Germany | null   | null        | null   | null
+      const vm = await model.getViewModelData({
+        rows: {
+          expr: crossHHH,
+          drilldown: [
+            { open: ["Europe"], next: { open: ["UK"], next: { open: ["Electronics"], next: { open: ["Laptop"], next: { open: ["Online"] } } } } },
+          ],
+        },
+        columns: "revenue",
+      });
+
+      expect(vm.rowFacets).to.deep.equal([
+        ["North America", "Europe", "Europe", "Europe", "Europe", "Europe", "Europe"],
+        [null, "UK", "UK", "UK", "UK", "UK", "Germany"],
+        [null, "Electronics", "Electronics", "Electronics", "Electronics", "Apparel", null],
+        [null, "Laptop", "Laptop", "Laptop", "Phone", null, null],
+        [null, "Online", "Retail", "Wholesale", null, null, null],
       ]);
     });
   });
