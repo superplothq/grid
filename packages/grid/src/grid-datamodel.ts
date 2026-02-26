@@ -1,82 +1,15 @@
-import {GridDataViewModel} from "./renderer/grid-data-viewmodel";
+import { GridDataViewModel } from "./renderer/grid-data-viewmodel";
 import {
-  Schema,
-  MeasureSchema,
   AxisExpr,
-  PivotConfig,
-  Measure,
+  DimSpec,
   FacetQuery,
-  PivotQuery,
-  PivotGroupResult,
+  IR,
+  Measure,
+  MeasureSchema,
+  PivotConfig,
+  RawDataFromIR,
+  Schema,
 } from "./types";
-
-/*
- * cross("region", hierarchy("quarter","month")) needs to combine two independently
- * resolved facet spaces into one. That's what this function does — cartesian product.
- *
- * A single facet space is string[][] (column-major: one array per level).
- * This function receives multiple of them — hence string[][][] — one per cross child.
- *
- * Why 3D? Take cross("region", hierarchy("quarter","month")):
- *
- *   spaces[0] = resolveFacetSpace("region")
- *             = [["East","West"]]                          ← 1 level, 2 combos
- *
- *   spaces[1] = resolveFacetSpace(hierarchy("quarter","month"))
- *             = [["Q1","Q1","Q1","Q2","Q2","Q2"],          ← level 0: quarter
- *                ["Jan","Feb","Mar","Apr","May","Jun"]]     ← level 1: month
- *                                                            2 levels, 6 combos
- *
- *   spaces is [ space0, space1 ] — array of spaces — hence string[][][].
- *
- * Output is a single flat facet space (string[][]) with all levels merged
- * and every combination enumerated (2 × 6 = 12 combos, 1 + 2 = 3 levels):
- *
- *   ┌──────────────────────────────────────────────────────────────────────────┐
- *   │ level 0 (region):  ["East","East","East","East","East","East",          │
- *   │                      "West","West","West","West","West","West"]         │
- *   │ level 1 (quarter): ["Q1","Q1","Q1","Q2","Q2","Q2",                     │
- *   │                      "Q1","Q1","Q1","Q2","Q2","Q2"]                     │
- *   │ level 2 (month):   ["Jan","Feb","Mar","Apr","May","Jun",                │
- *   │                      "Jan","Feb","Mar","Apr","May","Jun"]               │
- *   └──────────────────────────────────────────────────────────────────────────┘
- */
-function cartesianProduct(spaces: string[][][]): string[][] {
-  if (spaces.length === 0) return [];
-  if (spaces.length === 1) return spaces[0];
-
-  let current = spaces[0];
-  for (let s = 1; s < spaces.length; s++) {
-    const next = spaces[s];
-    const numFieldsCurrent = current.length;
-    const numFieldsNext = next.length;
-    const numCombosCurrent = current[0]?.length ?? 0;
-    const numCombosNext = next[0]?.length ?? 0;
-    const totalCombos = numCombosCurrent * numCombosNext;
-
-    const result: string[][] = [];
-    for (let f = 0; f < numFieldsCurrent + numFieldsNext; f++) {
-      result.push(new Array(totalCombos));
-    }
-
-    let idx = 0;
-    for (let i = 0; i < numCombosCurrent; i++) {
-      for (let j = 0; j < numCombosNext; j++) {
-        for (let f = 0; f < numFieldsCurrent; f++) {
-          result[f][idx] = current[f][i];
-        }
-        for (let f = 0; f < numFieldsNext; f++) {
-          result[numFieldsCurrent + f][idx] = next[f][j];
-        }
-        idx++;
-      }
-    }
-
-    current = result;
-  }
-
-  return current;
-}
 
 /*
  * Cartesian product (×). Each child becomes a facet level; all combinations are enumerated.
@@ -116,10 +49,6 @@ export function cross(...args: AxisExpr[]): AxisExpr {
  *   │ Profit ──────▶   │ Sales ──────▶    │
  *   └──────────────────┴──────────────────┘
  *
- * TODO concat right now only supports single level of facet space. Hence it should only take string
- *      it does not work with output of cross, hierarchy
- *      and concat(concat(a,b),c) is essentially concat(a,b,c)
- *      Later if needed we can support multiple levels of concat
  */
 export function concat(...args: AxisExpr[]): AxisExpr {
   return { type: "concat" as const, children: args };
@@ -144,46 +73,45 @@ export function hierarchy(...fields: string[]): AxisExpr {
   return { type: "hierarchy", fields };
 }
 
-interface Branch {
-  dimensions: string[];
+export function dimSpecFields(spec: DimSpec): string[] {
+  switch (spec.type) {
+  case "none": return [];
+  case "simple": return [spec.field];
+  case "hierarchy": return spec.fields;
+  case "cross": {
+    const result: string[] = [];
+    for (const child of spec.children) {
+      result.push(...dimSpecFields(child));
+    }
+    return result;
+  }
+  // Concat UNION ALL requires all branches to have the same column count, so shorter branches
+  // get NULL-padded to the max. Original field names differ across branches, so they're aliased
+  // to __c__0, __c__1, ... For example, concat(hierarchy("region","country"), "department"):
+  //   hierarchy has 2 fields, simple has 1 → max is 2 → returns ["__c__0", "__c__1"]
+  //   SQL: SELECT "region" AS __c__0, "country" AS __c__1 ... UNION ALL SELECT "department" AS __c__0, NULL AS __c__1 ...
+  case "concat": {
+    const maxFields = Math.max(...spec.children.map(c => dimSpecFields(c).length));
+    return Array.from({ length: maxFields }, (_, i) => `__c__${i}`);
+  }
+  }
+}
+
+interface AxisIR {
+  dimSpec: DimSpec;
   measures: Measure[];
-  dimRemap?: Map<string, string>;
 }
 
-interface ResolvedAxis {
-  facetSpace: string[][];
-  branches: Branch[];
-}
 
-function buildInvertedIndex(facetSpace: string[][]): Map<string, number> {
+function buildInvertedIndex(facetSpace: (string | null)[][]): Map<string, number> {
   const index = new Map<string, number>();
   const numPositions = facetSpace[0]?.length ?? 0;
   for (let i = 0; i < numPositions; i++) {
-    const key = facetSpace.map(level => level[i]).join("\0");
+    const key = facetSpace.map(level => level[i] ?? "").join("\0");
     index.set(key, i);
   }
   return index;
 }
-
-function buildLookupKey(
-  branch: Branch,
-  groupResult: PivotGroupResult,
-  r: number,
-  currentMeasure: Measure | null
-): string {
-  const keyParts: string[] = [];
-  for (const dim of branch.dimensions) {
-    const colIdx = groupResult.columns.indexOf(dim);
-    let val = String(groupResult.data[colIdx][r]);
-    if (branch.dimRemap?.has(val)) val = branch.dimRemap.get(val)!;
-    keyParts.push(val);
-  }
-  if (currentMeasure) {
-    keyParts.push(currentMeasure.field);
-  }
-  return keyParts.join("\0");
-}
-
 
 /*
  * This is the entry point to using grid. GridDataModel converts data to GridDataViewmodel and feed it to renderer.
@@ -206,229 +134,263 @@ function buildLookupKey(
  * ```
  */
 export abstract class GridDataModel {
+  static readonly SRC_COL_PREFIX = "__src__";
+
   protected schema: Schema[];
   protected table: string;
-  private measureFields: Set<string>;
+  private schemaIndex: Map<string, number>;
 
   constructor(schema: Schema[], table: string) {
     this.schema = schema;
     this.table = table;
-    this.measureFields = new Set(
-      schema.filter(s => s.type === "measure").map(s => s.name)
-    );
+    this.schemaIndex = new Map(schema.map((s, i) => [s.name, i]));
+  }
+
+  // Concat operations produce synthetic columns to track which branch each row belongs to.
+  // Given a source table:
+  //
+  //   dept        | channel | revenue
+  //   ------------|---------|--------
+  //   Electronics | Online  | 100
+  //   Apparel     | Retail  | 200
+  //
+  // concat(simple("dept"), simple("channel")) produces:
+  //
+  //   __src__0 | __c__0
+  //   ---------|------------
+  //   dept     | Electronics
+  //   dept     | Apparel
+  //   channel  | Online
+  //   channel  | Retail
+  //
+  // __src__0 disambiguates rows so that values from different branches are not mixed up
+  // during facet extraction. Override in subclasses to customize the naming.
+  protected srcColName(n: number): string {
+    return `${GridDataModel.SRC_COL_PREFIX}${n}`;
+  }
+
+  protected isSrcCol(name: string): boolean {
+    return name.startsWith(GridDataModel.SRC_COL_PREFIX);
+  }
+
+  private extractFacetSpace(
+    result: RawDataFromIR,
+    startCol: number,
+    count: number,
+    numResultRows: number,
+  ): (string | null)[][] {
+    const srcColIndices: number[] = [];
+    for (let i = 0; i < result.columns.length; i++) {
+      if (this.isSrcCol(result.columns[i])) srcColIndices.push(i);
+    }
+
+    const seen = new Set<string>();
+    const facets: (string | null)[][] = Array.from({ length: count }, () => []);
+
+    for (let r = 0; r < numResultRows; r++) {
+      const key: string[] = [];
+      for (let d = startCol; d < startCol + count; d++) {
+        key.push(result.data[d][r] ?? null);
+      }
+      for (const si of srcColIndices) {
+        key.push(String(result.data[si][r] ?? ""));
+      }
+      const keyStr = key.join("\0");
+      if (seen.has(keyStr)) continue;
+      seen.add(keyStr);
+      for (let d = 0; d < count; d++) {
+        facets[d].push(result.data[startCol + d][r]);
+      }
+    }
+    return facets;
   }
 
   abstract resolveFacetValues(query: FacetQuery): Promise<string[][]>;
 
-  abstract getData(query: PivotQuery): Promise<PivotGroupResult[]>;
+  /*
+   * Subclasses interpret the IR to fetch aggregated data. A SQL-based subclass generates CTEs from
+   * the DimSpec tree and runs a single query; an in-memory subclass could evaluate the same IR
+   * using array operations.
+   *
+   * The returned RawDataFromIR must be in column-major format: `data[i]` is the full column array
+   * for `columns[i]`. Dimension columns come first (in tree-traversal order of the DimSpec),
+   * followed by measure columns. Rows must be ordered by the DimSpec's natural ordering so that
+   * the caller can extract facet spaces directly from the result.
+   *
+   *   { columns: ["region", "department", "revenue"],
+   *     data: [
+   *       ["NA", "NA", "EU", "EU"],         // region
+   *       ["Elec", "App", "Elec", "App"],   // department
+   *       [8150, 1670, 5650, 1730]           // revenue (measure)
+   *     ] }
+   */
+  abstract getData(ir: IR): Promise<RawDataFromIR>;
 
-  private async resolveAxis(expr: AxisExpr): Promise<ResolvedAxis> {
+  /*
+   * Transforms a user-facing AxisExpr tree into an axis-agnostic AxisIR (DimSpec + Measure[]).
+   *
+   * AxisExpr is a high-level description mixing dimensions and measures (e.g. cross("region", "revenue")).
+   * buildAxisIR separates them: dimensions become a DimSpec tree describing how to build the
+   * dimensional subquery (simple, hierarchy, cross, concat), and measures are collected into a flat list.
+   *
+   *   "region"                          → dimSpec: simple("region"),              measures: []
+   *   "revenue"                         → dimSpec: none,                          measures: [sum(revenue)]
+   *   cross("region", "revenue")        → dimSpec: cross([simple("region")]),     measures: [sum(revenue)]
+   *   hierarchy("region","country")     → dimSpec: hierarchy(["region","country"]), measures: []
+   *   concat("revenue","cost")          → dimSpec: none,                          measures: [sum(revenue), sum(cost)]
+   *   concat("department","channel")    → dimSpec: concat([simple(..), simple(..)]), measures: []
+   *
+   * The DimSpec tree drives SQL generation / in memory data operation: The upstrem needs to support how to decode the
+   * table algebra operator like concat, cross, hierarchy etc.
+   */
+  buildAxisIR(expr: AxisExpr): AxisIR {
     if (typeof expr === "string") {
-      if (this.measureFields.has(expr)) {
-        const col = this.schema.find(s => s.name === expr)!;
-        // TODO[claude] use a default config to produce default values
+      const col = this.schema[this.schemaIndex.get(expr)!];
+      if (!col) throw new Error(`Column name not found. You have added ${expr} in row/column config but it's not found in schema.`
+        + `Fields in schemas are ${Array.from(this.schemaIndex.keys()).join(", ")}. This is likely a typo.`);
+      if (col.type === "measure") {
+        // TODO instead of adding default aggregation funciton here - merge with default config on top level of execution
         const aggregation = (col as MeasureSchema).aggregateFn ?? "sum";
-        return {
-          facetSpace: [[expr]],
-          branches: [{ dimensions: [], measures: [{ field: expr, aggregation }] }],
-        };
+        return { dimSpec: { type: "none" }, measures: [{ field: expr, aggregation }] };
       }
-      const result = await this.resolveFacetValues({ type: "facet", fields: [expr], mode: "distinct" });
-      return {
-        facetSpace: result,
-        branches: [{ dimensions: [expr], measures: [] }],
-      };
+      return { dimSpec: { type: "simple", field: expr }, measures: [] };
     }
 
     if (expr.type === "hierarchy") {
-      const result = await this.resolveFacetValues({ type: "facet", fields: expr.fields, mode: "group" });
-      return {
-        facetSpace: result,
-        branches: [{ dimensions: expr.fields, measures: [] }],
-      };
+      return { dimSpec: { type: "hierarchy", fields: expr.fields }, measures: [] };
     }
 
     if (expr.type === "cross") {
-      const bareDims = new Map<string, number>();
-      for (const child of expr.children) {
-        if (typeof child === "string" && !this.measureFields.has(child)) {
-          bareDims.set(child, bareDims.size);
+      const childIRs = expr.children.map(c => this.buildAxisIR(c));
+      const dimChildren: DimSpec[] = [];
+      const measures: Measure[] = [];
+      for (const child of childIRs) {
+        if (child.dimSpec.type !== "none") {
+          dimChildren.push(child.dimSpec);
         }
+        measures.push(...child.measures);
       }
-
-      let batchedFacets: string[][] | null = null;
-      if (bareDims.size > 1) {
-        batchedFacets = await this.resolveFacetValues({ type: "facet", fields: [...bareDims.keys()], mode: "distinct" });
-      }
-
-      const childResults: ResolvedAxis[] = [];
-      for (const child of expr.children) {
-        const batchIdx = typeof child === "string" ? bareDims.get(child) : undefined;
-        if (batchedFacets && batchIdx !== undefined) {
-          childResults.push({
-            facetSpace: [batchedFacets[batchIdx]],
-            branches: [{ dimensions: [child as string], measures: [] }],
-          });
-        } else {
-          childResults.push(await this.resolveAxis(child));
-        }
-      }
-
-      const facetSpace = cartesianProduct(childResults.map(r => r.facetSpace));
-
-      let branches = childResults[0].branches;
-      for (let i = 1; i < childResults.length; i++) {
-        const next = childResults[i].branches;
-        const combined: Branch[] = [];
-        for (const a of branches) {
-          for (const b of next) {
-            combined.push({
-              dimensions: [...a.dimensions, ...b.dimensions],
-              measures: [...a.measures, ...b.measures],
-            });
-          }
-        }
-        branches = combined;
-      }
-
-      return { facetSpace, branches };
+      const dimSpec: DimSpec = dimChildren.length === 0
+        ? { type: "none" }
+        : { type: "cross", children: dimChildren };
+      return { dimSpec, measures };
     }
 
     // concat
-    const childResults: ResolvedAxis[] = [];
-    const resolved = await Promise.all(expr.children.map(child => this.resolveAxis(child)));
-    childResults.push(...resolved);
-
-    const concatFacets: string[] = [];
-    const childRemaps: Map<string, string>[] = expr.children.map(() => new Map());
-    const seen = new Map<string, [index: number, childIdx: number, qualified: boolean]>();
-    for (let ci = 0; ci < childResults.length; ci++) {
-      const childFacet = childResults[ci].facetSpace[0] ?? [];
-      for (const v of childFacet) {
-        const prev = seen.get(v);
-        if (prev && prev[1] !== ci) {
-          if (!prev[2]) {
-            const prevQualified = `${this.getSourceName(expr.children[prev[1]])}/${v}`;
-            concatFacets[prev[0]] = prevQualified;
-            childRemaps[prev[1]].set(v, prevQualified);
-            prev[2] = true;
-          }
-          const qualified = `${this.getSourceName(expr.children[ci])}/${v}`;
-          concatFacets.push(qualified);
-          childRemaps[ci].set(v, qualified);
-        } else {
-          seen.set(v, [concatFacets.length, ci, false]);
-          concatFacets.push(v);
-        }
-      }
+    const childIRs = expr.children.map(c => this.buildAxisIR(c));
+    const dimChildren: DimSpec[] = [];
+    const measures: Measure[] = [];
+    for (const child of childIRs) {
+      dimChildren.push(child.dimSpec);
+      measures.push(...child.measures);
     }
-
-    const allBranches: Branch[] = [];
-    for (let ci = 0; ci < childResults.length; ci++) {
-      const remap = childRemaps[ci];
-      for (const branch of childResults[ci].branches) {
-        allBranches.push(remap.size > 0 ? { ...branch, dimRemap: remap } : branch);
-      }
-    }
-
-    return {
-      facetSpace: [concatFacets],
-      branches: allBranches,
-    };
-  }
-
-  private getSourceName(expr: AxisExpr): string {
-    if (typeof expr === "string") return expr;
-    if (expr.type === "hierarchy") return expr.fields[0];
-    return expr.type;
+    const dimSpec: DimSpec = dimChildren.some(d => d.type !== "none")
+      ? { type: "concat", children: dimChildren }
+      : { type: "none" };
+    return { dimSpec, measures };
   }
 
   async getViewModelData(config: PivotConfig): Promise<GridDataViewModel> {
-    // Get the facet values (dimensional values) -> based on table algebra (concat, hierarchy, cross) create facet space
-    // We get the data from server but the facet space calculation + table reshaping is done in client
-    // This can become a potential point in failure if a high cardinality field is added with cross operation (as it
-    // creates cartesia product) leading to huge fan out.
-    // TODO detect high cardinality fields and throw an error (like tableau does)
-    const [colResult, rowResult] = await Promise.all([
-      this.resolveAxis(config.columns),
-      config.rows ? this.resolveAxis(config.rows) : null,
-    ]);
+    const [colIR, rowIR] = [config.columns, config.rows].map(e => this.buildAxisIR(e));
+    const [colDimCount, rowDimCount] = [colIR, rowIR].map(ir => dimSpecFields(ir.dimSpec).length);
+    const measures = [...rowIR.measures, ...colIR.measures];
 
-    // Based on the facet space, create inverted index for lookups later
-    // When data appears from server this reverse lookup used to assign cells from data from server -> data to pivot
-    // table leading to reshaping of table
-    const colIndex = buildInvertedIndex(colResult.facetSpace);
-    const rowIndex = rowResult ? buildInvertedIndex(rowResult.facetSpace) : new Map([["", 0]]);
-    const rowBranches = rowResult?.branches ?? [{ dimensions: [], measures: [] }];
-
-    // Concat across multiple dimensions is a tricky operation. For example
-    // | region | channel  | revenue |
-    // |--------|----------|---------|
-    // | East   | Online   | 100     |
-    // | East   | Retail   | 200     |
-    // | West   | Online   | 300     |
-    // | West   | Wholesale| 400     |
-    //
-    // If we do concat(region, channel) sum(revenue) here is what we get
-    // | regionxchannel | revenue |
-    // |----------------|---------|
-    // | East            | 300     |
-    // | West            | 700     |
-    // | Online          | 400     |
-    // | Retail          | 600     |
-    // | Wholesale       | 100     |
-    //
-    // So you can see group by region union all group by channel is ran on server
-    // Since two group by-s are run with different dimensional values, it creates two branches
-    // So for concat mulitiple branches (grouped data) would be returned from server, other wise one
-    const groups: { dimensions: string[]; measures: Measure[] }[] = [];
-    const branchPairs: [Branch, Branch][] = [];
-    for (const rowBranch of rowBranches) {
-      for (const colBranch of colResult.branches) {
-        groups.push({
-          dimensions: [...rowBranch.dimensions, ...colBranch.dimensions],
-          measures: [...rowBranch.measures, ...colBranch.measures],
-        });
-        branchPairs.push([rowBranch, colBranch]);
-      }
+    // The upstream (SQL / data layer) has no concept of rows vs columns — it only sees dimensions
+    // and measures. We combine both axes into a single DimSpec (row dims as left child, col dims
+    // as right child) so the server executes one query. After results come back, we use
+    // rowDimCount/colDimCount to split the result columns back into row and col facet spaces.
+    let combinedDimSpec: DimSpec;
+    if (rowIR.dimSpec.type !== "none" && colIR.dimSpec.type !== "none") {
+      combinedDimSpec = { type: "cross", children: [rowIR.dimSpec, colIR.dimSpec] };
+    } else if (rowIR.dimSpec.type !== "none") {
+      combinedDimSpec = rowIR.dimSpec;
+    } else if (colIR.dimSpec.type !== "none") {
+      combinedDimSpec = colIR.dimSpec;
+    } else {
+      combinedDimSpec = { type: "none" };
     }
 
-    // Get the raw data from server, this is aggregated data but still in standard sql table format (column major
-    // representation)
-    const results = await this.getData({ type: "pivot", groups });
+    const result = await this.getData({ dimSpec: combinedDimSpec, measures });
+    const totalDimCount = rowDimCount + colDimCount;
+    const numResultRows = result.data[0]?.length ?? 0;
 
-    // Prepare stub for output data. Here the data reshaping is done
-    const numCols = colResult.facetSpace[0].length;
-    const numRows = rowResult ? (rowResult.facetSpace[0].length) : 1;
+    // The result's dimension columns follow the DimSpec tree traversal order. Since we always
+    // construct combinedDimSpec as cross(rowDimSpec, colDimSpec), row dims occupy columns
+    // 0..rowDimCount and col dims occupy rowDimCount..rowDimCount+colDimCount. We extract
+    // each axis's facet space by slicing the corresponding column range.
+    const [colFacetSpace, rowFacetSpace] = [[rowDimCount, colDimCount], [0, rowDimCount]]
+      .map(([startCol, colCount]) => colCount > 0 ? this.extractFacetSpace(result, startCol, colCount, numResultRows) : []);
+
+    // colFacetSpace/rowFacetSpace contain only dimension facet levels (no measures).
+    // Here we expand each dimension position by repeating it once per measure, and append
+    // a new facet level with the measure names.
+    // e.g. baseFacets=[["Elec","Apparel"]], measures=[revenue,cost] →
+    //   [["Elec","Elec","Apparel","Apparel"], ["revenue","cost","revenue","cost"]]
+    // If there are no dimensions (dimCount=0), the facet is just the measure names.
+    const [fullColFacets, fullRowFacets] = ([
+      [colFacetSpace, colDimCount, colIR.measures],
+      [rowFacetSpace, rowDimCount, rowIR.measures],
+    ] as [(string | null)[][], number, Measure[]][]).map(([baseFacets, dimCount, measures]) => {
+      if (measures.length > 0 && dimCount > 0) {
+        const numBasePositions = baseFacets[0]?.length ?? 1;
+        const measureLevel: (string | null)[] = [];
+        const expandedLevels: (string | null)[][] = baseFacets.map(() => []);
+        for (let i = 0; i < numBasePositions; i++) {
+          for (const m of measures) {
+            for (let level = 0; level < baseFacets.length; level++) {
+              expandedLevels[level].push(baseFacets[level][i]);
+            }
+            measureLevel.push(m.field);
+          }
+        }
+        return [...expandedLevels, measureLevel];
+      } else if (dimCount === 0 && measures.length > 0) {
+        return [measures.map(m => m.field)];
+      }
+      return baseFacets;
+    });
+
+    const [colIndex, rowIndex] = [fullColFacets, fullRowFacets].map(facets => buildInvertedIndex(facets));
+
+    // Row + column facets are prepared, setup to prepare value cells.
+    // This is the final part of reshapin the table
+    const numCols = fullColFacets[0].length;
+    const numRows = fullRowFacets[0].length;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const data: any[][] = [];
     for (let c = 0; c < numCols; c++) {
-      const col = new Array(numRows).fill(null);
-      data.push(col);
+      data.push(new Array(numRows).fill(null));
     }
 
-    // Iterate over data returned by server and reshape it to pivot table format
-    for (let gi = 0; gi < results.length; gi++) {
-      const groupResult = results[gi];
-      const [rowBranch, colBranch] = branchPairs[gi];
-      const measures = [...rowBranch.measures, ...colBranch.measures];
-      const totalDimCount = rowBranch.dimensions.length + colBranch.dimensions.length;
-      const numResultRows = groupResult.data[0]?.length ?? 0;
+    // From the table returned by upstream (flat table in column-major format) -> reshaped table
+    // Following is value cell extraction.
+    for (let r = 0; r < numResultRows; r++) {
+      const [colDimParts, rowKeyParts] = [[rowDimCount, totalDimCount], [0, rowDimCount]].map(([start, end]) => {
+        const parts: string[] = [];
+        for (let d = start; d < end; d++) {
+          parts.push(result.data[d][r] ?? null);
+        }
+        return parts;
+      });
 
-      for (let r = 0; r < numResultRows; r++) {
-        for (let mi = 0; mi < measures.length; mi++) {
-          const value = groupResult.data[totalDimCount + mi][r];
-          const rowKey = buildLookupKey(rowBranch, groupResult, r, rowBranch.measures.length > 0 ? measures[mi] : null);
-          const colKey = buildLookupKey(colBranch, groupResult, r, colBranch.measures.length > 0 ? measures[mi] : null);
-          const rowIdx = rowIndex.get(rowKey);
-          const colIdx = colIndex.get(colKey);
-          if (rowIdx !== undefined && colIdx !== undefined) {
-            data[colIdx][rowIdx] = value;
-          }
+      for (let mi = 0; mi < measures.length; mi++) {
+        const value = result.data[totalDimCount + mi][r];
+
+        const [colIdx, rowIdx] = ([
+          [colDimParts, colIR.measures.length > 0, colIndex],
+          [rowKeyParts, rowIR.measures.length > 0, rowIndex],
+        ] as [string[], boolean, Map<string, number>][]).map(([dimParts, hasMeasures, index]) => {
+          const key = [...dimParts];
+          if (hasMeasures) key.push(measures[mi].field);
+          return index.get(key.join("\0"));
+        });
+
+        if (colIdx !== undefined && rowIdx !== undefined) {
+          data[colIdx][rowIdx] = value;
         }
       }
     }
 
-    return new GridDataViewModel(data, colResult.facetSpace, rowResult?.facetSpace);
+    return new GridDataViewModel(data, fullColFacets, fullRowFacets);
   }
 }

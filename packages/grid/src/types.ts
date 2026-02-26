@@ -1,7 +1,5 @@
 import {ColDef} from "./renderer/types";
 
-// ── Existing types (carried over) ────────────────────────
-
 // TODO [Later] remember there might be custom aggregate function as well
 //   (those functions will be registered separately and the name will be used here)
 type AggregateFn = "sum" | "avg" | "count" | "min" | "max";
@@ -29,11 +27,9 @@ export type AxisExpr =
   | { type: "hierarchy"; fields: string[] };
 
 export interface PivotConfig {
-  rows?: AxisExpr;
+  rows: AxisExpr;
   columns: AxisExpr;
 }
-
-// ── IR types (new) ───────────────────────────────────────
 
 export interface Filter {
   field: string;
@@ -48,37 +44,33 @@ export interface FacetQuery {
   filters?: Filter[];
 }
 
-export interface PivotQuery {
-  type: "pivot";
-  groups: PivotGroup[];
-  filters?: Filter[];
-}
-
-export interface PivotGroup {
-  dimensions: string[];
-  measures: Measure[];
-  filters?: Filter[];
-}
-
 export interface Measure {
   field: string;
   aggregation: AggregateFn;
 }
 
-// ── Result types ─────────────────────────────────────────
+export type DimSpec =
+  | { type: "none" }
+  | { type: "simple"; field: string }
+  | { type: "hierarchy"; fields: string[] }
+  | { type: "cross"; children: DimSpec[] }
+  | { type: "concat"; children: DimSpec[] };
 
-export interface PivotGroupResult {
-  columns: string[];
-  data: any[][];          // column-major
+export interface IR {
+  dimSpec: DimSpec;
+  measures: Measure[];
 }
 
-// ── ViewModel config (carried over) ─────────────────────
+export interface RawDataFromIR {
+  columns: string[];
+  data: any[][];
+}
 
 export interface ViewModelDataTransformationConfig {
   columns: string[];
   data: any[][];
   pivotConfig?: {
-    rows?: AxisExpr;
+    rows: AxisExpr;
     columns: AxisExpr;
   };
   colDefs?: ColDef[];
