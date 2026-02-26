@@ -325,7 +325,7 @@ describe("GridDataModel pivot (SUM aggregation)", () => {
       // NA/USA/Online should be one of the rows — check specific cells
       const rowFacets = slice.rowFacets!;
       const naUsaOnlineIdx = rowFacets.findIndex(
-        (r: string[]) => r[0] === "North America" && r[1] === "USA" && r[2] === "Online"
+        (r: (string | null)[]) => r[0] === "North America" && r[1] === "USA" && r[2] === "Online"
       );
       expect(naUsaOnlineIdx).to.be.greaterThanOrEqual(0);
       expect(slice.data![0][naUsaOnlineIdx]).to.equal(4750);   // Elec/revenue
@@ -335,7 +335,7 @@ describe("GridDataModel pivot (SUM aggregation)", () => {
 
       // Europe/UK/Wholesale should be null (no data)
       const euroUkWholesaleIdx = rowFacets.findIndex(
-        (r: string[]) => r[0] === "Europe" && r[1] === "UK" && r[2] === "Wholesale"
+        (r: (string | null)[]) => r[0] === "Europe" && r[1] === "UK" && r[2] === "Wholesale"
       );
       if (euroUkWholesaleIdx >= 0) {
         expect(slice.data![0][euroUkWholesaleIdx]).to.equal(null);

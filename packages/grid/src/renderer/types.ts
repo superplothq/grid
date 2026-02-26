@@ -16,8 +16,8 @@ export type GridWin = Window & {
 export interface SliceResult {
   numRows: number;
   numCols: number;
-  columnFacets?: string[][];
-  rowFacets?: string[][];
+  columnFacets?: (string | null)[][];
+  rowFacets?: (string | null)[][];
   data?: any[][];
 }
 
