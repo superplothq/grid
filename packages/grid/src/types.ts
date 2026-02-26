@@ -26,12 +26,12 @@ export type AxisExpr =
   | { type: "concat"; children: AxisExpr[] }
   | { type: "hierarchy"; fields: string[] };
 
-export interface DrilldownPath {
+export interface DimensionalProjectionPath {
   open: string[] | "*";
-  next?: DrilldownPath;
+  next?: DimensionalProjectionPath;
 }
 
-export type AxisConfig = { expr: AxisExpr; drilldown?: DrilldownPath[] };
+export type AxisConfig = { expr: AxisExpr; projection?: DimensionalProjectionPath[] };
 
 export interface PivotConfig {
   rows: AxisExpr | AxisConfig;

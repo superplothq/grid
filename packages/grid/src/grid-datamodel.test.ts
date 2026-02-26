@@ -855,7 +855,7 @@ describe("GridDataModel pivot (SUM aggregation)", () => {
     it("hierarchy base drilldown (L0 only)", async () => {
       const model = await makeModel();
       const vm = await model.getViewModelData({
-        rows: { expr: hierarchy("region", "country", "city"), drilldown: [] },
+        rows: { expr: hierarchy("region", "country", "city"), projection: [] },
         columns: cross(concat("department", "channel"), "revenue"),
       });
 
@@ -890,7 +890,7 @@ describe("GridDataModel pivot (SUM aggregation)", () => {
     it("selective drilldown (expand country for NA only)", async () => {
       const model = await makeModel();
       const vm = await model.getViewModelData({
-        rows: { expr: hierarchy("region", "country", "city"), drilldown: [{ open: ["North America"] }] },
+        rows: { expr: hierarchy("region", "country", "city"), projection: [{ open: ["North America"] }] },
         columns: cross(concat("department", "channel"), "revenue"),
       });
 
@@ -920,7 +920,7 @@ describe("GridDataModel pivot (SUM aggregation)", () => {
     it("progressive drilldown (all countries, city for USA only)", async () => {
       const model = await makeModel();
       const vm = await model.getViewModelData({
-        rows: { expr: hierarchy("region", "country", "city"), drilldown: [{ open: "*", next: { open: ["USA"] } }] },
+        rows: { expr: hierarchy("region", "country", "city"), projection: [{ open: "*", next: { open: ["USA"] } }] },
         columns: cross(concat("department", "channel"), "revenue"),
       });
 
@@ -948,8 +948,8 @@ describe("GridDataModel pivot (SUM aggregation)", () => {
     it("drilldown on both axes (base state)", async () => {
       const model = await makeModel();
       const vm = await model.getViewModelData({
-        rows: { expr: hierarchy("region", "country"), drilldown: [] },
-        columns: { expr: cross(hierarchy("department", "product"), concat("revenue", "cost")), drilldown: [] },
+        rows: { expr: hierarchy("region", "country"), projection: [] },
+        columns: { expr: cross(hierarchy("department", "product"), concat("revenue", "cost")), projection: [] },
       });
 
       expect(vm.rowFacets).to.deep.equal([
@@ -975,8 +975,8 @@ describe("GridDataModel pivot (SUM aggregation)", () => {
     it("drilldown on both axes (fully expanded)", async () => {
       const model = await makeModel();
       const vm = await model.getViewModelData({
-        rows: { expr: hierarchy("region", "country"), drilldown: [{ open: "*" }] },
-        columns: { expr: cross(hierarchy("department", "product"), concat("revenue", "cost")), drilldown: [{ open: "*" }] },
+        rows: { expr: hierarchy("region", "country"), projection: [{ open: "*" }] },
+        columns: { expr: cross(hierarchy("department", "product"), concat("revenue", "cost")), projection: [{ open: "*" }] },
       });
 
       expect(vm.rowFacets).to.deep.equal([
@@ -1043,7 +1043,7 @@ describe("GridDataModel pivot (SUM aggregation)", () => {
     it("concat hierarchy L0 only", async () => {
       const model = await makeModel();
       const vm = await model.getViewModelData({
-        rows: { expr: concatRows, drilldown: [] },
+        rows: { expr: concatRows, projection: [] },
         columns: "revenue",
       });
 
@@ -1063,7 +1063,7 @@ describe("GridDataModel pivot (SUM aggregation)", () => {
     it("concat hierarchy L1 wildcard", async () => {
       const model = await makeModel();
       const vm = await model.getViewModelData({
-        rows: { expr: concatRows, drilldown: [{ open: "*" }] },
+        rows: { expr: concatRows, projection: [{ open: "*" }] },
         columns: "revenue",
       });
 
@@ -1085,7 +1085,7 @@ describe("GridDataModel pivot (SUM aggregation)", () => {
     it("concat hierarchy L2 wildcard", async () => {
       const model = await makeModel();
       const vm = await model.getViewModelData({
-        rows: { expr: concatRows, drilldown: [{ open: "*", next: { open: "*" } }] },
+        rows: { expr: concatRows, projection: [{ open: "*", next: { open: "*" } }] },
         columns: "revenue",
       });
 
@@ -1109,7 +1109,7 @@ describe("GridDataModel pivot (SUM aggregation)", () => {
     it("concat hierarchy L1 selective — expand country for Europe only", async () => {
       const model = await makeModel();
       const vm = await model.getViewModelData({
-        rows: { expr: concatRows, drilldown: [{ open: ["Europe"] }] },
+        rows: { expr: concatRows, projection: [{ open: ["Europe"] }] },
         columns: "revenue",
       });
 
@@ -1129,7 +1129,7 @@ describe("GridDataModel pivot (SUM aggregation)", () => {
     it("concat hierarchy L1 selective — expand product for Electronics only", async () => {
       const model = await makeModel();
       const vm = await model.getViewModelData({
-        rows: { expr: concatRows, drilldown: [{ open: ["Electronics"] }] },
+        rows: { expr: concatRows, projection: [{ open: ["Electronics"] }] },
         columns: "revenue",
       });
 
@@ -1149,7 +1149,7 @@ describe("GridDataModel pivot (SUM aggregation)", () => {
     it("concat hierarchy L1 selective + L2 wildcard", async () => {
       const model = await makeModel();
       const vm = await model.getViewModelData({
-        rows: { expr: concatRows, drilldown: [{ open: ["Europe"], next: { open: "*" } }] },
+        rows: { expr: concatRows, projection: [{ open: ["Europe"], next: { open: "*" } }] },
         columns: "revenue",
       });
 
@@ -1187,7 +1187,7 @@ describe("GridDataModel pivot (SUM aggregation)", () => {
     it("cross-hierarchy L0 only", async () => {
       const model = await makeModel();
       const vm = await model.getViewModelData({
-        rows: { expr: crossHierRows, drilldown: [] },
+        rows: { expr: crossHierRows, projection: [] },
         columns: "revenue",
       });
 
@@ -1206,7 +1206,7 @@ describe("GridDataModel pivot (SUM aggregation)", () => {
     it("cross-hierarchy L1 wildcard", async () => {
       const model = await makeModel();
       const vm = await model.getViewModelData({
-        rows: { expr: crossHierRows, drilldown: [{ open: "*" }] },
+        rows: { expr: crossHierRows, projection: [{ open: "*" }] },
         columns: "revenue",
       });
 
@@ -1225,7 +1225,7 @@ describe("GridDataModel pivot (SUM aggregation)", () => {
     it("cross-hierarchy L2 wildcard", async () => {
       const model = await makeModel();
       const vm = await model.getViewModelData({
-        rows: { expr: crossHierRows, drilldown: [{ open: "*", next: { open: "*" } }] },
+        rows: { expr: crossHierRows, projection: [{ open: "*", next: { open: "*" } }] },
         columns: "revenue",
       });
 
@@ -1247,7 +1247,7 @@ describe("GridDataModel pivot (SUM aggregation)", () => {
     it("cross-hierarchy L1+L2 selective — expand product for Electronics only", async () => {
       const model = await makeModel();
       const vm = await model.getViewModelData({
-        rows: { expr: crossHierRows, drilldown: [{ open: "*", next: { open: ["Electronics"] } }] },
+        rows: { expr: crossHierRows, projection: [{ open: "*", next: { open: ["Electronics"] } }] },
         columns: "revenue",
       });
 
@@ -1285,7 +1285,7 @@ describe("GridDataModel pivot (SUM aggregation)", () => {
     it("nested-cross L0 only", async () => {
       const model = await makeModel();
       const vm = await model.getViewModelData({
-        rows: { expr: nestedCrossRows, drilldown: [] },
+        rows: { expr: nestedCrossRows, projection: [] },
         columns: "revenue",
       });
 
@@ -1305,7 +1305,7 @@ describe("GridDataModel pivot (SUM aggregation)", () => {
     it("nested-cross L1 wildcard", async () => {
       const model = await makeModel();
       const vm = await model.getViewModelData({
-        rows: { expr: nestedCrossRows, drilldown: [{ open: "*" }] },
+        rows: { expr: nestedCrossRows, projection: [{ open: "*" }] },
         columns: "revenue",
       });
 
@@ -1328,7 +1328,7 @@ describe("GridDataModel pivot (SUM aggregation)", () => {
     it("nested-cross L2 wildcard", async () => {
       const model = await makeModel();
       const vm = await model.getViewModelData({
-        rows: { expr: nestedCrossRows, drilldown: [{ open: "*", next: { open: "*" } }] },
+        rows: { expr: nestedCrossRows, projection: [{ open: "*", next: { open: "*" } }] },
         columns: "revenue",
       });
 
@@ -1359,7 +1359,7 @@ describe("GridDataModel pivot (SUM aggregation)", () => {
     it("nested-cross L3 selective — expand product for Electronics only", async () => {
       const model = await makeModel();
       const vm = await model.getViewModelData({
-        rows: { expr: nestedCrossRows, drilldown: [{ open: "*", next: { open: "*", next: { open: ["Electronics"] } } }] },
+        rows: { expr: nestedCrossRows, projection: [{ open: "*", next: { open: "*", next: { open: ["Electronics"] } } }] },
         columns: "revenue",
       });
 
@@ -1405,7 +1405,7 @@ describe("GridDataModel pivot (SUM aggregation)", () => {
     it("cross(hier,hier) selective L1 + L2 — global chain gates second child", async () => {
       const model = await makeModel();
       const vm = await model.getViewModelData({
-        rows: { expr: crossHierHierRows, drilldown: [{ open: ["Europe"], next: { open: "*" } }] },
+        rows: { expr: crossHierHierRows, projection: [{ open: ["Europe"], next: { open: "*" } }] },
         // rows: { expr: crossHierHierRows, drilldown: [
         //   { open: ["Europe"], next: { open: "*" } },
         //   { open: ["Europe"], next: { open: ["London"] } },
@@ -1478,7 +1478,7 @@ describe("GridDataModel pivot (SUM aggregation)", () => {
       it("L0 only — regions and channels", async () => {
         const model = await makeModel();
         const vm = await model.getViewModelData({
-          rows: { expr: deepRows, drilldown: [] },
+          rows: { expr: deepRows, projection: [] },
           columns: "revenue",
         });
 
@@ -1496,7 +1496,7 @@ describe("GridDataModel pivot (SUM aggregation)", () => {
       it("L0+L1 — countries and channel×department", async () => {
         const model = await makeModel();
         const vm = await model.getViewModelData({
-          rows: { expr: deepRows, drilldown: [{ open: "*" }] },
+          rows: { expr: deepRows, projection: [{ open: "*" }] },
           columns: "revenue",
         });
 
@@ -1516,7 +1516,7 @@ describe("GridDataModel pivot (SUM aggregation)", () => {
       it("L0+L1+L2 — full expansion", async () => {
         const model = await makeModel();
         const vm = await model.getViewModelData({
-          rows: { expr: deepRows, drilldown: [{ open: "*", next: { open: "*" } }] },
+          rows: { expr: deepRows, projection: [{ open: "*", next: { open: "*" } }] },
           columns: "revenue",
         });
 
@@ -1540,7 +1540,7 @@ describe("GridDataModel pivot (SUM aggregation)", () => {
       it("selective drilldown — expand country for Europe only", async () => {
         const model = await makeModel();
         const vm = await model.getViewModelData({
-          rows: { expr: deepRows, drilldown: [{ open: ["Europe"] }] },
+          rows: { expr: deepRows, projection: [{ open: ["Europe"] }] },
           columns: "revenue",
         });
 
@@ -1579,7 +1579,7 @@ describe("GridDataModel pivot (SUM aggregation)", () => {
         const vm = await model.getViewModelData({
           rows: {
             expr: crossHierConcatRows,
-            drilldown: [
+            projection: [
               { open: ["North America"], next: { open: ["USA"], next: { open: "*", next: { open: ["Electronics"] } } } },
               { open: ["Europe"] },
             ],
@@ -1668,7 +1668,7 @@ describe("GridDataModel pivot (SUM aggregation)", () => {
       it("step — Europe cities expanded, NA collapsed", async () => {
         const model = await makeModel();
         const vm = await model.getViewModelData({
-          rows: { expr: hierarchy("region", "country", "city"), drilldown: [{ open: ["Europe"], next: { open: "*" } }] },
+          rows: { expr: hierarchy("region", "country", "city"), projection: [{ open: ["Europe"], next: { open: "*" } }] },
           columns: "revenue",
         });
 
@@ -1691,7 +1691,7 @@ describe("GridDataModel pivot (SUM aggregation)", () => {
         const vm = await model.getViewModelData({
           rows: {
             expr: hierarchy("region", "country", "city"),
-            drilldown: [
+            projection: [
               { open: ["Europe"], next: { open: "*" } },
               { open: ["Europe"], next: { open: ["Germany"] } },
             ],
@@ -1730,7 +1730,7 @@ describe("GridDataModel pivot (SUM aggregation)", () => {
         const vm = await model.getViewModelData({
           rows: {
             expr: hierarchy("region", "country", "city"),
-            drilldown: [
+            projection: [
               { open: ["Europe"], next: { open: "*" } },
               { open: ["Europe"], next: { open: ["Germany"] } },
               { open: ["North America"], next: { open: ["USA"], next: { open: "*" } } },
@@ -1762,7 +1762,7 @@ describe("GridDataModel pivot (SUM aggregation)", () => {
 
       // Base: region only
       const vm0 = await model.getViewModelData({
-        rows: { expr: hier4, drilldown: [] },
+        rows: { expr: hier4, projection: [] },
         columns: "revenue",
       });
       expect(vm0.rowFacets).to.deep.equal([
@@ -1774,7 +1774,7 @@ describe("GridDataModel pivot (SUM aggregation)", () => {
 
       // Open Europe → all Europe countries visible
       const vm1 = await model.getViewModelData({
-        rows: { expr: hier4, drilldown: [{ open: ["Europe"] }] },
+        rows: { expr: hier4, projection: [{ open: ["Europe"] }] },
         columns: "revenue",
       });
       expect(vm1.rowFacets).to.deep.equal([
@@ -1786,7 +1786,7 @@ describe("GridDataModel pivot (SUM aggregation)", () => {
 
       // Open Europe countries → all Europe cities visible
       const vm2 = await model.getViewModelData({
-        rows: { expr: hier4, drilldown: [{ open: ["Europe"], next: { open: "*" } }] },
+        rows: { expr: hier4, projection: [{ open: ["Europe"], next: { open: "*" } }] },
         columns: "revenue",
       });
       expect(vm2.rowFacets).to.deep.equal([
@@ -1800,7 +1800,7 @@ describe("GridDataModel pivot (SUM aggregation)", () => {
       const vm3 = await model.getViewModelData({
         rows: {
           expr: hier4,
-          drilldown: [
+          projection: [
             { open: ["Europe"], next: { open: "*" } },
             { open: ["North America"], next: { open: ["USA"] } },
           ],
@@ -1818,7 +1818,7 @@ describe("GridDataModel pivot (SUM aggregation)", () => {
       const vm4 = await model.getViewModelData({
         rows: {
           expr: hier4,
-          drilldown: [
+          projection: [
             { open: ["Europe"], next: { open: "*" } },
             { open: ["North America"], next: { open: ["USA"], next: { open: ["New York"] } } },
           ],
@@ -1844,7 +1844,7 @@ describe("GridDataModel pivot (SUM aggregation)", () => {
 
       // Step 0: base state — region only, child 1 invisible
       const vm0 = await model.getViewModelData({
-        rows: { expr: crossHH, drilldown: [] },
+        rows: { expr: crossHH, projection: [] },
         columns: "revenue",
       });
       expect(vm0.rowFacets).to.deep.equal([
@@ -1857,7 +1857,7 @@ describe("GridDataModel pivot (SUM aggregation)", () => {
 
       // Step 1: open Europe → Europe countries visible, NA collapsed
       const vm1 = await model.getViewModelData({
-        rows: { expr: crossHH, drilldown: [{ open: ["Europe"] }] },
+        rows: { expr: crossHH, projection: [{ open: ["Europe"] }] },
         columns: "revenue",
       });
       expect(vm1.rowFacets).to.deep.equal([
@@ -1870,7 +1870,7 @@ describe("GridDataModel pivot (SUM aggregation)", () => {
 
       // Step 2: open UK → Europe/UK cities visible, Europe/Germany stays at country, NA collapsed
       const vm2 = await model.getViewModelData({
-        rows: { expr: crossHH, drilldown: [{ open: ["Europe"], next: { open: ["UK"] } }] },
+        rows: { expr: crossHH, projection: [{ open: ["Europe"], next: { open: ["UK"] } }] },
         columns: "revenue",
       });
       expect(vm2.rowFacets).to.deep.equal([
@@ -1885,7 +1885,7 @@ describe("GridDataModel pivot (SUM aggregation)", () => {
       // Cross gating: EU/UK/London rows see child 1 (department base state), others don't.
       // Note: UK only has London in the data, so the city NOT IN (London) segment is empty.
       const vm3 = await model.getViewModelData({
-        rows: { expr: crossHH, drilldown: [{ open: ["Europe"], next: { open: ["UK"], next: { open: ["London"] } } }] },
+        rows: { expr: crossHH, projection: [{ open: ["Europe"], next: { open: ["UK"], next: { open: ["London"] } } }] },
         columns: "revenue",
       });
       expect(vm3.rowFacets).to.deep.equal([
@@ -1915,7 +1915,7 @@ describe("GridDataModel pivot (SUM aggregation)", () => {
       const vm4 = await model.getViewModelData({
         rows: {
           expr: crossHH,
-          drilldown: [
+          projection: [
             { open: ["Europe"], next: { open: ["UK"], next: { open: ["London"], next: { open: ["Electronics"] } } } },
             { open: ["North America"], next: { open: "*", next: { open: ["New York"] } } },
           ],
@@ -1972,7 +1972,7 @@ describe("GridDataModel pivot (SUM aggregation)", () => {
       const vm = await model.getViewModelData({
         rows: {
           expr: crossHHH,
-          drilldown: [
+          projection: [
             { open: ["Europe"], next: { open: ["UK"], next: { open: ["Electronics"], next: { open: ["Laptop"], next: { open: ["Online"] } } } } },
           ],
         },

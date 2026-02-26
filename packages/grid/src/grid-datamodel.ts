@@ -4,7 +4,7 @@ import {
   AxisExpr,
   CrossSegment,
   DimSpec,
-  DrilldownPath,
+  DimensionalProjectionPath,
   FacetQuery,
   HierarchySegment,
   IR,
@@ -114,9 +114,9 @@ interface LevelRange {
   end: number;
 }
 
-// Computes the [start, end] drilldown level range for a DimSpec node.
-// Drilldown operates on levels, not fields — this maps the tree structure to a flat
-// level numbering so applyDrilldownToNode knows which nodes a given level affects.
+// Computes the [start, end] dimensional projection level range for a DimSpec node.
+// Dimensional projection operates on levels, not fields — this maps the tree structure to a flat
+// level numbering so applyDimensionalProjectionToNode knows which nodes a given level affects.
 //
 // Rules:
 //   - cross/hierarchy children consume levels sequentially (each child increments)
@@ -162,7 +162,7 @@ function computeLevelRange(spec: DimSpec, currentLevel: number): LevelRange {
   }
 }
 
-function mergedOpenValuesAcrossDrilldownPaths(paths: DrilldownPath[]): "*" | string[] {
+function mergedOpenValuesAcrossProjectionPaths(paths: DimensionalProjectionPath[]): "*" | string[] {
   const seen = new Set<string>();
   for (const p of paths) {
     // if atleast one value is "*", meaning the whole level is open
@@ -178,8 +178,8 @@ function mergedOpenValuesAcrossDrilldownPaths(paths: DrilldownPath[]): "*" | str
   return values;
 }
 
-function advancePaths(paths: DrilldownPath[]): DrilldownPath[] {
-  const result: DrilldownPath[] = [];
+function advancePaths(paths: DimensionalProjectionPath[]): DimensionalProjectionPath[] {
+  const result: DimensionalProjectionPath[] = [];
   for (const p of paths) {
     if (p.next) result.push(p.next);
   }
@@ -192,9 +192,9 @@ function makeHierarchySegment(groupBy: string[], filter: SegmentFilter): Hierarc
 }
 
 /*
- * Produces mutually exclusive segments for a hierarchy with drilldown.
+ * Produces mutually exclusive segments for a hierarchy with dimensional projection.
  *
- * A hierarchy with drilldown needs data at different GROUP BY depths depending on which values
+ * A hierarchy with dimensional projection needs data at different GROUP BY depths depending on which values
  * the user has expanded. This function recursively partitions the data into segments — each
  * segment says "for this slice of data, aggregate to this depth, everything deeper is null."
  *
@@ -210,7 +210,7 @@ function makeHierarchySegment(groupBy: string[], filter: SegmentFilter): Hierarc
  * are mutually exclusive — no row matches two segments.
  *
  * Example: hierarchy(region, country, city, department) with:
- *   drilldown: [
+ *   projection: [
  *     { open: ["Europe"],        next: { open: "*" } },
  *     { open: ["North America"], next: { open: ["USA"], next: { open: ["New York"] } } },
  *   ]
@@ -235,7 +235,7 @@ function makeHierarchySegment(groupBy: string[], filter: SegmentFilter): Hierarc
  */
 function buildHierarchySegments(
   fields: string[],
-  paths: DrilldownPath[],
+  paths: DimensionalProjectionPath[],
   depth: number,
   conditions: SegmentFilter,
 ): HierarchySegment[] {
@@ -247,14 +247,14 @@ function buildHierarchySegments(
     return [makeHierarchySegment(fields.slice(0, depth + 1), conditions)];
   }
 
-  const merged = mergedOpenValuesAcrossDrilldownPaths(paths);
+  const merged = mergedOpenValuesAcrossProjectionPaths(paths);
 
   if (merged === "*") {
     return buildHierarchySegments(fields, advancePaths(paths), depth + 1, conditions);
   }
 
   // Tracks per n-1 column which n columns are opened
-  const valueNextPaths = new Map<string, DrilldownPath[]>();
+  const valueNextPaths = new Map<string, DimensionalProjectionPath[]>();
   for (const v of merged) valueNextPaths.set(v, []);
   for (const p of paths) {
     if (!p.next) continue;
@@ -305,12 +305,12 @@ function getFieldAtLevel(spec: DimSpec, targetLevel: number, currentLevel: numbe
 }
 
 interface WalkResult {
-  remainingPaths: DrilldownPath[];
+  remainingPaths: DimensionalProjectionPath[];
   selectiveFilters: { field: string; values: string[] }[];
   nextLevelReached: boolean;
 }
 
-function walkPathsThroughRange(paths: DrilldownPath[], spec: DimSpec, range: LevelRange, startLevel: number): WalkResult {
+function walkPathsThroughRange(paths: DimensionalProjectionPath[], spec: DimSpec, range: LevelRange, startLevel: number): WalkResult {
   let currentPaths = paths;
   const selectiveFilters: { field: string; values: string[] }[] = [];
 
@@ -319,7 +319,7 @@ function walkPathsThroughRange(paths: DrilldownPath[], spec: DimSpec, range: Lev
       return { remainingPaths: [], selectiveFilters, nextLevelReached: false };
     }
 
-    const merged = mergedOpenValuesAcrossDrilldownPaths(currentPaths);
+    const merged = mergedOpenValuesAcrossProjectionPaths(currentPaths);
     if (merged !== "*") {
       const field = getFieldAtLevel(spec, level, startLevel);
       if (field) selectiveFilters.push({ field, values: merged });
@@ -331,7 +331,7 @@ function walkPathsThroughRange(paths: DrilldownPath[], spec: DimSpec, range: Lev
   return { remainingPaths: currentPaths, selectiveFilters, nextLevelReached: true };
 }
 
-function applyDrilldownToNode(spec: DimSpec, paths: DrilldownPath[], currentLevel: number): DimSpec {
+function applyDimensionalProjectionToNode(spec: DimSpec, paths: DimensionalProjectionPath[], currentLevel: number): DimSpec {
   switch (spec.type) {
   case "none":
   case "simple":
@@ -339,7 +339,7 @@ function applyDrilldownToNode(spec: DimSpec, paths: DrilldownPath[], currentLeve
 
   case "concat": {
     const newChildren = spec.children.map(child =>
-      applyDrilldownToNode(child, paths, currentLevel /* concat does not contribute to level creation */)
+      applyDimensionalProjectionToNode(child, paths, currentLevel /* concat does not contribute to level creation */)
     );
     return { type: "concat", children: newChildren };
   }
@@ -347,7 +347,7 @@ function applyDrilldownToNode(spec: DimSpec, paths: DrilldownPath[], currentLeve
   case "hierarchy": {
     if (paths.length === 0) {
       // Base/collapsed state: only show the first level opened (e.g. region in hierarchy(region,country,city)).
-      // Deeper fields become NULL. Users open values via drilldown paths to reveal deeper levels.
+      // Deeper fields become NULL. Users open values via projection paths to reveal deeper levels.
       return { type: "hierarchy", fields: spec.fields, segments: [{ groupBy: [spec.fields[0]] }] };
     }
 
@@ -359,7 +359,7 @@ function applyDrilldownToNode(spec: DimSpec, paths: DrilldownPath[], currentLeve
   }
 
   /*
-   * Cross drilldown: paths flow left-to-right through children.
+   * Cross dimensional projection: paths flow left-to-right through children.
    *
    * Each child occupies a level range. walkPathsThroughRange walks paths through
    * a child's range level-by-level. If paths have selective (non-wildcard) values
@@ -424,14 +424,14 @@ function applyDrilldownToNode(spec: DimSpec, paths: DrilldownPath[], currentLeve
       lastReachableChildIdx = i;
 
       if (currentPaths.length === 0) {
-        newChildren.push(applyDrilldownToNode(child, [], level));
+        newChildren.push(applyDimensionalProjectionToNode(child, [], level));
         nextChildReached = false;
         level = childRange.end + 1;
         continue;
       }
 
       const walkResult = walkPathsThroughRange(currentPaths, child, childRange, level);
-      const newChild = applyDrilldownToNode(child, currentPaths, level);
+      const newChild = applyDimensionalProjectionToNode(child, currentPaths, level);
       newChildren.push(newChild);
 
       if (walkResult.selectiveFilters.length > 0) {
@@ -693,8 +693,8 @@ export abstract class GridDataModel {
     const [colConfig, rowConfig] = [config.columns, config.rows].map(normalizeAxisConfig);
     const [colIR, rowIR] = [colConfig.expr, rowConfig.expr].map(e => this.buildAxisIR(e));
 
-    if (colConfig.drilldown) colIR.dimSpec = applyDrilldownToNode(colIR.dimSpec, colConfig.drilldown, 0);
-    if (rowConfig.drilldown) rowIR.dimSpec = applyDrilldownToNode(rowIR.dimSpec, rowConfig.drilldown, 0);
+    if (colConfig.projection) colIR.dimSpec = applyDimensionalProjectionToNode(colIR.dimSpec, colConfig.projection, 0);
+    if (rowConfig.projection) rowIR.dimSpec = applyDimensionalProjectionToNode(rowIR.dimSpec, rowConfig.projection, 0);
     const [colDimCount, rowDimCount] = [colIR, rowIR].map(ir => dimSpecFields(ir.dimSpec).length);
     const measures = [...rowIR.measures, ...colIR.measures];
 
