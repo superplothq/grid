@@ -26,9 +26,31 @@ export type AxisExpr =
   | { type: "concat"; children: AxisExpr[] }
   | { type: "hierarchy"; fields: string[] };
 
+export interface DimensionalProjectionPath {
+  open: string[] | "*";
+  next?: DimensionalProjectionPath;
+}
+
+export type AxisConfig = { expr: AxisExpr; projection?: DimensionalProjectionPath[] };
+
 export interface PivotConfig {
-  rows: AxisExpr;
-  columns: AxisExpr;
+  rows: AxisExpr | AxisConfig;
+  columns: AxisExpr | AxisConfig;
+}
+
+export interface SegmentFilter {
+  pass: { field: string; values: string[] }[];
+  fail: { field: string; values: string[] }[];
+}
+
+export interface HierarchySegment {
+  groupBy: string[];
+  filter?: SegmentFilter;
+}
+
+export interface CrossSegment {
+  visibleChildren: number;
+  filter?: SegmentFilter;
 }
 
 export interface Filter {
@@ -52,8 +74,8 @@ export interface Measure {
 export type DimSpec =
   | { type: "none" }
   | { type: "simple"; field: string }
-  | { type: "hierarchy"; fields: string[] }
-  | { type: "cross"; children: DimSpec[] }
+  | { type: "hierarchy"; fields: string[]; segments?: HierarchySegment[] }
+  | { type: "cross"; children: DimSpec[]; segments?: CrossSegment[] }
   | { type: "concat"; children: DimSpec[] };
 
 export interface IR {
