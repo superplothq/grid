@@ -69,8 +69,8 @@ describe("GridDataModel pivot (SUM aggregation)", () => {
   // North America/Apparel:     rows 3,4,7,10,11,22   → SUM revenue = 300+350+250+280+200+290 = 1670
   // Europe/Electronics:        rows 12,13,16,17,23    → SUM revenue = 1400+850+1300+750+1350 = 5650
   // Europe/Apparel:            rows 14,15,18,19,21    → SUM revenue = 400+320+350+280+380 = 1730
-  describe("Simple pivot", () => {
-    it("rows=region, columns=cross(department, revenue)", async () => {
+  describe("[ported] Simple pivot", () => {
+    it("[ported] rows=region, columns=cross(department, revenue)", async () => {
       const model = await makeModel();
       const vm = await model.getViewModelData({
         rows: "region",
@@ -96,8 +96,8 @@ describe("GridDataModel pivot (SUM aggregation)", () => {
   // Toronto:   rows 8,9,10,11    → SUM = 1000+700+280+200 = 2180
   // London:    rows 12,13,14,15,21 → SUM = 1400+850+400+320+380 = 3350
   // Berlin:    rows 16,17,18,19,23 → SUM = 1300+750+350+280+1350 = 4030
-  describe("Single measure column", () => {
-    it("rows=hierarchy(region,country,city), columns=revenue", async () => {
+  describe("[ported] Single measure column", () => {
+    it("[ported] rows=hierarchy(region,country,city), columns=revenue", async () => {
       const model = await makeModel();
       const vm = await model.getViewModelData({
         rows: hierarchy("region", "country", "city"),
@@ -133,8 +133,8 @@ describe("GridDataModel pivot (SUM aggregation)", () => {
   // Europe/Germany × Elec/Phone:  row 17    → 750
   // Europe/Germany × App/Jacket:  row 18    → 350
   // Europe/Germany × App/Shoes:   row 19    → 280
-  describe("Hierarchy on both axes", () => {
-    it("rows=hierarchy(region,country), columns=cross(hierarchy(department,product), revenue)", async () => {
+  describe("[ported] Hierarchy on both axes", () => {
+    it("[ported] rows=hierarchy(region,country), columns=cross(hierarchy(department,product), revenue)", async () => {
       const model = await makeModel();
       const vm = await model.getViewModelData({
         rows: hierarchy("region", "country"),
@@ -173,8 +173,8 @@ describe("GridDataModel pivot (SUM aggregation)", () => {
   // Europe/App × Online:     rows 14,19       → 400+280 = 680
   // Europe/App × Retail:     rows 15,18,21    → 320+350+380 = 1050
   // Europe/App × Wholesale:  (none)           → null
-  describe("Cross with null combos", () => {
-    it("rows=cross(region,department), columns=cross(channel, revenue)", async () => {
+  describe("[ported] Cross with null combos", () => {
+    it("[ported] rows=cross(region,department), columns=cross(channel, revenue)", async () => {
       const model = await makeModel();
       const vm = await model.getViewModelData({
         rows: cross("region", "department"),
@@ -209,8 +209,8 @@ describe("GridDataModel pivot (SUM aggregation)", () => {
   // Europe × Online:      rows 12,14,16,19      → SUM = 1400+400+1300+280 = 3380
   // Europe × Retail:      rows 13,15,18,21,23   → SUM = 850+320+350+380+1350 = 3250
   // Europe × Wholesale:   row 17                → SUM = 750
-  describe("Concat on columns", () => {
-    it("rows=region, columns=cross(concat(department,channel), revenue)", async () => {
+  describe("[ported] Concat on columns", () => {
+    it("[ported] rows=region, columns=cross(concat(department,channel), revenue)", async () => {
       const model = await makeModel();
       const vm = await model.getViewModelData({
         rows: "region",
@@ -252,8 +252,8 @@ describe("GridDataModel pivot (SUM aggregation)", () => {
   // Europe/Germany × Elec/cost:    → 880+480+900 = 2260
   // Europe/Germany × App/revenue:  rows 18,19    → 350+280 = 630
   // Europe/Germany × App/cost:     → 170+135 = 305
-  describe("Multiple measures via concat", () => {
-    it("rows=hierarchy(region,country), columns=cross(department, concat(revenue,cost))", async () => {
+  describe("[ported] Multiple measures via concat", () => {
+    it("[ported] rows=hierarchy(region,country), columns=cross(department, concat(revenue,cost))", async () => {
       const model = await makeModel();
       const vm = await model.getViewModelData({
         rows: hierarchy("region", "country"),
@@ -279,7 +279,7 @@ describe("GridDataModel pivot (SUM aggregation)", () => {
   //
   // Electronics: all elec rows → 1200+1500+800+1100+900+1000+700+1400+850+1300+750+950+1350 = 13800
   // Apparel: all app rows → 300+350+250+280+200+400+320+350+280+380+290 = 3400
-  describe.skip("Columns only (no rows)", () => {
+  describe.skip("[err] Columns only (no rows)", () => {
     it("columns=cross(department,revenue)", async () => {
       const model = await makeModel();
       const vm = await model.getViewModelData({
@@ -307,7 +307,7 @@ describe("GridDataModel pivot (SUM aggregation)", () => {
   // NA/USA/Online × Elec/units:   → 10+12+9+24 = 55
   // NA/USA/Online × App/revenue:  rows 3,7 → 300+250 = 550
   // Europe/UK/Wholesale × any:    no data → null
-  describe("Deep nesting", () => {
+  describe("[ported] Deep nesting", () => {
     it("rows=cross(hierarchy(region,country),channel), columns=cross(department, concat(revenue,cost,units_sold))", async () => {
       const model = await makeModel();
       const vm = await model.getViewModelData({
@@ -397,7 +397,7 @@ describe("GridDataModel pivot (SUM aggregation)", () => {
   //
   // NA: all NA rows → SUM = 5100+2540+2180 = 9820
   // Europe: all Europe rows → SUM = 3350+4030 = 7380
-  describe("Cross single child", () => {
+  describe("[ported] Cross single child", () => {
     it("rows=region, columns=cross(revenue)", async () => {
       const model = await makeModel();
       const vm = await model.getViewModelData({
@@ -415,7 +415,7 @@ describe("GridDataModel pivot (SUM aggregation)", () => {
   // ── Test 10: Hierarchy single field ───────────────────────────────────
   // rows=hierarchy("region"), columns="revenue"
   // Same as bare "region" on rows
-  describe("Hierarchy single field", () => {
+  describe("[ported] Hierarchy single field", () => {
     it("rows=hierarchy(region), columns=revenue", async () => {
       const model = await makeModel();
       const vm = await model.getViewModelData({
@@ -459,7 +459,7 @@ describe("GridDataModel pivot (SUM aggregation)", () => {
   //   cost: 200+160+170+135+190 = 855
   //   units: 20+28+16+22+17 = 103
   //   returns: 2+4+1+3+2 = 12
-  describe("All four measures", () => {
+  describe("[na] All four measures", () => {
     it("rows=cross(region,department), columns=concat(revenue,cost,units_sold,returns)", async () => {
       const model = await makeModel();
       const vm = await model.getViewModelData({
@@ -494,7 +494,7 @@ describe("GridDataModel pivot (SUM aggregation)", () => {
   // Retail × Apparel:     rows 4,10,15,18,21 → 350+280+320+350+380 = 1680
   // Wholesale × Electronics: row 17 → 750
   // Wholesale × Apparel:     rows 11,22 → 200+290 = 490
-  describe("Concat on rows", () => {
+  describe("[na] Concat on rows", () => {
     it("rows=concat(region,channel), columns=cross(department,revenue)", async () => {
       const model = await makeModel();
       const vm = await model.getViewModelData({
@@ -543,7 +543,7 @@ describe("GridDataModel pivot (SUM aggregation)", () => {
   // App × Q1:        rows 3,7,10,18 → 300+250+280+350 = 1180
   // App × Q2:        rows 4,11,14,15,19 → 350+200+400+320+280 = 1550
   // App × Q3:        rows 21,22 → 380+290 = 670
-  describe("Concat on both axes", () => {
+  describe("[ported] Concat on both axes", () => {
     it("rows=concat(region,department), columns=cross(concat(channel,quarter), revenue)", async () => {
       const model = await makeModel();
       const vm = await model.getViewModelData({
@@ -571,7 +571,7 @@ describe("GridDataModel pivot (SUM aggregation)", () => {
   // Measure comes from row axis. dimensions=["region","department"], measures=[{revenue,sum}]
   //
   // Same values as Test 1 but transposed: department on columns, region on rows with revenue
-  describe("Measure on row axis", () => {
+  describe("[ported] Measure on row axis", () => {
     it("rows=cross(region, revenue), columns=department", async () => {
       const model = await makeModel();
       const vm = await model.getViewModelData({
@@ -601,7 +601,7 @@ describe("GridDataModel pivot (SUM aggregation)", () => {
   // NA × Elec/Online/Q3/revenue: row 20 → 950
   // NA × Elec/Wholesale/Q1/revenue: (none) → null
   // Europe × App/Retail/Q3/revenue: row 21 → 380
-  describe("4-way cross on columns", () => {
+  describe("[ported] 4-way cross on columns", () => {
     it("rows=region, columns=cross(department,channel,quarter,revenue) - spot checks", async () => {
       const model = await makeModel();
       const vm = await model.getViewModelData({
@@ -667,7 +667,7 @@ describe("GridDataModel pivot (SUM aggregation)", () => {
   // Branch 2 (department): GROUP BY department → SUM(revenue)
   //   Electronics: rows 0,1,2,5,6,8,9,12,13,16,17,20,23 → 13800
   //   Apparel:     rows 3,4,7,10,11,14,15,18,19,21,22   → 3400
-  describe("Concat hierarchy + string on rows", () => {
+  describe("[ported] Concat hierarchy + string on rows", () => {
     it("rows=concat(hierarchy(region,country), department), columns=revenue", async () => {
       const model = await makeModel();
       const vm = await model.getViewModelData({
@@ -703,7 +703,7 @@ describe("GridDataModel pivot (SUM aggregation)", () => {
   //   Electronics/Phone:  rows 2,6,9,13,17,20   → 800+900+700+850+750+950 = 4950
   //   Apparel/Jacket:     rows 3,4,10,14,18,21,22 → 300+350+280+400+350+380+290 = 2350
   //   Apparel/Shoes:      rows 7,11,15,19        → 250+200+320+280 = 1050
-  describe("Concat two hierarchies on rows", () => {
+  describe("[ported] Concat two hierarchies on rows", () => {
     it("rows=concat(hierarchy(region,country), hierarchy(department,product)), columns=revenue", async () => {
       const model = await makeModel();
       const vm = await model.getViewModelData({
@@ -751,7 +751,7 @@ describe("GridDataModel pivot (SUM aggregation)", () => {
   // Europe × Online:             rows 12,14,16,19 → 3380
   // Europe × Retail:             rows 13,15,18,21,23 → 3250
   // Europe × Wholesale:          row 17        → 750
-  describe("Concat hierarchy + string inside cross on columns", () => {
+  describe("[ported] Concat hierarchy + string inside cross on columns", () => {
     it("rows=region, columns=cross(concat(hierarchy(department,product), channel), revenue)", async () => {
       const model = await makeModel();
       const vm = await model.getViewModelData({
@@ -852,7 +852,7 @@ describe("GridDataModel pivot (SUM aggregation)", () => {
     // NA × Electronics: 8150    NA × Online: 7000    NA × Retail: 2330    NA × Wholesale: 490
     // NA × Apparel: 1670        Europe × Online: 3380  Europe × Retail: 3250  Europe × Wholesale: 750
     // Europe × Electronics: 5650  Europe × Apparel: 1730
-    it("hierarchy base drilldown (L0 only)", async () => {
+    it("[ported] hierarchy base drilldown (L0 only)", async () => {
       const model = await makeModel();
       const vm = await model.getViewModelData({
         rows: { expr: hierarchy("region", "country", "city"), projection: [] },
@@ -887,7 +887,7 @@ describe("GridDataModel pivot (SUM aggregation)", () => {
     // NA/USA × Retail: 2050            NA/Canada × Retail: 280
     // NA/USA × Wholesale: 290          NA/Canada × Wholesale: 200
     // Europe × (same as base)
-    it("selective drilldown (expand country for NA only)", async () => {
+    it("[ported] selective drilldown (expand country for NA only)", async () => {
       const model = await makeModel();
       const vm = await model.getViewModelData({
         rows: { expr: hierarchy("region", "country", "city"), projection: [{ open: ["North America"] }] },

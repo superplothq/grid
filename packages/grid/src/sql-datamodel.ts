@@ -608,6 +608,10 @@ export abstract class SqlDataModel extends GridDataModel {
         }
         return `(${eqParts.join(" AND ")})`;
       });
+      // __src__ is always a literal string in a standalone concat, so this IS NULL branch is
+      // unreachable there. It matters when a concat is nested inside a cross with segments —
+      // the cross-segment CTE pads __src__ columns with CAST(NULL AS VARCHAR) for branches
+      // that don't participate in the concat, and this guard ensures those rows still join.
       orParts.push(`${gridCte}."${info.srcColumn}" IS NULL`);
       conditions.push(`(\n    ${orParts.join("\n    OR ")}\n  )`);
     } else {
@@ -628,6 +632,8 @@ export abstract class SqlDataModel extends GridDataModel {
         }
         return `(${eqParts.join(" AND ")})`;
       });
+      // Same as the single-concat case: __src__ columns are never NULL in a standalone concat,
+      // but cross-segment CTEs can pad them with NULL for non-participating branches.
       const allSrcNull = concatInfos.map(info => `${gridCte}."${info.srcColumn}" IS NULL`).join(" AND ");
       orParts.push(`(${allSrcNull})`);
       conditions.push(`(\n    ${orParts.join("\n    OR ")}\n  )`);

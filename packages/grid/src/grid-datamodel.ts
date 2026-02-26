@@ -689,13 +689,17 @@ export abstract class GridDataModel {
     return { dimSpec, measures };
   }
 
-  async getViewModelData(config: PivotConfig): Promise<GridDataViewModel> {
+  getIR(config: PivotConfig): {
+    merged: IR,
+    colIR: AxisIR,
+    rowIR: AxisIR,
+    measures: Measure[],
+  } {
     const [colConfig, rowConfig] = [config.columns, config.rows].map(normalizeAxisConfig);
     const [colIR, rowIR] = [colConfig.expr, rowConfig.expr].map(e => this.buildAxisIR(e));
 
-    if (colConfig.projection) colIR.dimSpec = applyDimensionalProjectionToNode(colIR.dimSpec, colConfig.projection, 0);
+    if (colConfig.projection) colIR.dimSpec = applyDimensionalProjectionToNode(colIR.dimSpec, colConfig.projection, 1);
     if (rowConfig.projection) rowIR.dimSpec = applyDimensionalProjectionToNode(rowIR.dimSpec, rowConfig.projection, 0);
-    const [colDimCount, rowDimCount] = [colIR, rowIR].map(ir => dimSpecFields(ir.dimSpec).length);
     const measures = [...rowIR.measures, ...colIR.measures];
 
     // The upstream (SQL / data layer) has no concept of rows vs columns — it only sees dimensions
@@ -713,9 +717,18 @@ export abstract class GridDataModel {
       combinedDimSpec = { type: "none" };
     }
 
-    console.log("combinedDimSpec", JSON.stringify(combinedDimSpec, null, 2));
+    return {
+      merged: { dimSpec: combinedDimSpec, measures },
+      colIR,
+      rowIR,
+      measures
+    };
+  }
 
-    const result = await this.getData({ dimSpec: combinedDimSpec, measures });
+  async getViewModelData(config: PivotConfig): Promise<GridDataViewModel> {
+    const ir = this.getIR(config);
+    const result = await this.getData(ir.merged);
+    const [colDimCount, rowDimCount] = [ir.colIR, ir.rowIR].map(ir => dimSpecFields(ir.dimSpec).length);
     const totalDimCount = rowDimCount + colDimCount;
     const numResultRows = result.data[0]?.length ?? 0;
 
@@ -733,8 +746,8 @@ export abstract class GridDataModel {
     //   [["Elec","Elec","Apparel","Apparel"], ["revenue","cost","revenue","cost"]]
     // If there are no dimensions (dimCount=0), the facet is just the measure names.
     const [fullColFacets, fullRowFacets] = ([
-      [colFacetSpace, colDimCount, colIR.measures],
-      [rowFacetSpace, rowDimCount, rowIR.measures],
+      [colFacetSpace, colDimCount, ir.colIR.measures],
+      [rowFacetSpace, rowDimCount, ir.rowIR.measures],
     ] as [(string | null)[][], number, Measure[]][]).map(([baseFacets, dimCount, measures]) => {
       if (measures.length > 0 && dimCount > 0) {
         const numBasePositions = baseFacets[0]?.length ?? 1;
@@ -778,15 +791,15 @@ export abstract class GridDataModel {
         return parts;
       });
 
-      for (let mi = 0; mi < measures.length; mi++) {
+      for (let mi = 0; mi < ir.measures.length; mi++) {
         const value = result.data[totalDimCount + mi][r];
 
         const [colIdx, rowIdx] = ([
-          [colDimParts, colIR.measures.length > 0, colIndex],
-          [rowKeyParts, rowIR.measures.length > 0, rowIndex],
+          [colDimParts, ir.colIR.measures.length > 0, colIndex],
+          [rowKeyParts, ir.rowIR.measures.length > 0, rowIndex],
         ] as [string[], boolean, Map<string, number>][]).map(([dimParts, hasMeasures, index]) => {
           const key = [...dimParts];
-          if (hasMeasures) key.push(measures[mi].field);
+          if (hasMeasures) key.push(ir.measures[mi].field);
           return index.get(key.join("\0"));
         });
 
