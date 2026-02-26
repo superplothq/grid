@@ -1,6 +1,7 @@
-import {GridConfig} from "../config";
+import {GridConfig} from "../grid-config";
 import {GridDataViewModel} from "../grid-data-viewmodel";
 import {IColAutoSizeStrategyFixedWidth} from "../types";
+import {getTheme} from "../registry";
 import PLayout, {BaseViewModel, RenderCtx} from "./layout-proto";
 import {WithCellPlacement, WithEvents} from "./mixins";
 import CellManager from "./cell-manager";
@@ -49,7 +50,8 @@ export interface ViewModel extends BaseViewModel {
 }
 
 interface MergeState {
-  value: string | null;
+  value: string;
+  path: string;
   start: number;
   span: number;
 }
@@ -67,12 +69,14 @@ interface ResizeState {
   cells: HTMLElement[];
 }
 
+const SEPARATOR = "\0";
+
 export default class StandardLayout extends StandardLayoutBase {
   // all column can be of different sizes hence those are tracked based on column indices
   colsWidth: { indices: number[]; override: number[] } = {
     indices: [],
     override: [],
-  }
+  };
   #resizeState: Map<number, ResizeState> = new Map();
   // facet row and data row can have spearate sizes hence those are tracked
   // based on row type. But then all facet rows would have same size and all
@@ -80,7 +84,7 @@ export default class StandardLayout extends StandardLayoutBase {
   rowHeightByType = {
     facet: 0,
     data: 0,
-  }
+  };
   #con: HTMLElement;
   #virtualPanelEl: HTMLElement;
   #gridClipEl: HTMLElement;
@@ -97,6 +101,7 @@ export default class StandardLayout extends StandardLayoutBase {
     super(config, mountPoint, cellManager);
 
     [this.#con, , this.#virtualPanelEl, this.#gridClipEl] = this.#attachShadowDom();
+    this.#applyTheme();
     this.#measureRowHeight();
   }
 
@@ -149,6 +154,15 @@ export default class StandardLayout extends StandardLayoutBase {
     el.appendChild(con);
 
     return [con, ...Array.from(el.shadowRoot!.children)] as HTMLElement[];
+  }
+
+  #applyTheme(): void {
+    const theme = getTheme(this.config.theme);
+    if (!theme) return;
+    for (const [key, value] of Object.entries(theme)) {
+      const cssVar = "--" + key.replace(/[A-Z]/g, m => "-" + m.toLowerCase());
+      this.#con.style.setProperty(cssVar, String(value));
+    }
   }
 
   // calculate both facet and data row heights
@@ -323,7 +337,7 @@ export default class StandardLayout extends StandardLayoutBase {
       colFacetsHeight,
       offsetY,
       colFacetsTopPositions
-    }
+    };
   }
 
   calculateHorizontalViewModel() {
@@ -400,7 +414,7 @@ export default class StandardLayout extends StandardLayoutBase {
       rowFacetsWidth,
       offsetX,
       rowFacetsLeftPositions
-    }
+    };
   }
 
   calculateViewModel(): ViewModel {
@@ -435,7 +449,7 @@ export default class StandardLayout extends StandardLayoutBase {
       rowFacetsLeftPositions: vsHorizontal.rowFacetsLeftPositions,
       colFacetsTopPositions: vsVertical.colFacetsTopPositions,
       selections,
-    }
+    };
   }
 
   getGridTemplate(
@@ -480,47 +494,47 @@ export default class StandardLayout extends StandardLayoutBase {
     this.#cellsToMeasure = [];
   }
 
-  #computeMerges(
-    facetCount: number,
-    itemCount: number,
-    facets: string[][]
-  ): Array<{ level: number; value: string; start: number; span: number }> {
-    const results: Array<{ level: number; value: string; start: number; span: number }> = [];
+  #computeMerges(facetLevel: number, itemCount: number, facets: string[][]): Array<{ level: number; } & MergeState> {
+    const results: Array<{ level: number; } & MergeState> = [];
     const mergeState: MergeState[] = [];
 
-    for (let level = 0; level < facetCount; level++) {
-      mergeState[level] = { value: null, start: 0, span: 0 };
+    for (let level = 0; level < facetLevel; level++) {
+      mergeState[level] = { value: "", path: "", start: 0, span: 0 };
     }
 
     for (let i = 0; i < itemCount; i++) {
       const facet = facets[i] || [];
-      for (let level = 0; level < facetCount; level++) {
-        const value = facet[level] || "";
+      for (let level = 0; level < facetLevel; level++) {
+        const value = facet[level];
+        const path = facet.slice(0, level + 1).join(SEPARATOR);
         const state = mergeState[level];
 
-        if (value === state.value && i > 0) {
+        if (path === state.path && i > 0) {
           state.span++;
         } else {
           if (state.span > 0) {
             results.push({
               level,
+              path: state.path,
               value: state.value as string,
               start: state.start,
               span: state.span
             });
           }
           state.value = value;
+          state.path = path;
           state.start = i;
           state.span = 1;
         }
       }
     }
 
-    for (let level = 0; level < facetCount; level++) {
+    for (let level = 0; level < facetLevel; level++) {
       const state = mergeState[level];
       if (state.span > 0) {
         results.push({
           level,
+          path: state.path,
           value: state.value as string,
           start: state.start,
           span: state.span
@@ -579,7 +593,7 @@ export default class StandardLayout extends StandardLayoutBase {
           gridRow: hRow + 1,
           gridCol: hCol + 1,
           content: "",
-          cls: `corner level-${hRow}${hCol === this.data!.numRowFacetLevels - 1 ? " edge-r" : ""}${hRow === this.data!.numColFacetLevels - 1 ? " edge-b" : ""}`,
+          cls: `corner level-${hRow}${hCol === this.data!.numRowFacetLevels - 1 ? " r-edge" : ""}${hRow === this.data!.numColFacetLevels - 1 ? " b-edge" : ""}`,
           extraStyles: {
             top: viewModel.colFacetsTopPositions[hRow],
             left: viewModel.rowFacetsLeftPositions[hCol],
@@ -611,12 +625,13 @@ export default class StandardLayout extends StandardLayoutBase {
       const shouldApplyWidth = isLeafLevel && colspan === 1 && !colDef.colSize.excludeColumnFacets && colDef.colSize.strategy === "fixed-width";
       const fixedSize = shouldApplyWidth ? colDef.colSize as IColAutoSizeStrategyFixedWidth : null;
 
+      let boundaryCellCls = merge.start === 0 ? "l-edge" : (merge.start + merge.span === numDataColsVisible ? "r-edge" : "");
       const [cell, needAppend] = this.placeCellInDom({
         key,
         gridRow: merge.level + 1,
         gridCol: this.data!.numRowFacetLevels + merge.start + 1,
         content: `<span class="content">${merge.value}</span>`,
-        cls: `col-header level-${merge.level}${skipSizeClass}${!isLeafLevel ? " non-leaf" : ""}`,
+        cls: `col-header level-${merge.level}${skipSizeClass}${!isLeafLevel ? " non-leaf" : ""} ${boundaryCellCls}`,
         extraStyles: {
           colspan,
           top: viewModel.colFacetsTopPositions[merge.level],
@@ -844,12 +859,13 @@ export default class StandardLayout extends StandardLayoutBase {
         labelOffset = Math.max(-maxOffset, Math.min(maxOffset, rawOffset));
       }
 
+      let boundaryCellCls = isLeaf ? "r-edge" : (merge.level === 0 ? "l-edge" : "");
       const [cell, needAppend] = this.placeCellInDom({
         key,
         gridRow: this.data!.numColFacetLevels + merge.start + 1,
         gridCol: merge.level + 1,
         content: `<span class="content">${merge.value}</span>`,
-        cls: `row-header level-${merge.level}${isLeaf ? "" : " non-leaf"}`,
+        cls: `row-header level-${merge.level}${isLeaf ? "" : " non-leaf"} ${boundaryCellCls}`,
         extraStyles: {
           rowspan: merge.span,
           left: viewModel.rowFacetsLeftPositions[merge.level],
@@ -897,7 +913,8 @@ export default class StandardLayout extends StandardLayoutBase {
           cell.dataset.croix = String(absoluteRowIndex); // short for cell row index
         }
 
-        cell.className = "cell data" + (colDef.isCustom ? " custom-rendered" : "");
+        let boundaryCellCls = i === 0 ? "l-edge" : (i === numDataColsVisible - 1 ? "r-edge" : "");
+        cell.className = `cell data ${boundaryCellCls} ${colDef.isCustom ? " custom-rendered" : ""}`;
         cell.dataset.cellType = "value";
         cell.style.gridColumn = `${gridCol}`;
         cell.style.gridRow = `${this.data!.numColFacetLevels + j + 1}`;

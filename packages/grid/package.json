@@ -9,21 +9,27 @@
     "watch": "tsc --watch",
     "clean": "rm -rf dist",
     "lint": "eslint . --ext .ts",
-    "test": "web-test-runner",
-    "test:watch": "web-test-runner --watch"
+    "test:unit": "mocha --require tsx 'src/**/*.test.ts'",
+    "test:debug": "mocha --require tsx --inspect-brk 'src/**/*.test.ts'"
   },
   "dependencies": {
+    "@duckdb/duckdb-wasm": "^1.33.1-dev18.0",
     "d3-scale": "^4.0.2",
     "d3-shape": "^3.2.0",
     "utils": "1.0.0"
   },
   "devDependencies": {
     "@esm-bundle/chai": "^4.3.4-fix.0",
+    "@types/chai": "^5.2.3",
     "@types/d3-scale": "^4.0.9",
     "@types/d3-shape": "^3.1.8",
     "@types/mocha": "^10.0.10",
     "@web/test-runner": "^0.20.2",
     "@web/test-runner-playwright": "^0.11.1",
-    "less": "^4.5.1"
+    "chai": "^6.2.2",
+    "duckdb": "^1.4.4",
+    "less": "^4.5.1",
+    "mocha": "^11.7.5",
+    "tsx": "^4.21.0"
   }
 }

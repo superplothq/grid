@@ -6,14 +6,14 @@ const defaultColAutoSize: ColAutoSizeConfig = { strategy: "max-cell" };
 export class GridDataViewModel {
   #numRows: number;
   #numCols: number;
-  #colFacets: string[] | string[][];
+  #colFacets: string[][];
   #rowFacets?: string[][];
   #data: any[][];
   #resolvedColDefs: ResolvedColDef[];
 
-  constructor(data: any[][], columnFacets: string[] | string[][], rowFacets?: string[][], options?: GridDataViewModelOptions) {
-    this.#numRows = data.length;
-    this.#numCols = data[0].length;
+  constructor(data: any[][], columnFacets: string[][], rowFacets?: string[][], options?: GridDataViewModelOptions) {
+    this.#numCols = data.length;
+    this.#numRows = data[0].length;
     this.#colFacets = columnFacets;
     this.#rowFacets = rowFacets;
     this.#data = data;
@@ -58,8 +58,7 @@ export class GridDataViewModel {
   }
 
   get numColFacetLevels() {
-    if (!(this.#colFacets[0] instanceof Array)) return 1; // Regular table with one level of columns
-    return this.#colFacets.length; // multiple level of cols i.e. facets are present
+    return this.#colFacets.length;
   }
 
   get numRows() {
@@ -70,23 +69,16 @@ export class GridDataViewModel {
     return this.#numCols;
   }
 
-
   getColFacetValue(level: number, colIndex: number): string | undefined {
-    if (!(this.#colFacets[0] instanceof Array)) {
-      if (level !== 0) return undefined;
-      return this.#colFacets[colIndex] as string;
-    }
-    if (level >= this.#colFacets.length) return undefined;
     return (this.#colFacets[level] as string[])[colIndex];
   }
 
-  // TODO don't take column facet as a 1D flat array it opens up requirement for normalizatoin every where.
-  //      Always take it as a 2D array
   get columnFacets(): string[][] {
-    if (!(this.#colFacets[0] instanceof Array)) {
-      return [this.#colFacets as string[]];
-    }
     return this.#colFacets as string[][];
+  }
+
+  get rowFacets(): string[][] {
+    return this.#rowFacets || [];
   }
 
   // TODO this can be optimized since this sits in the hot path of every render cycle
@@ -101,15 +93,11 @@ export class GridDataViewModel {
 
     const columnFacets: string[][] = [];
     for (let x = x0; x < x1; x++) {
-      if (this.#colFacets[0] instanceof Array) {
-        const facets: string[] = [];
-        for (let level = 0; level < this.#colFacets.length; level++) {
-          facets.push((this.#colFacets[level] as string[])[x] || "");
-        }
-        columnFacets.push(facets);
-      } else {
-        columnFacets.push([this.#colFacets[x] as string]);
+      const facets: string[] = [];
+      for (let level = 0; level < this.#colFacets.length; level++) {
+        facets.push((this.#colFacets[level] as string[])[x]);
       }
+      columnFacets.push(facets);
     }
 
     const rowFacets: string[][] = [];
@@ -117,7 +105,7 @@ export class GridDataViewModel {
       for (let y = y0; y < y1; y++) {
         const facets: string[] = [];
         for (let level = 0; level < this.numRowFacetLevels; level++) {
-          facets.push(this.#rowFacets![level][y] || "");
+          facets.push(this.#rowFacets![level][y]);
         }
         rowFacets.push(facets);
       }
@@ -127,7 +115,7 @@ export class GridDataViewModel {
     for (let x = x0; x < x1; x++) {
       const column: any[] = [];
       for (let y = y0; y < y1; y++) {
-        column.push(this.#data[y]?.[x] ?? "");
+        column.push(this.#data[x][y]);
       }
       data.push(column);
     }

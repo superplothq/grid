@@ -2,7 +2,7 @@ const fs = require("fs");
 const path = require("path");
 const less = require("less");
 
-const lessFile = path.resolve(__dirname, "../src/grid.less");
+const lessFile = path.resolve(__dirname, "../src/renderer/grid.less");
 const outDir = path.resolve(__dirname, "../dist");
 const outFile = path.resolve(outDir, "grid.css");
 

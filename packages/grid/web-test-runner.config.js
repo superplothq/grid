@@ -1,10 +1,10 @@
-import { playwrightLauncher } from '@web/test-runner-playwright';
+import { playwrightLauncher } from "@web/test-runner-playwright";
 
 export default {
-  files: 'src/**/*.test.ts',
+  files: "src/**/*.test.ts",
   nodeResolve: true,
   browsers: [
-    playwrightLauncher({ product: 'chromium' }),
+    playwrightLauncher({ product: "chromium" }),
   ],
   testFramework: {
     config: {

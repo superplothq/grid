@@ -12,28 +12,32 @@
 
   /* Base cell styling */
 .cell {
-  padding: 6px 10px;
-  border-right: 1px solid #616161;
-  /* border-bottom: 1px solid #e0e0e0; */
+  padding: calc(var(--cell-padding-y) * 1px) calc(var(--cell-padding-x) * 1px);
+  border-left: calc(var(--vertical-border-width) * 1px) solid var(--vertical-border-color);
   margin: 0;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  font-size: 12px;
+  font-size: calc(var(--font-size) * 1px);
   display: flex;
   align-items: center;
 
-  /* Column headers */
+  &.l-edge {
+    border-left: none;
+  }
+
+  &.r-edge {
+    border-right: calc(var(--vertical-border-width) * 1px) solid var(--vertical-border-color);
+  }
+
   &.col-header {
-    /* background: linear-gradient(180deg, #4a90e2 0%, #357abd 100%); */
-    background: #ffe082;
-    color: black;
+    background: var(--column-facet-background-color);
     justify-content: center;
     position: sticky;
     z-index: 20;
-    border-bottom: 1px solid #616161;
-    font-weight: 500;
-    color: #424242;
+    border-bottom: calc(var(--horizontal-border-width) * 1px) solid var(--horizontal-border-color);
+    font-weight: var(--column-facet-font-weight);
+    color: var(--column-facet-text-color);
 
     /* show resize handler */
     &::after {
@@ -65,11 +69,11 @@
   }
 
   &.row-header {
-    background: #fff;
+    background: var(--row-facet-background-color);
     position: sticky;
     z-index: 15;
-    color: #424242;
-    border-bottom: 1px solid #ff6789;
+    color: var(--column-facet-text-color);
+    border-bottom: calc(var(--horizontal-border-width) * 1px) solid var(--horizontal-border-color);
 
     > .content {
       overflow: hidden;
@@ -81,8 +85,9 @@
 
   &.data {
     justify-content: end;
-    color: #1a237e;
-    border-bottom: 1px solid #ff6789;
+    background: var(--value-background-color);
+    color: var(--value-text-color);
+    border-bottom: calc(var(--horizontal-border-width) * 1px) solid var(--horizontal-border-color);
 
     &.custom-rendered {
       justify-content: center;
@@ -91,13 +96,17 @@
   }
 
   &.corner {
-    background: #ffe082;
+    background: var(--column-facet-background-color);
     position: sticky;
     z-index: 30;
     border: none !important;
 
-    &.edge-r {
-      border-right: 1px solid #616161 !important;
+    &.r-edge {
+      border-right: calc(var(--vertical-border-width) * 1px) solid var(--vertical-border-color) !important;
+    }
+
+    &.b-edge {
+      border-bottom: calc(var(--horizontal-border-width) * 1px) solid var(--horizontal-border-color) !important;
     }
   }
 

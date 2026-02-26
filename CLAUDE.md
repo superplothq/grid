@@ -28,8 +28,9 @@ Already setup by the user and running.
 - ./packages/playground/src/grid.tsx uses the grid library to render the grid
 
 ## Notes
-
+- Do NOT write defensive code unless explicity asked to do so. It's better to get runtime error than to create bugs with defensive code.
 - Do NOT make formatting changes (like adding/removing spaces, adding/removing newlines, etc) to existing code.
+- If you are writing test, do NOT add number for text inside describe or it.
 - Do NOT write comments unless explicity asked to do so. But do NOT remove any existing comments.
 - Do NOT address TODO in code comments unless explicity asked to do so.
 - Run lint `yarn workspace grid lint --fix 2>&1` to fix autofixable lints and report the rest which you can try fixing manually
