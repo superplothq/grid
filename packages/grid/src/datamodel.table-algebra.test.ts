@@ -1231,4 +1231,89 @@ describe("Composite operators in pivot", () => {
       ]);
     });
   });
+
+  describe("rows=quarter, columns=cross(cross(region, concat(department, channel)), revenue)", () => {
+    const config: PivotConfig = {
+      rows: "quarter",
+      columns: cross(cross("region", concat("department", "channel")), "revenue"),
+    };
+
+    it("config -> IR", async () => {
+      const model = await makeModel();
+      const rowIR = model.buildAxisIR(config.rows as AxisExpr);
+      const colIR = model.buildAxisIR(config.columns as AxisExpr);
+
+      expect(rowIR).to.deep.equal({
+        dimSpec: { type: "simple", field: "quarter" },
+        measures: [],
+      });
+      expect(colIR).to.deep.equal({
+        dimSpec: {
+          type: "cross",
+          children: [
+            {
+              type: "cross",
+              children: [
+                { type: "simple", field: "region" },
+                { type: "concat", children: [{ type: "simple", field: "department" }, { type: "simple", field: "channel" }] },
+              ],
+            },
+          ],
+        },
+        measures: [{ field: "revenue", aggregation: "sum" }],
+      });
+    });
+
+    it("IR -> SQL", async () => {
+      const model = await makePatchedModel();
+      await model.getViewModelData(config);
+
+      expect(model.sqlStr()).to.equal(
+        `WITH __d__0 AS (SELECT "quarter", MIN(rowid) AS "__ord__0" FROM "data" GROUP BY "quarter"),`
+        + `\n     __d__1 AS (SELECT "region", MIN(rowid) AS "__ord__1" FROM "data" GROUP BY "region"),`
+        + `\n     __d__2 AS (SELECT "department", MIN(rowid) AS "__ord__2" FROM "data" GROUP BY "department"),`
+        + `\n     __d__3 AS (SELECT "channel", MIN(rowid) AS "__ord__3" FROM "data" GROUP BY "channel"),`
+        + `\n     __d__4 AS (`
+        + `\n       SELECT '0:department' AS "__src__0", __d__2."department" AS "__c__0", __ord__2 AS "__cord__0_0" FROM __d__2`
+        + `\n       UNION ALL`
+        + `\n       SELECT '1:channel' AS "__src__0", __d__3."channel" AS "__c__0", __ord__3 AS "__cord__0_0" FROM __d__3`
+        + `\n     ),`
+        + `\n     __d__5 AS (SELECT * FROM __d__1 CROSS JOIN __d__4),`
+        + `\n     __d__6 AS (SELECT * FROM __d__0 CROSS JOIN __d__5)`
+        + `\nSELECT __d__6."quarter", __d__6."region", __d__6."__c__0", SUM(T."revenue") AS "revenue"`
+        + `\nFROM __d__6`
+        + `\nLEFT JOIN "data" T ON T."quarter" = __d__6."quarter" AND T."region" = __d__6."region" AND (`
+        + `\n    (__d__6."__src__0" = '0:department' AND T."department" = __d__6."__c__0")`
+        + `\n    OR (__d__6."__src__0" = '1:channel' AND T."channel" = __d__6."__c__0")`
+        + `\n    OR __d__6."__src__0" IS NULL`
+        + `\n  )`
+        + ` GROUP BY __d__6."quarter", __d__6."region", __d__6."__c__0", __d__6."__src__0"`
+        + ` ORDER BY MIN(__d__6."__ord__0"), MIN(__d__6."__ord__1"), __d__6."__src__0", MIN(__d__6."__cord__0_0")`
+      );
+    });
+
+    it("config -> IR -> SQL -> data-viewmodel", async () => {
+      const model = await makeModel();
+      const vm = await model.getViewModelData(config);
+
+      expect(vm.rowFacets).to.deep.equal([["Q1", "Q2", "Q3"]]);
+      expect(vm.columnFacets).to.deep.equal([
+        ["North America", "North America", "North America", "North America", "North America", "Europe", "Europe", "Europe", "Europe", "Europe"],
+        ["Electronics", "Apparel", "Online", "Retail", "Wholesale", "Electronics", "Apparel", "Online", "Retail", "Wholesale"],
+        ["revenue", "revenue", "revenue", "revenue", "revenue", "revenue", "revenue", "revenue", "revenue", "revenue"],
+      ]);
+      expect(vm.getSlice(0, 0, vm.numCols, vm.numRows).data).to.deep.equal([
+        [4100, 3100, 950],
+        [830, 550, 290],
+        [3850, 2200, 950],
+        [1080, 1250, null],
+        [null, 200, 290],
+        [3550, 750, 1350],
+        [350, 1000, 380],
+        [2700, 680, null],
+        [1200, 320, 1730],
+        [null, 750, null],
+      ]);
+    });
+  });
 });

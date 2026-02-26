@@ -5,7 +5,7 @@ import { makeModel, makePatchedModel } from "./datamodel.data.test";
 import { AxisConfig, PivotConfig } from "./types";
 
 describe("Dimensional Projections", () => {
-  describe("rows=hierarchy(region, country, city) projection=[], columns=cross(concat(department, channel), revenue)", () => {
+  describe("hierarchy base state — rows collapsed to region only", () => {
     const rowExpr = hierarchy("region", "country", "city");
     const colExpr = cross(concat("department", "channel"), "revenue");
     const rowConfig: AxisConfig = { expr: rowExpr, projection: [] };
@@ -112,7 +112,7 @@ describe("Dimensional Projections", () => {
     });
   });
 
-  describe("rows=hierarchy(region, country, city) projection=[{open:*,next:{open:[USA]}}], columns=cross(concat(department, channel), revenue)", () => {
+  describe("hierarchy selective expand — wildcard to country, USA to city", () => {
     const rowExpr = hierarchy("region", "country", "city");
     const colExpr = cross(concat("department", "channel"), "revenue");
     const config: PivotConfig = {
@@ -205,11 +205,11 @@ describe("Dimensional Projections", () => {
     });
   });
 
-  describe("rows=hierarchy(region, country, city), columns=cross(hierarchy(department, product), channel, revenue)", () => {
+  describe("both axes hierarchy — row and column projections independent", () => {
     const rowExpr = hierarchy("region", "country", "city");
     const colExpr = cross(hierarchy("department", "product"), "channel", "revenue");
 
-    describe("rowProjection=[{open:[NA]}], colProjection=undefined", () => {
+    describe("row expand NA to country, columns unprojected", () => {
       const config: PivotConfig = {
         rows: { expr: rowExpr, projection: [{ open: ["North America"] }] },
         columns: colExpr,
@@ -298,7 +298,7 @@ describe("Dimensional Projections", () => {
       });
     });
 
-    describe("rowProjection=[{open:[NA]},{open:[EU]}], colProjection=[{open:[Electronics],next:{open:*}}]", () => {
+    describe("row expand NA+EU to country, col expand Electronics to product", () => {
       const config: PivotConfig = {
         rows: { expr: rowExpr, projection: [{ open: ["North America"] }, { open: ["Europe"] }] },
         columns: { expr: colExpr, projection: [{ open: ["Electronics"], next: { open: "*" } }] },
@@ -404,7 +404,7 @@ describe("Dimensional Projections", () => {
       });
     });
 
-    describe("rowProjection=[{open:[NA]},{open:[EU]}], colProjection=[{open:[Electronics],next:{open:*}},{open:*}]", () => {
+    describe("row expand NA+EU to country, col wildcard expand all departments to product", () => {
       const config: PivotConfig = {
         rows: { expr: rowExpr, projection: [{ open: ["North America"] }, { open: ["Europe"] }] },
         columns: { expr: colExpr, projection: [{ open: ["Electronics"], next: { open: "*" } }, { open: "*" }] },
@@ -496,8 +496,8 @@ describe("Dimensional Projections", () => {
       });
     });
 
-    describe("Multiple projections", () => {
-      describe("rowProjection=[{open:[NA],next:{open:[USA]}},{open:[EU],next:{open:[UK]}}], colProjection=[{open:[Electronics],next:{open:[Laptop]}},{open:[Apparel],next:{open:[Jacket]}}]", () => {
+    describe("both axes selective deep expand", () => {
+      describe("row NA->USA + EU->UK, col Electronics->Laptop + Apparel->Jacket", () => {
         const config: PivotConfig = {
           rows: { expr: rowExpr, projection: [{ open: ["North America"], next: { open: ["USA"] } }, { open: ["Europe"], next: { open: ["UK"] } }] },
           columns: { expr: colExpr, projection: [{ open: ["Electronics"], next: { open: ["Laptop"] } }, { open: ["Apparel"], next: { open: ["Jacket"] } }] },
@@ -621,7 +621,7 @@ describe("Dimensional Projections", () => {
     });
   });
 
-  describe("rows=hierarchy(region, country) projection=[], columns=cross(hierarchy(department, product), concat(revenue, cost)) projection=[]", () => {
+  describe("hierarchy with concat measures — both axes base state", () => {
     const config: PivotConfig = {
       rows: { expr: hierarchy("region", "country"), projection: [] },
       columns: { expr: cross(hierarchy("department", "product"), concat("revenue", "cost")), projection: [] },
@@ -694,7 +694,7 @@ describe("Dimensional Projections", () => {
     });
   });
 
-  describe("rows=hierarchy(region, country) projection=[{open:*}], columns=cross(hierarchy(department, product), concat(revenue, cost)) projection=[{open:*}]", () => {
+  describe("hierarchy with concat measures — both axes wildcard expand", () => {
     const config: PivotConfig = {
       rows: { expr: hierarchy("region", "country"), projection: [{ open: "*" }] },
       columns: { expr: cross(hierarchy("department", "product"), concat("revenue", "cost")), projection: [{ open: "*" }] },
@@ -769,10 +769,10 @@ describe("Dimensional Projections", () => {
     });
   });
 
-  describe("rows=concat(hierarchy(region, country, city), hierarchy(department, product))", () => {
+  describe("concat two hierarchies — projection applied to each branch independently", () => {
     const concatRows = concat(hierarchy("region", "country", "city"), hierarchy("department", "product"));
 
-    describe("projection=[]", () => {
+    describe("base state — both branches collapsed to first level", () => {
       const config: PivotConfig = {
         rows: { expr: concatRows, projection: [] },
         columns: "revenue",
@@ -842,7 +842,7 @@ describe("Dimensional Projections", () => {
       });
     });
 
-    describe("projection=[{open:*}]", () => {
+    describe("wildcard expand — all values to second level", () => {
       const config: PivotConfig = {
         rows: { expr: concatRows, projection: [{ open: "*" }] },
         columns: "revenue",
@@ -913,7 +913,7 @@ describe("Dimensional Projections", () => {
       });
     });
 
-    describe("projection=[{open:*,next:{open:*}}]", () => {
+    describe("wildcard expand two levels — fully expanded", () => {
       const config: PivotConfig = {
         rows: { expr: concatRows, projection: [{ open: "*", next: { open: "*" } }] },
         columns: "revenue",
@@ -985,7 +985,7 @@ describe("Dimensional Projections", () => {
       });
     });
 
-    describe("projection=[{open:[Europe]}]", () => {
+    describe("selective expand Europe — only geo branch expands", () => {
       const config: PivotConfig = {
         rows: { expr: concatRows, projection: [{ open: ["Europe"] }] },
         columns: "revenue",
@@ -1069,7 +1069,7 @@ describe("Dimensional Projections", () => {
       });
     });
 
-    describe("projection=[{open:[Electronics]}]", () => {
+    describe("selective expand Electronics — only product branch expands", () => {
       const config: PivotConfig = {
         rows: { expr: concatRows, projection: [{ open: ["Electronics"] }] },
         columns: "revenue",
@@ -1153,7 +1153,7 @@ describe("Dimensional Projections", () => {
       });
     });
 
-    describe("projection=[{open:[Europe],next:{open:*}}]", () => {
+    describe("selective Europe then wildcard — geo branch to city level", () => {
       const config: PivotConfig = {
         rows: { expr: concatRows, projection: [{ open: ["Europe"], next: { open: "*" } }] },
         columns: "revenue",
@@ -1239,7 +1239,7 @@ describe("Dimensional Projections", () => {
       });
     });
 
-    describe("projection=[{open:[Europe]},{open:[Electronics]}]", () => {
+    describe("two paths — Europe expands geo branch, Electronics expands product branch", () => {
       const config: PivotConfig = {
         rows: { expr: concatRows, projection: [{ open: ["Europe"] }, { open: ["Electronics"] }] },
         columns: "revenue",
@@ -1325,6 +1325,1728 @@ describe("Dimensional Projections", () => {
         expect(vm.columnFacets).to.deep.equal([["revenue"]]);
         expect(vm.getSlice(0, 0, vm.numCols, vm.numRows).data).to.deep.equal([
           [9820, 3350, 4030, 8850, 4950, 3400],
+        ]);
+      });
+    });
+  });
+
+  describe("cross simple with hierarchy — projection only affects hierarchy child", () => {
+    const crossRegHier = cross("region", hierarchy("department", "product"));
+
+    describe("base state — region visible, department collapsed", () => {
+      const config: PivotConfig = {
+        rows: { expr: crossRegHier, projection: [] },
+        columns: "revenue",
+      };
+
+      it("config -> projected IR", async () => {
+        const model = await makeModel();
+        const { merged } = model.getIR(config);
+
+        expect(JSON.stringify(merged)).to.equal(
+          '{"dimSpec":{"type":"cross","children":[{"type":"simple","field":"region"},{"type":"hierarchy","fields":["department","product"]}],"segments":[{"visibleChildren":1}]},"measures":[{"field":"revenue","aggregation":"sum"}]}'
+        );
+      });
+
+      it("IR -> SQL", async () => {
+        const model = await makePatchedModel();
+        await model.getViewModelData(config);
+
+        expect(model.sqlStr()).to.equal(
+          `WITH __d__0 AS (SELECT "region", MIN(rowid) AS "__ord__0" FROM "data" GROUP BY "region"),`
+          + `\n     __d__1 AS (SELECT "department", "product", MIN(rowid) AS "__ord__1" FROM "data" GROUP BY "department", "product"),`
+          + `\n     __d__2 AS (SELECT __d__0.*, CAST(NULL AS VARCHAR) AS "department", CAST(NULL AS VARCHAR) AS "product", 0 AS "__ord__1" FROM __d__0)`
+          + `\nSELECT __d__2."region", __d__2."department", __d__2."product", SUM(T."revenue") AS "revenue"`
+          + `\nFROM __d__2`
+          + `\nLEFT JOIN "data" T ON T."region" = __d__2."region" AND (T."department" = __d__2."department" OR __d__2."department" IS NULL) AND (T."product" = __d__2."product" OR __d__2."product" IS NULL)`
+          + ` GROUP BY __d__2."region", __d__2."department", __d__2."product"`
+          + ` ORDER BY MIN(__d__2."__ord__0"), MIN(__d__2."__ord__1")`
+        );
+      });
+
+      it("config -> IR -> SQL -> data-viewmodel", async () => {
+        const model = await makeModel();
+        const vm = await model.getViewModelData(config);
+
+        expect(vm.rowFacets).to.deep.equal([
+          ["North America", "Europe"],
+          [null, null],
+          [null, null],
+        ]);
+        expect(vm.columnFacets).to.deep.equal([["revenue"]]);
+        expect(vm.getSlice(0, 0, vm.numCols, vm.numRows).data).to.deep.equal([
+          [9820, 7380],
+        ]);
+      });
+    });
+
+    describe("wildcard expand — department visible as second level", () => {
+      const config: PivotConfig = {
+        rows: { expr: crossRegHier, projection: [{ open: "*" }] },
+        columns: "revenue",
+      };
+
+      it("config -> projected IR", async () => {
+        const model = await makeModel();
+        const { merged } = model.getIR(config);
+
+        expect(JSON.stringify(merged)).to.equal(
+          '{"dimSpec":{"type":"cross","children":[{"type":"simple","field":"region"},{"type":"hierarchy","fields":["department","product"],"segments":[{"groupBy":["department"]}]}]},"measures":[{"field":"revenue","aggregation":"sum"}]}'
+        );
+      });
+
+      it("IR -> SQL", async () => {
+        const model = await makePatchedModel();
+        await model.getViewModelData(config);
+
+        expect(model.sqlStr()).to.equal(
+          `WITH __d__0 AS (SELECT "region", MIN(rowid) AS "__ord__0" FROM "data" GROUP BY "region"),`
+          + `\n     __d__1 AS (SELECT "department", CAST(NULL AS VARCHAR) AS "product", MIN(rowid) AS "__ord__1" FROM "data" GROUP BY "department"),`
+          + `\n     __d__2 AS (SELECT * FROM __d__0 CROSS JOIN __d__1)`
+          + `\nSELECT __d__2."region", __d__2."department", __d__2."product", SUM(T."revenue") AS "revenue"`
+          + `\nFROM __d__2`
+          + `\nLEFT JOIN "data" T ON T."region" = __d__2."region" AND T."department" = __d__2."department" AND (T."product" = __d__2."product" OR __d__2."product" IS NULL)`
+          + ` GROUP BY __d__2."region", __d__2."department", __d__2."product"`
+          + ` ORDER BY MIN(__d__2."__ord__0"), MIN(__d__2."__ord__1")`
+        );
+      });
+
+      it("config -> IR -> SQL -> data-viewmodel", async () => {
+        const model = await makeModel();
+        const vm = await model.getViewModelData(config);
+
+        expect(vm.rowFacets).to.deep.equal([
+          ["North America", "North America", "Europe", "Europe"],
+          ["Electronics", "Apparel", "Electronics", "Apparel"],
+          [null, null, null, null],
+        ]);
+        expect(vm.columnFacets).to.deep.equal([["revenue"]]);
+        expect(vm.getSlice(0, 0, vm.numCols, vm.numRows).data).to.deep.equal([
+          [8150, 1670, 5650, 1730],
+        ]);
+      });
+    });
+
+    describe("wildcard two levels — department and product both visible", () => {
+      const config: PivotConfig = {
+        rows: { expr: crossRegHier, projection: [{ open: "*", next: { open: "*" } }] },
+        columns: "revenue",
+      };
+
+      it("config -> projected IR", async () => {
+        const model = await makeModel();
+        const { merged } = model.getIR(config);
+
+        expect(JSON.stringify(merged)).to.equal(
+          '{"dimSpec":{"type":"cross","children":[{"type":"simple","field":"region"},{"type":"hierarchy","fields":["department","product"]}]},"measures":[{"field":"revenue","aggregation":"sum"}]}'
+        );
+      });
+
+      it("IR -> SQL", async () => {
+        const model = await makePatchedModel();
+        await model.getViewModelData(config);
+
+        expect(model.sqlStr()).to.equal(
+          `WITH __d__0 AS (SELECT "region", MIN(rowid) AS "__ord__0" FROM "data" GROUP BY "region"),`
+          + `\n     __d__1 AS (SELECT "department", "product", MIN(rowid) AS "__ord__1" FROM "data" GROUP BY "department", "product"),`
+          + `\n     __d__2 AS (SELECT * FROM __d__0 CROSS JOIN __d__1)`
+          + `\nSELECT __d__2."region", __d__2."department", __d__2."product", SUM(T."revenue") AS "revenue"`
+          + `\nFROM __d__2`
+          + `\nLEFT JOIN "data" T ON T."region" = __d__2."region" AND T."department" = __d__2."department" AND T."product" = __d__2."product"`
+          + ` GROUP BY __d__2."region", __d__2."department", __d__2."product"`
+          + ` ORDER BY MIN(__d__2."__ord__0"), MIN(__d__2."__ord__1")`
+        );
+      });
+
+      it("config -> IR -> SQL -> data-viewmodel", async () => {
+        const model = await makeModel();
+        const vm = await model.getViewModelData(config);
+
+        expect(vm.rowFacets).to.deep.equal([
+          ["North America", "North America", "North America", "North America", "Europe", "Europe", "Europe", "Europe"],
+          ["Electronics", "Electronics", "Apparel", "Apparel", "Electronics", "Electronics", "Apparel", "Apparel"],
+          ["Laptop", "Phone", "Jacket", "Shoes", "Laptop", "Phone", "Jacket", "Shoes"],
+        ]);
+        expect(vm.columnFacets).to.deep.equal([["revenue"]]);
+        expect(vm.getSlice(0, 0, vm.numCols, vm.numRows).data).to.deep.equal([
+          [4800, 3350, 1220, 450, 4050, 1600, 1130, 600],
+        ]);
+      });
+    });
+
+    describe("wildcard then selective Electronics — only Electronics expands to product", () => {
+      const config: PivotConfig = {
+        rows: { expr: crossRegHier, projection: [{ open: "*", next: { open: ["Electronics"] } }] },
+        columns: "revenue",
+      };
+
+      it("config -> projected IR", async () => {
+        const model = await makeModel();
+        const { merged } = model.getIR(config);
+
+        expect(JSON.stringify(merged)).to.equal(
+          '{"dimSpec":{"type":"cross","children":[{"type":"simple","field":"region"},{"type":"hierarchy","fields":["department","product"],"segments":[{"groupBy":["department","product"],"filter":{"pass":[{"field":"department","values":["Electronics"]}],"fail":[]}},{"groupBy":["department"],"filter":{"pass":[],"fail":[{"field":"department","values":["Electronics"]}]}}]}]},"measures":[{"field":"revenue","aggregation":"sum"}]}'
+        );
+      });
+
+      it("IR -> SQL", async () => {
+        const model = await makePatchedModel();
+        await model.getViewModelData(config);
+
+        expect(model.sqlStr()).to.equal(
+          `WITH __d__0 AS (SELECT "region", MIN(rowid) AS "__ord__0" FROM "data" GROUP BY "region"),`
+          + `\n     __d__1 AS (`
+          + `\n       SELECT "department", "product", MIN(rowid) AS "__ord__1" FROM "data" WHERE "department" IN ('Electronics') GROUP BY "department", "product"`
+          + `\n       UNION ALL`
+          + `\n       SELECT "department", CAST(NULL AS VARCHAR) AS "product", MIN(rowid) AS "__ord__1" FROM "data" WHERE NOT (COALESCE("department" IN ('Electronics'), FALSE)) GROUP BY "department"`
+          + `\n     ),`
+          + `\n     __d__2 AS (SELECT * FROM __d__0 CROSS JOIN __d__1)`
+          + `\nSELECT __d__2."region", __d__2."department", __d__2."product", SUM(T."revenue") AS "revenue"`
+          + `\nFROM __d__2`
+          + `\nLEFT JOIN "data" T ON T."region" = __d__2."region" AND T."department" = __d__2."department" AND (T."product" = __d__2."product" OR __d__2."product" IS NULL)`
+          + ` GROUP BY __d__2."region", __d__2."department", __d__2."product"`
+          + ` ORDER BY MIN(__d__2."__ord__0"), MIN(__d__2."__ord__1")`
+        );
+      });
+
+      it("config -> IR -> SQL -> data-viewmodel", async () => {
+        const model = await makeModel();
+        const vm = await model.getViewModelData(config);
+
+        expect(vm.rowFacets).to.deep.equal([
+          ["North America", "North America", "North America", "Europe", "Europe", "Europe"],
+          ["Electronics", "Electronics", "Apparel", "Electronics", "Electronics", "Apparel"],
+          ["Laptop", "Phone", null, "Laptop", "Phone", null],
+        ]);
+        expect(vm.columnFacets).to.deep.equal([["revenue"]]);
+        expect(vm.getSlice(0, 0, vm.numCols, vm.numRows).data).to.deep.equal([
+          [4800, 3350, 1670, 4050, 1600, 1730],
+        ]);
+      });
+    });
+
+    describe("both axes — row wildcard expand, column hierarchy base state", () => {
+      const config: PivotConfig = {
+        rows: { expr: crossRegHier, projection: [{ open: "*" }] },
+        columns: { expr: cross(hierarchy("channel", "quarter"), concat("revenue", "cost")), projection: [] },
+      };
+
+      it("config -> projected IR", async () => {
+        const model = await makeModel();
+        const { merged } = model.getIR(config);
+
+        expect(JSON.stringify(merged)).to.equal(
+          '{"dimSpec":{"type":"cross","children":[{"type":"cross","children":[{"type":"simple","field":"region"},{"type":"hierarchy","fields":["department","product"],"segments":[{"groupBy":["department"]}]}]},{"type":"cross","children":[{"type":"hierarchy","fields":["channel","quarter"],"segments":[{"groupBy":["channel"]}]}]}]},"measures":[{"field":"revenue","aggregation":"sum"},{"field":"cost","aggregation":"sum"}]}'
+        );
+      });
+
+      it("IR -> SQL", async () => {
+        const model = await makePatchedModel();
+        await model.getViewModelData(config);
+
+        expect(model.sqlStr()).to.equal(
+          `WITH __d__0 AS (SELECT "region", MIN(rowid) AS "__ord__0" FROM "data" GROUP BY "region"),`
+          + `\n     __d__1 AS (SELECT "department", CAST(NULL AS VARCHAR) AS "product", MIN(rowid) AS "__ord__1" FROM "data" GROUP BY "department"),`
+          + `\n     __d__2 AS (SELECT * FROM __d__0 CROSS JOIN __d__1),`
+          + `\n     __d__3 AS (SELECT "channel", CAST(NULL AS VARCHAR) AS "quarter", MIN(rowid) AS "__ord__3" FROM "data" GROUP BY "channel"),`
+          + `\n     __d__4 AS (SELECT * FROM __d__2 CROSS JOIN __d__3)`
+          + `\nSELECT __d__4."region", __d__4."department", __d__4."product", __d__4."channel", __d__4."quarter", SUM(T."revenue") AS "revenue", SUM(T."cost") AS "cost"`
+          + `\nFROM __d__4`
+          + `\nLEFT JOIN "data" T ON T."region" = __d__4."region" AND T."department" = __d__4."department" AND (T."product" = __d__4."product" OR __d__4."product" IS NULL) AND T."channel" = __d__4."channel" AND (T."quarter" = __d__4."quarter" OR __d__4."quarter" IS NULL)`
+          + ` GROUP BY __d__4."region", __d__4."department", __d__4."product", __d__4."channel", __d__4."quarter"`
+          + ` ORDER BY MIN(__d__4."__ord__0"), MIN(__d__4."__ord__1"), MIN(__d__4."__ord__3")`
+        );
+      });
+
+      it("config -> IR -> SQL -> data-viewmodel", async () => {
+        const model = await makeModel();
+        const vm = await model.getViewModelData(config);
+
+        expect(vm.rowFacets).to.deep.equal([
+          ["North America", "North America", "Europe", "Europe"],
+          ["Electronics", "Apparel", "Electronics", "Apparel"],
+          [null, null, null, null],
+        ]);
+        expect(vm.columnFacets).to.deep.equal([
+          ["Online", "Online", "Retail", "Retail", "Wholesale", "Wholesale"],
+          [null, null, null, null, null, null],
+          ["revenue", "cost", "revenue", "cost", "revenue", "cost"],
+        ]);
+        expect(vm.getSlice(0, 0, vm.numCols, vm.numRows).data).to.deep.equal([
+          [6450, 550, 2700, 680],
+          [4280, 270, 1830, 335],
+          [1700, 630, 2200, 1050],
+          [1050, 315, 1420, 520],
+          [null, 490, 750, null],
+          [null, 245, 480, null],
+        ]);
+      });
+    });
+  });
+
+  describe("nested cross with hierarchy — projection drills through cross levels then into hierarchy", () => {
+    const nestedCrossRows = cross(cross("channel", "quarter"), hierarchy("department", "product"));
+
+    describe("base state — channel only, quarter and hierarchy hidden", () => {
+      const config: PivotConfig = {
+        rows: { expr: nestedCrossRows, projection: [] },
+        columns: "revenue",
+      };
+
+      it("config -> projected IR", async () => {
+        const model = await makeModel();
+        const { merged } = model.getIR(config);
+
+        expect(JSON.stringify(merged)).to.equal(
+          '{"dimSpec":{"type":"cross","children":[{"type":"cross","children":[{"type":"simple","field":"channel"},{"type":"simple","field":"quarter"}],"segments":[{"visibleChildren":1}]},{"type":"hierarchy","fields":["department","product"]}],"segments":[{"visibleChildren":1}]},"measures":[{"field":"revenue","aggregation":"sum"}]}'
+        );
+      });
+
+      it("IR -> SQL", async () => {
+        const model = await makePatchedModel();
+        await model.getViewModelData(config);
+
+        expect(model.sqlStr()).to.equal(
+          `WITH __d__0 AS (SELECT "channel", MIN(rowid) AS "__ord__0" FROM "data" GROUP BY "channel"),`
+          + `\n     __d__1 AS (SELECT "quarter", MIN(rowid) AS "__ord__1" FROM "data" GROUP BY "quarter"),`
+          + `\n     __d__2 AS (SELECT __d__0.*, CAST(NULL AS VARCHAR) AS "quarter", 0 AS "__ord__1" FROM __d__0),`
+          + `\n     __d__3 AS (SELECT "department", "product", MIN(rowid) AS "__ord__3" FROM "data" GROUP BY "department", "product"),`
+          + `\n     __d__4 AS (SELECT __d__2.*, CAST(NULL AS VARCHAR) AS "department", CAST(NULL AS VARCHAR) AS "product", 0 AS "__ord__3" FROM __d__2)`
+          + `\nSELECT __d__4."channel", __d__4."quarter", __d__4."department", __d__4."product", SUM(T."revenue") AS "revenue"`
+          + `\nFROM __d__4`
+          + `\nLEFT JOIN "data" T ON T."channel" = __d__4."channel" AND (T."quarter" = __d__4."quarter" OR __d__4."quarter" IS NULL) AND (T."department" = __d__4."department" OR __d__4."department" IS NULL) AND (T."product" = __d__4."product" OR __d__4."product" IS NULL)`
+          + ` GROUP BY __d__4."channel", __d__4."quarter", __d__4."department", __d__4."product"`
+          + ` ORDER BY MIN(__d__4."__ord__0"), MIN(__d__4."__ord__1"), MIN(__d__4."__ord__3")`
+        );
+      });
+
+      it("config -> IR -> SQL -> data-viewmodel", async () => {
+        const model = await makeModel();
+        const vm = await model.getViewModelData(config);
+
+        expect(vm.rowFacets).to.deep.equal([
+          ["Online", "Retail", "Wholesale"],
+          [null, null, null],
+          [null, null, null],
+          [null, null, null],
+        ]);
+        expect(vm.columnFacets).to.deep.equal([["revenue"]]);
+        expect(vm.getSlice(0, 0, vm.numCols, vm.numRows).data).to.deep.equal([
+          [10380, 5580, 1240],
+        ]);
+      });
+    });
+
+    describe("one level expand — channel x quarter visible, hierarchy still hidden", () => {
+      const config: PivotConfig = {
+        rows: { expr: nestedCrossRows, projection: [{ open: "*" }] },
+        columns: "revenue",
+      };
+
+      it("config -> projected IR", async () => {
+        const model = await makeModel();
+        const { merged } = model.getIR(config);
+
+        expect(JSON.stringify(merged)).to.equal(
+          '{"dimSpec":{"type":"cross","children":[{"type":"cross","children":[{"type":"simple","field":"channel"},{"type":"simple","field":"quarter"}]},{"type":"hierarchy","fields":["department","product"]}],"segments":[{"visibleChildren":1}]},"measures":[{"field":"revenue","aggregation":"sum"}]}'
+        );
+      });
+
+      it("IR -> SQL", async () => {
+        const model = await makePatchedModel();
+        await model.getViewModelData(config);
+
+        expect(model.sqlStr()).to.equal(
+          `WITH __d__0 AS (SELECT "channel", MIN(rowid) AS "__ord__0" FROM "data" GROUP BY "channel"),`
+          + `\n     __d__1 AS (SELECT "quarter", MIN(rowid) AS "__ord__1" FROM "data" GROUP BY "quarter"),`
+          + `\n     __d__2 AS (SELECT * FROM __d__0 CROSS JOIN __d__1),`
+          + `\n     __d__3 AS (SELECT "department", "product", MIN(rowid) AS "__ord__3" FROM "data" GROUP BY "department", "product"),`
+          + `\n     __d__4 AS (SELECT __d__2.*, CAST(NULL AS VARCHAR) AS "department", CAST(NULL AS VARCHAR) AS "product", 0 AS "__ord__3" FROM __d__2)`
+          + `\nSELECT __d__4."channel", __d__4."quarter", __d__4."department", __d__4."product", SUM(T."revenue") AS "revenue"`
+          + `\nFROM __d__4`
+          + `\nLEFT JOIN "data" T ON T."channel" = __d__4."channel" AND T."quarter" = __d__4."quarter" AND (T."department" = __d__4."department" OR __d__4."department" IS NULL) AND (T."product" = __d__4."product" OR __d__4."product" IS NULL)`
+          + ` GROUP BY __d__4."channel", __d__4."quarter", __d__4."department", __d__4."product"`
+          + ` ORDER BY MIN(__d__4."__ord__0"), MIN(__d__4."__ord__1"), MIN(__d__4."__ord__3")`
+        );
+      });
+
+      it("config -> IR -> SQL -> data-viewmodel", async () => {
+        const model = await makeModel();
+        const vm = await model.getViewModelData(config);
+
+        expect(vm.rowFacets).to.deep.equal([
+          ["Online", "Online", "Online", "Retail", "Retail", "Retail", "Wholesale", "Wholesale", "Wholesale"],
+          ["Q1", "Q2", "Q3", "Q1", "Q2", "Q3", "Q1", "Q2", "Q3"],
+          [null, null, null, null, null, null, null, null, null],
+          [null, null, null, null, null, null, null, null, null],
+        ]);
+        expect(vm.columnFacets).to.deep.equal([["revenue"]]);
+        expect(vm.getSlice(0, 0, vm.numCols, vm.numRows).data).to.deep.equal([
+          [6550, 2880, 950, 2280, 1570, 1730, null, 950, 290],
+        ]);
+      });
+    });
+
+    describe("two level expand — channel x quarter x department visible", () => {
+      const config: PivotConfig = {
+        rows: { expr: nestedCrossRows, projection: [{ open: "*", next: { open: "*" } }] },
+        columns: "revenue",
+      };
+
+      it("config -> projected IR", async () => {
+        const model = await makeModel();
+        const { merged } = model.getIR(config);
+
+        expect(JSON.stringify(merged)).to.equal(
+          '{"dimSpec":{"type":"cross","children":[{"type":"cross","children":[{"type":"simple","field":"channel"},{"type":"simple","field":"quarter"}]},{"type":"hierarchy","fields":["department","product"],"segments":[{"groupBy":["department"]}]}]},"measures":[{"field":"revenue","aggregation":"sum"}]}'
+        );
+      });
+
+      it("IR -> SQL", async () => {
+        const model = await makePatchedModel();
+        await model.getViewModelData(config);
+
+        expect(model.sqlStr()).to.equal(
+          `WITH __d__0 AS (SELECT "channel", MIN(rowid) AS "__ord__0" FROM "data" GROUP BY "channel"),`
+          + `\n     __d__1 AS (SELECT "quarter", MIN(rowid) AS "__ord__1" FROM "data" GROUP BY "quarter"),`
+          + `\n     __d__2 AS (SELECT * FROM __d__0 CROSS JOIN __d__1),`
+          + `\n     __d__3 AS (SELECT "department", CAST(NULL AS VARCHAR) AS "product", MIN(rowid) AS "__ord__3" FROM "data" GROUP BY "department"),`
+          + `\n     __d__4 AS (SELECT * FROM __d__2 CROSS JOIN __d__3)`
+          + `\nSELECT __d__4."channel", __d__4."quarter", __d__4."department", __d__4."product", SUM(T."revenue") AS "revenue"`
+          + `\nFROM __d__4`
+          + `\nLEFT JOIN "data" T ON T."channel" = __d__4."channel" AND T."quarter" = __d__4."quarter" AND T."department" = __d__4."department" AND (T."product" = __d__4."product" OR __d__4."product" IS NULL)`
+          + ` GROUP BY __d__4."channel", __d__4."quarter", __d__4."department", __d__4."product"`
+          + ` ORDER BY MIN(__d__4."__ord__0"), MIN(__d__4."__ord__1"), MIN(__d__4."__ord__3")`
+        );
+      });
+
+      it("config -> IR -> SQL -> data-viewmodel", async () => {
+        const model = await makeModel();
+        const vm = await model.getViewModelData(config);
+
+        expect(vm.rowFacets).to.deep.equal([
+          ["Online", "Online", "Online", "Online", "Online", "Online", "Retail", "Retail", "Retail", "Retail", "Retail", "Retail", "Wholesale", "Wholesale", "Wholesale", "Wholesale", "Wholesale", "Wholesale"],
+          ["Q1", "Q1", "Q2", "Q2", "Q3", "Q3", "Q1", "Q1", "Q2", "Q2", "Q3", "Q3", "Q1", "Q1", "Q2", "Q2", "Q3", "Q3"],
+          ["Electronics", "Apparel", "Electronics", "Apparel", "Electronics", "Apparel", "Electronics", "Apparel", "Electronics", "Apparel", "Electronics", "Apparel", "Electronics", "Apparel", "Electronics", "Apparel", "Electronics", "Apparel"],
+          [null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null],
+        ]);
+        expect(vm.columnFacets).to.deep.equal([["revenue"]]);
+        expect(vm.getSlice(0, 0, vm.numCols, vm.numRows).data).to.deep.equal([
+          [6000, 550, 2200, 680, 950, null, 1650, 630, 900, 670, 1350, 380, null, null, 750, 200, null, 290],
+        ]);
+      });
+    });
+
+    describe("three level expand, selective Electronics — Electronics shows product", () => {
+      const config: PivotConfig = {
+        rows: { expr: nestedCrossRows, projection: [{ open: "*", next: { open: "*", next: { open: ["Electronics"] } } }] },
+        columns: "revenue",
+      };
+
+      it("config -> projected IR", async () => {
+        const model = await makeModel();
+        const { merged } = model.getIR(config);
+
+        expect(JSON.stringify(merged)).to.equal(
+          '{"dimSpec":{"type":"cross","children":[{"type":"cross","children":[{"type":"simple","field":"channel"},{"type":"simple","field":"quarter"}]},{"type":"hierarchy","fields":["department","product"],"segments":[{"groupBy":["department","product"],"filter":{"pass":[{"field":"department","values":["Electronics"]}],"fail":[]}},{"groupBy":["department"],"filter":{"pass":[],"fail":[{"field":"department","values":["Electronics"]}]}}]}]},"measures":[{"field":"revenue","aggregation":"sum"}]}'
+        );
+      });
+
+      it("IR -> SQL", async () => {
+        const model = await makePatchedModel();
+        await model.getViewModelData(config);
+
+        expect(model.sqlStr()).to.equal(
+          `WITH __d__0 AS (SELECT "channel", MIN(rowid) AS "__ord__0" FROM "data" GROUP BY "channel"),`
+          + `\n     __d__1 AS (SELECT "quarter", MIN(rowid) AS "__ord__1" FROM "data" GROUP BY "quarter"),`
+          + `\n     __d__2 AS (SELECT * FROM __d__0 CROSS JOIN __d__1),`
+          + `\n     __d__3 AS (`
+          + `\n       SELECT "department", "product", MIN(rowid) AS "__ord__3" FROM "data" WHERE "department" IN ('Electronics') GROUP BY "department", "product"`
+          + `\n       UNION ALL`
+          + `\n       SELECT "department", CAST(NULL AS VARCHAR) AS "product", MIN(rowid) AS "__ord__3" FROM "data" WHERE NOT (COALESCE("department" IN ('Electronics'), FALSE)) GROUP BY "department"`
+          + `\n     ),`
+          + `\n     __d__4 AS (SELECT * FROM __d__2 CROSS JOIN __d__3)`
+          + `\nSELECT __d__4."channel", __d__4."quarter", __d__4."department", __d__4."product", SUM(T."revenue") AS "revenue"`
+          + `\nFROM __d__4`
+          + `\nLEFT JOIN "data" T ON T."channel" = __d__4."channel" AND T."quarter" = __d__4."quarter" AND T."department" = __d__4."department" AND (T."product" = __d__4."product" OR __d__4."product" IS NULL)`
+          + ` GROUP BY __d__4."channel", __d__4."quarter", __d__4."department", __d__4."product"`
+          + ` ORDER BY MIN(__d__4."__ord__0"), MIN(__d__4."__ord__1"), MIN(__d__4."__ord__3")`
+        );
+      });
+
+      it("config -> IR -> SQL -> data-viewmodel", async () => {
+        const model = await makeModel();
+        const vm = await model.getViewModelData(config);
+
+        expect(vm.rowFacets).to.deep.equal([
+          ["Online", "Online", "Online", "Online", "Online", "Online", "Online", "Online", "Online", "Retail", "Retail", "Retail", "Retail", "Retail", "Retail", "Retail", "Retail", "Retail", "Wholesale", "Wholesale", "Wholesale", "Wholesale", "Wholesale", "Wholesale", "Wholesale", "Wholesale", "Wholesale"],
+          ["Q1", "Q1", "Q1", "Q2", "Q2", "Q2", "Q3", "Q3", "Q3", "Q1", "Q1", "Q1", "Q2", "Q2", "Q2", "Q3", "Q3", "Q3", "Q1", "Q1", "Q1", "Q2", "Q2", "Q2", "Q3", "Q3", "Q3"],
+          ["Electronics", "Electronics", "Apparel", "Electronics", "Electronics", "Apparel", "Electronics", "Electronics", "Apparel", "Electronics", "Electronics", "Apparel", "Electronics", "Electronics", "Apparel", "Electronics", "Electronics", "Apparel", "Electronics", "Electronics", "Apparel", "Electronics", "Electronics", "Apparel", "Electronics", "Electronics", "Apparel"],
+          ["Laptop", "Phone", null, "Laptop", "Phone", null, "Laptop", "Phone", null, "Laptop", "Phone", null, "Laptop", "Phone", null, "Laptop", "Phone", null, "Laptop", "Phone", null, "Laptop", "Phone", null, "Laptop", "Phone", null],
+        ]);
+        expect(vm.columnFacets).to.deep.equal([["revenue"]]);
+        expect(vm.getSlice(0, 0, vm.numCols, vm.numRows).data).to.deep.equal([
+          [6000, null, 550, 1500, 700, 680, null, 950, null, null, 1650, 630, null, 900, 670, 1350, null, 380, null, null, null, null, 750, 200, null, null, 290],
+        ]);
+      });
+    });
+  });
+
+  describe("cross two hierarchies — selective gating between children", () => {
+    const crossHierHierRows = cross(hierarchy("region", "country"), hierarchy("department", "product"));
+
+    describe("Europe expanded to country — child 1 still hidden (gate not reached)", () => {
+      const config: PivotConfig = {
+        rows: { expr: crossHierHierRows, projection: [{ open: ["Europe"], next: { open: "*" } }] },
+        columns: "revenue",
+      };
+
+      it("config -> projected IR", async () => {
+        const model = await makeModel();
+        const { merged } = model.getIR(config);
+
+        expect(JSON.stringify(merged)).to.equal(
+          '{"dimSpec":{"type":"cross","children":[{"type":"hierarchy","fields":["region","country"],"segments":[{"groupBy":["region","country"],"filter":{"pass":[{"field":"region","values":["Europe"]}],"fail":[]}},{"groupBy":["region"],"filter":{"pass":[],"fail":[{"field":"region","values":["Europe"]}]}}]},{"type":"hierarchy","fields":["department","product"],"segments":[{"groupBy":["department"]}]}],"segments":[{"visibleChildren":2,"filter":{"pass":[{"field":"region","values":["Europe"]}],"fail":[]}},{"visibleChildren":1,"filter":{"pass":[],"fail":[{"field":"region","values":["Europe"]}]}}]},"measures":[{"field":"revenue","aggregation":"sum"}]}'
+        );
+      });
+
+      it("IR -> SQL", async () => {
+        const model = await makePatchedModel();
+        await model.getViewModelData(config);
+
+        expect(model.sqlStr()).to.equal(
+          `WITH __d__0 AS (`
+          + `\n       SELECT "region", "country", MIN(rowid) AS "__ord__0" FROM "data" WHERE "region" IN ('Europe') GROUP BY "region", "country"`
+          + `\n       UNION ALL`
+          + `\n       SELECT "region", CAST(NULL AS VARCHAR) AS "country", MIN(rowid) AS "__ord__0" FROM "data" WHERE NOT (COALESCE("region" IN ('Europe'), FALSE)) GROUP BY "region"`
+          + `\n     ),`
+          + `\n     __d__1 AS (SELECT "department", CAST(NULL AS VARCHAR) AS "product", MIN(rowid) AS "__ord__1" FROM "data" GROUP BY "department"),`
+          + `\n     __d__2 AS (`
+          + `\n       SELECT __d__0."region", __d__0."country", __d__1."department", __d__1."product", __d__0."__ord__0", __d__1."__ord__1" FROM __d__0 CROSS JOIN __d__1 WHERE __d__0."region" IN ('Europe')`
+          + `\n       UNION ALL`
+          + `\n       SELECT __d__0."region", __d__0."country", CAST(NULL AS VARCHAR) AS "department", CAST(NULL AS VARCHAR) AS "product", __d__0."__ord__0", 0 AS "__ord__1" FROM __d__0 WHERE NOT (COALESCE(__d__0."region" IN ('Europe'), FALSE))`
+          + `\n     )`
+          + `\nSELECT __d__2."region", __d__2."country", __d__2."department", __d__2."product", SUM(T."revenue") AS "revenue"`
+          + `\nFROM __d__2`
+          + `\nLEFT JOIN "data" T ON T."region" = __d__2."region" AND (T."country" = __d__2."country" OR __d__2."country" IS NULL) AND (T."department" = __d__2."department" OR __d__2."department" IS NULL) AND (T."product" = __d__2."product" OR __d__2."product" IS NULL)`
+          + ` GROUP BY __d__2."region", __d__2."country", __d__2."department", __d__2."product"`
+          + ` ORDER BY MIN(__d__2."__ord__0"), MIN(__d__2."__ord__1")`
+        );
+      });
+
+      it("config -> IR -> SQL -> data-viewmodel", async () => {
+        const model = await makeModel();
+        const vm = await model.getViewModelData(config);
+
+        expect(vm.rowFacets).to.deep.equal([
+          ["North America", "Europe", "Europe", "Europe", "Europe"],
+          [null, "UK", "UK", "Germany", "Germany"],
+          [null, "Electronics", "Apparel", "Electronics", "Apparel"],
+          [null, null, null, null, null],
+        ]);
+        expect(vm.columnFacets).to.deep.equal([["revenue"]]);
+        expect(vm.getSlice(0, 0, vm.numCols, vm.numRows).data).to.deep.equal([
+          [9820, 2250, 1100, 3400, 630],
+        ]);
+      });
+    });
+
+    describe("Europe wildcard + NA selective USA — two paths, child 1 still gated", () => {
+      const config: PivotConfig = {
+        rows: { expr: crossHierHierRows, projection: [{ open: ["Europe"], next: { open: "*" } }, { open: ["North America"], next: { open: ["USA"] } }] },
+        columns: "revenue",
+      };
+
+      it("config -> projected IR", async () => {
+        const model = await makeModel();
+        const { merged } = model.getIR(config);
+
+        expect(JSON.stringify(merged)).to.equal(
+          '{"dimSpec":{"type":"cross","children":[{"type":"hierarchy","fields":["region","country"],"segments":[{"groupBy":["region","country"],"filter":{"pass":[{"field":"region","values":["Europe"]}],"fail":[]}},{"groupBy":["region","country"],"filter":{"pass":[{"field":"region","values":["North America"]},{"field":"country","values":["USA"]}],"fail":[]}},{"groupBy":["region","country"],"filter":{"pass":[{"field":"region","values":["North America"]}],"fail":[{"field":"country","values":["USA"]}]}},{"groupBy":["region"],"filter":{"pass":[],"fail":[{"field":"region","values":["Europe","North America"]}]}}]},{"type":"hierarchy","fields":["department","product"],"segments":[{"groupBy":["department"]}]}],"segments":[{"visibleChildren":2,"filter":{"pass":[{"field":"region","values":["Europe","North America"]}],"fail":[]}},{"visibleChildren":1,"filter":{"pass":[],"fail":[{"field":"region","values":["Europe","North America"]}]}}]},"measures":[{"field":"revenue","aggregation":"sum"}]}'
+        );
+      });
+
+      it("IR -> SQL", async () => {
+        const model = await makePatchedModel();
+        await model.getViewModelData(config);
+
+        expect(model.sqlStr()).to.equal(
+          `WITH __d__0 AS (`
+          + `\n       SELECT "region", "country", MIN(rowid) AS "__ord__0" FROM "data" WHERE "region" IN ('Europe') GROUP BY "region", "country"`
+          + `\n       UNION ALL`
+          + `\n       SELECT "region", "country", MIN(rowid) AS "__ord__0" FROM "data" WHERE "region" IN ('North America') AND "country" IN ('USA') GROUP BY "region", "country"`
+          + `\n       UNION ALL`
+          + `\n       SELECT "region", "country", MIN(rowid) AS "__ord__0" FROM "data" WHERE "region" IN ('North America') AND NOT (COALESCE("country" IN ('USA'), FALSE)) GROUP BY "region", "country"`
+          + `\n       UNION ALL`
+          + `\n       SELECT "region", CAST(NULL AS VARCHAR) AS "country", MIN(rowid) AS "__ord__0" FROM "data" WHERE NOT (COALESCE("region" IN ('Europe','North America'), FALSE)) GROUP BY "region"`
+          + `\n     ),`
+          + `\n     __d__1 AS (SELECT "department", CAST(NULL AS VARCHAR) AS "product", MIN(rowid) AS "__ord__1" FROM "data" GROUP BY "department"),`
+          + `\n     __d__2 AS (`
+          + `\n       SELECT __d__0."region", __d__0."country", __d__1."department", __d__1."product", __d__0."__ord__0", __d__1."__ord__1" FROM __d__0 CROSS JOIN __d__1 WHERE __d__0."region" IN ('Europe','North America')`
+          + `\n       UNION ALL`
+          + `\n       SELECT __d__0."region", __d__0."country", CAST(NULL AS VARCHAR) AS "department", CAST(NULL AS VARCHAR) AS "product", __d__0."__ord__0", 0 AS "__ord__1" FROM __d__0 WHERE NOT (COALESCE(__d__0."region" IN ('Europe','North America'), FALSE))`
+          + `\n     )`
+          + `\nSELECT __d__2."region", __d__2."country", __d__2."department", __d__2."product", SUM(T."revenue") AS "revenue"`
+          + `\nFROM __d__2`
+          + `\nLEFT JOIN "data" T ON T."region" = __d__2."region" AND (T."country" = __d__2."country" OR __d__2."country" IS NULL) AND (T."department" = __d__2."department" OR __d__2."department" IS NULL) AND (T."product" = __d__2."product" OR __d__2."product" IS NULL)`
+          + ` GROUP BY __d__2."region", __d__2."country", __d__2."department", __d__2."product"`
+          + ` ORDER BY MIN(__d__2."__ord__0"), MIN(__d__2."__ord__1")`
+        );
+      });
+
+      it("config -> IR -> SQL -> data-viewmodel", async () => {
+        const model = await makeModel();
+        const vm = await model.getViewModelData(config);
+
+        expect(vm.rowFacets).to.deep.equal([
+          ["North America", "North America", "North America", "North America", "Europe", "Europe", "Europe", "Europe"],
+          ["USA", "USA", "Canada", "Canada", "UK", "UK", "Germany", "Germany"],
+          ["Electronics", "Apparel", "Electronics", "Apparel", "Electronics", "Apparel", "Electronics", "Apparel"],
+          [null, null, null, null, null, null, null, null],
+        ]);
+        expect(vm.columnFacets).to.deep.equal([["revenue"]]);
+        expect(vm.getSlice(0, 0, vm.numCols, vm.numRows).data).to.deep.equal([
+          [6450, 1190, 1700, 480, 2250, 1100, 3400, 630],
+        ]);
+      });
+    });
+  });
+
+  describe("concat of two crosses — projection drills into each cross branch independently", () => {
+    const deepRows = concat(
+      cross(hierarchy("region", "country"), "department"),
+      cross("channel", "department"),
+    );
+
+    describe("base state — region and channel visible, hierarchy children hidden", () => {
+      const config: PivotConfig = {
+        rows: { expr: deepRows, projection: [] },
+        columns: "revenue",
+      };
+
+      it("config -> projected IR", async () => {
+        const model = await makeModel();
+        const { merged } = model.getIR(config);
+
+        expect(JSON.stringify(merged)).to.equal(
+          '{"dimSpec":{"type":"concat","children":[{"type":"cross","children":[{"type":"hierarchy","fields":["region","country"],"segments":[{"groupBy":["region"]}]},{"type":"simple","field":"department"}],"segments":[{"visibleChildren":1}]},{"type":"cross","children":[{"type":"simple","field":"channel"},{"type":"simple","field":"department"}],"segments":[{"visibleChildren":1}]}]},"measures":[{"field":"revenue","aggregation":"sum"}]}'
+        );
+      });
+
+      it("IR -> SQL", async () => {
+        const model = await makePatchedModel();
+        await model.getViewModelData(config);
+
+        expect(model.sqlStr()).to.equal(
+          `WITH __d__0 AS (SELECT "region", CAST(NULL AS VARCHAR) AS "country", MIN(rowid) AS "__ord__0" FROM "data" GROUP BY "region"),`
+          + `\n     __d__1 AS (SELECT "department", MIN(rowid) AS "__ord__1" FROM "data" GROUP BY "department"),`
+          + `\n     __d__2 AS (SELECT __d__0.*, CAST(NULL AS VARCHAR) AS "department", 0 AS "__ord__1" FROM __d__0),`
+          + `\n     __d__3 AS (SELECT "channel", MIN(rowid) AS "__ord__3" FROM "data" GROUP BY "channel"),`
+          + `\n     __d__4 AS (SELECT "department", MIN(rowid) AS "__ord__4" FROM "data" GROUP BY "department"),`
+          + `\n     __d__5 AS (SELECT __d__3.*, CAST(NULL AS VARCHAR) AS "department", 0 AS "__ord__4" FROM __d__3),`
+          + `\n     __d__6 AS (`
+          + `\n       SELECT '0:region,country,department' AS "__src__0", __d__2."region" AS "__c__0", __d__2."country" AS "__c__1", __d__2."department" AS "__c__2", __ord__0 AS "__cord__0_0", __ord__1 AS "__cord__0_1" FROM __d__2`
+          + `\n       UNION ALL`
+          + `\n       SELECT '1:channel,department' AS "__src__0", __d__5."channel" AS "__c__0", __d__5."department" AS "__c__1", CAST(NULL AS VARCHAR) AS "__c__2", __ord__3 AS "__cord__0_0", __ord__4 AS "__cord__0_1" FROM __d__5`
+          + `\n     )`
+          + `\nSELECT __d__6."__c__0", __d__6."__c__1", __d__6."__c__2", SUM(T."revenue") AS "revenue"`
+          + `\nFROM __d__6`
+          + `\nLEFT JOIN "data" T ON (`
+          + `\n    (__d__6."__src__0" = '0:region,country,department' AND T."region" = __d__6."__c__0" AND (T."country" = __d__6."__c__1" OR __d__6."__c__1" IS NULL) AND (T."department" = __d__6."__c__2" OR __d__6."__c__2" IS NULL))`
+          + `\n    OR (__d__6."__src__0" = '1:channel,department' AND T."channel" = __d__6."__c__0" AND (T."department" = __d__6."__c__1" OR __d__6."__c__1" IS NULL))`
+          + `\n    OR __d__6."__src__0" IS NULL`
+          + `\n  )`
+          + ` GROUP BY __d__6."__c__0", __d__6."__c__1", __d__6."__c__2", __d__6."__src__0"`
+          + ` ORDER BY __d__6."__src__0", MIN(__d__6."__cord__0_0"), MIN(__d__6."__cord__0_1")`
+        );
+      });
+
+      it("config -> IR -> SQL -> data-viewmodel", async () => {
+        const model = await makeModel();
+        const vm = await model.getViewModelData(config);
+
+        expect(vm.rowFacets).to.deep.equal([
+          ["North America", "Europe", "Online", "Retail", "Wholesale"],
+          [null, null, null, null, null],
+          [null, null, null, null, null],
+        ]);
+        expect(vm.columnFacets).to.deep.equal([["revenue"]]);
+        expect(vm.getSlice(0, 0, vm.numCols, vm.numRows).data).to.deep.equal([
+          [9820, 7380, 10380, 5580, 1240],
+        ]);
+      });
+    });
+
+    describe("wildcard expand — geo branch shows country+dept, channel branch shows dept", () => {
+      const config: PivotConfig = {
+        rows: { expr: deepRows, projection: [{ open: "*" }] },
+        columns: "revenue",
+      };
+
+      it("config -> projected IR", async () => {
+        const model = await makeModel();
+        const { merged } = model.getIR(config);
+
+        expect(JSON.stringify(merged)).to.equal(
+          '{"dimSpec":{"type":"concat","children":[{"type":"cross","children":[{"type":"hierarchy","fields":["region","country"]},{"type":"simple","field":"department"}],"segments":[{"visibleChildren":1}]},{"type":"cross","children":[{"type":"simple","field":"channel"},{"type":"simple","field":"department"}]}]},"measures":[{"field":"revenue","aggregation":"sum"}]}'
+        );
+      });
+
+      it("IR -> SQL", async () => {
+        const model = await makePatchedModel();
+        await model.getViewModelData(config);
+
+        expect(model.sqlStr()).to.equal(
+          `WITH __d__0 AS (SELECT "region", "country", MIN(rowid) AS "__ord__0" FROM "data" GROUP BY "region", "country"),`
+          + `\n     __d__1 AS (SELECT "department", MIN(rowid) AS "__ord__1" FROM "data" GROUP BY "department"),`
+          + `\n     __d__2 AS (SELECT __d__0.*, CAST(NULL AS VARCHAR) AS "department", 0 AS "__ord__1" FROM __d__0),`
+          + `\n     __d__3 AS (SELECT "channel", MIN(rowid) AS "__ord__3" FROM "data" GROUP BY "channel"),`
+          + `\n     __d__4 AS (SELECT "department", MIN(rowid) AS "__ord__4" FROM "data" GROUP BY "department"),`
+          + `\n     __d__5 AS (SELECT * FROM __d__3 CROSS JOIN __d__4),`
+          + `\n     __d__6 AS (`
+          + `\n       SELECT '0:region,country,department' AS "__src__0", __d__2."region" AS "__c__0", __d__2."country" AS "__c__1", __d__2."department" AS "__c__2", __ord__0 AS "__cord__0_0", __ord__1 AS "__cord__0_1" FROM __d__2`
+          + `\n       UNION ALL`
+          + `\n       SELECT '1:channel,department' AS "__src__0", __d__5."channel" AS "__c__0", __d__5."department" AS "__c__1", CAST(NULL AS VARCHAR) AS "__c__2", __ord__3 AS "__cord__0_0", __ord__4 AS "__cord__0_1" FROM __d__5`
+          + `\n     )`
+          + `\nSELECT __d__6."__c__0", __d__6."__c__1", __d__6."__c__2", SUM(T."revenue") AS "revenue"`
+          + `\nFROM __d__6`
+          + `\nLEFT JOIN "data" T ON (`
+          + `\n    (__d__6."__src__0" = '0:region,country,department' AND T."region" = __d__6."__c__0" AND T."country" = __d__6."__c__1" AND (T."department" = __d__6."__c__2" OR __d__6."__c__2" IS NULL))`
+          + `\n    OR (__d__6."__src__0" = '1:channel,department' AND T."channel" = __d__6."__c__0" AND T."department" = __d__6."__c__1")`
+          + `\n    OR __d__6."__src__0" IS NULL`
+          + `\n  )`
+          + ` GROUP BY __d__6."__c__0", __d__6."__c__1", __d__6."__c__2", __d__6."__src__0"`
+          + ` ORDER BY __d__6."__src__0", MIN(__d__6."__cord__0_0"), MIN(__d__6."__cord__0_1")`
+        );
+      });
+
+      it("config -> IR -> SQL -> data-viewmodel", async () => {
+        const model = await makeModel();
+        const vm = await model.getViewModelData(config);
+
+        expect(vm.rowFacets).to.deep.equal([
+          ["North America", "North America", "Europe", "Europe", "Online", "Online", "Retail", "Retail", "Wholesale", "Wholesale"],
+          ["USA", "Canada", "UK", "Germany", "Electronics", "Apparel", "Electronics", "Apparel", "Electronics", "Apparel"],
+          [null, null, null, null, null, null, null, null, null, null],
+        ]);
+        expect(vm.columnFacets).to.deep.equal([["revenue"]]);
+        expect(vm.getSlice(0, 0, vm.numCols, vm.numRows).data).to.deep.equal([
+          [7640, 2180, 3350, 4030, 9150, 1230, 3900, 1680, 750, 490],
+        ]);
+      });
+    });
+
+    describe("wildcard two levels — fully expanded both branches", () => {
+      const config: PivotConfig = {
+        rows: { expr: deepRows, projection: [{ open: "*", next: { open: "*" } }] },
+        columns: "revenue",
+      };
+
+      it("config -> projected IR", async () => {
+        const model = await makeModel();
+        const { merged } = model.getIR(config);
+
+        expect(JSON.stringify(merged)).to.equal(
+          '{"dimSpec":{"type":"concat","children":[{"type":"cross","children":[{"type":"hierarchy","fields":["region","country"]},{"type":"simple","field":"department"}]},{"type":"cross","children":[{"type":"simple","field":"channel"},{"type":"simple","field":"department"}]}]},"measures":[{"field":"revenue","aggregation":"sum"}]}'
+        );
+      });
+
+      it("IR -> SQL", async () => {
+        const model = await makePatchedModel();
+        await model.getViewModelData(config);
+
+        expect(model.sqlStr()).to.equal(
+          `WITH __d__0 AS (SELECT "region", "country", MIN(rowid) AS "__ord__0" FROM "data" GROUP BY "region", "country"),`
+          + `\n     __d__1 AS (SELECT "department", MIN(rowid) AS "__ord__1" FROM "data" GROUP BY "department"),`
+          + `\n     __d__2 AS (SELECT * FROM __d__0 CROSS JOIN __d__1),`
+          + `\n     __d__3 AS (SELECT "channel", MIN(rowid) AS "__ord__3" FROM "data" GROUP BY "channel"),`
+          + `\n     __d__4 AS (SELECT "department", MIN(rowid) AS "__ord__4" FROM "data" GROUP BY "department"),`
+          + `\n     __d__5 AS (SELECT * FROM __d__3 CROSS JOIN __d__4),`
+          + `\n     __d__6 AS (`
+          + `\n       SELECT '0:region,country,department' AS "__src__0", __d__2."region" AS "__c__0", __d__2."country" AS "__c__1", __d__2."department" AS "__c__2", __ord__0 AS "__cord__0_0", __ord__1 AS "__cord__0_1" FROM __d__2`
+          + `\n       UNION ALL`
+          + `\n       SELECT '1:channel,department' AS "__src__0", __d__5."channel" AS "__c__0", __d__5."department" AS "__c__1", CAST(NULL AS VARCHAR) AS "__c__2", __ord__3 AS "__cord__0_0", __ord__4 AS "__cord__0_1" FROM __d__5`
+          + `\n     )`
+          + `\nSELECT __d__6."__c__0", __d__6."__c__1", __d__6."__c__2", SUM(T."revenue") AS "revenue"`
+          + `\nFROM __d__6`
+          + `\nLEFT JOIN "data" T ON (`
+          + `\n    (__d__6."__src__0" = '0:region,country,department' AND T."region" = __d__6."__c__0" AND T."country" = __d__6."__c__1" AND T."department" = __d__6."__c__2")`
+          + `\n    OR (__d__6."__src__0" = '1:channel,department' AND T."channel" = __d__6."__c__0" AND T."department" = __d__6."__c__1")`
+          + `\n    OR __d__6."__src__0" IS NULL`
+          + `\n  )`
+          + ` GROUP BY __d__6."__c__0", __d__6."__c__1", __d__6."__c__2", __d__6."__src__0"`
+          + ` ORDER BY __d__6."__src__0", MIN(__d__6."__cord__0_0"), MIN(__d__6."__cord__0_1")`
+        );
+      });
+
+      it("config -> IR -> SQL -> data-viewmodel", async () => {
+        const model = await makeModel();
+        const vm = await model.getViewModelData(config);
+
+        expect(vm.rowFacets).to.deep.equal([
+          ["North America", "North America", "North America", "North America", "Europe", "Europe", "Europe", "Europe", "Online", "Online", "Retail", "Retail", "Wholesale", "Wholesale"],
+          ["USA", "USA", "Canada", "Canada", "UK", "UK", "Germany", "Germany", "Electronics", "Apparel", "Electronics", "Apparel", "Electronics", "Apparel"],
+          ["Electronics", "Apparel", "Electronics", "Apparel", "Electronics", "Apparel", "Electronics", "Apparel", null, null, null, null, null, null],
+        ]);
+        expect(vm.columnFacets).to.deep.equal([["revenue"]]);
+        expect(vm.getSlice(0, 0, vm.numCols, vm.numRows).data).to.deep.equal([
+          [6450, 1190, 1700, 480, 2250, 1100, 3400, 630, 9150, 1230, 3900, 1680, 750, 490],
+        ]);
+      });
+    });
+
+    describe("selective Europe — only geo branch Europe rows expand", () => {
+      const config: PivotConfig = {
+        rows: { expr: deepRows, projection: [{ open: ["Europe"] }] },
+        columns: "revenue",
+      };
+
+      it("config -> projected IR", async () => {
+        const model = await makeModel();
+        const { merged } = model.getIR(config);
+
+        expect(JSON.stringify(merged)).to.equal(
+          '{"dimSpec":{"type":"concat","children":[{"type":"cross","children":[{"type":"hierarchy","fields":["region","country"],"segments":[{"groupBy":["region","country"],"filter":{"pass":[{"field":"region","values":["Europe"]}],"fail":[]}},{"groupBy":["region"],"filter":{"pass":[],"fail":[{"field":"region","values":["Europe"]}]}}]},{"type":"simple","field":"department"}],"segments":[{"visibleChildren":1}]},{"type":"cross","children":[{"type":"simple","field":"channel"},{"type":"simple","field":"department"}]}]},"measures":[{"field":"revenue","aggregation":"sum"}]}'
+        );
+      });
+
+      it("IR -> SQL", async () => {
+        const model = await makePatchedModel();
+        await model.getViewModelData(config);
+
+        expect(model.sqlStr()).to.equal(
+          `WITH __d__0 AS (`
+          + `\n       SELECT "region", "country", MIN(rowid) AS "__ord__0" FROM "data" WHERE "region" IN ('Europe') GROUP BY "region", "country"`
+          + `\n       UNION ALL`
+          + `\n       SELECT "region", CAST(NULL AS VARCHAR) AS "country", MIN(rowid) AS "__ord__0" FROM "data" WHERE NOT (COALESCE("region" IN ('Europe'), FALSE)) GROUP BY "region"`
+          + `\n     ),`
+          + `\n     __d__1 AS (SELECT "department", MIN(rowid) AS "__ord__1" FROM "data" GROUP BY "department"),`
+          + `\n     __d__2 AS (SELECT __d__0.*, CAST(NULL AS VARCHAR) AS "department", 0 AS "__ord__1" FROM __d__0),`
+          + `\n     __d__3 AS (SELECT "channel", MIN(rowid) AS "__ord__3" FROM "data" GROUP BY "channel"),`
+          + `\n     __d__4 AS (SELECT "department", MIN(rowid) AS "__ord__4" FROM "data" GROUP BY "department"),`
+          + `\n     __d__5 AS (SELECT * FROM __d__3 CROSS JOIN __d__4),`
+          + `\n     __d__6 AS (`
+          + `\n       SELECT '0:region,country,department' AS "__src__0", __d__2."region" AS "__c__0", __d__2."country" AS "__c__1", __d__2."department" AS "__c__2", __ord__0 AS "__cord__0_0", __ord__1 AS "__cord__0_1" FROM __d__2`
+          + `\n       UNION ALL`
+          + `\n       SELECT '1:channel,department' AS "__src__0", __d__5."channel" AS "__c__0", __d__5."department" AS "__c__1", CAST(NULL AS VARCHAR) AS "__c__2", __ord__3 AS "__cord__0_0", __ord__4 AS "__cord__0_1" FROM __d__5`
+          + `\n     )`
+          + `\nSELECT __d__6."__c__0", __d__6."__c__1", __d__6."__c__2", SUM(T."revenue") AS "revenue"`
+          + `\nFROM __d__6`
+          + `\nLEFT JOIN "data" T ON (`
+          + `\n    (__d__6."__src__0" = '0:region,country,department' AND T."region" = __d__6."__c__0" AND (T."country" = __d__6."__c__1" OR __d__6."__c__1" IS NULL) AND (T."department" = __d__6."__c__2" OR __d__6."__c__2" IS NULL))`
+          + `\n    OR (__d__6."__src__0" = '1:channel,department' AND T."channel" = __d__6."__c__0" AND T."department" = __d__6."__c__1")`
+          + `\n    OR __d__6."__src__0" IS NULL`
+          + `\n  )`
+          + ` GROUP BY __d__6."__c__0", __d__6."__c__1", __d__6."__c__2", __d__6."__src__0"`
+          + ` ORDER BY __d__6."__src__0", MIN(__d__6."__cord__0_0"), MIN(__d__6."__cord__0_1")`
+        );
+      });
+
+      it("config -> IR -> SQL -> data-viewmodel", async () => {
+        const model = await makeModel();
+        const vm = await model.getViewModelData(config);
+
+        expect(vm.rowFacets).to.deep.equal([
+          ["North America", "Europe", "Europe", "Online", "Online", "Retail", "Retail", "Wholesale", "Wholesale"],
+          [null, "UK", "Germany", "Electronics", "Apparel", "Electronics", "Apparel", "Electronics", "Apparel"],
+          [null, null, null, null, null, null, null, null, null],
+        ]);
+        expect(vm.columnFacets).to.deep.equal([["revenue"]]);
+        expect(vm.getSlice(0, 0, vm.numCols, vm.numRows).data).to.deep.equal([
+          [9820, 3350, 4030, 9150, 1230, 3900, 1680, 750, 490],
+        ]);
+      });
+    });
+  });
+
+  describe("cross hierarchy with concat child — gating + concat branch expansion", () => {
+    describe("NA drills to city then selective Electronics, Europe at country level", () => {
+      const config: PivotConfig = {
+        rows: {
+          expr: cross(
+            hierarchy("region", "country", "city"),
+            concat(hierarchy("department", "product"), "channel"),
+          ),
+          projection: [
+            { open: ["North America"], next: { open: ["USA"], next: { open: "*", next: { open: ["Electronics"] } } } },
+            { open: ["Europe"] },
+          ],
+        },
+        columns: "revenue",
+      };
+
+      it("config -> projected IR", async () => {
+        const model = await makeModel();
+        const { merged } = model.getIR(config);
+
+        expect(JSON.stringify(merged)).to.equal(
+          '{"dimSpec":{"type":"cross","children":[{"type":"hierarchy","fields":["region","country","city"],"segments":[{"groupBy":["region","country","city"],"filter":{"pass":[{"field":"region","values":["North America"]},{"field":"country","values":["USA"]}],"fail":[]}},{"groupBy":["region","country"],"filter":{"pass":[{"field":"region","values":["North America"]}],"fail":[{"field":"country","values":["USA"]}]}},{"groupBy":["region","country"],"filter":{"pass":[{"field":"region","values":["Europe"]}],"fail":[]}},{"groupBy":["region"],"filter":{"pass":[],"fail":[{"field":"region","values":["North America","Europe"]}]}}]},{"type":"concat","children":[{"type":"hierarchy","fields":["department","product"],"segments":[{"groupBy":["department","product"],"filter":{"pass":[{"field":"department","values":["Electronics"]}],"fail":[]}},{"groupBy":["department"],"filter":{"pass":[],"fail":[{"field":"department","values":["Electronics"]}]}}]},{"type":"simple","field":"channel"}]}],"segments":[{"visibleChildren":2,"filter":{"pass":[{"field":"region","values":["North America","Europe"]},{"field":"country","values":["USA"]}],"fail":[]}},{"visibleChildren":1,"filter":{"pass":[],"fail":[{"field":"region","values":["North America","Europe"]},{"field":"country","values":["USA"]}]}}]},"measures":[{"field":"revenue","aggregation":"sum"}]}'
+        );
+      });
+
+      it("IR -> SQL", async () => {
+        const model = await makePatchedModel();
+        await model.getViewModelData(config);
+
+        expect(model.sqlStr()).to.equal(
+          `WITH __d__0 AS (`
+          + `\n       SELECT "region", "country", "city", MIN(rowid) AS "__ord__0" FROM "data" WHERE "region" IN ('North America') AND "country" IN ('USA') GROUP BY "region", "country", "city"`
+          + `\n       UNION ALL`
+          + `\n       SELECT "region", "country", CAST(NULL AS VARCHAR) AS "city", MIN(rowid) AS "__ord__0" FROM "data" WHERE "region" IN ('North America') AND NOT (COALESCE("country" IN ('USA'), FALSE)) GROUP BY "region", "country"`
+          + `\n       UNION ALL`
+          + `\n       SELECT "region", "country", CAST(NULL AS VARCHAR) AS "city", MIN(rowid) AS "__ord__0" FROM "data" WHERE "region" IN ('Europe') GROUP BY "region", "country"`
+          + `\n       UNION ALL`
+          + `\n       SELECT "region", CAST(NULL AS VARCHAR) AS "country", CAST(NULL AS VARCHAR) AS "city", MIN(rowid) AS "__ord__0" FROM "data" WHERE NOT (COALESCE("region" IN ('North America','Europe'), FALSE)) GROUP BY "region"`
+          + `\n     ),`
+          + `\n     __d__1 AS (`
+          + `\n       SELECT "department", "product", MIN(rowid) AS "__ord__1" FROM "data" WHERE "department" IN ('Electronics') GROUP BY "department", "product"`
+          + `\n       UNION ALL`
+          + `\n       SELECT "department", CAST(NULL AS VARCHAR) AS "product", MIN(rowid) AS "__ord__1" FROM "data" WHERE NOT (COALESCE("department" IN ('Electronics'), FALSE)) GROUP BY "department"`
+          + `\n     ),`
+          + `\n     __d__2 AS (SELECT "channel", MIN(rowid) AS "__ord__2" FROM "data" GROUP BY "channel"),`
+          + `\n     __d__3 AS (`
+          + `\n       SELECT '0:department,product' AS "__src__0", __d__1."department" AS "__c__0", __d__1."product" AS "__c__1", __ord__1 AS "__cord__0_0" FROM __d__1`
+          + `\n       UNION ALL`
+          + `\n       SELECT '1:channel' AS "__src__0", __d__2."channel" AS "__c__0", CAST(NULL AS VARCHAR) AS "__c__1", __ord__2 AS "__cord__0_0" FROM __d__2`
+          + `\n     ),`
+          + `\n     __d__4 AS (`
+          + `\n       SELECT __d__0."region", __d__0."country", __d__0."city", __d__3."__c__0", __d__3."__c__1", __d__0."__ord__0", __d__3."__cord__0_0", __d__3."__src__0" FROM __d__0 CROSS JOIN __d__3 WHERE __d__0."region" IN ('North America','Europe') AND __d__0."country" IN ('USA')`
+          + `\n       UNION ALL`
+          + `\n       SELECT __d__0."region", __d__0."country", __d__0."city", CAST(NULL AS VARCHAR) AS "__c__0", CAST(NULL AS VARCHAR) AS "__c__1", __d__0."__ord__0", 0 AS "__cord__0_0", CAST(NULL AS VARCHAR) AS "__src__0" FROM __d__0 WHERE NOT (COALESCE(__d__0."region" IN ('North America','Europe'), FALSE) AND COALESCE(__d__0."country" IN ('USA'), FALSE))`
+          + `\n     )`
+          + `\nSELECT __d__4."region", __d__4."country", __d__4."city", __d__4."__c__0", __d__4."__c__1", SUM(T."revenue") AS "revenue"`
+          + `\nFROM __d__4`
+          + `\nLEFT JOIN "data" T ON T."region" = __d__4."region" AND (T."country" = __d__4."country" OR __d__4."country" IS NULL) AND (T."city" = __d__4."city" OR __d__4."city" IS NULL) AND (`
+          + `\n    (__d__4."__src__0" = '0:department,product' AND T."department" = __d__4."__c__0" AND (T."product" = __d__4."__c__1" OR __d__4."__c__1" IS NULL))`
+          + `\n    OR (__d__4."__src__0" = '1:channel' AND T."channel" = __d__4."__c__0")`
+          + `\n    OR __d__4."__src__0" IS NULL`
+          + `\n  )`
+          + ` GROUP BY __d__4."region", __d__4."country", __d__4."city", __d__4."__c__0", __d__4."__c__1", __d__4."__src__0"`
+          + ` ORDER BY MIN(__d__4."__ord__0"), __d__4."__src__0", MIN(__d__4."__cord__0_0")`
+        );
+      });
+
+      it("config -> IR -> SQL -> data-viewmodel", async () => {
+        const model = await makeModel();
+        const vm = await model.getViewModelData(config);
+
+        expect(vm.rowFacets).to.deep.equal([
+          ["North America", "North America", "North America", "North America", "North America", "North America", "North America", "North America", "North America", "North America", "North America", "North America", "North America", "Europe", "Europe"],
+          ["USA", "USA", "USA", "USA", "USA", "USA", "USA", "USA", "USA", "USA", "USA", "USA", "Canada", "UK", "Germany"],
+          ["New York", "New York", "New York", "New York", "New York", "New York", "Chicago", "Chicago", "Chicago", "Chicago", "Chicago", "Chicago", null, null, null],
+          ["Electronics", "Electronics", "Apparel", "Online", "Retail", "Wholesale", "Electronics", "Electronics", "Apparel", "Online", "Retail", "Wholesale", null, null, null],
+          ["Laptop", "Phone", null, null, null, null, "Laptop", "Phone", null, null, null, null, null, null, null],
+        ]);
+        expect(vm.columnFacets).to.deep.equal([["revenue"]]);
+        expect(vm.getSlice(0, 0, vm.numCols, vm.numRows).data).to.deep.equal([
+          [2700, 1750, 650, 3950, 1150, null, 1100, 900, 540, 1350, 900, 290, 2180, 3350, 4030],
+        ]);
+      });
+    });
+  });
+
+  describe("hierarchy 3-level progressive — multiple paths merge at same depth", () => {
+    const hierRCC = hierarchy("region", "country", "city");
+
+    describe("Europe expanded to city level", () => {
+      const config: PivotConfig = {
+        rows: { expr: hierRCC, projection: [{ open: ["Europe"], next: { open: "*" } }] },
+        columns: "revenue",
+      };
+
+      it("config -> projected IR", async () => {
+        const model = await makeModel();
+        const { merged } = model.getIR(config);
+
+        expect(JSON.stringify(merged)).to.equal(
+          '{"dimSpec":{"type":"hierarchy","fields":["region","country","city"],"segments":[{"groupBy":["region","country","city"],"filter":{"pass":[{"field":"region","values":["Europe"]}],"fail":[]}},{"groupBy":["region"],"filter":{"pass":[],"fail":[{"field":"region","values":["Europe"]}]}}]},"measures":[{"field":"revenue","aggregation":"sum"}]}'
+        );
+      });
+
+      it("IR -> SQL", async () => {
+        const model = await makePatchedModel();
+        await model.getViewModelData(config);
+
+        expect(model.sqlStr()).to.equal(
+          `WITH __d__0 AS (`
+          + `\n       SELECT "region", "country", "city", MIN(rowid) AS "__ord__0" FROM "data" WHERE "region" IN ('Europe') GROUP BY "region", "country", "city"`
+          + `\n       UNION ALL`
+          + `\n       SELECT "region", CAST(NULL AS VARCHAR) AS "country", CAST(NULL AS VARCHAR) AS "city", MIN(rowid) AS "__ord__0" FROM "data" WHERE NOT (COALESCE("region" IN ('Europe'), FALSE)) GROUP BY "region"`
+          + `\n     )`
+          + `\nSELECT __d__0."region", __d__0."country", __d__0."city", SUM(T."revenue") AS "revenue"`
+          + `\nFROM __d__0`
+          + `\nLEFT JOIN "data" T ON T."region" = __d__0."region" AND (T."country" = __d__0."country" OR __d__0."country" IS NULL) AND (T."city" = __d__0."city" OR __d__0."city" IS NULL)`
+          + ` GROUP BY __d__0."region", __d__0."country", __d__0."city"`
+          + ` ORDER BY MIN(__d__0."__ord__0")`
+        );
+      });
+
+      it("config -> IR -> SQL -> data-viewmodel", async () => {
+        const model = await makeModel();
+        const vm = await model.getViewModelData(config);
+
+        expect(vm.rowFacets).to.deep.equal([
+          ["North America", "Europe", "Europe"],
+          [null, "UK", "Germany"],
+          [null, "London", "Berlin"],
+        ]);
+        expect(vm.columnFacets).to.deep.equal([["revenue"]]);
+        expect(vm.getSlice(0, 0, vm.numCols, vm.numRows).data).to.deep.equal([
+          [9820, 3350, 4030],
+        ]);
+      });
+    });
+
+    describe("two paths on same region — wildcard + selective Germany merge", () => {
+      const config: PivotConfig = {
+        rows: { expr: hierRCC, projection: [{ open: ["Europe"], next: { open: "*" } }, { open: ["Europe"], next: { open: ["Germany"] } }] },
+        columns: "revenue",
+      };
+
+      it("config -> projected IR", async () => {
+        const model = await makeModel();
+        const { merged } = model.getIR(config);
+
+        expect(JSON.stringify(merged)).to.equal(
+          '{"dimSpec":{"type":"hierarchy","fields":["region","country","city"],"segments":[{"groupBy":["region","country","city"],"filter":{"pass":[{"field":"region","values":["Europe"]}],"fail":[]}},{"groupBy":["region"],"filter":{"pass":[],"fail":[{"field":"region","values":["Europe"]}]}}]},"measures":[{"field":"revenue","aggregation":"sum"}]}'
+        );
+      });
+
+      it("IR -> SQL", async () => {
+        const model = await makePatchedModel();
+        await model.getViewModelData(config);
+
+        expect(model.sqlStr()).to.equal(
+          `WITH __d__0 AS (`
+          + `\n       SELECT "region", "country", "city", MIN(rowid) AS "__ord__0" FROM "data" WHERE "region" IN ('Europe') GROUP BY "region", "country", "city"`
+          + `\n       UNION ALL`
+          + `\n       SELECT "region", CAST(NULL AS VARCHAR) AS "country", CAST(NULL AS VARCHAR) AS "city", MIN(rowid) AS "__ord__0" FROM "data" WHERE NOT (COALESCE("region" IN ('Europe'), FALSE)) GROUP BY "region"`
+          + `\n     )`
+          + `\nSELECT __d__0."region", __d__0."country", __d__0."city", SUM(T."revenue") AS "revenue"`
+          + `\nFROM __d__0`
+          + `\nLEFT JOIN "data" T ON T."region" = __d__0."region" AND (T."country" = __d__0."country" OR __d__0."country" IS NULL) AND (T."city" = __d__0."city" OR __d__0."city" IS NULL)`
+          + ` GROUP BY __d__0."region", __d__0."country", __d__0."city"`
+          + ` ORDER BY MIN(__d__0."__ord__0")`
+        );
+      });
+
+      it("config -> IR -> SQL -> data-viewmodel", async () => {
+        const model = await makeModel();
+        const vm = await model.getViewModelData(config);
+
+        expect(vm.rowFacets).to.deep.equal([
+          ["North America", "Europe", "Europe"],
+          [null, "UK", "Germany"],
+          [null, "London", "Berlin"],
+        ]);
+        expect(vm.columnFacets).to.deep.equal([["revenue"]]);
+        expect(vm.getSlice(0, 0, vm.numCols, vm.numRows).data).to.deep.equal([
+          [9820, 3350, 4030],
+        ]);
+      });
+    });
+
+    describe("three paths — Europe merge + NA/USA to city level", () => {
+      const config: PivotConfig = {
+        rows: {
+          expr: hierRCC,
+          projection: [
+            { open: ["Europe"], next: { open: "*" } },
+            { open: ["Europe"], next: { open: ["Germany"] } },
+            { open: ["North America"], next: { open: ["USA"], next: { open: "*" } } },
+          ],
+        },
+        columns: "revenue",
+      };
+
+      it("config -> projected IR", async () => {
+        const model = await makeModel();
+        const { merged } = model.getIR(config);
+
+        expect(JSON.stringify(merged)).to.equal(
+          '{"dimSpec":{"type":"hierarchy","fields":["region","country","city"],"segments":[{"groupBy":["region","country","city"],"filter":{"pass":[{"field":"region","values":["Europe"]}],"fail":[]}},{"groupBy":["region","country","city"],"filter":{"pass":[{"field":"region","values":["North America"]},{"field":"country","values":["USA"]}],"fail":[]}},{"groupBy":["region","country"],"filter":{"pass":[{"field":"region","values":["North America"]}],"fail":[{"field":"country","values":["USA"]}]}},{"groupBy":["region"],"filter":{"pass":[],"fail":[{"field":"region","values":["Europe","North America"]}]}}]},"measures":[{"field":"revenue","aggregation":"sum"}]}'
+        );
+      });
+
+      it("IR -> SQL", async () => {
+        const model = await makePatchedModel();
+        await model.getViewModelData(config);
+
+        expect(model.sqlStr()).to.equal(
+          `WITH __d__0 AS (`
+          + `\n       SELECT "region", "country", "city", MIN(rowid) AS "__ord__0" FROM "data" WHERE "region" IN ('Europe') GROUP BY "region", "country", "city"`
+          + `\n       UNION ALL`
+          + `\n       SELECT "region", "country", "city", MIN(rowid) AS "__ord__0" FROM "data" WHERE "region" IN ('North America') AND "country" IN ('USA') GROUP BY "region", "country", "city"`
+          + `\n       UNION ALL`
+          + `\n       SELECT "region", "country", CAST(NULL AS VARCHAR) AS "city", MIN(rowid) AS "__ord__0" FROM "data" WHERE "region" IN ('North America') AND NOT (COALESCE("country" IN ('USA'), FALSE)) GROUP BY "region", "country"`
+          + `\n       UNION ALL`
+          + `\n       SELECT "region", CAST(NULL AS VARCHAR) AS "country", CAST(NULL AS VARCHAR) AS "city", MIN(rowid) AS "__ord__0" FROM "data" WHERE NOT (COALESCE("region" IN ('Europe','North America'), FALSE)) GROUP BY "region"`
+          + `\n     )`
+          + `\nSELECT __d__0."region", __d__0."country", __d__0."city", SUM(T."revenue") AS "revenue"`
+          + `\nFROM __d__0`
+          + `\nLEFT JOIN "data" T ON T."region" = __d__0."region" AND (T."country" = __d__0."country" OR __d__0."country" IS NULL) AND (T."city" = __d__0."city" OR __d__0."city" IS NULL)`
+          + ` GROUP BY __d__0."region", __d__0."country", __d__0."city"`
+          + ` ORDER BY MIN(__d__0."__ord__0")`
+        );
+      });
+
+      it("config -> IR -> SQL -> data-viewmodel", async () => {
+        const model = await makeModel();
+        const vm = await model.getViewModelData(config);
+
+        expect(vm.rowFacets).to.deep.equal([
+          ["North America", "North America", "North America", "Europe", "Europe"],
+          ["USA", "USA", "Canada", "UK", "Germany"],
+          ["New York", "Chicago", null, "London", "Berlin"],
+        ]);
+        expect(vm.columnFacets).to.deep.equal([["revenue"]]);
+        expect(vm.getSlice(0, 0, vm.numCols, vm.numRows).data).to.deep.equal([
+          [5100, 2540, 2180, 3350, 4030],
+        ]);
+      });
+    });
+  });
+
+  describe("hierarchy 4-level progressive — independent subtree expansion", () => {
+    const hierRCCD = hierarchy("region", "country", "city", "department");
+
+    describe("base state — region only", () => {
+      const config: PivotConfig = {
+        rows: { expr: hierRCCD, projection: [] },
+        columns: "revenue",
+      };
+
+      it("config -> projected IR", async () => {
+        const model = await makeModel();
+        const { merged } = model.getIR(config);
+
+        expect(JSON.stringify(merged)).to.equal(
+          '{"dimSpec":{"type":"hierarchy","fields":["region","country","city","department"],"segments":[{"groupBy":["region"]}]},"measures":[{"field":"revenue","aggregation":"sum"}]}'
+        );
+      });
+
+      it("IR -> SQL", async () => {
+        const model = await makePatchedModel();
+        await model.getViewModelData(config);
+
+        expect(model.sqlStr()).to.equal(
+          `WITH __d__0 AS (SELECT "region", CAST(NULL AS VARCHAR) AS "country", CAST(NULL AS VARCHAR) AS "city", CAST(NULL AS VARCHAR) AS "department", MIN(rowid) AS "__ord__0" FROM "data" GROUP BY "region")`
+          + `\nSELECT __d__0."region", __d__0."country", __d__0."city", __d__0."department", SUM(T."revenue") AS "revenue"`
+          + `\nFROM __d__0`
+          + `\nLEFT JOIN "data" T ON T."region" = __d__0."region" AND (T."country" = __d__0."country" OR __d__0."country" IS NULL) AND (T."city" = __d__0."city" OR __d__0."city" IS NULL) AND (T."department" = __d__0."department" OR __d__0."department" IS NULL)`
+          + ` GROUP BY __d__0."region", __d__0."country", __d__0."city", __d__0."department"`
+          + ` ORDER BY MIN(__d__0."__ord__0")`
+        );
+      });
+
+      it("config -> IR -> SQL -> data-viewmodel", async () => {
+        const model = await makeModel();
+        const vm = await model.getViewModelData(config);
+
+        expect(vm.rowFacets).to.deep.equal([
+          ["North America", "Europe"],
+          [null, null],
+          [null, null],
+          [null, null],
+        ]);
+        expect(vm.columnFacets).to.deep.equal([["revenue"]]);
+        expect(vm.getSlice(0, 0, vm.numCols, vm.numRows).data).to.deep.equal([
+          [9820, 7380],
+        ]);
+      });
+    });
+
+    describe("open Europe — Europe countries visible, NA collapsed", () => {
+      const config: PivotConfig = {
+        rows: { expr: hierRCCD, projection: [{ open: ["Europe"] }] },
+        columns: "revenue",
+      };
+
+      it("config -> projected IR", async () => {
+        const model = await makeModel();
+        const { merged } = model.getIR(config);
+
+        expect(JSON.stringify(merged)).to.equal(
+          '{"dimSpec":{"type":"hierarchy","fields":["region","country","city","department"],"segments":[{"groupBy":["region","country"],"filter":{"pass":[{"field":"region","values":["Europe"]}],"fail":[]}},{"groupBy":["region"],"filter":{"pass":[],"fail":[{"field":"region","values":["Europe"]}]}}]},"measures":[{"field":"revenue","aggregation":"sum"}]}'
+        );
+      });
+
+      it("IR -> SQL", async () => {
+        const model = await makePatchedModel();
+        await model.getViewModelData(config);
+
+        expect(model.sqlStr()).to.equal(
+          `WITH __d__0 AS (`
+          + `\n       SELECT "region", "country", CAST(NULL AS VARCHAR) AS "city", CAST(NULL AS VARCHAR) AS "department", MIN(rowid) AS "__ord__0" FROM "data" WHERE "region" IN ('Europe') GROUP BY "region", "country"`
+          + `\n       UNION ALL`
+          + `\n       SELECT "region", CAST(NULL AS VARCHAR) AS "country", CAST(NULL AS VARCHAR) AS "city", CAST(NULL AS VARCHAR) AS "department", MIN(rowid) AS "__ord__0" FROM "data" WHERE NOT (COALESCE("region" IN ('Europe'), FALSE)) GROUP BY "region"`
+          + `\n     )`
+          + `\nSELECT __d__0."region", __d__0."country", __d__0."city", __d__0."department", SUM(T."revenue") AS "revenue"`
+          + `\nFROM __d__0`
+          + `\nLEFT JOIN "data" T ON T."region" = __d__0."region" AND (T."country" = __d__0."country" OR __d__0."country" IS NULL) AND (T."city" = __d__0."city" OR __d__0."city" IS NULL) AND (T."department" = __d__0."department" OR __d__0."department" IS NULL)`
+          + ` GROUP BY __d__0."region", __d__0."country", __d__0."city", __d__0."department"`
+          + ` ORDER BY MIN(__d__0."__ord__0")`
+        );
+      });
+
+      it("config -> IR -> SQL -> data-viewmodel", async () => {
+        const model = await makeModel();
+        const vm = await model.getViewModelData(config);
+
+        expect(vm.rowFacets).to.deep.equal([
+          ["North America", "Europe", "Europe"],
+          [null, "UK", "Germany"],
+          [null, null, null],
+          [null, null, null],
+        ]);
+        expect(vm.columnFacets).to.deep.equal([["revenue"]]);
+        expect(vm.getSlice(0, 0, vm.numCols, vm.numRows).data).to.deep.equal([
+          [9820, 3350, 4030],
+        ]);
+      });
+    });
+
+    describe("Europe wildcard countries — Europe cities visible", () => {
+      const config: PivotConfig = {
+        rows: { expr: hierRCCD, projection: [{ open: ["Europe"], next: { open: "*" } }] },
+        columns: "revenue",
+      };
+
+      it("config -> projected IR", async () => {
+        const model = await makeModel();
+        const { merged } = model.getIR(config);
+
+        expect(JSON.stringify(merged)).to.equal(
+          '{"dimSpec":{"type":"hierarchy","fields":["region","country","city","department"],"segments":[{"groupBy":["region","country","city"],"filter":{"pass":[{"field":"region","values":["Europe"]}],"fail":[]}},{"groupBy":["region"],"filter":{"pass":[],"fail":[{"field":"region","values":["Europe"]}]}}]},"measures":[{"field":"revenue","aggregation":"sum"}]}'
+        );
+      });
+
+      it("IR -> SQL", async () => {
+        const model = await makePatchedModel();
+        await model.getViewModelData(config);
+
+        expect(model.sqlStr()).to.equal(
+          `WITH __d__0 AS (`
+          + `\n       SELECT "region", "country", "city", CAST(NULL AS VARCHAR) AS "department", MIN(rowid) AS "__ord__0" FROM "data" WHERE "region" IN ('Europe') GROUP BY "region", "country", "city"`
+          + `\n       UNION ALL`
+          + `\n       SELECT "region", CAST(NULL AS VARCHAR) AS "country", CAST(NULL AS VARCHAR) AS "city", CAST(NULL AS VARCHAR) AS "department", MIN(rowid) AS "__ord__0" FROM "data" WHERE NOT (COALESCE("region" IN ('Europe'), FALSE)) GROUP BY "region"`
+          + `\n     )`
+          + `\nSELECT __d__0."region", __d__0."country", __d__0."city", __d__0."department", SUM(T."revenue") AS "revenue"`
+          + `\nFROM __d__0`
+          + `\nLEFT JOIN "data" T ON T."region" = __d__0."region" AND (T."country" = __d__0."country" OR __d__0."country" IS NULL) AND (T."city" = __d__0."city" OR __d__0."city" IS NULL) AND (T."department" = __d__0."department" OR __d__0."department" IS NULL)`
+          + ` GROUP BY __d__0."region", __d__0."country", __d__0."city", __d__0."department"`
+          + ` ORDER BY MIN(__d__0."__ord__0")`
+        );
+      });
+
+      it("config -> IR -> SQL -> data-viewmodel", async () => {
+        const model = await makeModel();
+        const vm = await model.getViewModelData(config);
+
+        expect(vm.rowFacets).to.deep.equal([
+          ["North America", "Europe", "Europe"],
+          [null, "UK", "Germany"],
+          [null, "London", "Berlin"],
+          [null, null, null],
+        ]);
+        expect(vm.columnFacets).to.deep.equal([["revenue"]]);
+        expect(vm.getSlice(0, 0, vm.numCols, vm.numRows).data).to.deep.equal([
+          [9820, 3350, 4030],
+        ]);
+      });
+    });
+
+    describe("Europe to city + NA selective USA to city — independent subtrees", () => {
+      const config: PivotConfig = {
+        rows: {
+          expr: hierRCCD,
+          projection: [
+            { open: ["Europe"], next: { open: "*" } },
+            { open: ["North America"], next: { open: ["USA"] } },
+          ],
+        },
+        columns: "revenue",
+      };
+
+      it("config -> projected IR", async () => {
+        const model = await makeModel();
+        const { merged } = model.getIR(config);
+
+        expect(JSON.stringify(merged)).to.equal(
+          '{"dimSpec":{"type":"hierarchy","fields":["region","country","city","department"],"segments":[{"groupBy":["region","country","city"],"filter":{"pass":[{"field":"region","values":["Europe"]}],"fail":[]}},{"groupBy":["region","country","city"],"filter":{"pass":[{"field":"region","values":["North America"]},{"field":"country","values":["USA"]}],"fail":[]}},{"groupBy":["region","country"],"filter":{"pass":[{"field":"region","values":["North America"]}],"fail":[{"field":"country","values":["USA"]}]}},{"groupBy":["region"],"filter":{"pass":[],"fail":[{"field":"region","values":["Europe","North America"]}]}}]},"measures":[{"field":"revenue","aggregation":"sum"}]}'
+        );
+      });
+
+      it("IR -> SQL", async () => {
+        const model = await makePatchedModel();
+        await model.getViewModelData(config);
+
+        expect(model.sqlStr()).to.equal(
+          `WITH __d__0 AS (`
+          + `\n       SELECT "region", "country", "city", CAST(NULL AS VARCHAR) AS "department", MIN(rowid) AS "__ord__0" FROM "data" WHERE "region" IN ('Europe') GROUP BY "region", "country", "city"`
+          + `\n       UNION ALL`
+          + `\n       SELECT "region", "country", "city", CAST(NULL AS VARCHAR) AS "department", MIN(rowid) AS "__ord__0" FROM "data" WHERE "region" IN ('North America') AND "country" IN ('USA') GROUP BY "region", "country", "city"`
+          + `\n       UNION ALL`
+          + `\n       SELECT "region", "country", CAST(NULL AS VARCHAR) AS "city", CAST(NULL AS VARCHAR) AS "department", MIN(rowid) AS "__ord__0" FROM "data" WHERE "region" IN ('North America') AND NOT (COALESCE("country" IN ('USA'), FALSE)) GROUP BY "region", "country"`
+          + `\n       UNION ALL`
+          + `\n       SELECT "region", CAST(NULL AS VARCHAR) AS "country", CAST(NULL AS VARCHAR) AS "city", CAST(NULL AS VARCHAR) AS "department", MIN(rowid) AS "__ord__0" FROM "data" WHERE NOT (COALESCE("region" IN ('Europe','North America'), FALSE)) GROUP BY "region"`
+          + `\n     )`
+          + `\nSELECT __d__0."region", __d__0."country", __d__0."city", __d__0."department", SUM(T."revenue") AS "revenue"`
+          + `\nFROM __d__0`
+          + `\nLEFT JOIN "data" T ON T."region" = __d__0."region" AND (T."country" = __d__0."country" OR __d__0."country" IS NULL) AND (T."city" = __d__0."city" OR __d__0."city" IS NULL) AND (T."department" = __d__0."department" OR __d__0."department" IS NULL)`
+          + ` GROUP BY __d__0."region", __d__0."country", __d__0."city", __d__0."department"`
+          + ` ORDER BY MIN(__d__0."__ord__0")`
+        );
+      });
+
+      it("config -> IR -> SQL -> data-viewmodel", async () => {
+        const model = await makeModel();
+        const vm = await model.getViewModelData(config);
+
+        expect(vm.rowFacets).to.deep.equal([
+          ["North America", "North America", "North America", "Europe", "Europe"],
+          ["USA", "USA", "Canada", "UK", "Germany"],
+          ["New York", "Chicago", null, "London", "Berlin"],
+          [null, null, null, null, null],
+        ]);
+        expect(vm.columnFacets).to.deep.equal([["revenue"]]);
+        expect(vm.getSlice(0, 0, vm.numCols, vm.numRows).data).to.deep.equal([
+          [5100, 2540, 2180, 3350, 4030],
+        ]);
+      });
+    });
+
+    describe("New York to department level — deepest expansion in one subtree", () => {
+      const config: PivotConfig = {
+        rows: {
+          expr: hierRCCD,
+          projection: [
+            { open: ["Europe"], next: { open: "*" } },
+            { open: ["North America"], next: { open: ["USA"], next: { open: ["New York"] } } },
+          ],
+        },
+        columns: "revenue",
+      };
+
+      it("config -> projected IR", async () => {
+        const model = await makeModel();
+        const { merged } = model.getIR(config);
+
+        expect(JSON.stringify(merged)).to.equal(
+          '{"dimSpec":{"type":"hierarchy","fields":["region","country","city","department"],"segments":[{"groupBy":["region","country","city"],"filter":{"pass":[{"field":"region","values":["Europe"]}],"fail":[]}},{"groupBy":["region","country","city","department"],"filter":{"pass":[{"field":"region","values":["North America"]},{"field":"country","values":["USA"]},{"field":"city","values":["New York"]}],"fail":[]}},{"groupBy":["region","country","city"],"filter":{"pass":[{"field":"region","values":["North America"]},{"field":"country","values":["USA"]}],"fail":[{"field":"city","values":["New York"]}]}},{"groupBy":["region","country"],"filter":{"pass":[{"field":"region","values":["North America"]}],"fail":[{"field":"country","values":["USA"]}]}},{"groupBy":["region"],"filter":{"pass":[],"fail":[{"field":"region","values":["Europe","North America"]}]}}]},"measures":[{"field":"revenue","aggregation":"sum"}]}'
+        );
+      });
+
+      it("IR -> SQL", async () => {
+        const model = await makePatchedModel();
+        await model.getViewModelData(config);
+
+        expect(model.sqlStr()).to.equal(
+          `WITH __d__0 AS (`
+          + `\n       SELECT "region", "country", "city", CAST(NULL AS VARCHAR) AS "department", MIN(rowid) AS "__ord__0" FROM "data" WHERE "region" IN ('Europe') GROUP BY "region", "country", "city"`
+          + `\n       UNION ALL`
+          + `\n       SELECT "region", "country", "city", "department", MIN(rowid) AS "__ord__0" FROM "data" WHERE "region" IN ('North America') AND "country" IN ('USA') AND "city" IN ('New York') GROUP BY "region", "country", "city", "department"`
+          + `\n       UNION ALL`
+          + `\n       SELECT "region", "country", "city", CAST(NULL AS VARCHAR) AS "department", MIN(rowid) AS "__ord__0" FROM "data" WHERE "region" IN ('North America') AND "country" IN ('USA') AND NOT (COALESCE("city" IN ('New York'), FALSE)) GROUP BY "region", "country", "city"`
+          + `\n       UNION ALL`
+          + `\n       SELECT "region", "country", CAST(NULL AS VARCHAR) AS "city", CAST(NULL AS VARCHAR) AS "department", MIN(rowid) AS "__ord__0" FROM "data" WHERE "region" IN ('North America') AND NOT (COALESCE("country" IN ('USA'), FALSE)) GROUP BY "region", "country"`
+          + `\n       UNION ALL`
+          + `\n       SELECT "region", CAST(NULL AS VARCHAR) AS "country", CAST(NULL AS VARCHAR) AS "city", CAST(NULL AS VARCHAR) AS "department", MIN(rowid) AS "__ord__0" FROM "data" WHERE NOT (COALESCE("region" IN ('Europe','North America'), FALSE)) GROUP BY "region"`
+          + `\n     )`
+          + `\nSELECT __d__0."region", __d__0."country", __d__0."city", __d__0."department", SUM(T."revenue") AS "revenue"`
+          + `\nFROM __d__0`
+          + `\nLEFT JOIN "data" T ON T."region" = __d__0."region" AND (T."country" = __d__0."country" OR __d__0."country" IS NULL) AND (T."city" = __d__0."city" OR __d__0."city" IS NULL) AND (T."department" = __d__0."department" OR __d__0."department" IS NULL)`
+          + ` GROUP BY __d__0."region", __d__0."country", __d__0."city", __d__0."department"`
+          + ` ORDER BY MIN(__d__0."__ord__0")`
+        );
+      });
+
+      it("config -> IR -> SQL -> data-viewmodel", async () => {
+        const model = await makeModel();
+        const vm = await model.getViewModelData(config);
+
+        expect(vm.rowFacets).to.deep.equal([
+          ["North America", "North America", "North America", "North America", "Europe", "Europe"],
+          ["USA", "USA", "USA", "Canada", "UK", "Germany"],
+          ["New York", "New York", "Chicago", null, "London", "Berlin"],
+          ["Electronics", "Apparel", null, null, null, null],
+        ]);
+        expect(vm.columnFacets).to.deep.equal([["revenue"]]);
+        expect(vm.getSlice(0, 0, vm.numCols, vm.numRows).data).to.deep.equal([
+          [4450, 650, 2540, 2180, 3350, 4030],
+        ]);
+      });
+    });
+  });
+
+  describe("cross two hierarchies progressive [2-child, binary gating]", () => {
+    const crossHH = cross(hierarchy("region", "country", "city"), hierarchy("department", "product"));
+
+    describe("base state — region only, child 1 invisible", () => {
+      const config: PivotConfig = {
+        rows: { expr: crossHH, projection: [] },
+        columns: "revenue",
+      };
+
+      it("config -> projected IR", async () => {
+        const model = await makeModel();
+        const { merged } = model.getIR(config);
+
+        expect(JSON.stringify(merged)).to.equal(
+          '{"dimSpec":{"type":"cross","children":[{"type":"hierarchy","fields":["region","country","city"],"segments":[{"groupBy":["region"]}]},{"type":"hierarchy","fields":["department","product"]}],"segments":[{"visibleChildren":1}]},"measures":[{"field":"revenue","aggregation":"sum"}]}'
+        );
+      });
+
+      it("IR -> SQL", async () => {
+        const model = await makePatchedModel();
+        await model.getViewModelData(config);
+
+        expect(model.sqlStr()).to.equal(
+          `WITH __d__0 AS (SELECT "region", CAST(NULL AS VARCHAR) AS "country", CAST(NULL AS VARCHAR) AS "city", MIN(rowid) AS "__ord__0" FROM "data" GROUP BY "region"),`
+          + `\n     __d__1 AS (SELECT "department", "product", MIN(rowid) AS "__ord__1" FROM "data" GROUP BY "department", "product"),`
+          + `\n     __d__2 AS (SELECT __d__0.*, CAST(NULL AS VARCHAR) AS "department", CAST(NULL AS VARCHAR) AS "product", 0 AS "__ord__1" FROM __d__0)`
+          + `\nSELECT __d__2."region", __d__2."country", __d__2."city", __d__2."department", __d__2."product", SUM(T."revenue") AS "revenue"`
+          + `\nFROM __d__2`
+          + `\nLEFT JOIN "data" T ON T."region" = __d__2."region" AND (T."country" = __d__2."country" OR __d__2."country" IS NULL) AND (T."city" = __d__2."city" OR __d__2."city" IS NULL) AND (T."department" = __d__2."department" OR __d__2."department" IS NULL) AND (T."product" = __d__2."product" OR __d__2."product" IS NULL)`
+          + ` GROUP BY __d__2."region", __d__2."country", __d__2."city", __d__2."department", __d__2."product"`
+          + ` ORDER BY MIN(__d__2."__ord__0"), MIN(__d__2."__ord__1")`
+        );
+      });
+
+      it("config -> IR -> SQL -> data-viewmodel", async () => {
+        const model = await makeModel();
+        const vm = await model.getViewModelData(config);
+
+        expect(vm.rowFacets).to.deep.equal([
+          ["North America", "Europe"],
+          [null, null],
+          [null, null],
+          [null, null],
+          [null, null],
+        ]);
+        expect(vm.columnFacets).to.deep.equal([["revenue"]]);
+        expect(vm.getSlice(0, 0, vm.numCols, vm.numRows).data).to.deep.equal([
+          [9820, 7380],
+        ]);
+      });
+    });
+
+    describe("open Europe — Europe countries visible, NA collapsed", () => {
+      const config: PivotConfig = {
+        rows: { expr: crossHH, projection: [{ open: ["Europe"] }] },
+        columns: "revenue",
+      };
+
+      it("config -> projected IR", async () => {
+        const model = await makeModel();
+        const { merged } = model.getIR(config);
+
+        expect(JSON.stringify(merged)).to.equal(
+          '{"dimSpec":{"type":"cross","children":[{"type":"hierarchy","fields":["region","country","city"],"segments":[{"groupBy":["region","country"],"filter":{"pass":[{"field":"region","values":["Europe"]}],"fail":[]}},{"groupBy":["region"],"filter":{"pass":[],"fail":[{"field":"region","values":["Europe"]}]}}]},{"type":"hierarchy","fields":["department","product"]}],"segments":[{"visibleChildren":1}]},"measures":[{"field":"revenue","aggregation":"sum"}]}'
+        );
+      });
+
+      it("IR -> SQL", async () => {
+        const model = await makePatchedModel();
+        await model.getViewModelData(config);
+
+        expect(model.sqlStr()).to.equal(
+          `WITH __d__0 AS (`
+          + `\n       SELECT "region", "country", CAST(NULL AS VARCHAR) AS "city", MIN(rowid) AS "__ord__0" FROM "data" WHERE "region" IN ('Europe') GROUP BY "region", "country"`
+          + `\n       UNION ALL`
+          + `\n       SELECT "region", CAST(NULL AS VARCHAR) AS "country", CAST(NULL AS VARCHAR) AS "city", MIN(rowid) AS "__ord__0" FROM "data" WHERE NOT (COALESCE("region" IN ('Europe'), FALSE)) GROUP BY "region"`
+          + `\n     ),`
+          + `\n     __d__1 AS (SELECT "department", "product", MIN(rowid) AS "__ord__1" FROM "data" GROUP BY "department", "product"),`
+          + `\n     __d__2 AS (SELECT __d__0.*, CAST(NULL AS VARCHAR) AS "department", CAST(NULL AS VARCHAR) AS "product", 0 AS "__ord__1" FROM __d__0)`
+          + `\nSELECT __d__2."region", __d__2."country", __d__2."city", __d__2."department", __d__2."product", SUM(T."revenue") AS "revenue"`
+          + `\nFROM __d__2`
+          + `\nLEFT JOIN "data" T ON T."region" = __d__2."region" AND (T."country" = __d__2."country" OR __d__2."country" IS NULL) AND (T."city" = __d__2."city" OR __d__2."city" IS NULL) AND (T."department" = __d__2."department" OR __d__2."department" IS NULL) AND (T."product" = __d__2."product" OR __d__2."product" IS NULL)`
+          + ` GROUP BY __d__2."region", __d__2."country", __d__2."city", __d__2."department", __d__2."product"`
+          + ` ORDER BY MIN(__d__2."__ord__0"), MIN(__d__2."__ord__1")`
+        );
+      });
+
+      it("config -> IR -> SQL -> data-viewmodel", async () => {
+        const model = await makeModel();
+        const vm = await model.getViewModelData(config);
+
+        expect(vm.rowFacets).to.deep.equal([
+          ["North America", "Europe", "Europe"],
+          [null, "UK", "Germany"],
+          [null, null, null],
+          [null, null, null],
+          [null, null, null],
+        ]);
+        expect(vm.columnFacets).to.deep.equal([["revenue"]]);
+        expect(vm.getSlice(0, 0, vm.numCols, vm.numRows).data).to.deep.equal([
+          [9820, 3350, 4030],
+        ]);
+      });
+    });
+
+    describe("Europe/UK to city — approaching child 0 edge", () => {
+      const config: PivotConfig = {
+        rows: { expr: crossHH, projection: [{ open: ["Europe"], next: { open: ["UK"] } }] },
+        columns: "revenue",
+      };
+
+      it("config -> projected IR", async () => {
+        const model = await makeModel();
+        const { merged } = model.getIR(config);
+
+        expect(JSON.stringify(merged)).to.equal(
+          '{"dimSpec":{"type":"cross","children":[{"type":"hierarchy","fields":["region","country","city"],"segments":[{"groupBy":["region","country","city"],"filter":{"pass":[{"field":"region","values":["Europe"]},{"field":"country","values":["UK"]}],"fail":[]}},{"groupBy":["region","country"],"filter":{"pass":[{"field":"region","values":["Europe"]}],"fail":[{"field":"country","values":["UK"]}]}},{"groupBy":["region"],"filter":{"pass":[],"fail":[{"field":"region","values":["Europe"]}]}}]},{"type":"hierarchy","fields":["department","product"]}],"segments":[{"visibleChildren":1}]},"measures":[{"field":"revenue","aggregation":"sum"}]}'
+        );
+      });
+
+      it("IR -> SQL", async () => {
+        const model = await makePatchedModel();
+        await model.getViewModelData(config);
+
+        expect(model.sqlStr()).to.equal(
+          `WITH __d__0 AS (`
+          + `\n       SELECT "region", "country", "city", MIN(rowid) AS "__ord__0" FROM "data" WHERE "region" IN ('Europe') AND "country" IN ('UK') GROUP BY "region", "country", "city"`
+          + `\n       UNION ALL`
+          + `\n       SELECT "region", "country", CAST(NULL AS VARCHAR) AS "city", MIN(rowid) AS "__ord__0" FROM "data" WHERE "region" IN ('Europe') AND NOT (COALESCE("country" IN ('UK'), FALSE)) GROUP BY "region", "country"`
+          + `\n       UNION ALL`
+          + `\n       SELECT "region", CAST(NULL AS VARCHAR) AS "country", CAST(NULL AS VARCHAR) AS "city", MIN(rowid) AS "__ord__0" FROM "data" WHERE NOT (COALESCE("region" IN ('Europe'), FALSE)) GROUP BY "region"`
+          + `\n     ),`
+          + `\n     __d__1 AS (SELECT "department", "product", MIN(rowid) AS "__ord__1" FROM "data" GROUP BY "department", "product"),`
+          + `\n     __d__2 AS (SELECT __d__0.*, CAST(NULL AS VARCHAR) AS "department", CAST(NULL AS VARCHAR) AS "product", 0 AS "__ord__1" FROM __d__0)`
+          + `\nSELECT __d__2."region", __d__2."country", __d__2."city", __d__2."department", __d__2."product", SUM(T."revenue") AS "revenue"`
+          + `\nFROM __d__2`
+          + `\nLEFT JOIN "data" T ON T."region" = __d__2."region" AND (T."country" = __d__2."country" OR __d__2."country" IS NULL) AND (T."city" = __d__2."city" OR __d__2."city" IS NULL) AND (T."department" = __d__2."department" OR __d__2."department" IS NULL) AND (T."product" = __d__2."product" OR __d__2."product" IS NULL)`
+          + ` GROUP BY __d__2."region", __d__2."country", __d__2."city", __d__2."department", __d__2."product"`
+          + ` ORDER BY MIN(__d__2."__ord__0"), MIN(__d__2."__ord__1")`
+        );
+      });
+
+      it("config -> IR -> SQL -> data-viewmodel", async () => {
+        const model = await makeModel();
+        const vm = await model.getViewModelData(config);
+
+        expect(vm.rowFacets).to.deep.equal([
+          ["North America", "Europe", "Europe"],
+          [null, "UK", "Germany"],
+          [null, "London", null],
+          [null, null, null],
+          [null, null, null],
+        ]);
+        expect(vm.columnFacets).to.deep.equal([["revenue"]]);
+        expect(vm.getSlice(0, 0, vm.numCols, vm.numRows).data).to.deep.equal([
+          [9820, 3350, 4030],
+        ]);
+      });
+    });
+
+    describe("Europe/UK/London — child 0 fully traversed, child 1 becomes visible", () => {
+      const config: PivotConfig = {
+        rows: { expr: crossHH, projection: [{ open: ["Europe"], next: { open: ["UK"], next: { open: ["London"] } } }] },
+        columns: "revenue",
+      };
+
+      it("config -> projected IR", async () => {
+        const model = await makeModel();
+        const { merged } = model.getIR(config);
+
+        expect(JSON.stringify(merged)).to.equal(
+          '{"dimSpec":{"type":"cross","children":[{"type":"hierarchy","fields":["region","country","city"],"segments":[{"groupBy":["region","country","city"],"filter":{"pass":[{"field":"region","values":["Europe"]},{"field":"country","values":["UK"]},{"field":"city","values":["London"]}],"fail":[]}},{"groupBy":["region","country","city"],"filter":{"pass":[{"field":"region","values":["Europe"]},{"field":"country","values":["UK"]}],"fail":[{"field":"city","values":["London"]}]}},{"groupBy":["region","country"],"filter":{"pass":[{"field":"region","values":["Europe"]}],"fail":[{"field":"country","values":["UK"]}]}},{"groupBy":["region"],"filter":{"pass":[],"fail":[{"field":"region","values":["Europe"]}]}}]},{"type":"hierarchy","fields":["department","product"],"segments":[{"groupBy":["department"]}]}],"segments":[{"visibleChildren":2,"filter":{"pass":[{"field":"region","values":["Europe"]},{"field":"country","values":["UK"]},{"field":"city","values":["London"]}],"fail":[]}},{"visibleChildren":1,"filter":{"pass":[],"fail":[{"field":"region","values":["Europe"]},{"field":"country","values":["UK"]},{"field":"city","values":["London"]}]}}]},"measures":[{"field":"revenue","aggregation":"sum"}]}'
+        );
+      });
+
+      it("IR -> SQL", async () => {
+        const model = await makePatchedModel();
+        await model.getViewModelData(config);
+
+        expect(model.sqlStr()).to.equal(
+          `WITH __d__0 AS (`
+          + `\n       SELECT "region", "country", "city", MIN(rowid) AS "__ord__0" FROM "data" WHERE "region" IN ('Europe') AND "country" IN ('UK') AND "city" IN ('London') GROUP BY "region", "country", "city"`
+          + `\n       UNION ALL`
+          + `\n       SELECT "region", "country", "city", MIN(rowid) AS "__ord__0" FROM "data" WHERE "region" IN ('Europe') AND "country" IN ('UK') AND NOT (COALESCE("city" IN ('London'), FALSE)) GROUP BY "region", "country", "city"`
+          + `\n       UNION ALL`
+          + `\n       SELECT "region", "country", CAST(NULL AS VARCHAR) AS "city", MIN(rowid) AS "__ord__0" FROM "data" WHERE "region" IN ('Europe') AND NOT (COALESCE("country" IN ('UK'), FALSE)) GROUP BY "region", "country"`
+          + `\n       UNION ALL`
+          + `\n       SELECT "region", CAST(NULL AS VARCHAR) AS "country", CAST(NULL AS VARCHAR) AS "city", MIN(rowid) AS "__ord__0" FROM "data" WHERE NOT (COALESCE("region" IN ('Europe'), FALSE)) GROUP BY "region"`
+          + `\n     ),`
+          + `\n     __d__1 AS (SELECT "department", CAST(NULL AS VARCHAR) AS "product", MIN(rowid) AS "__ord__1" FROM "data" GROUP BY "department"),`
+          + `\n     __d__2 AS (`
+          + `\n       SELECT __d__0."region", __d__0."country", __d__0."city", __d__1."department", __d__1."product", __d__0."__ord__0", __d__1."__ord__1" FROM __d__0 CROSS JOIN __d__1 WHERE __d__0."region" IN ('Europe') AND __d__0."country" IN ('UK') AND __d__0."city" IN ('London')`
+          + `\n       UNION ALL`
+          + `\n       SELECT __d__0."region", __d__0."country", __d__0."city", CAST(NULL AS VARCHAR) AS "department", CAST(NULL AS VARCHAR) AS "product", __d__0."__ord__0", 0 AS "__ord__1" FROM __d__0 WHERE NOT (COALESCE(__d__0."region" IN ('Europe'), FALSE) AND COALESCE(__d__0."country" IN ('UK'), FALSE) AND COALESCE(__d__0."city" IN ('London'), FALSE))`
+          + `\n     )`
+          + `\nSELECT __d__2."region", __d__2."country", __d__2."city", __d__2."department", __d__2."product", SUM(T."revenue") AS "revenue"`
+          + `\nFROM __d__2`
+          + `\nLEFT JOIN "data" T ON T."region" = __d__2."region" AND (T."country" = __d__2."country" OR __d__2."country" IS NULL) AND (T."city" = __d__2."city" OR __d__2."city" IS NULL) AND (T."department" = __d__2."department" OR __d__2."department" IS NULL) AND (T."product" = __d__2."product" OR __d__2."product" IS NULL)`
+          + ` GROUP BY __d__2."region", __d__2."country", __d__2."city", __d__2."department", __d__2."product"`
+          + ` ORDER BY MIN(__d__2."__ord__0"), MIN(__d__2."__ord__1")`
+        );
+      });
+
+      it("config -> IR -> SQL -> data-viewmodel", async () => {
+        const model = await makeModel();
+        const vm = await model.getViewModelData(config);
+
+        expect(vm.rowFacets).to.deep.equal([
+          ["North America", "Europe", "Europe", "Europe"],
+          [null, "UK", "UK", "Germany"],
+          [null, "London", "London", null],
+          [null, "Electronics", "Apparel", null],
+          [null, null, null, null],
+        ]);
+        expect(vm.columnFacets).to.deep.equal([["revenue"]]);
+        expect(vm.getSlice(0, 0, vm.numCols, vm.numRows).data).to.deep.equal([
+          [9820, 2250, 1100, 4030],
+        ]);
+      });
+    });
+
+    describe("two paths — EU/UK/London drills into child 1, NA wildcard to city with New York gated", () => {
+      const config: PivotConfig = {
+        rows: {
+          expr: crossHH,
+          projection: [
+            { open: ["Europe"], next: { open: ["UK"], next: { open: ["London"], next: { open: ["Electronics"] } } } },
+            { open: ["North America"], next: { open: "*", next: { open: ["New York"] } } },
+          ],
+        },
+        columns: "revenue",
+      };
+
+      it("config -> projected IR", async () => {
+        const model = await makeModel();
+        const { merged } = model.getIR(config);
+
+        expect(JSON.stringify(merged)).to.equal(
+          '{"dimSpec":{"type":"cross","children":[{"type":"hierarchy","fields":["region","country","city"],"segments":[{"groupBy":["region","country","city"],"filter":{"pass":[{"field":"region","values":["Europe"]},{"field":"country","values":["UK"]},{"field":"city","values":["London"]}],"fail":[]}},{"groupBy":["region","country","city"],"filter":{"pass":[{"field":"region","values":["Europe"]},{"field":"country","values":["UK"]}],"fail":[{"field":"city","values":["London"]}]}},{"groupBy":["region","country"],"filter":{"pass":[{"field":"region","values":["Europe"]}],"fail":[{"field":"country","values":["UK"]}]}},{"groupBy":["region","country","city"],"filter":{"pass":[{"field":"region","values":["North America"]},{"field":"city","values":["New York"]}],"fail":[]}},{"groupBy":["region","country","city"],"filter":{"pass":[{"field":"region","values":["North America"]}],"fail":[{"field":"city","values":["New York"]}]}},{"groupBy":["region"],"filter":{"pass":[],"fail":[{"field":"region","values":["Europe","North America"]}]}}]},{"type":"hierarchy","fields":["department","product"],"segments":[{"groupBy":["department","product"],"filter":{"pass":[{"field":"department","values":["Electronics"]}],"fail":[]}},{"groupBy":["department"],"filter":{"pass":[],"fail":[{"field":"department","values":["Electronics"]}]}}]}],"segments":[{"visibleChildren":2,"filter":{"pass":[{"field":"region","values":["Europe","North America"]},{"field":"city","values":["London","New York"]}],"fail":[]}},{"visibleChildren":1,"filter":{"pass":[],"fail":[{"field":"region","values":["Europe","North America"]},{"field":"city","values":["London","New York"]}]}}]},"measures":[{"field":"revenue","aggregation":"sum"}]}'
+        );
+      });
+
+      it("IR -> SQL", async () => {
+        const model = await makePatchedModel();
+        await model.getViewModelData(config);
+
+        expect(model.sqlStr()).to.equal(
+          `WITH __d__0 AS (`
+          + `\n       SELECT "region", "country", "city", MIN(rowid) AS "__ord__0" FROM "data" WHERE "region" IN ('Europe') AND "country" IN ('UK') AND "city" IN ('London') GROUP BY "region", "country", "city"`
+          + `\n       UNION ALL`
+          + `\n       SELECT "region", "country", "city", MIN(rowid) AS "__ord__0" FROM "data" WHERE "region" IN ('Europe') AND "country" IN ('UK') AND NOT (COALESCE("city" IN ('London'), FALSE)) GROUP BY "region", "country", "city"`
+          + `\n       UNION ALL`
+          + `\n       SELECT "region", "country", CAST(NULL AS VARCHAR) AS "city", MIN(rowid) AS "__ord__0" FROM "data" WHERE "region" IN ('Europe') AND NOT (COALESCE("country" IN ('UK'), FALSE)) GROUP BY "region", "country"`
+          + `\n       UNION ALL`
+          + `\n       SELECT "region", "country", "city", MIN(rowid) AS "__ord__0" FROM "data" WHERE "region" IN ('North America') AND "city" IN ('New York') GROUP BY "region", "country", "city"`
+          + `\n       UNION ALL`
+          + `\n       SELECT "region", "country", "city", MIN(rowid) AS "__ord__0" FROM "data" WHERE "region" IN ('North America') AND NOT (COALESCE("city" IN ('New York'), FALSE)) GROUP BY "region", "country", "city"`
+          + `\n       UNION ALL`
+          + `\n       SELECT "region", CAST(NULL AS VARCHAR) AS "country", CAST(NULL AS VARCHAR) AS "city", MIN(rowid) AS "__ord__0" FROM "data" WHERE NOT (COALESCE("region" IN ('Europe','North America'), FALSE)) GROUP BY "region"`
+          + `\n     ),`
+          + `\n     __d__1 AS (`
+          + `\n       SELECT "department", "product", MIN(rowid) AS "__ord__1" FROM "data" WHERE "department" IN ('Electronics') GROUP BY "department", "product"`
+          + `\n       UNION ALL`
+          + `\n       SELECT "department", CAST(NULL AS VARCHAR) AS "product", MIN(rowid) AS "__ord__1" FROM "data" WHERE NOT (COALESCE("department" IN ('Electronics'), FALSE)) GROUP BY "department"`
+          + `\n     ),`
+          + `\n     __d__2 AS (`
+          + `\n       SELECT __d__0."region", __d__0."country", __d__0."city", __d__1."department", __d__1."product", __d__0."__ord__0", __d__1."__ord__1" FROM __d__0 CROSS JOIN __d__1 WHERE __d__0."region" IN ('Europe','North America') AND __d__0."city" IN ('London','New York')`
+          + `\n       UNION ALL`
+          + `\n       SELECT __d__0."region", __d__0."country", __d__0."city", CAST(NULL AS VARCHAR) AS "department", CAST(NULL AS VARCHAR) AS "product", __d__0."__ord__0", 0 AS "__ord__1" FROM __d__0 WHERE NOT (COALESCE(__d__0."region" IN ('Europe','North America'), FALSE) AND COALESCE(__d__0."city" IN ('London','New York'), FALSE))`
+          + `\n     )`
+          + `\nSELECT __d__2."region", __d__2."country", __d__2."city", __d__2."department", __d__2."product", SUM(T."revenue") AS "revenue"`
+          + `\nFROM __d__2`
+          + `\nLEFT JOIN "data" T ON T."region" = __d__2."region" AND (T."country" = __d__2."country" OR __d__2."country" IS NULL) AND (T."city" = __d__2."city" OR __d__2."city" IS NULL) AND (T."department" = __d__2."department" OR __d__2."department" IS NULL) AND (T."product" = __d__2."product" OR __d__2."product" IS NULL)`
+          + ` GROUP BY __d__2."region", __d__2."country", __d__2."city", __d__2."department", __d__2."product"`
+          + ` ORDER BY MIN(__d__2."__ord__0"), MIN(__d__2."__ord__1")`
+        );
+      });
+
+      it("config -> IR -> SQL -> data-viewmodel", async () => {
+        const model = await makeModel();
+        const vm = await model.getViewModelData(config);
+
+        expect(vm.rowFacets).to.deep.equal([
+          ["North America", "North America", "North America", "North America", "North America", "Europe", "Europe", "Europe", "Europe"],
+          ["USA", "USA", "USA", "USA", "Canada", "UK", "UK", "UK", "Germany"],
+          ["New York", "New York", "New York", "Chicago", "Toronto", "London", "London", "London", null],
+          ["Electronics", "Electronics", "Apparel", null, null, "Electronics", "Electronics", "Apparel", null],
+          ["Laptop", "Phone", null, null, null, "Laptop", "Phone", null, null],
+        ]);
+        expect(vm.columnFacets).to.deep.equal([["revenue"]]);
+        expect(vm.getSlice(0, 0, vm.numCols, vm.numRows).data).to.deep.equal([
+          [2700, 1750, 650, 2540, 2180, 1400, 850, 1100, 4030],
+        ]);
+      });
+    });
+  });
+
+  describe("cross three children progressive [3-child, 3-tier gating]", () => {
+    describe("full drilldown EU/UK -> Electronics/Laptop -> Online — all 3 tiers visible", () => {
+      const crossHHH = cross(hierarchy("region", "country"), hierarchy("department", "product"), "channel");
+      const config: PivotConfig = {
+        rows: {
+          expr: crossHHH,
+          projection: [
+            { open: ["Europe"], next: { open: ["UK"], next: { open: ["Electronics"], next: { open: ["Laptop"], next: { open: ["Online"] } } } } },
+          ],
+        },
+        columns: "revenue",
+      };
+
+      it("config -> projected IR", async () => {
+        const model = await makeModel();
+        const { merged } = model.getIR(config);
+
+        expect(JSON.stringify(merged)).to.equal(
+          '{"dimSpec":{"type":"cross","children":[{"type":"hierarchy","fields":["region","country"],"segments":[{"groupBy":["region","country"],"filter":{"pass":[{"field":"region","values":["Europe"]},{"field":"country","values":["UK"]}],"fail":[]}},{"groupBy":["region","country"],"filter":{"pass":[{"field":"region","values":["Europe"]}],"fail":[{"field":"country","values":["UK"]}]}},{"groupBy":["region"],"filter":{"pass":[],"fail":[{"field":"region","values":["Europe"]}]}}]},{"type":"hierarchy","fields":["department","product"],"segments":[{"groupBy":["department","product"],"filter":{"pass":[{"field":"department","values":["Electronics"]},{"field":"product","values":["Laptop"]}],"fail":[]}},{"groupBy":["department","product"],"filter":{"pass":[{"field":"department","values":["Electronics"]}],"fail":[{"field":"product","values":["Laptop"]}]}},{"groupBy":["department"],"filter":{"pass":[],"fail":[{"field":"department","values":["Electronics"]}]}}]},{"type":"simple","field":"channel"}],"segments":[{"visibleChildren":3,"filter":{"pass":[{"field":"region","values":["Europe"]},{"field":"country","values":["UK"]},{"field":"department","values":["Electronics"]},{"field":"product","values":["Laptop"]}],"fail":[]}},{"visibleChildren":2,"filter":{"pass":[{"field":"region","values":["Europe"]},{"field":"country","values":["UK"]}],"fail":[{"field":"department","values":["Electronics"]},{"field":"product","values":["Laptop"]}]}},{"visibleChildren":1,"filter":{"pass":[],"fail":[{"field":"region","values":["Europe"]},{"field":"country","values":["UK"]}]}}]},"measures":[{"field":"revenue","aggregation":"sum"}]}'
+        );
+      });
+
+      it("IR -> SQL", async () => {
+        const model = await makePatchedModel();
+        await model.getViewModelData(config);
+
+        expect(model.sqlStr()).to.equal(
+          `WITH __d__0 AS (`
+          + `\n       SELECT "region", "country", MIN(rowid) AS "__ord__0" FROM "data" WHERE "region" IN ('Europe') AND "country" IN ('UK') GROUP BY "region", "country"`
+          + `\n       UNION ALL`
+          + `\n       SELECT "region", "country", MIN(rowid) AS "__ord__0" FROM "data" WHERE "region" IN ('Europe') AND NOT (COALESCE("country" IN ('UK'), FALSE)) GROUP BY "region", "country"`
+          + `\n       UNION ALL`
+          + `\n       SELECT "region", CAST(NULL AS VARCHAR) AS "country", MIN(rowid) AS "__ord__0" FROM "data" WHERE NOT (COALESCE("region" IN ('Europe'), FALSE)) GROUP BY "region"`
+          + `\n     ),`
+          + `\n     __d__1 AS (`
+          + `\n       SELECT "department", "product", MIN(rowid) AS "__ord__1" FROM "data" WHERE "department" IN ('Electronics') AND "product" IN ('Laptop') GROUP BY "department", "product"`
+          + `\n       UNION ALL`
+          + `\n       SELECT "department", "product", MIN(rowid) AS "__ord__1" FROM "data" WHERE "department" IN ('Electronics') AND NOT (COALESCE("product" IN ('Laptop'), FALSE)) GROUP BY "department", "product"`
+          + `\n       UNION ALL`
+          + `\n       SELECT "department", CAST(NULL AS VARCHAR) AS "product", MIN(rowid) AS "__ord__1" FROM "data" WHERE NOT (COALESCE("department" IN ('Electronics'), FALSE)) GROUP BY "department"`
+          + `\n     ),`
+          + `\n     __d__2 AS (SELECT "channel", MIN(rowid) AS "__ord__2" FROM "data" GROUP BY "channel"),`
+          + `\n     __d__3 AS (`
+          + `\n       SELECT __d__0."region", __d__0."country", __d__1."department", __d__1."product", __d__2."channel", __d__0."__ord__0", __d__1."__ord__1", __d__2."__ord__2" FROM __d__0 CROSS JOIN __d__1 CROSS JOIN __d__2 WHERE __d__0."region" IN ('Europe') AND __d__0."country" IN ('UK') AND __d__1."department" IN ('Electronics') AND __d__1."product" IN ('Laptop')`
+          + `\n       UNION ALL`
+          + `\n       SELECT __d__0."region", __d__0."country", __d__1."department", __d__1."product", CAST(NULL AS VARCHAR) AS "channel", __d__0."__ord__0", __d__1."__ord__1", 0 AS "__ord__2" FROM __d__0 CROSS JOIN __d__1 WHERE __d__0."region" IN ('Europe') AND __d__0."country" IN ('UK') AND NOT (COALESCE(__d__1."department" IN ('Electronics'), FALSE) AND COALESCE(__d__1."product" IN ('Laptop'), FALSE))`
+          + `\n       UNION ALL`
+          + `\n       SELECT __d__0."region", __d__0."country", CAST(NULL AS VARCHAR) AS "department", CAST(NULL AS VARCHAR) AS "product", CAST(NULL AS VARCHAR) AS "channel", __d__0."__ord__0", 0 AS "__ord__1", 0 AS "__ord__2" FROM __d__0 WHERE NOT (COALESCE(__d__0."region" IN ('Europe'), FALSE) AND COALESCE(__d__0."country" IN ('UK'), FALSE))`
+          + `\n     )`
+          + `\nSELECT __d__3."region", __d__3."country", __d__3."department", __d__3."product", __d__3."channel", SUM(T."revenue") AS "revenue"`
+          + `\nFROM __d__3`
+          + `\nLEFT JOIN "data" T ON T."region" = __d__3."region" AND (T."country" = __d__3."country" OR __d__3."country" IS NULL) AND (T."department" = __d__3."department" OR __d__3."department" IS NULL) AND (T."product" = __d__3."product" OR __d__3."product" IS NULL) AND (T."channel" = __d__3."channel" OR __d__3."channel" IS NULL)`
+          + ` GROUP BY __d__3."region", __d__3."country", __d__3."department", __d__3."product", __d__3."channel"`
+          + ` ORDER BY MIN(__d__3."__ord__0"), MIN(__d__3."__ord__1"), MIN(__d__3."__ord__2")`
+        );
+      });
+
+      it("config -> IR -> SQL -> data-viewmodel", async () => {
+        const model = await makeModel();
+        const vm = await model.getViewModelData(config);
+
+        expect(vm.rowFacets).to.deep.equal([
+          ["North America", "Europe", "Europe", "Europe", "Europe", "Europe", "Europe"],
+          [null, "UK", "UK", "UK", "UK", "UK", "Germany"],
+          [null, "Electronics", "Electronics", "Electronics", "Electronics", "Apparel", null],
+          [null, "Laptop", "Laptop", "Laptop", "Phone", null, null],
+          [null, "Online", "Retail", "Wholesale", null, null, null],
+        ]);
+        expect(vm.columnFacets).to.deep.equal([["revenue"]]);
+        expect(vm.getSlice(0, 0, vm.numCols, vm.numRows).data).to.deep.equal([
+          [9820, 1400, null, null, 850, 1100, 4030],
         ]);
       });
     });
