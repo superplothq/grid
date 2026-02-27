@@ -161,7 +161,7 @@ export default class StandardLayout extends StandardLayoutBase {
   // check if both calculation needs to be separated as later on column header can have icons etc.
   #measureRowHeight(): void {
     const facetSample = document.createElement("div");
-    facetSample.className = "cell";
+    facetSample.className = "cell col-header header";
     facetSample.style.visibility = "hidden";
     const sampleMerge: MergeState = { value: "Mgy$123,456", path: "Mgy$123,456", level: 0, start: 0, spanPrimary: 1, spanSecondary: 1 };
     const colContent = this.#buildFacetCell(this.data!.facetRenderers.column, sampleMerge, [["Mgy$123,456"]]);
@@ -634,7 +634,7 @@ export default class StandardLayout extends StandardLayoutBase {
         gridRow: merge.level + 1,
         gridCol: this.data!.numRowFacetLevels + merge.start + 1,
         content: facetContent,
-        cls: `col-header level-${merge.level}${skipSizeClass}${!isLeafLevel ? " non-leaf" : ""} ${boundaryCellCls}`,
+        cls: `col-header header level-${merge.level}${skipSizeClass}${!isLeafLevel ? " non-leaf" : ""} ${boundaryCellCls}`,
         extraStyles: {
           colspan,
           top: viewModel.colFacetsTopPositions[merge.level],
@@ -870,7 +870,7 @@ export default class StandardLayout extends StandardLayoutBase {
         gridRow: this.data!.numColFacetLevels + merge.start + 1,
         gridCol: merge.level + 1,
         content: rowFacetContent,
-        cls: `row-header level-${merge.level}${isLeaf ? "" : " non-leaf"} ${boundaryCellCls}`,
+        cls: `row-header header level-${merge.level}${isLeaf ? "" : " non-leaf"} ${boundaryCellCls}`,
         extraStyles: {
           rowspan: merge.spanPrimary,
           left: viewModel.rowFacetsLeftPositions[merge.level],
