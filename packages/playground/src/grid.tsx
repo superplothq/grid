@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import "grid/dist/grid.css";
-import Grid, { GridDataViewModel, LayoutEvents, SelectionPayload, ColDef, ColAutoSizeConfig, createChartRenderer, CellRenderer } from "grid/dist/renderer";
+import Grid, { GridDataViewModel, LayoutEvents, SelectionPayload, ColDef, ColAutoSizeConfig, createChartRenderer, CellRenderer, FacetCellRenderer } from "grid/dist/renderer";
+import feather from "feather-icons";
 
 interface TwoKeyData {
   primary: string;
@@ -28,6 +29,39 @@ const threeKeyRenderer: CellRenderer<ThreeKeyData> = (data) => {
     <div>${data.second}</div>
     <div>${data.third}</div>
   </div>`;
+};
+
+const svgIcon = (name: string, size = 12): HTMLElement => {
+  const wrapper = document.createElement("span");
+  wrapper.style.display = "inline-flex";
+  wrapper.style.alignItems = "center";
+  wrapper.style.opacity = "0.9";
+  wrapper.innerHTML = feather.icons[name as keyof typeof feather.icons].toSvg({ width: size, height: size, "stroke-width": 2.5 });
+  return wrapper;
+};
+
+const rowFacetRenderer: FacetCellRenderer = (data, ctx) => {
+  const isLeaf = ctx.level === ctx.path.length - 1;
+  if (isLeaf) return String(data ?? "");
+  return {
+    left: svgIcon("chevron-right", 11),
+    content: String(data ?? ""),
+  };
+};
+
+const colFacetRenderer: FacetCellRenderer = (data, ctx) => {
+  const isLeaf = ctx.level === ctx.path.length - 1;
+  if (!isLeaf) {
+    return {
+      left: svgIcon("chevron-right", 11),
+      content: String(data ?? ""),
+    };
+  }
+  return {
+    left: svgIcon("arrow-down", 10),
+    content: String(data ?? ""),
+    right: svgIcon("filter", 10),
+  };
 };
 
 // Declare the custom element for TypeScript
@@ -85,7 +119,8 @@ const NullFacetDemo: React.FC = () => {
     grid.data = new GridDataViewModel(
       data,
       [colFacetLevel0, colFacetLevel1, colFacetLevel2],
-      [rowFacetLevel0, rowFacetLevel1, rowFacetLevel2]
+      [rowFacetLevel0, rowFacetLevel1, rowFacetLevel2],
+      { facetRenderer: { row: rowFacetRenderer, column: colFacetRenderer } }
     );
     grid.draw();
   }, []);
@@ -500,7 +535,7 @@ const GridPlayground: React.FC = () => {
     }
 
     console.log("Generated data:", { totalRows, totalCols, rowFacets: rowFacetLevelMajor, colFacets: colFacetLevelMajor, data });
-    gridRef.current.data = new GridDataViewModel(data, colFacetLevelMajor, rowFacetLevelMajor, { colDefs });
+    gridRef.current.data = new GridDataViewModel(data, colFacetLevelMajor, rowFacetLevelMajor, { colDefs, facetRenderer: { row: rowFacetRenderer, column: colFacetRenderer } });
     gridRef.current.draw();
   };
 
