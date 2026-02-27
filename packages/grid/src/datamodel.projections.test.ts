@@ -2,7 +2,8 @@
 import { expect } from "chai";
 import { concat, cross, hierarchy } from "./grid-datamodel";
 import { makeModel, makePatchedModel } from "./datamodel.data.test";
-import { AxisConfig, PivotConfig, ProjectionState } from "./types";
+import { InMemoryDataModel } from "./in-memory-datamodel";
+import { AxisConfig, PivotConfig, ProjectionState, Schema } from "./types";
 
 describe("Dimensional Projections", () => {
   describe("hierarchy base state — rows collapsed to region only", () => {
@@ -169,9 +170,9 @@ describe("Dimensional Projections", () => {
 
       expect(model.sqlStr()).to.equal(
         `WITH __d__0 AS (`
-        + `\n       SELECT "region", "country", "city", MIN(rowid) AS "__ord__0" FROM "data" WHERE "country" IN ('USA') GROUP BY "region", "country", "city"`
+        + `\n       SELECT "region", "country", "city", MIN(rowid) AS "__ord__0", MIN(MIN(rowid)) OVER (PARTITION BY "region") AS "__sord__0" FROM "data" WHERE "country" IN ('USA') GROUP BY "region", "country", "city"`
         + `\n       UNION ALL`
-        + `\n       SELECT "region", "country", CAST(NULL AS VARCHAR) AS "city", MIN(rowid) AS "__ord__0" FROM "data" WHERE NOT (COALESCE("country" IN ('USA'), FALSE)) GROUP BY "region", "country"`
+        + `\n       SELECT "region", "country", CAST(NULL AS VARCHAR) AS "city", MIN(rowid) AS "__ord__0", MIN(MIN(rowid)) OVER (PARTITION BY "region") AS "__sord__0" FROM "data" WHERE NOT (COALESCE("country" IN ('USA'), FALSE)) GROUP BY "region", "country"`
         + `\n     ),`
         + `\n     __d__1 AS (SELECT "department", MIN(rowid) AS "__ord__1" FROM "data" GROUP BY "department"),`
         + `\n     __d__2 AS (SELECT "channel", MIN(rowid) AS "__ord__2" FROM "data" GROUP BY "channel"),`
@@ -187,9 +188,7 @@ describe("Dimensional Projections", () => {
         + `\n    (__d__4."__src__0" = '0:department' AND T."department" = __d__4."__c__0")`
         + `\n    OR (__d__4."__src__0" = '1:channel' AND T."channel" = __d__4."__c__0")`
         + `\n    OR __d__4."__src__0" IS NULL`
-        + `\n  )`
-        + ` GROUP BY __d__4."region", __d__4."country", __d__4."city", __d__4."__c__0", __d__4."__src__0"`
-        + ` ORDER BY MIN(__d__4."__ord__0"), __d__4."__src__0", MIN(__d__4."__cord__0_0")`
+        + `\n  ) GROUP BY __d__4."region", __d__4."country", __d__4."city", __d__4."__c__0", __d__4."__src__0" ORDER BY MIN(__d__4."__sord__0"), MIN(__d__4."__ord__0"), __d__4."__src__0", MIN(__d__4."__cord__0_0")`
       );
     });
 
@@ -271,9 +270,9 @@ describe("Dimensional Projections", () => {
 
         expect(model.sqlStr()).to.equal(
           `WITH __d__0 AS (`
-          + `\n       SELECT "region", "country", CAST(NULL AS VARCHAR) AS "city", MIN(rowid) AS "__ord__0" FROM "data" WHERE "region" IN ('North America') GROUP BY "region", "country"`
+          + `\n       SELECT "region", "country", CAST(NULL AS VARCHAR) AS "city", MIN(rowid) AS "__ord__0", MIN(MIN(rowid)) OVER (PARTITION BY "region") AS "__sord__0" FROM "data" WHERE "region" IN ('North America') GROUP BY "region", "country"`
           + `\n       UNION ALL`
-          + `\n       SELECT "region", CAST(NULL AS VARCHAR) AS "country", CAST(NULL AS VARCHAR) AS "city", MIN(rowid) AS "__ord__0" FROM "data" WHERE NOT (COALESCE("region" IN ('North America'), FALSE)) GROUP BY "region"`
+          + `\n       SELECT "region", CAST(NULL AS VARCHAR) AS "country", CAST(NULL AS VARCHAR) AS "city", MIN(rowid) AS "__ord__0", MIN(MIN(rowid)) OVER (PARTITION BY "region") AS "__sord__0" FROM "data" WHERE NOT (COALESCE("region" IN ('North America'), FALSE)) GROUP BY "region"`
           + `\n     ),`
           + `\n     __d__1 AS (SELECT "department", "product", MIN(rowid) AS "__ord__1" FROM "data" GROUP BY "department", "product"),`
           + `\n     __d__2 AS (SELECT "channel", MIN(rowid) AS "__ord__2" FROM "data" GROUP BY "channel"),`
@@ -281,9 +280,7 @@ describe("Dimensional Projections", () => {
           + `\n     __d__4 AS (SELECT * FROM __d__0 CROSS JOIN __d__3)`
           + `\nSELECT __d__4."region", __d__4."country", __d__4."city", __d__4."department", __d__4."product", __d__4."channel", SUM(T."revenue") AS "revenue"`
           + `\nFROM __d__4`
-          + `\nLEFT JOIN "data" T ON T."region" = __d__4."region" AND (T."country" = __d__4."country" OR __d__4."country" IS NULL) AND (T."city" = __d__4."city" OR __d__4."city" IS NULL) AND T."department" = __d__4."department" AND T."product" = __d__4."product" AND T."channel" = __d__4."channel"`
-          + ` GROUP BY __d__4."region", __d__4."country", __d__4."city", __d__4."department", __d__4."product", __d__4."channel"`
-          + ` ORDER BY MIN(__d__4."__ord__0"), MIN(__d__4."__ord__1"), MIN(__d__4."__ord__2")`
+          + `\nLEFT JOIN "data" T ON T."region" = __d__4."region" AND (T."country" = __d__4."country" OR __d__4."country" IS NULL) AND (T."city" = __d__4."city" OR __d__4."city" IS NULL) AND T."department" = __d__4."department" AND T."product" = __d__4."product" AND T."channel" = __d__4."channel" GROUP BY __d__4."region", __d__4."country", __d__4."city", __d__4."department", __d__4."product", __d__4."channel" ORDER BY MIN(__d__4."__sord__0"), MIN(__d__4."__ord__0"), MIN(__d__4."__ord__1"), MIN(__d__4."__ord__2")`
         );
       });
 
@@ -372,29 +369,27 @@ describe("Dimensional Projections", () => {
 
         expect(model.sqlStr()).to.equal(
           `WITH __d__0 AS (`
-          + `\n       SELECT "region", "country", CAST(NULL AS VARCHAR) AS "city", MIN(rowid) AS "__ord__0" FROM "data" WHERE "region" IN ('North America') GROUP BY "region", "country"`
+          + `\n       SELECT "region", "country", CAST(NULL AS VARCHAR) AS "city", MIN(rowid) AS "__ord__0", MIN(MIN(rowid)) OVER (PARTITION BY "region") AS "__sord__0" FROM "data" WHERE "region" IN ('North America') GROUP BY "region", "country"`
           + `\n       UNION ALL`
-          + `\n       SELECT "region", "country", CAST(NULL AS VARCHAR) AS "city", MIN(rowid) AS "__ord__0" FROM "data" WHERE "region" IN ('Europe') GROUP BY "region", "country"`
+          + `\n       SELECT "region", "country", CAST(NULL AS VARCHAR) AS "city", MIN(rowid) AS "__ord__0", MIN(MIN(rowid)) OVER (PARTITION BY "region") AS "__sord__0" FROM "data" WHERE "region" IN ('Europe') GROUP BY "region", "country"`
           + `\n       UNION ALL`
-          + `\n       SELECT "region", CAST(NULL AS VARCHAR) AS "country", CAST(NULL AS VARCHAR) AS "city", MIN(rowid) AS "__ord__0" FROM "data" WHERE NOT (COALESCE("region" IN ('North America','Europe'), FALSE)) GROUP BY "region"`
+          + `\n       SELECT "region", CAST(NULL AS VARCHAR) AS "country", CAST(NULL AS VARCHAR) AS "city", MIN(rowid) AS "__ord__0", MIN(MIN(rowid)) OVER (PARTITION BY "region") AS "__sord__0" FROM "data" WHERE NOT (COALESCE("region" IN ('North America','Europe'), FALSE)) GROUP BY "region"`
           + `\n     ),`
           + `\n     __d__1 AS (`
-          + `\n       SELECT "department", "product", MIN(rowid) AS "__ord__1" FROM "data" WHERE "department" IN ('Electronics') GROUP BY "department", "product"`
+          + `\n       SELECT "department", "product", MIN(rowid) AS "__ord__1", MIN(MIN(rowid)) OVER (PARTITION BY "department") AS "__sord__1" FROM "data" WHERE "department" IN ('Electronics') GROUP BY "department", "product"`
           + `\n       UNION ALL`
-          + `\n       SELECT "department", CAST(NULL AS VARCHAR) AS "product", MIN(rowid) AS "__ord__1" FROM "data" WHERE NOT (COALESCE("department" IN ('Electronics'), FALSE)) GROUP BY "department"`
+          + `\n       SELECT "department", CAST(NULL AS VARCHAR) AS "product", MIN(rowid) AS "__ord__1", MIN(MIN(rowid)) OVER (PARTITION BY "department") AS "__sord__1" FROM "data" WHERE NOT (COALESCE("department" IN ('Electronics'), FALSE)) GROUP BY "department"`
           + `\n     ),`
           + `\n     __d__2 AS (SELECT "channel", MIN(rowid) AS "__ord__2" FROM "data" GROUP BY "channel"),`
           + `\n     __d__3 AS (`
-          + `\n       SELECT __d__1."department", __d__1."product", __d__2."channel", __d__1."__ord__1", __d__2."__ord__2" FROM __d__1 CROSS JOIN __d__2 WHERE __d__1."department" IN ('Electronics')`
+          + `\n       SELECT __d__1."department", __d__1."product", __d__2."channel", __d__1."__sord__1", __d__1."__ord__1", __d__2."__ord__2" FROM __d__1 CROSS JOIN __d__2 WHERE __d__1."department" IN ('Electronics')`
           + `\n       UNION ALL`
-          + `\n       SELECT __d__1."department", __d__1."product", CAST(NULL AS VARCHAR) AS "channel", __d__1."__ord__1", 0 AS "__ord__2" FROM __d__1 WHERE NOT (COALESCE(__d__1."department" IN ('Electronics'), FALSE))`
+          + `\n       SELECT __d__1."department", __d__1."product", CAST(NULL AS VARCHAR) AS "channel", __d__1."__sord__1", __d__1."__ord__1", 0 AS "__ord__2" FROM __d__1 WHERE NOT (COALESCE(__d__1."department" IN ('Electronics'), FALSE))`
           + `\n     ),`
           + `\n     __d__4 AS (SELECT * FROM __d__0 CROSS JOIN __d__3)`
           + `\nSELECT __d__4."region", __d__4."country", __d__4."city", __d__4."department", __d__4."product", __d__4."channel", SUM(T."revenue") AS "revenue"`
           + `\nFROM __d__4`
-          + `\nLEFT JOIN "data" T ON T."region" = __d__4."region" AND (T."country" = __d__4."country" OR __d__4."country" IS NULL) AND (T."city" = __d__4."city" OR __d__4."city" IS NULL) AND T."department" = __d__4."department" AND (T."product" = __d__4."product" OR __d__4."product" IS NULL) AND (T."channel" = __d__4."channel" OR __d__4."channel" IS NULL)`
-          + ` GROUP BY __d__4."region", __d__4."country", __d__4."city", __d__4."department", __d__4."product", __d__4."channel"`
-          + ` ORDER BY MIN(__d__4."__ord__0"), MIN(__d__4."__ord__1"), MIN(__d__4."__ord__2")`
+          + `\nLEFT JOIN "data" T ON T."region" = __d__4."region" AND (T."country" = __d__4."country" OR __d__4."country" IS NULL) AND (T."city" = __d__4."city" OR __d__4."city" IS NULL) AND T."department" = __d__4."department" AND (T."product" = __d__4."product" OR __d__4."product" IS NULL) AND (T."channel" = __d__4."channel" OR __d__4."channel" IS NULL) GROUP BY __d__4."region", __d__4."country", __d__4."city", __d__4."department", __d__4."product", __d__4."channel" ORDER BY MIN(__d__4."__sord__0"), MIN(__d__4."__ord__0"), MIN(__d__4."__sord__1"), MIN(__d__4."__ord__1"), MIN(__d__4."__ord__2")`
         );
       });
 
@@ -467,11 +462,11 @@ describe("Dimensional Projections", () => {
 
         expect(model.sqlStr()).to.equal(
           `WITH __d__0 AS (`
-          + `\n       SELECT "region", "country", CAST(NULL AS VARCHAR) AS "city", MIN(rowid) AS "__ord__0" FROM "data" WHERE "region" IN ('North America') GROUP BY "region", "country"`
+          + `\n       SELECT "region", "country", CAST(NULL AS VARCHAR) AS "city", MIN(rowid) AS "__ord__0", MIN(MIN(rowid)) OVER (PARTITION BY "region") AS "__sord__0" FROM "data" WHERE "region" IN ('North America') GROUP BY "region", "country"`
           + `\n       UNION ALL`
-          + `\n       SELECT "region", "country", CAST(NULL AS VARCHAR) AS "city", MIN(rowid) AS "__ord__0" FROM "data" WHERE "region" IN ('Europe') GROUP BY "region", "country"`
+          + `\n       SELECT "region", "country", CAST(NULL AS VARCHAR) AS "city", MIN(rowid) AS "__ord__0", MIN(MIN(rowid)) OVER (PARTITION BY "region") AS "__sord__0" FROM "data" WHERE "region" IN ('Europe') GROUP BY "region", "country"`
           + `\n       UNION ALL`
-          + `\n       SELECT "region", CAST(NULL AS VARCHAR) AS "country", CAST(NULL AS VARCHAR) AS "city", MIN(rowid) AS "__ord__0" FROM "data" WHERE NOT (COALESCE("region" IN ('North America','Europe'), FALSE)) GROUP BY "region"`
+          + `\n       SELECT "region", CAST(NULL AS VARCHAR) AS "country", CAST(NULL AS VARCHAR) AS "city", MIN(rowid) AS "__ord__0", MIN(MIN(rowid)) OVER (PARTITION BY "region") AS "__sord__0" FROM "data" WHERE NOT (COALESCE("region" IN ('North America','Europe'), FALSE)) GROUP BY "region"`
           + `\n     ),`
           + `\n     __d__1 AS (SELECT "department", "product", MIN(rowid) AS "__ord__1" FROM "data" GROUP BY "department", "product"),`
           + `\n     __d__2 AS (SELECT "channel", MIN(rowid) AS "__ord__2" FROM "data" GROUP BY "channel"),`
@@ -479,9 +474,7 @@ describe("Dimensional Projections", () => {
           + `\n     __d__4 AS (SELECT * FROM __d__0 CROSS JOIN __d__3)`
           + `\nSELECT __d__4."region", __d__4."country", __d__4."city", __d__4."department", __d__4."product", __d__4."channel", SUM(T."revenue") AS "revenue"`
           + `\nFROM __d__4`
-          + `\nLEFT JOIN "data" T ON T."region" = __d__4."region" AND (T."country" = __d__4."country" OR __d__4."country" IS NULL) AND (T."city" = __d__4."city" OR __d__4."city" IS NULL) AND T."department" = __d__4."department" AND T."product" = __d__4."product" AND T."channel" = __d__4."channel"`
-          + ` GROUP BY __d__4."region", __d__4."country", __d__4."city", __d__4."department", __d__4."product", __d__4."channel"`
-          + ` ORDER BY MIN(__d__4."__ord__0"), MIN(__d__4."__ord__1"), MIN(__d__4."__ord__2")`
+          + `\nLEFT JOIN "data" T ON T."region" = __d__4."region" AND (T."country" = __d__4."country" OR __d__4."country" IS NULL) AND (T."city" = __d__4."city" OR __d__4."city" IS NULL) AND T."department" = __d__4."department" AND T."product" = __d__4."product" AND T."channel" = __d__4."channel" GROUP BY __d__4."region", __d__4."country", __d__4."city", __d__4."department", __d__4."product", __d__4."channel" ORDER BY MIN(__d__4."__sord__0"), MIN(__d__4."__ord__0"), MIN(__d__4."__ord__1"), MIN(__d__4."__ord__2")`
         );
       });
 
@@ -588,39 +581,37 @@ describe("Dimensional Projections", () => {
 
           expect(model.sqlStr()).to.equal(
             `WITH __d__0 AS (`
-            + `\n       SELECT "region", "country", "city", MIN(rowid) AS "__ord__0" FROM "data" WHERE "region" IN ('North America') AND "country" IN ('USA') GROUP BY "region", "country", "city"`
+            + `\n       SELECT "region", "country", "city", MIN(rowid) AS "__ord__0", MIN(MIN(rowid)) OVER (PARTITION BY "region") AS "__sord__0" FROM "data" WHERE "region" IN ('North America') AND "country" IN ('USA') GROUP BY "region", "country", "city"`
             + `\n       UNION ALL`
-            + `\n       SELECT "region", "country", CAST(NULL AS VARCHAR) AS "city", MIN(rowid) AS "__ord__0" FROM "data" WHERE "region" IN ('North America') AND NOT (COALESCE("country" IN ('USA'), FALSE)) GROUP BY "region", "country"`
+            + `\n       SELECT "region", "country", CAST(NULL AS VARCHAR) AS "city", MIN(rowid) AS "__ord__0", MIN(MIN(rowid)) OVER (PARTITION BY "region") AS "__sord__0" FROM "data" WHERE "region" IN ('North America') AND NOT (COALESCE("country" IN ('USA'), FALSE)) GROUP BY "region", "country"`
             + `\n       UNION ALL`
-            + `\n       SELECT "region", "country", "city", MIN(rowid) AS "__ord__0" FROM "data" WHERE "region" IN ('Europe') AND "country" IN ('UK') GROUP BY "region", "country", "city"`
+            + `\n       SELECT "region", "country", "city", MIN(rowid) AS "__ord__0", MIN(MIN(rowid)) OVER (PARTITION BY "region") AS "__sord__0" FROM "data" WHERE "region" IN ('Europe') AND "country" IN ('UK') GROUP BY "region", "country", "city"`
             + `\n       UNION ALL`
-            + `\n       SELECT "region", "country", CAST(NULL AS VARCHAR) AS "city", MIN(rowid) AS "__ord__0" FROM "data" WHERE "region" IN ('Europe') AND NOT (COALESCE("country" IN ('UK'), FALSE)) GROUP BY "region", "country"`
+            + `\n       SELECT "region", "country", CAST(NULL AS VARCHAR) AS "city", MIN(rowid) AS "__ord__0", MIN(MIN(rowid)) OVER (PARTITION BY "region") AS "__sord__0" FROM "data" WHERE "region" IN ('Europe') AND NOT (COALESCE("country" IN ('UK'), FALSE)) GROUP BY "region", "country"`
             + `\n       UNION ALL`
-            + `\n       SELECT "region", CAST(NULL AS VARCHAR) AS "country", CAST(NULL AS VARCHAR) AS "city", MIN(rowid) AS "__ord__0" FROM "data" WHERE NOT (COALESCE("region" IN ('North America','Europe'), FALSE)) GROUP BY "region"`
+            + `\n       SELECT "region", CAST(NULL AS VARCHAR) AS "country", CAST(NULL AS VARCHAR) AS "city", MIN(rowid) AS "__ord__0", MIN(MIN(rowid)) OVER (PARTITION BY "region") AS "__sord__0" FROM "data" WHERE NOT (COALESCE("region" IN ('North America','Europe'), FALSE)) GROUP BY "region"`
             + `\n     ),`
             + `\n     __d__1 AS (`
-            + `\n       SELECT "department", "product", MIN(rowid) AS "__ord__1" FROM "data" WHERE "department" IN ('Electronics') AND "product" IN ('Laptop') GROUP BY "department", "product"`
+            + `\n       SELECT "department", "product", MIN(rowid) AS "__ord__1", MIN(MIN(rowid)) OVER (PARTITION BY "department") AS "__sord__1" FROM "data" WHERE "department" IN ('Electronics') AND "product" IN ('Laptop') GROUP BY "department", "product"`
             + `\n       UNION ALL`
-            + `\n       SELECT "department", "product", MIN(rowid) AS "__ord__1" FROM "data" WHERE "department" IN ('Electronics') AND NOT (COALESCE("product" IN ('Laptop'), FALSE)) GROUP BY "department", "product"`
+            + `\n       SELECT "department", "product", MIN(rowid) AS "__ord__1", MIN(MIN(rowid)) OVER (PARTITION BY "department") AS "__sord__1" FROM "data" WHERE "department" IN ('Electronics') AND NOT (COALESCE("product" IN ('Laptop'), FALSE)) GROUP BY "department", "product"`
             + `\n       UNION ALL`
-            + `\n       SELECT "department", "product", MIN(rowid) AS "__ord__1" FROM "data" WHERE "department" IN ('Apparel') AND "product" IN ('Jacket') GROUP BY "department", "product"`
+            + `\n       SELECT "department", "product", MIN(rowid) AS "__ord__1", MIN(MIN(rowid)) OVER (PARTITION BY "department") AS "__sord__1" FROM "data" WHERE "department" IN ('Apparel') AND "product" IN ('Jacket') GROUP BY "department", "product"`
             + `\n       UNION ALL`
-            + `\n       SELECT "department", "product", MIN(rowid) AS "__ord__1" FROM "data" WHERE "department" IN ('Apparel') AND NOT (COALESCE("product" IN ('Jacket'), FALSE)) GROUP BY "department", "product"`
+            + `\n       SELECT "department", "product", MIN(rowid) AS "__ord__1", MIN(MIN(rowid)) OVER (PARTITION BY "department") AS "__sord__1" FROM "data" WHERE "department" IN ('Apparel') AND NOT (COALESCE("product" IN ('Jacket'), FALSE)) GROUP BY "department", "product"`
             + `\n       UNION ALL`
-            + `\n       SELECT "department", CAST(NULL AS VARCHAR) AS "product", MIN(rowid) AS "__ord__1" FROM "data" WHERE NOT (COALESCE("department" IN ('Electronics','Apparel'), FALSE)) GROUP BY "department"`
+            + `\n       SELECT "department", CAST(NULL AS VARCHAR) AS "product", MIN(rowid) AS "__ord__1", MIN(MIN(rowid)) OVER (PARTITION BY "department") AS "__sord__1" FROM "data" WHERE NOT (COALESCE("department" IN ('Electronics','Apparel'), FALSE)) GROUP BY "department"`
             + `\n     ),`
             + `\n     __d__2 AS (SELECT "channel", MIN(rowid) AS "__ord__2" FROM "data" GROUP BY "channel"),`
             + `\n     __d__3 AS (`
-            + `\n       SELECT __d__1."department", __d__1."product", __d__2."channel", __d__1."__ord__1", __d__2."__ord__2" FROM __d__1 CROSS JOIN __d__2 WHERE __d__1."department" IN ('Electronics','Apparel') AND __d__1."product" IN ('Laptop','Jacket')`
+            + `\n       SELECT __d__1."department", __d__1."product", __d__2."channel", __d__1."__sord__1", __d__1."__ord__1", __d__2."__ord__2" FROM __d__1 CROSS JOIN __d__2 WHERE __d__1."department" IN ('Electronics','Apparel') AND __d__1."product" IN ('Laptop','Jacket')`
             + `\n       UNION ALL`
-            + `\n       SELECT __d__1."department", __d__1."product", CAST(NULL AS VARCHAR) AS "channel", __d__1."__ord__1", 0 AS "__ord__2" FROM __d__1 WHERE NOT (COALESCE(__d__1."department" IN ('Electronics','Apparel'), FALSE) AND COALESCE(__d__1."product" IN ('Laptop','Jacket'), FALSE))`
+            + `\n       SELECT __d__1."department", __d__1."product", CAST(NULL AS VARCHAR) AS "channel", __d__1."__sord__1", __d__1."__ord__1", 0 AS "__ord__2" FROM __d__1 WHERE NOT (COALESCE(__d__1."department" IN ('Electronics','Apparel'), FALSE) AND COALESCE(__d__1."product" IN ('Laptop','Jacket'), FALSE))`
             + `\n     ),`
             + `\n     __d__4 AS (SELECT * FROM __d__0 CROSS JOIN __d__3)`
             + `\nSELECT __d__4."region", __d__4."country", __d__4."city", __d__4."department", __d__4."product", __d__4."channel", SUM(T."revenue") AS "revenue"`
             + `\nFROM __d__4`
-            + `\nLEFT JOIN "data" T ON T."region" = __d__4."region" AND (T."country" = __d__4."country" OR __d__4."country" IS NULL) AND (T."city" = __d__4."city" OR __d__4."city" IS NULL) AND T."department" = __d__4."department" AND (T."product" = __d__4."product" OR __d__4."product" IS NULL) AND (T."channel" = __d__4."channel" OR __d__4."channel" IS NULL)`
-            + ` GROUP BY __d__4."region", __d__4."country", __d__4."city", __d__4."department", __d__4."product", __d__4."channel"`
-            + ` ORDER BY MIN(__d__4."__ord__0"), MIN(__d__4."__ord__1"), MIN(__d__4."__ord__2")`
+            + `\nLEFT JOIN "data" T ON T."region" = __d__4."region" AND (T."country" = __d__4."country" OR __d__4."country" IS NULL) AND (T."city" = __d__4."city" OR __d__4."city" IS NULL) AND T."department" = __d__4."department" AND (T."product" = __d__4."product" OR __d__4."product" IS NULL) AND (T."channel" = __d__4."channel" OR __d__4."channel" IS NULL) GROUP BY __d__4."region", __d__4."country", __d__4."city", __d__4."department", __d__4."product", __d__4."channel" ORDER BY MIN(__d__4."__sord__0"), MIN(__d__4."__ord__0"), MIN(__d__4."__sord__1"), MIN(__d__4."__ord__1"), MIN(__d__4."__ord__2")`
           );
         });
 
@@ -1081,19 +1072,19 @@ describe("Dimensional Projections", () => {
 
         expect(model.sqlStr()).to.equal(
           `WITH __d__0 AS (`
-          + `\n       SELECT "region", "country", CAST(NULL AS VARCHAR) AS "city", MIN(rowid) AS "__ord__0" FROM "data" WHERE "region" IN ('Europe') GROUP BY "region", "country"`
+          + `\n       SELECT "region", "country", CAST(NULL AS VARCHAR) AS "city", MIN(rowid) AS "__ord__0", MIN(MIN(rowid)) OVER (PARTITION BY "region") AS "__sord__0" FROM "data" WHERE "region" IN ('Europe') GROUP BY "region", "country"`
           + `\n       UNION ALL`
-          + `\n       SELECT "region", CAST(NULL AS VARCHAR) AS "country", CAST(NULL AS VARCHAR) AS "city", MIN(rowid) AS "__ord__0" FROM "data" WHERE NOT (COALESCE("region" IN ('Europe'), FALSE)) GROUP BY "region"`
+          + `\n       SELECT "region", CAST(NULL AS VARCHAR) AS "country", CAST(NULL AS VARCHAR) AS "city", MIN(rowid) AS "__ord__0", MIN(MIN(rowid)) OVER (PARTITION BY "region") AS "__sord__0" FROM "data" WHERE NOT (COALESCE("region" IN ('Europe'), FALSE)) GROUP BY "region"`
           + `\n     ),`
           + `\n     __d__1 AS (`
-          + `\n       SELECT "department", "product", MIN(rowid) AS "__ord__1" FROM "data" WHERE "department" IN ('Europe') GROUP BY "department", "product"`
+          + `\n       SELECT "department", "product", MIN(rowid) AS "__ord__1", MIN(MIN(rowid)) OVER (PARTITION BY "department") AS "__sord__1" FROM "data" WHERE "department" IN ('Europe') GROUP BY "department", "product"`
           + `\n       UNION ALL`
-          + `\n       SELECT "department", CAST(NULL AS VARCHAR) AS "product", MIN(rowid) AS "__ord__1" FROM "data" WHERE NOT (COALESCE("department" IN ('Europe'), FALSE)) GROUP BY "department"`
+          + `\n       SELECT "department", CAST(NULL AS VARCHAR) AS "product", MIN(rowid) AS "__ord__1", MIN(MIN(rowid)) OVER (PARTITION BY "department") AS "__sord__1" FROM "data" WHERE NOT (COALESCE("department" IN ('Europe'), FALSE)) GROUP BY "department"`
           + `\n     ),`
           + `\n     __d__2 AS (`
-          + `\n       SELECT '0:region,country,city' AS "__src__0", __d__0."region" AS "__c__0", __d__0."country" AS "__c__1", __d__0."city" AS "__c__2", __ord__0 AS "__cord__0_0" FROM __d__0`
+          + `\n       SELECT '0:region,country,city' AS "__src__0", __d__0."region" AS "__c__0", __d__0."country" AS "__c__1", __d__0."city" AS "__c__2", __sord__0 AS "__cord__0_0", __ord__0 AS "__cord__0_1" FROM __d__0`
           + `\n       UNION ALL`
-          + `\n       SELECT '1:department,product' AS "__src__0", __d__1."department" AS "__c__0", __d__1."product" AS "__c__1", CAST(NULL AS VARCHAR) AS "__c__2", __ord__1 AS "__cord__0_0" FROM __d__1`
+          + `\n       SELECT '1:department,product' AS "__src__0", __d__1."department" AS "__c__0", __d__1."product" AS "__c__1", CAST(NULL AS VARCHAR) AS "__c__2", __sord__1 AS "__cord__0_0", __ord__1 AS "__cord__0_1" FROM __d__1`
           + `\n     )`
           + `\nSELECT __d__2."__c__0", __d__2."__c__1", __d__2."__c__2", SUM(T."revenue") AS "revenue"`
           + `\nFROM __d__2`
@@ -1101,9 +1092,7 @@ describe("Dimensional Projections", () => {
           + `\n    (__d__2."__src__0" = '0:region,country,city' AND T."region" = __d__2."__c__0" AND (T."country" = __d__2."__c__1" OR __d__2."__c__1" IS NULL) AND (T."city" = __d__2."__c__2" OR __d__2."__c__2" IS NULL))`
           + `\n    OR (__d__2."__src__0" = '1:department,product' AND T."department" = __d__2."__c__0" AND (T."product" = __d__2."__c__1" OR __d__2."__c__1" IS NULL))`
           + `\n    OR __d__2."__src__0" IS NULL`
-          + `\n  )`
-          + ` GROUP BY __d__2."__c__0", __d__2."__c__1", __d__2."__c__2", __d__2."__src__0"`
-          + ` ORDER BY __d__2."__src__0", MIN(__d__2."__cord__0_0")`
+          + `\n  ) GROUP BY __d__2."__c__0", __d__2."__c__1", __d__2."__c__2", __d__2."__src__0" ORDER BY __d__2."__src__0", MIN(__d__2."__cord__0_0"), MIN(__d__2."__cord__0_1")`
         );
       });
 
@@ -1165,19 +1154,19 @@ describe("Dimensional Projections", () => {
 
         expect(model.sqlStr()).to.equal(
           `WITH __d__0 AS (`
-          + `\n       SELECT "region", "country", CAST(NULL AS VARCHAR) AS "city", MIN(rowid) AS "__ord__0" FROM "data" WHERE "region" IN ('Electronics') GROUP BY "region", "country"`
+          + `\n       SELECT "region", "country", CAST(NULL AS VARCHAR) AS "city", MIN(rowid) AS "__ord__0", MIN(MIN(rowid)) OVER (PARTITION BY "region") AS "__sord__0" FROM "data" WHERE "region" IN ('Electronics') GROUP BY "region", "country"`
           + `\n       UNION ALL`
-          + `\n       SELECT "region", CAST(NULL AS VARCHAR) AS "country", CAST(NULL AS VARCHAR) AS "city", MIN(rowid) AS "__ord__0" FROM "data" WHERE NOT (COALESCE("region" IN ('Electronics'), FALSE)) GROUP BY "region"`
+          + `\n       SELECT "region", CAST(NULL AS VARCHAR) AS "country", CAST(NULL AS VARCHAR) AS "city", MIN(rowid) AS "__ord__0", MIN(MIN(rowid)) OVER (PARTITION BY "region") AS "__sord__0" FROM "data" WHERE NOT (COALESCE("region" IN ('Electronics'), FALSE)) GROUP BY "region"`
           + `\n     ),`
           + `\n     __d__1 AS (`
-          + `\n       SELECT "department", "product", MIN(rowid) AS "__ord__1" FROM "data" WHERE "department" IN ('Electronics') GROUP BY "department", "product"`
+          + `\n       SELECT "department", "product", MIN(rowid) AS "__ord__1", MIN(MIN(rowid)) OVER (PARTITION BY "department") AS "__sord__1" FROM "data" WHERE "department" IN ('Electronics') GROUP BY "department", "product"`
           + `\n       UNION ALL`
-          + `\n       SELECT "department", CAST(NULL AS VARCHAR) AS "product", MIN(rowid) AS "__ord__1" FROM "data" WHERE NOT (COALESCE("department" IN ('Electronics'), FALSE)) GROUP BY "department"`
+          + `\n       SELECT "department", CAST(NULL AS VARCHAR) AS "product", MIN(rowid) AS "__ord__1", MIN(MIN(rowid)) OVER (PARTITION BY "department") AS "__sord__1" FROM "data" WHERE NOT (COALESCE("department" IN ('Electronics'), FALSE)) GROUP BY "department"`
           + `\n     ),`
           + `\n     __d__2 AS (`
-          + `\n       SELECT '0:region,country,city' AS "__src__0", __d__0."region" AS "__c__0", __d__0."country" AS "__c__1", __d__0."city" AS "__c__2", __ord__0 AS "__cord__0_0" FROM __d__0`
+          + `\n       SELECT '0:region,country,city' AS "__src__0", __d__0."region" AS "__c__0", __d__0."country" AS "__c__1", __d__0."city" AS "__c__2", __sord__0 AS "__cord__0_0", __ord__0 AS "__cord__0_1" FROM __d__0`
           + `\n       UNION ALL`
-          + `\n       SELECT '1:department,product' AS "__src__0", __d__1."department" AS "__c__0", __d__1."product" AS "__c__1", CAST(NULL AS VARCHAR) AS "__c__2", __ord__1 AS "__cord__0_0" FROM __d__1`
+          + `\n       SELECT '1:department,product' AS "__src__0", __d__1."department" AS "__c__0", __d__1."product" AS "__c__1", CAST(NULL AS VARCHAR) AS "__c__2", __sord__1 AS "__cord__0_0", __ord__1 AS "__cord__0_1" FROM __d__1`
           + `\n     )`
           + `\nSELECT __d__2."__c__0", __d__2."__c__1", __d__2."__c__2", SUM(T."revenue") AS "revenue"`
           + `\nFROM __d__2`
@@ -1185,9 +1174,7 @@ describe("Dimensional Projections", () => {
           + `\n    (__d__2."__src__0" = '0:region,country,city' AND T."region" = __d__2."__c__0" AND (T."country" = __d__2."__c__1" OR __d__2."__c__1" IS NULL) AND (T."city" = __d__2."__c__2" OR __d__2."__c__2" IS NULL))`
           + `\n    OR (__d__2."__src__0" = '1:department,product' AND T."department" = __d__2."__c__0" AND (T."product" = __d__2."__c__1" OR __d__2."__c__1" IS NULL))`
           + `\n    OR __d__2."__src__0" IS NULL`
-          + `\n  )`
-          + ` GROUP BY __d__2."__c__0", __d__2."__c__1", __d__2."__c__2", __d__2."__src__0"`
-          + ` ORDER BY __d__2."__src__0", MIN(__d__2."__cord__0_0")`
+          + `\n  ) GROUP BY __d__2."__c__0", __d__2."__c__1", __d__2."__c__2", __d__2."__src__0" ORDER BY __d__2."__src__0", MIN(__d__2."__cord__0_0"), MIN(__d__2."__cord__0_1")`
         );
       });
 
@@ -1249,19 +1236,19 @@ describe("Dimensional Projections", () => {
 
         expect(model.sqlStr()).to.equal(
           `WITH __d__0 AS (`
-          + `\n       SELECT "region", "country", "city", MIN(rowid) AS "__ord__0" FROM "data" WHERE "region" IN ('Europe') GROUP BY "region", "country", "city"`
+          + `\n       SELECT "region", "country", "city", MIN(rowid) AS "__ord__0", MIN(MIN(rowid)) OVER (PARTITION BY "region") AS "__sord__0" FROM "data" WHERE "region" IN ('Europe') GROUP BY "region", "country", "city"`
           + `\n       UNION ALL`
-          + `\n       SELECT "region", CAST(NULL AS VARCHAR) AS "country", CAST(NULL AS VARCHAR) AS "city", MIN(rowid) AS "__ord__0" FROM "data" WHERE NOT (COALESCE("region" IN ('Europe'), FALSE)) GROUP BY "region"`
+          + `\n       SELECT "region", CAST(NULL AS VARCHAR) AS "country", CAST(NULL AS VARCHAR) AS "city", MIN(rowid) AS "__ord__0", MIN(MIN(rowid)) OVER (PARTITION BY "region") AS "__sord__0" FROM "data" WHERE NOT (COALESCE("region" IN ('Europe'), FALSE)) GROUP BY "region"`
           + `\n     ),`
           + `\n     __d__1 AS (`
-          + `\n       SELECT "department", "product", MIN(rowid) AS "__ord__1" FROM "data" WHERE "department" IN ('Europe') GROUP BY "department", "product"`
+          + `\n       SELECT "department", "product", MIN(rowid) AS "__ord__1", MIN(MIN(rowid)) OVER (PARTITION BY "department") AS "__sord__1" FROM "data" WHERE "department" IN ('Europe') GROUP BY "department", "product"`
           + `\n       UNION ALL`
-          + `\n       SELECT "department", CAST(NULL AS VARCHAR) AS "product", MIN(rowid) AS "__ord__1" FROM "data" WHERE NOT (COALESCE("department" IN ('Europe'), FALSE)) GROUP BY "department"`
+          + `\n       SELECT "department", CAST(NULL AS VARCHAR) AS "product", MIN(rowid) AS "__ord__1", MIN(MIN(rowid)) OVER (PARTITION BY "department") AS "__sord__1" FROM "data" WHERE NOT (COALESCE("department" IN ('Europe'), FALSE)) GROUP BY "department"`
           + `\n     ),`
           + `\n     __d__2 AS (`
-          + `\n       SELECT '0:region,country,city' AS "__src__0", __d__0."region" AS "__c__0", __d__0."country" AS "__c__1", __d__0."city" AS "__c__2", __ord__0 AS "__cord__0_0" FROM __d__0`
+          + `\n       SELECT '0:region,country,city' AS "__src__0", __d__0."region" AS "__c__0", __d__0."country" AS "__c__1", __d__0."city" AS "__c__2", __sord__0 AS "__cord__0_0", __ord__0 AS "__cord__0_1" FROM __d__0`
           + `\n       UNION ALL`
-          + `\n       SELECT '1:department,product' AS "__src__0", __d__1."department" AS "__c__0", __d__1."product" AS "__c__1", CAST(NULL AS VARCHAR) AS "__c__2", __ord__1 AS "__cord__0_0" FROM __d__1`
+          + `\n       SELECT '1:department,product' AS "__src__0", __d__1."department" AS "__c__0", __d__1."product" AS "__c__1", CAST(NULL AS VARCHAR) AS "__c__2", __sord__1 AS "__cord__0_0", __ord__1 AS "__cord__0_1" FROM __d__1`
           + `\n     )`
           + `\nSELECT __d__2."__c__0", __d__2."__c__1", __d__2."__c__2", SUM(T."revenue") AS "revenue"`
           + `\nFROM __d__2`
@@ -1269,9 +1256,7 @@ describe("Dimensional Projections", () => {
           + `\n    (__d__2."__src__0" = '0:region,country,city' AND T."region" = __d__2."__c__0" AND (T."country" = __d__2."__c__1" OR __d__2."__c__1" IS NULL) AND (T."city" = __d__2."__c__2" OR __d__2."__c__2" IS NULL))`
           + `\n    OR (__d__2."__src__0" = '1:department,product' AND T."department" = __d__2."__c__0" AND (T."product" = __d__2."__c__1" OR __d__2."__c__1" IS NULL))`
           + `\n    OR __d__2."__src__0" IS NULL`
-          + `\n  )`
-          + ` GROUP BY __d__2."__c__0", __d__2."__c__1", __d__2."__c__2", __d__2."__src__0"`
-          + ` ORDER BY __d__2."__src__0", MIN(__d__2."__cord__0_0")`
+          + `\n  ) GROUP BY __d__2."__c__0", __d__2."__c__1", __d__2."__c__2", __d__2."__src__0" ORDER BY __d__2."__src__0", MIN(__d__2."__cord__0_0"), MIN(__d__2."__cord__0_1")`
         );
       });
 
@@ -1337,23 +1322,23 @@ describe("Dimensional Projections", () => {
 
         expect(model.sqlStr()).to.equal(
           `WITH __d__0 AS (`
-          + `\n       SELECT "region", "country", CAST(NULL AS VARCHAR) AS "city", MIN(rowid) AS "__ord__0" FROM "data" WHERE "region" IN ('Europe') GROUP BY "region", "country"`
+          + `\n       SELECT "region", "country", CAST(NULL AS VARCHAR) AS "city", MIN(rowid) AS "__ord__0", MIN(MIN(rowid)) OVER (PARTITION BY "region") AS "__sord__0" FROM "data" WHERE "region" IN ('Europe') GROUP BY "region", "country"`
           + `\n       UNION ALL`
-          + `\n       SELECT "region", "country", CAST(NULL AS VARCHAR) AS "city", MIN(rowid) AS "__ord__0" FROM "data" WHERE "region" IN ('Electronics') GROUP BY "region", "country"`
+          + `\n       SELECT "region", "country", CAST(NULL AS VARCHAR) AS "city", MIN(rowid) AS "__ord__0", MIN(MIN(rowid)) OVER (PARTITION BY "region") AS "__sord__0" FROM "data" WHERE "region" IN ('Electronics') GROUP BY "region", "country"`
           + `\n       UNION ALL`
-          + `\n       SELECT "region", CAST(NULL AS VARCHAR) AS "country", CAST(NULL AS VARCHAR) AS "city", MIN(rowid) AS "__ord__0" FROM "data" WHERE NOT (COALESCE("region" IN ('Europe','Electronics'), FALSE)) GROUP BY "region"`
+          + `\n       SELECT "region", CAST(NULL AS VARCHAR) AS "country", CAST(NULL AS VARCHAR) AS "city", MIN(rowid) AS "__ord__0", MIN(MIN(rowid)) OVER (PARTITION BY "region") AS "__sord__0" FROM "data" WHERE NOT (COALESCE("region" IN ('Europe','Electronics'), FALSE)) GROUP BY "region"`
           + `\n     ),`
           + `\n     __d__1 AS (`
-          + `\n       SELECT "department", "product", MIN(rowid) AS "__ord__1" FROM "data" WHERE "department" IN ('Europe') GROUP BY "department", "product"`
+          + `\n       SELECT "department", "product", MIN(rowid) AS "__ord__1", MIN(MIN(rowid)) OVER (PARTITION BY "department") AS "__sord__1" FROM "data" WHERE "department" IN ('Europe') GROUP BY "department", "product"`
           + `\n       UNION ALL`
-          + `\n       SELECT "department", "product", MIN(rowid) AS "__ord__1" FROM "data" WHERE "department" IN ('Electronics') GROUP BY "department", "product"`
+          + `\n       SELECT "department", "product", MIN(rowid) AS "__ord__1", MIN(MIN(rowid)) OVER (PARTITION BY "department") AS "__sord__1" FROM "data" WHERE "department" IN ('Electronics') GROUP BY "department", "product"`
           + `\n       UNION ALL`
-          + `\n       SELECT "department", CAST(NULL AS VARCHAR) AS "product", MIN(rowid) AS "__ord__1" FROM "data" WHERE NOT (COALESCE("department" IN ('Europe','Electronics'), FALSE)) GROUP BY "department"`
+          + `\n       SELECT "department", CAST(NULL AS VARCHAR) AS "product", MIN(rowid) AS "__ord__1", MIN(MIN(rowid)) OVER (PARTITION BY "department") AS "__sord__1" FROM "data" WHERE NOT (COALESCE("department" IN ('Europe','Electronics'), FALSE)) GROUP BY "department"`
           + `\n     ),`
           + `\n     __d__2 AS (`
-          + `\n       SELECT '0:region,country,city' AS "__src__0", __d__0."region" AS "__c__0", __d__0."country" AS "__c__1", __d__0."city" AS "__c__2", __ord__0 AS "__cord__0_0" FROM __d__0`
+          + `\n       SELECT '0:region,country,city' AS "__src__0", __d__0."region" AS "__c__0", __d__0."country" AS "__c__1", __d__0."city" AS "__c__2", __sord__0 AS "__cord__0_0", __ord__0 AS "__cord__0_1" FROM __d__0`
           + `\n       UNION ALL`
-          + `\n       SELECT '1:department,product' AS "__src__0", __d__1."department" AS "__c__0", __d__1."product" AS "__c__1", CAST(NULL AS VARCHAR) AS "__c__2", __ord__1 AS "__cord__0_0" FROM __d__1`
+          + `\n       SELECT '1:department,product' AS "__src__0", __d__1."department" AS "__c__0", __d__1."product" AS "__c__1", CAST(NULL AS VARCHAR) AS "__c__2", __sord__1 AS "__cord__0_0", __ord__1 AS "__cord__0_1" FROM __d__1`
           + `\n     )`
           + `\nSELECT __d__2."__c__0", __d__2."__c__1", __d__2."__c__2", SUM(T."revenue") AS "revenue"`
           + `\nFROM __d__2`
@@ -1361,9 +1346,7 @@ describe("Dimensional Projections", () => {
           + `\n    (__d__2."__src__0" = '0:region,country,city' AND T."region" = __d__2."__c__0" AND (T."country" = __d__2."__c__1" OR __d__2."__c__1" IS NULL) AND (T."city" = __d__2."__c__2" OR __d__2."__c__2" IS NULL))`
           + `\n    OR (__d__2."__src__0" = '1:department,product' AND T."department" = __d__2."__c__0" AND (T."product" = __d__2."__c__1" OR __d__2."__c__1" IS NULL))`
           + `\n    OR __d__2."__src__0" IS NULL`
-          + `\n  )`
-          + ` GROUP BY __d__2."__c__0", __d__2."__c__1", __d__2."__c__2", __d__2."__src__0"`
-          + ` ORDER BY __d__2."__src__0", MIN(__d__2."__cord__0_0")`
+          + `\n  ) GROUP BY __d__2."__c__0", __d__2."__c__1", __d__2."__c__2", __d__2."__src__0" ORDER BY __d__2."__src__0", MIN(__d__2."__cord__0_0"), MIN(__d__2."__cord__0_1")`
         );
       });
 
@@ -1550,16 +1533,14 @@ describe("Dimensional Projections", () => {
         expect(model.sqlStr()).to.equal(
           `WITH __d__0 AS (SELECT "region", MIN(rowid) AS "__ord__0" FROM "data" GROUP BY "region"),`
           + `\n     __d__1 AS (`
-          + `\n       SELECT "department", "product", MIN(rowid) AS "__ord__1" FROM "data" WHERE "department" IN ('Electronics') GROUP BY "department", "product"`
+          + `\n       SELECT "department", "product", MIN(rowid) AS "__ord__1", MIN(MIN(rowid)) OVER (PARTITION BY "department") AS "__sord__1" FROM "data" WHERE "department" IN ('Electronics') GROUP BY "department", "product"`
           + `\n       UNION ALL`
-          + `\n       SELECT "department", CAST(NULL AS VARCHAR) AS "product", MIN(rowid) AS "__ord__1" FROM "data" WHERE NOT (COALESCE("department" IN ('Electronics'), FALSE)) GROUP BY "department"`
+          + `\n       SELECT "department", CAST(NULL AS VARCHAR) AS "product", MIN(rowid) AS "__ord__1", MIN(MIN(rowid)) OVER (PARTITION BY "department") AS "__sord__1" FROM "data" WHERE NOT (COALESCE("department" IN ('Electronics'), FALSE)) GROUP BY "department"`
           + `\n     ),`
           + `\n     __d__2 AS (SELECT * FROM __d__0 CROSS JOIN __d__1)`
           + `\nSELECT __d__2."region", __d__2."department", __d__2."product", SUM(T."revenue") AS "revenue"`
           + `\nFROM __d__2`
-          + `\nLEFT JOIN "data" T ON T."region" = __d__2."region" AND T."department" = __d__2."department" AND (T."product" = __d__2."product" OR __d__2."product" IS NULL)`
-          + ` GROUP BY __d__2."region", __d__2."department", __d__2."product"`
-          + ` ORDER BY MIN(__d__2."__ord__0"), MIN(__d__2."__ord__1")`
+          + `\nLEFT JOIN "data" T ON T."region" = __d__2."region" AND T."department" = __d__2."department" AND (T."product" = __d__2."product" OR __d__2."product" IS NULL) GROUP BY __d__2."region", __d__2."department", __d__2."product" ORDER BY MIN(__d__2."__ord__0"), MIN(__d__2."__sord__1"), MIN(__d__2."__ord__1")`
         );
       });
 
@@ -1815,16 +1796,14 @@ describe("Dimensional Projections", () => {
           + `\n     __d__1 AS (SELECT "quarter", MIN(rowid) AS "__ord__1" FROM "data" GROUP BY "quarter"),`
           + `\n     __d__2 AS (SELECT * FROM __d__0 CROSS JOIN __d__1),`
           + `\n     __d__3 AS (`
-          + `\n       SELECT "department", "product", MIN(rowid) AS "__ord__3" FROM "data" WHERE "department" IN ('Electronics') GROUP BY "department", "product"`
+          + `\n       SELECT "department", "product", MIN(rowid) AS "__ord__3", MIN(MIN(rowid)) OVER (PARTITION BY "department") AS "__sord__3" FROM "data" WHERE "department" IN ('Electronics') GROUP BY "department", "product"`
           + `\n       UNION ALL`
-          + `\n       SELECT "department", CAST(NULL AS VARCHAR) AS "product", MIN(rowid) AS "__ord__3" FROM "data" WHERE NOT (COALESCE("department" IN ('Electronics'), FALSE)) GROUP BY "department"`
+          + `\n       SELECT "department", CAST(NULL AS VARCHAR) AS "product", MIN(rowid) AS "__ord__3", MIN(MIN(rowid)) OVER (PARTITION BY "department") AS "__sord__3" FROM "data" WHERE NOT (COALESCE("department" IN ('Electronics'), FALSE)) GROUP BY "department"`
           + `\n     ),`
           + `\n     __d__4 AS (SELECT * FROM __d__2 CROSS JOIN __d__3)`
           + `\nSELECT __d__4."channel", __d__4."quarter", __d__4."department", __d__4."product", SUM(T."revenue") AS "revenue"`
           + `\nFROM __d__4`
-          + `\nLEFT JOIN "data" T ON T."channel" = __d__4."channel" AND T."quarter" = __d__4."quarter" AND T."department" = __d__4."department" AND (T."product" = __d__4."product" OR __d__4."product" IS NULL)`
-          + ` GROUP BY __d__4."channel", __d__4."quarter", __d__4."department", __d__4."product"`
-          + ` ORDER BY MIN(__d__4."__ord__0"), MIN(__d__4."__ord__1"), MIN(__d__4."__ord__3")`
+          + `\nLEFT JOIN "data" T ON T."channel" = __d__4."channel" AND T."quarter" = __d__4."quarter" AND T."department" = __d__4."department" AND (T."product" = __d__4."product" OR __d__4."product" IS NULL) GROUP BY __d__4."channel", __d__4."quarter", __d__4."department", __d__4."product" ORDER BY MIN(__d__4."__ord__0"), MIN(__d__4."__ord__1"), MIN(__d__4."__sord__3"), MIN(__d__4."__ord__3")`
         );
       });
 
@@ -1870,21 +1849,19 @@ describe("Dimensional Projections", () => {
 
         expect(model.sqlStr()).to.equal(
           `WITH __d__0 AS (`
-          + `\n       SELECT "region", "country", MIN(rowid) AS "__ord__0" FROM "data" WHERE "region" IN ('Europe') GROUP BY "region", "country"`
+          + `\n       SELECT "region", "country", MIN(rowid) AS "__ord__0", MIN(MIN(rowid)) OVER (PARTITION BY "region") AS "__sord__0" FROM "data" WHERE "region" IN ('Europe') GROUP BY "region", "country"`
           + `\n       UNION ALL`
-          + `\n       SELECT "region", CAST(NULL AS VARCHAR) AS "country", MIN(rowid) AS "__ord__0" FROM "data" WHERE NOT (COALESCE("region" IN ('Europe'), FALSE)) GROUP BY "region"`
+          + `\n       SELECT "region", CAST(NULL AS VARCHAR) AS "country", MIN(rowid) AS "__ord__0", MIN(MIN(rowid)) OVER (PARTITION BY "region") AS "__sord__0" FROM "data" WHERE NOT (COALESCE("region" IN ('Europe'), FALSE)) GROUP BY "region"`
           + `\n     ),`
           + `\n     __d__1 AS (SELECT "department", CAST(NULL AS VARCHAR) AS "product", MIN(rowid) AS "__ord__1" FROM "data" GROUP BY "department"),`
           + `\n     __d__2 AS (`
-          + `\n       SELECT __d__0."region", __d__0."country", __d__1."department", __d__1."product", __d__0."__ord__0", __d__1."__ord__1" FROM __d__0 CROSS JOIN __d__1 WHERE __d__0."region" IN ('Europe')`
+          + `\n       SELECT __d__0."region", __d__0."country", __d__1."department", __d__1."product", __d__0."__sord__0", __d__0."__ord__0", __d__1."__ord__1" FROM __d__0 CROSS JOIN __d__1 WHERE __d__0."region" IN ('Europe')`
           + `\n       UNION ALL`
-          + `\n       SELECT __d__0."region", __d__0."country", CAST(NULL AS VARCHAR) AS "department", CAST(NULL AS VARCHAR) AS "product", __d__0."__ord__0", 0 AS "__ord__1" FROM __d__0 WHERE NOT (COALESCE(__d__0."region" IN ('Europe'), FALSE))`
+          + `\n       SELECT __d__0."region", __d__0."country", CAST(NULL AS VARCHAR) AS "department", CAST(NULL AS VARCHAR) AS "product", __d__0."__sord__0", __d__0."__ord__0", 0 AS "__ord__1" FROM __d__0 WHERE NOT (COALESCE(__d__0."region" IN ('Europe'), FALSE))`
           + `\n     )`
           + `\nSELECT __d__2."region", __d__2."country", __d__2."department", __d__2."product", SUM(T."revenue") AS "revenue"`
           + `\nFROM __d__2`
-          + `\nLEFT JOIN "data" T ON T."region" = __d__2."region" AND (T."country" = __d__2."country" OR __d__2."country" IS NULL) AND (T."department" = __d__2."department" OR __d__2."department" IS NULL) AND (T."product" = __d__2."product" OR __d__2."product" IS NULL)`
-          + ` GROUP BY __d__2."region", __d__2."country", __d__2."department", __d__2."product"`
-          + ` ORDER BY MIN(__d__2."__ord__0"), MIN(__d__2."__ord__1")`
+          + `\nLEFT JOIN "data" T ON T."region" = __d__2."region" AND (T."country" = __d__2."country" OR __d__2."country" IS NULL) AND (T."department" = __d__2."department" OR __d__2."department" IS NULL) AND (T."product" = __d__2."product" OR __d__2."product" IS NULL) GROUP BY __d__2."region", __d__2."country", __d__2."department", __d__2."product" ORDER BY MIN(__d__2."__sord__0"), MIN(__d__2."__ord__0"), MIN(__d__2."__ord__1")`
         );
       });
 
@@ -1926,25 +1903,23 @@ describe("Dimensional Projections", () => {
 
         expect(model.sqlStr()).to.equal(
           `WITH __d__0 AS (`
-          + `\n       SELECT "region", "country", MIN(rowid) AS "__ord__0" FROM "data" WHERE "region" IN ('Europe') GROUP BY "region", "country"`
+          + `\n       SELECT "region", "country", MIN(rowid) AS "__ord__0", MIN(MIN(rowid)) OVER (PARTITION BY "region") AS "__sord__0" FROM "data" WHERE "region" IN ('Europe') GROUP BY "region", "country"`
           + `\n       UNION ALL`
-          + `\n       SELECT "region", "country", MIN(rowid) AS "__ord__0" FROM "data" WHERE "region" IN ('North America') AND "country" IN ('USA') GROUP BY "region", "country"`
+          + `\n       SELECT "region", "country", MIN(rowid) AS "__ord__0", MIN(MIN(rowid)) OVER (PARTITION BY "region") AS "__sord__0" FROM "data" WHERE "region" IN ('North America') AND "country" IN ('USA') GROUP BY "region", "country"`
           + `\n       UNION ALL`
-          + `\n       SELECT "region", "country", MIN(rowid) AS "__ord__0" FROM "data" WHERE "region" IN ('North America') AND NOT (COALESCE("country" IN ('USA'), FALSE)) GROUP BY "region", "country"`
+          + `\n       SELECT "region", "country", MIN(rowid) AS "__ord__0", MIN(MIN(rowid)) OVER (PARTITION BY "region") AS "__sord__0" FROM "data" WHERE "region" IN ('North America') AND NOT (COALESCE("country" IN ('USA'), FALSE)) GROUP BY "region", "country"`
           + `\n       UNION ALL`
-          + `\n       SELECT "region", CAST(NULL AS VARCHAR) AS "country", MIN(rowid) AS "__ord__0" FROM "data" WHERE NOT (COALESCE("region" IN ('Europe','North America'), FALSE)) GROUP BY "region"`
+          + `\n       SELECT "region", CAST(NULL AS VARCHAR) AS "country", MIN(rowid) AS "__ord__0", MIN(MIN(rowid)) OVER (PARTITION BY "region") AS "__sord__0" FROM "data" WHERE NOT (COALESCE("region" IN ('Europe','North America'), FALSE)) GROUP BY "region"`
           + `\n     ),`
           + `\n     __d__1 AS (SELECT "department", CAST(NULL AS VARCHAR) AS "product", MIN(rowid) AS "__ord__1" FROM "data" GROUP BY "department"),`
           + `\n     __d__2 AS (`
-          + `\n       SELECT __d__0."region", __d__0."country", __d__1."department", __d__1."product", __d__0."__ord__0", __d__1."__ord__1" FROM __d__0 CROSS JOIN __d__1 WHERE __d__0."region" IN ('Europe','North America')`
+          + `\n       SELECT __d__0."region", __d__0."country", __d__1."department", __d__1."product", __d__0."__sord__0", __d__0."__ord__0", __d__1."__ord__1" FROM __d__0 CROSS JOIN __d__1 WHERE __d__0."region" IN ('Europe','North America')`
           + `\n       UNION ALL`
-          + `\n       SELECT __d__0."region", __d__0."country", CAST(NULL AS VARCHAR) AS "department", CAST(NULL AS VARCHAR) AS "product", __d__0."__ord__0", 0 AS "__ord__1" FROM __d__0 WHERE NOT (COALESCE(__d__0."region" IN ('Europe','North America'), FALSE))`
+          + `\n       SELECT __d__0."region", __d__0."country", CAST(NULL AS VARCHAR) AS "department", CAST(NULL AS VARCHAR) AS "product", __d__0."__sord__0", __d__0."__ord__0", 0 AS "__ord__1" FROM __d__0 WHERE NOT (COALESCE(__d__0."region" IN ('Europe','North America'), FALSE))`
           + `\n     )`
           + `\nSELECT __d__2."region", __d__2."country", __d__2."department", __d__2."product", SUM(T."revenue") AS "revenue"`
           + `\nFROM __d__2`
-          + `\nLEFT JOIN "data" T ON T."region" = __d__2."region" AND (T."country" = __d__2."country" OR __d__2."country" IS NULL) AND (T."department" = __d__2."department" OR __d__2."department" IS NULL) AND (T."product" = __d__2."product" OR __d__2."product" IS NULL)`
-          + ` GROUP BY __d__2."region", __d__2."country", __d__2."department", __d__2."product"`
-          + ` ORDER BY MIN(__d__2."__ord__0"), MIN(__d__2."__ord__1")`
+          + `\nLEFT JOIN "data" T ON T."region" = __d__2."region" AND (T."country" = __d__2."country" OR __d__2."country" IS NULL) AND (T."department" = __d__2."department" OR __d__2."department" IS NULL) AND (T."product" = __d__2."product" OR __d__2."product" IS NULL) GROUP BY __d__2."region", __d__2."country", __d__2."department", __d__2."product" ORDER BY MIN(__d__2."__sord__0"), MIN(__d__2."__ord__0"), MIN(__d__2."__ord__1")`
         );
       });
 
@@ -2170,9 +2145,9 @@ describe("Dimensional Projections", () => {
 
         expect(model.sqlStr()).to.equal(
           `WITH __d__0 AS (`
-          + `\n       SELECT "region", "country", MIN(rowid) AS "__ord__0" FROM "data" WHERE "region" IN ('Europe') GROUP BY "region", "country"`
+          + `\n       SELECT "region", "country", MIN(rowid) AS "__ord__0", MIN(MIN(rowid)) OVER (PARTITION BY "region") AS "__sord__0" FROM "data" WHERE "region" IN ('Europe') GROUP BY "region", "country"`
           + `\n       UNION ALL`
-          + `\n       SELECT "region", CAST(NULL AS VARCHAR) AS "country", MIN(rowid) AS "__ord__0" FROM "data" WHERE NOT (COALESCE("region" IN ('Europe'), FALSE)) GROUP BY "region"`
+          + `\n       SELECT "region", CAST(NULL AS VARCHAR) AS "country", MIN(rowid) AS "__ord__0", MIN(MIN(rowid)) OVER (PARTITION BY "region") AS "__sord__0" FROM "data" WHERE NOT (COALESCE("region" IN ('Europe'), FALSE)) GROUP BY "region"`
           + `\n     ),`
           + `\n     __d__1 AS (SELECT "department", MIN(rowid) AS "__ord__1" FROM "data" GROUP BY "department"),`
           + `\n     __d__2 AS (SELECT __d__0.*, CAST(NULL AS VARCHAR) AS "department", 0 AS "__ord__1" FROM __d__0),`
@@ -2180,9 +2155,9 @@ describe("Dimensional Projections", () => {
           + `\n     __d__4 AS (SELECT "department", MIN(rowid) AS "__ord__4" FROM "data" GROUP BY "department"),`
           + `\n     __d__5 AS (SELECT * FROM __d__3 CROSS JOIN __d__4),`
           + `\n     __d__6 AS (`
-          + `\n       SELECT '0:region,country,department' AS "__src__0", __d__2."region" AS "__c__0", __d__2."country" AS "__c__1", __d__2."department" AS "__c__2", __ord__0 AS "__cord__0_0", __ord__1 AS "__cord__0_1" FROM __d__2`
+          + `\n       SELECT '0:region,country,department' AS "__src__0", __d__2."region" AS "__c__0", __d__2."country" AS "__c__1", __d__2."department" AS "__c__2", __sord__0 AS "__cord__0_0", __ord__0 AS "__cord__0_1", __ord__1 AS "__cord__0_2" FROM __d__2`
           + `\n       UNION ALL`
-          + `\n       SELECT '1:channel,department' AS "__src__0", __d__5."channel" AS "__c__0", __d__5."department" AS "__c__1", CAST(NULL AS VARCHAR) AS "__c__2", __ord__3 AS "__cord__0_0", __ord__4 AS "__cord__0_1" FROM __d__5`
+          + `\n       SELECT '1:channel,department' AS "__src__0", __d__5."channel" AS "__c__0", __d__5."department" AS "__c__1", CAST(NULL AS VARCHAR) AS "__c__2", __ord__3 AS "__cord__0_0", __ord__4 AS "__cord__0_1", 0 AS "__cord__0_2" FROM __d__5`
           + `\n     )`
           + `\nSELECT __d__6."__c__0", __d__6."__c__1", __d__6."__c__2", SUM(T."revenue") AS "revenue"`
           + `\nFROM __d__6`
@@ -2190,9 +2165,7 @@ describe("Dimensional Projections", () => {
           + `\n    (__d__6."__src__0" = '0:region,country,department' AND T."region" = __d__6."__c__0" AND (T."country" = __d__6."__c__1" OR __d__6."__c__1" IS NULL) AND (T."department" = __d__6."__c__2" OR __d__6."__c__2" IS NULL))`
           + `\n    OR (__d__6."__src__0" = '1:channel,department' AND T."channel" = __d__6."__c__0" AND T."department" = __d__6."__c__1")`
           + `\n    OR __d__6."__src__0" IS NULL`
-          + `\n  )`
-          + ` GROUP BY __d__6."__c__0", __d__6."__c__1", __d__6."__c__2", __d__6."__src__0"`
-          + ` ORDER BY __d__6."__src__0", MIN(__d__6."__cord__0_0"), MIN(__d__6."__cord__0_1")`
+          + `\n  ) GROUP BY __d__6."__c__0", __d__6."__c__1", __d__6."__c__2", __d__6."__src__0" ORDER BY __d__6."__src__0", MIN(__d__6."__cord__0_0"), MIN(__d__6."__cord__0_1"), MIN(__d__6."__cord__0_2")`
         );
       });
 
@@ -2244,29 +2217,29 @@ describe("Dimensional Projections", () => {
 
         expect(model.sqlStr()).to.equal(
           `WITH __d__0 AS (`
-          + `\n       SELECT "region", "country", "city", MIN(rowid) AS "__ord__0" FROM "data" WHERE "region" IN ('North America') AND "country" IN ('USA') GROUP BY "region", "country", "city"`
+          + `\n       SELECT "region", "country", "city", MIN(rowid) AS "__ord__0", MIN(MIN(rowid)) OVER (PARTITION BY "region") AS "__sord__0" FROM "data" WHERE "region" IN ('North America') AND "country" IN ('USA') GROUP BY "region", "country", "city"`
           + `\n       UNION ALL`
-          + `\n       SELECT "region", "country", CAST(NULL AS VARCHAR) AS "city", MIN(rowid) AS "__ord__0" FROM "data" WHERE "region" IN ('North America') AND NOT (COALESCE("country" IN ('USA'), FALSE)) GROUP BY "region", "country"`
+          + `\n       SELECT "region", "country", CAST(NULL AS VARCHAR) AS "city", MIN(rowid) AS "__ord__0", MIN(MIN(rowid)) OVER (PARTITION BY "region") AS "__sord__0" FROM "data" WHERE "region" IN ('North America') AND NOT (COALESCE("country" IN ('USA'), FALSE)) GROUP BY "region", "country"`
           + `\n       UNION ALL`
-          + `\n       SELECT "region", "country", CAST(NULL AS VARCHAR) AS "city", MIN(rowid) AS "__ord__0" FROM "data" WHERE "region" IN ('Europe') GROUP BY "region", "country"`
+          + `\n       SELECT "region", "country", CAST(NULL AS VARCHAR) AS "city", MIN(rowid) AS "__ord__0", MIN(MIN(rowid)) OVER (PARTITION BY "region") AS "__sord__0" FROM "data" WHERE "region" IN ('Europe') GROUP BY "region", "country"`
           + `\n       UNION ALL`
-          + `\n       SELECT "region", CAST(NULL AS VARCHAR) AS "country", CAST(NULL AS VARCHAR) AS "city", MIN(rowid) AS "__ord__0" FROM "data" WHERE NOT (COALESCE("region" IN ('North America','Europe'), FALSE)) GROUP BY "region"`
+          + `\n       SELECT "region", CAST(NULL AS VARCHAR) AS "country", CAST(NULL AS VARCHAR) AS "city", MIN(rowid) AS "__ord__0", MIN(MIN(rowid)) OVER (PARTITION BY "region") AS "__sord__0" FROM "data" WHERE NOT (COALESCE("region" IN ('North America','Europe'), FALSE)) GROUP BY "region"`
           + `\n     ),`
           + `\n     __d__1 AS (`
-          + `\n       SELECT "department", "product", MIN(rowid) AS "__ord__1" FROM "data" WHERE "department" IN ('Electronics') GROUP BY "department", "product"`
+          + `\n       SELECT "department", "product", MIN(rowid) AS "__ord__1", MIN(MIN(rowid)) OVER (PARTITION BY "department") AS "__sord__1" FROM "data" WHERE "department" IN ('Electronics') GROUP BY "department", "product"`
           + `\n       UNION ALL`
-          + `\n       SELECT "department", CAST(NULL AS VARCHAR) AS "product", MIN(rowid) AS "__ord__1" FROM "data" WHERE NOT (COALESCE("department" IN ('Electronics'), FALSE)) GROUP BY "department"`
+          + `\n       SELECT "department", CAST(NULL AS VARCHAR) AS "product", MIN(rowid) AS "__ord__1", MIN(MIN(rowid)) OVER (PARTITION BY "department") AS "__sord__1" FROM "data" WHERE NOT (COALESCE("department" IN ('Electronics'), FALSE)) GROUP BY "department"`
           + `\n     ),`
           + `\n     __d__2 AS (SELECT "channel", MIN(rowid) AS "__ord__2" FROM "data" GROUP BY "channel"),`
           + `\n     __d__3 AS (`
-          + `\n       SELECT '0:department,product' AS "__src__0", __d__1."department" AS "__c__0", __d__1."product" AS "__c__1", __ord__1 AS "__cord__0_0" FROM __d__1`
+          + `\n       SELECT '0:department,product' AS "__src__0", __d__1."department" AS "__c__0", __d__1."product" AS "__c__1", __sord__1 AS "__cord__0_0", __ord__1 AS "__cord__0_1" FROM __d__1`
           + `\n       UNION ALL`
-          + `\n       SELECT '1:channel' AS "__src__0", __d__2."channel" AS "__c__0", CAST(NULL AS VARCHAR) AS "__c__1", __ord__2 AS "__cord__0_0" FROM __d__2`
+          + `\n       SELECT '1:channel' AS "__src__0", __d__2."channel" AS "__c__0", CAST(NULL AS VARCHAR) AS "__c__1", __ord__2 AS "__cord__0_0", 0 AS "__cord__0_1" FROM __d__2`
           + `\n     ),`
           + `\n     __d__4 AS (`
-          + `\n       SELECT __d__0."region", __d__0."country", __d__0."city", __d__3."__c__0", __d__3."__c__1", __d__0."__ord__0", __d__3."__cord__0_0", __d__3."__src__0" FROM __d__0 CROSS JOIN __d__3 WHERE __d__0."region" IN ('North America','Europe') AND __d__0."country" IN ('USA')`
+          + `\n       SELECT __d__0."region", __d__0."country", __d__0."city", __d__3."__c__0", __d__3."__c__1", __d__0."__sord__0", __d__0."__ord__0", __d__3."__cord__0_0", __d__3."__cord__0_1", __d__3."__src__0" FROM __d__0 CROSS JOIN __d__3 WHERE __d__0."region" IN ('North America','Europe') AND __d__0."country" IN ('USA')`
           + `\n       UNION ALL`
-          + `\n       SELECT __d__0."region", __d__0."country", __d__0."city", CAST(NULL AS VARCHAR) AS "__c__0", CAST(NULL AS VARCHAR) AS "__c__1", __d__0."__ord__0", 0 AS "__cord__0_0", CAST(NULL AS VARCHAR) AS "__src__0" FROM __d__0 WHERE NOT (COALESCE(__d__0."region" IN ('North America','Europe'), FALSE) AND COALESCE(__d__0."country" IN ('USA'), FALSE))`
+          + `\n       SELECT __d__0."region", __d__0."country", __d__0."city", CAST(NULL AS VARCHAR) AS "__c__0", CAST(NULL AS VARCHAR) AS "__c__1", __d__0."__sord__0", __d__0."__ord__0", 0 AS "__cord__0_0", 0 AS "__cord__0_1", CAST(NULL AS VARCHAR) AS "__src__0" FROM __d__0 WHERE NOT (COALESCE(__d__0."region" IN ('North America','Europe'), FALSE) AND COALESCE(__d__0."country" IN ('USA'), FALSE))`
           + `\n     )`
           + `\nSELECT __d__4."region", __d__4."country", __d__4."city", __d__4."__c__0", __d__4."__c__1", SUM(T."revenue") AS "revenue"`
           + `\nFROM __d__4`
@@ -2274,9 +2247,7 @@ describe("Dimensional Projections", () => {
           + `\n    (__d__4."__src__0" = '0:department,product' AND T."department" = __d__4."__c__0" AND (T."product" = __d__4."__c__1" OR __d__4."__c__1" IS NULL))`
           + `\n    OR (__d__4."__src__0" = '1:channel' AND T."channel" = __d__4."__c__0")`
           + `\n    OR __d__4."__src__0" IS NULL`
-          + `\n  )`
-          + ` GROUP BY __d__4."region", __d__4."country", __d__4."city", __d__4."__c__0", __d__4."__c__1", __d__4."__src__0"`
-          + ` ORDER BY MIN(__d__4."__ord__0"), __d__4."__src__0", MIN(__d__4."__cord__0_0")`
+          + `\n  ) GROUP BY __d__4."region", __d__4."country", __d__4."city", __d__4."__c__0", __d__4."__c__1", __d__4."__src__0" ORDER BY MIN(__d__4."__sord__0"), MIN(__d__4."__ord__0"), __d__4."__src__0", MIN(__d__4."__cord__0_0"), MIN(__d__4."__cord__0_1")`
         );
       });
 
@@ -2323,15 +2294,13 @@ describe("Dimensional Projections", () => {
 
         expect(model.sqlStr()).to.equal(
           `WITH __d__0 AS (`
-          + `\n       SELECT "region", "country", "city", MIN(rowid) AS "__ord__0" FROM "data" WHERE "region" IN ('Europe') GROUP BY "region", "country", "city"`
+          + `\n       SELECT "region", "country", "city", MIN(rowid) AS "__ord__0", MIN(MIN(rowid)) OVER (PARTITION BY "region") AS "__sord__0" FROM "data" WHERE "region" IN ('Europe') GROUP BY "region", "country", "city"`
           + `\n       UNION ALL`
-          + `\n       SELECT "region", CAST(NULL AS VARCHAR) AS "country", CAST(NULL AS VARCHAR) AS "city", MIN(rowid) AS "__ord__0" FROM "data" WHERE NOT (COALESCE("region" IN ('Europe'), FALSE)) GROUP BY "region"`
+          + `\n       SELECT "region", CAST(NULL AS VARCHAR) AS "country", CAST(NULL AS VARCHAR) AS "city", MIN(rowid) AS "__ord__0", MIN(MIN(rowid)) OVER (PARTITION BY "region") AS "__sord__0" FROM "data" WHERE NOT (COALESCE("region" IN ('Europe'), FALSE)) GROUP BY "region"`
           + `\n     )`
           + `\nSELECT __d__0."region", __d__0."country", __d__0."city", SUM(T."revenue") AS "revenue"`
           + `\nFROM __d__0`
-          + `\nLEFT JOIN "data" T ON T."region" = __d__0."region" AND (T."country" = __d__0."country" OR __d__0."country" IS NULL) AND (T."city" = __d__0."city" OR __d__0."city" IS NULL)`
-          + ` GROUP BY __d__0."region", __d__0."country", __d__0."city"`
-          + ` ORDER BY MIN(__d__0."__ord__0")`
+          + `\nLEFT JOIN "data" T ON T."region" = __d__0."region" AND (T."country" = __d__0."country" OR __d__0."country" IS NULL) AND (T."city" = __d__0."city" OR __d__0."city" IS NULL) GROUP BY __d__0."region", __d__0."country", __d__0."city" ORDER BY MIN(__d__0."__sord__0"), MIN(__d__0."__ord__0")`
         );
       });
 
@@ -2372,15 +2341,13 @@ describe("Dimensional Projections", () => {
 
         expect(model.sqlStr()).to.equal(
           `WITH __d__0 AS (`
-          + `\n       SELECT "region", "country", "city", MIN(rowid) AS "__ord__0" FROM "data" WHERE "region" IN ('Europe') GROUP BY "region", "country", "city"`
+          + `\n       SELECT "region", "country", "city", MIN(rowid) AS "__ord__0", MIN(MIN(rowid)) OVER (PARTITION BY "region") AS "__sord__0" FROM "data" WHERE "region" IN ('Europe') GROUP BY "region", "country", "city"`
           + `\n       UNION ALL`
-          + `\n       SELECT "region", CAST(NULL AS VARCHAR) AS "country", CAST(NULL AS VARCHAR) AS "city", MIN(rowid) AS "__ord__0" FROM "data" WHERE NOT (COALESCE("region" IN ('Europe'), FALSE)) GROUP BY "region"`
+          + `\n       SELECT "region", CAST(NULL AS VARCHAR) AS "country", CAST(NULL AS VARCHAR) AS "city", MIN(rowid) AS "__ord__0", MIN(MIN(rowid)) OVER (PARTITION BY "region") AS "__sord__0" FROM "data" WHERE NOT (COALESCE("region" IN ('Europe'), FALSE)) GROUP BY "region"`
           + `\n     )`
           + `\nSELECT __d__0."region", __d__0."country", __d__0."city", SUM(T."revenue") AS "revenue"`
           + `\nFROM __d__0`
-          + `\nLEFT JOIN "data" T ON T."region" = __d__0."region" AND (T."country" = __d__0."country" OR __d__0."country" IS NULL) AND (T."city" = __d__0."city" OR __d__0."city" IS NULL)`
-          + ` GROUP BY __d__0."region", __d__0."country", __d__0."city"`
-          + ` ORDER BY MIN(__d__0."__ord__0")`
+          + `\nLEFT JOIN "data" T ON T."region" = __d__0."region" AND (T."country" = __d__0."country" OR __d__0."country" IS NULL) AND (T."city" = __d__0."city" OR __d__0."city" IS NULL) GROUP BY __d__0."region", __d__0."country", __d__0."city" ORDER BY MIN(__d__0."__sord__0"), MIN(__d__0."__ord__0")`
         );
       });
 
@@ -2428,19 +2395,17 @@ describe("Dimensional Projections", () => {
 
         expect(model.sqlStr()).to.equal(
           `WITH __d__0 AS (`
-          + `\n       SELECT "region", "country", "city", MIN(rowid) AS "__ord__0" FROM "data" WHERE "region" IN ('Europe') GROUP BY "region", "country", "city"`
+          + `\n       SELECT "region", "country", "city", MIN(rowid) AS "__ord__0", MIN(MIN(rowid)) OVER (PARTITION BY "region") AS "__sord__0" FROM "data" WHERE "region" IN ('Europe') GROUP BY "region", "country", "city"`
           + `\n       UNION ALL`
-          + `\n       SELECT "region", "country", "city", MIN(rowid) AS "__ord__0" FROM "data" WHERE "region" IN ('North America') AND "country" IN ('USA') GROUP BY "region", "country", "city"`
+          + `\n       SELECT "region", "country", "city", MIN(rowid) AS "__ord__0", MIN(MIN(rowid)) OVER (PARTITION BY "region") AS "__sord__0" FROM "data" WHERE "region" IN ('North America') AND "country" IN ('USA') GROUP BY "region", "country", "city"`
           + `\n       UNION ALL`
-          + `\n       SELECT "region", "country", CAST(NULL AS VARCHAR) AS "city", MIN(rowid) AS "__ord__0" FROM "data" WHERE "region" IN ('North America') AND NOT (COALESCE("country" IN ('USA'), FALSE)) GROUP BY "region", "country"`
+          + `\n       SELECT "region", "country", CAST(NULL AS VARCHAR) AS "city", MIN(rowid) AS "__ord__0", MIN(MIN(rowid)) OVER (PARTITION BY "region") AS "__sord__0" FROM "data" WHERE "region" IN ('North America') AND NOT (COALESCE("country" IN ('USA'), FALSE)) GROUP BY "region", "country"`
           + `\n       UNION ALL`
-          + `\n       SELECT "region", CAST(NULL AS VARCHAR) AS "country", CAST(NULL AS VARCHAR) AS "city", MIN(rowid) AS "__ord__0" FROM "data" WHERE NOT (COALESCE("region" IN ('Europe','North America'), FALSE)) GROUP BY "region"`
+          + `\n       SELECT "region", CAST(NULL AS VARCHAR) AS "country", CAST(NULL AS VARCHAR) AS "city", MIN(rowid) AS "__ord__0", MIN(MIN(rowid)) OVER (PARTITION BY "region") AS "__sord__0" FROM "data" WHERE NOT (COALESCE("region" IN ('Europe','North America'), FALSE)) GROUP BY "region"`
           + `\n     )`
           + `\nSELECT __d__0."region", __d__0."country", __d__0."city", SUM(T."revenue") AS "revenue"`
           + `\nFROM __d__0`
-          + `\nLEFT JOIN "data" T ON T."region" = __d__0."region" AND (T."country" = __d__0."country" OR __d__0."country" IS NULL) AND (T."city" = __d__0."city" OR __d__0."city" IS NULL)`
-          + ` GROUP BY __d__0."region", __d__0."country", __d__0."city"`
-          + ` ORDER BY MIN(__d__0."__ord__0")`
+          + `\nLEFT JOIN "data" T ON T."region" = __d__0."region" AND (T."country" = __d__0."country" OR __d__0."country" IS NULL) AND (T."city" = __d__0."city" OR __d__0."city" IS NULL) GROUP BY __d__0."region", __d__0."country", __d__0."city" ORDER BY MIN(__d__0."__sord__0"), MIN(__d__0."__ord__0")`
         );
       });
 
@@ -2531,15 +2496,13 @@ describe("Dimensional Projections", () => {
 
         expect(model.sqlStr()).to.equal(
           `WITH __d__0 AS (`
-          + `\n       SELECT "region", "country", CAST(NULL AS VARCHAR) AS "city", CAST(NULL AS VARCHAR) AS "department", MIN(rowid) AS "__ord__0" FROM "data" WHERE "region" IN ('Europe') GROUP BY "region", "country"`
+          + `\n       SELECT "region", "country", CAST(NULL AS VARCHAR) AS "city", CAST(NULL AS VARCHAR) AS "department", MIN(rowid) AS "__ord__0", MIN(MIN(rowid)) OVER (PARTITION BY "region") AS "__sord__0" FROM "data" WHERE "region" IN ('Europe') GROUP BY "region", "country"`
           + `\n       UNION ALL`
-          + `\n       SELECT "region", CAST(NULL AS VARCHAR) AS "country", CAST(NULL AS VARCHAR) AS "city", CAST(NULL AS VARCHAR) AS "department", MIN(rowid) AS "__ord__0" FROM "data" WHERE NOT (COALESCE("region" IN ('Europe'), FALSE)) GROUP BY "region"`
+          + `\n       SELECT "region", CAST(NULL AS VARCHAR) AS "country", CAST(NULL AS VARCHAR) AS "city", CAST(NULL AS VARCHAR) AS "department", MIN(rowid) AS "__ord__0", MIN(MIN(rowid)) OVER (PARTITION BY "region") AS "__sord__0" FROM "data" WHERE NOT (COALESCE("region" IN ('Europe'), FALSE)) GROUP BY "region"`
           + `\n     )`
           + `\nSELECT __d__0."region", __d__0."country", __d__0."city", __d__0."department", SUM(T."revenue") AS "revenue"`
           + `\nFROM __d__0`
-          + `\nLEFT JOIN "data" T ON T."region" = __d__0."region" AND (T."country" = __d__0."country" OR __d__0."country" IS NULL) AND (T."city" = __d__0."city" OR __d__0."city" IS NULL) AND (T."department" = __d__0."department" OR __d__0."department" IS NULL)`
-          + ` GROUP BY __d__0."region", __d__0."country", __d__0."city", __d__0."department"`
-          + ` ORDER BY MIN(__d__0."__ord__0")`
+          + `\nLEFT JOIN "data" T ON T."region" = __d__0."region" AND (T."country" = __d__0."country" OR __d__0."country" IS NULL) AND (T."city" = __d__0."city" OR __d__0."city" IS NULL) AND (T."department" = __d__0."department" OR __d__0."department" IS NULL) GROUP BY __d__0."region", __d__0."country", __d__0."city", __d__0."department" ORDER BY MIN(__d__0."__sord__0"), MIN(__d__0."__ord__0")`
         );
       });
 
@@ -2581,15 +2544,13 @@ describe("Dimensional Projections", () => {
 
         expect(model.sqlStr()).to.equal(
           `WITH __d__0 AS (`
-          + `\n       SELECT "region", "country", "city", CAST(NULL AS VARCHAR) AS "department", MIN(rowid) AS "__ord__0" FROM "data" WHERE "region" IN ('Europe') GROUP BY "region", "country", "city"`
+          + `\n       SELECT "region", "country", "city", CAST(NULL AS VARCHAR) AS "department", MIN(rowid) AS "__ord__0", MIN(MIN(rowid)) OVER (PARTITION BY "region") AS "__sord__0" FROM "data" WHERE "region" IN ('Europe') GROUP BY "region", "country", "city"`
           + `\n       UNION ALL`
-          + `\n       SELECT "region", CAST(NULL AS VARCHAR) AS "country", CAST(NULL AS VARCHAR) AS "city", CAST(NULL AS VARCHAR) AS "department", MIN(rowid) AS "__ord__0" FROM "data" WHERE NOT (COALESCE("region" IN ('Europe'), FALSE)) GROUP BY "region"`
+          + `\n       SELECT "region", CAST(NULL AS VARCHAR) AS "country", CAST(NULL AS VARCHAR) AS "city", CAST(NULL AS VARCHAR) AS "department", MIN(rowid) AS "__ord__0", MIN(MIN(rowid)) OVER (PARTITION BY "region") AS "__sord__0" FROM "data" WHERE NOT (COALESCE("region" IN ('Europe'), FALSE)) GROUP BY "region"`
           + `\n     )`
           + `\nSELECT __d__0."region", __d__0."country", __d__0."city", __d__0."department", SUM(T."revenue") AS "revenue"`
           + `\nFROM __d__0`
-          + `\nLEFT JOIN "data" T ON T."region" = __d__0."region" AND (T."country" = __d__0."country" OR __d__0."country" IS NULL) AND (T."city" = __d__0."city" OR __d__0."city" IS NULL) AND (T."department" = __d__0."department" OR __d__0."department" IS NULL)`
-          + ` GROUP BY __d__0."region", __d__0."country", __d__0."city", __d__0."department"`
-          + ` ORDER BY MIN(__d__0."__ord__0")`
+          + `\nLEFT JOIN "data" T ON T."region" = __d__0."region" AND (T."country" = __d__0."country" OR __d__0."country" IS NULL) AND (T."city" = __d__0."city" OR __d__0."city" IS NULL) AND (T."department" = __d__0."department" OR __d__0."department" IS NULL) GROUP BY __d__0."region", __d__0."country", __d__0."city", __d__0."department" ORDER BY MIN(__d__0."__sord__0"), MIN(__d__0."__ord__0")`
         );
       });
 
@@ -2637,19 +2598,17 @@ describe("Dimensional Projections", () => {
 
         expect(model.sqlStr()).to.equal(
           `WITH __d__0 AS (`
-          + `\n       SELECT "region", "country", "city", CAST(NULL AS VARCHAR) AS "department", MIN(rowid) AS "__ord__0" FROM "data" WHERE "region" IN ('Europe') GROUP BY "region", "country", "city"`
+          + `\n       SELECT "region", "country", "city", CAST(NULL AS VARCHAR) AS "department", MIN(rowid) AS "__ord__0", MIN(MIN(rowid)) OVER (PARTITION BY "region") AS "__sord__0" FROM "data" WHERE "region" IN ('Europe') GROUP BY "region", "country", "city"`
           + `\n       UNION ALL`
-          + `\n       SELECT "region", "country", "city", CAST(NULL AS VARCHAR) AS "department", MIN(rowid) AS "__ord__0" FROM "data" WHERE "region" IN ('North America') AND "country" IN ('USA') GROUP BY "region", "country", "city"`
+          + `\n       SELECT "region", "country", "city", CAST(NULL AS VARCHAR) AS "department", MIN(rowid) AS "__ord__0", MIN(MIN(rowid)) OVER (PARTITION BY "region") AS "__sord__0" FROM "data" WHERE "region" IN ('North America') AND "country" IN ('USA') GROUP BY "region", "country", "city"`
           + `\n       UNION ALL`
-          + `\n       SELECT "region", "country", CAST(NULL AS VARCHAR) AS "city", CAST(NULL AS VARCHAR) AS "department", MIN(rowid) AS "__ord__0" FROM "data" WHERE "region" IN ('North America') AND NOT (COALESCE("country" IN ('USA'), FALSE)) GROUP BY "region", "country"`
+          + `\n       SELECT "region", "country", CAST(NULL AS VARCHAR) AS "city", CAST(NULL AS VARCHAR) AS "department", MIN(rowid) AS "__ord__0", MIN(MIN(rowid)) OVER (PARTITION BY "region") AS "__sord__0" FROM "data" WHERE "region" IN ('North America') AND NOT (COALESCE("country" IN ('USA'), FALSE)) GROUP BY "region", "country"`
           + `\n       UNION ALL`
-          + `\n       SELECT "region", CAST(NULL AS VARCHAR) AS "country", CAST(NULL AS VARCHAR) AS "city", CAST(NULL AS VARCHAR) AS "department", MIN(rowid) AS "__ord__0" FROM "data" WHERE NOT (COALESCE("region" IN ('Europe','North America'), FALSE)) GROUP BY "region"`
+          + `\n       SELECT "region", CAST(NULL AS VARCHAR) AS "country", CAST(NULL AS VARCHAR) AS "city", CAST(NULL AS VARCHAR) AS "department", MIN(rowid) AS "__ord__0", MIN(MIN(rowid)) OVER (PARTITION BY "region") AS "__sord__0" FROM "data" WHERE NOT (COALESCE("region" IN ('Europe','North America'), FALSE)) GROUP BY "region"`
           + `\n     )`
           + `\nSELECT __d__0."region", __d__0."country", __d__0."city", __d__0."department", SUM(T."revenue") AS "revenue"`
           + `\nFROM __d__0`
-          + `\nLEFT JOIN "data" T ON T."region" = __d__0."region" AND (T."country" = __d__0."country" OR __d__0."country" IS NULL) AND (T."city" = __d__0."city" OR __d__0."city" IS NULL) AND (T."department" = __d__0."department" OR __d__0."department" IS NULL)`
-          + ` GROUP BY __d__0."region", __d__0."country", __d__0."city", __d__0."department"`
-          + ` ORDER BY MIN(__d__0."__ord__0")`
+          + `\nLEFT JOIN "data" T ON T."region" = __d__0."region" AND (T."country" = __d__0."country" OR __d__0."country" IS NULL) AND (T."city" = __d__0."city" OR __d__0."city" IS NULL) AND (T."department" = __d__0."department" OR __d__0."department" IS NULL) GROUP BY __d__0."region", __d__0."country", __d__0."city", __d__0."department" ORDER BY MIN(__d__0."__sord__0"), MIN(__d__0."__ord__0")`
         );
       });
 
@@ -2697,21 +2656,19 @@ describe("Dimensional Projections", () => {
 
         expect(model.sqlStr()).to.equal(
           `WITH __d__0 AS (`
-          + `\n       SELECT "region", "country", "city", CAST(NULL AS VARCHAR) AS "department", MIN(rowid) AS "__ord__0" FROM "data" WHERE "region" IN ('Europe') GROUP BY "region", "country", "city"`
+          + `\n       SELECT "region", "country", "city", CAST(NULL AS VARCHAR) AS "department", MIN(rowid) AS "__ord__0", MIN(MIN(rowid)) OVER (PARTITION BY "region") AS "__sord__0" FROM "data" WHERE "region" IN ('Europe') GROUP BY "region", "country", "city"`
           + `\n       UNION ALL`
-          + `\n       SELECT "region", "country", "city", "department", MIN(rowid) AS "__ord__0" FROM "data" WHERE "region" IN ('North America') AND "country" IN ('USA') AND "city" IN ('New York') GROUP BY "region", "country", "city", "department"`
+          + `\n       SELECT "region", "country", "city", "department", MIN(rowid) AS "__ord__0", MIN(MIN(rowid)) OVER (PARTITION BY "region") AS "__sord__0" FROM "data" WHERE "region" IN ('North America') AND "country" IN ('USA') AND "city" IN ('New York') GROUP BY "region", "country", "city", "department"`
           + `\n       UNION ALL`
-          + `\n       SELECT "region", "country", "city", CAST(NULL AS VARCHAR) AS "department", MIN(rowid) AS "__ord__0" FROM "data" WHERE "region" IN ('North America') AND "country" IN ('USA') AND NOT (COALESCE("city" IN ('New York'), FALSE)) GROUP BY "region", "country", "city"`
+          + `\n       SELECT "region", "country", "city", CAST(NULL AS VARCHAR) AS "department", MIN(rowid) AS "__ord__0", MIN(MIN(rowid)) OVER (PARTITION BY "region") AS "__sord__0" FROM "data" WHERE "region" IN ('North America') AND "country" IN ('USA') AND NOT (COALESCE("city" IN ('New York'), FALSE)) GROUP BY "region", "country", "city"`
           + `\n       UNION ALL`
-          + `\n       SELECT "region", "country", CAST(NULL AS VARCHAR) AS "city", CAST(NULL AS VARCHAR) AS "department", MIN(rowid) AS "__ord__0" FROM "data" WHERE "region" IN ('North America') AND NOT (COALESCE("country" IN ('USA'), FALSE)) GROUP BY "region", "country"`
+          + `\n       SELECT "region", "country", CAST(NULL AS VARCHAR) AS "city", CAST(NULL AS VARCHAR) AS "department", MIN(rowid) AS "__ord__0", MIN(MIN(rowid)) OVER (PARTITION BY "region") AS "__sord__0" FROM "data" WHERE "region" IN ('North America') AND NOT (COALESCE("country" IN ('USA'), FALSE)) GROUP BY "region", "country"`
           + `\n       UNION ALL`
-          + `\n       SELECT "region", CAST(NULL AS VARCHAR) AS "country", CAST(NULL AS VARCHAR) AS "city", CAST(NULL AS VARCHAR) AS "department", MIN(rowid) AS "__ord__0" FROM "data" WHERE NOT (COALESCE("region" IN ('Europe','North America'), FALSE)) GROUP BY "region"`
+          + `\n       SELECT "region", CAST(NULL AS VARCHAR) AS "country", CAST(NULL AS VARCHAR) AS "city", CAST(NULL AS VARCHAR) AS "department", MIN(rowid) AS "__ord__0", MIN(MIN(rowid)) OVER (PARTITION BY "region") AS "__sord__0" FROM "data" WHERE NOT (COALESCE("region" IN ('Europe','North America'), FALSE)) GROUP BY "region"`
           + `\n     )`
           + `\nSELECT __d__0."region", __d__0."country", __d__0."city", __d__0."department", SUM(T."revenue") AS "revenue"`
           + `\nFROM __d__0`
-          + `\nLEFT JOIN "data" T ON T."region" = __d__0."region" AND (T."country" = __d__0."country" OR __d__0."country" IS NULL) AND (T."city" = __d__0."city" OR __d__0."city" IS NULL) AND (T."department" = __d__0."department" OR __d__0."department" IS NULL)`
-          + ` GROUP BY __d__0."region", __d__0."country", __d__0."city", __d__0."department"`
-          + ` ORDER BY MIN(__d__0."__ord__0")`
+          + `\nLEFT JOIN "data" T ON T."region" = __d__0."region" AND (T."country" = __d__0."country" OR __d__0."country" IS NULL) AND (T."city" = __d__0."city" OR __d__0."city" IS NULL) AND (T."department" = __d__0."department" OR __d__0."department" IS NULL) GROUP BY __d__0."region", __d__0."country", __d__0."city", __d__0."department" ORDER BY MIN(__d__0."__sord__0"), MIN(__d__0."__ord__0")`
         );
       });
 
@@ -2806,17 +2763,15 @@ describe("Dimensional Projections", () => {
 
         expect(model.sqlStr()).to.equal(
           `WITH __d__0 AS (`
-          + `\n       SELECT "region", "country", CAST(NULL AS VARCHAR) AS "city", MIN(rowid) AS "__ord__0" FROM "data" WHERE "region" IN ('Europe') GROUP BY "region", "country"`
+          + `\n       SELECT "region", "country", CAST(NULL AS VARCHAR) AS "city", MIN(rowid) AS "__ord__0", MIN(MIN(rowid)) OVER (PARTITION BY "region") AS "__sord__0" FROM "data" WHERE "region" IN ('Europe') GROUP BY "region", "country"`
           + `\n       UNION ALL`
-          + `\n       SELECT "region", CAST(NULL AS VARCHAR) AS "country", CAST(NULL AS VARCHAR) AS "city", MIN(rowid) AS "__ord__0" FROM "data" WHERE NOT (COALESCE("region" IN ('Europe'), FALSE)) GROUP BY "region"`
+          + `\n       SELECT "region", CAST(NULL AS VARCHAR) AS "country", CAST(NULL AS VARCHAR) AS "city", MIN(rowid) AS "__ord__0", MIN(MIN(rowid)) OVER (PARTITION BY "region") AS "__sord__0" FROM "data" WHERE NOT (COALESCE("region" IN ('Europe'), FALSE)) GROUP BY "region"`
           + `\n     ),`
           + `\n     __d__1 AS (SELECT "department", "product", MIN(rowid) AS "__ord__1" FROM "data" GROUP BY "department", "product"),`
           + `\n     __d__2 AS (SELECT __d__0.*, CAST(NULL AS VARCHAR) AS "department", CAST(NULL AS VARCHAR) AS "product", 0 AS "__ord__1" FROM __d__0)`
           + `\nSELECT __d__2."region", __d__2."country", __d__2."city", __d__2."department", __d__2."product", SUM(T."revenue") AS "revenue"`
           + `\nFROM __d__2`
-          + `\nLEFT JOIN "data" T ON T."region" = __d__2."region" AND (T."country" = __d__2."country" OR __d__2."country" IS NULL) AND (T."city" = __d__2."city" OR __d__2."city" IS NULL) AND (T."department" = __d__2."department" OR __d__2."department" IS NULL) AND (T."product" = __d__2."product" OR __d__2."product" IS NULL)`
-          + ` GROUP BY __d__2."region", __d__2."country", __d__2."city", __d__2."department", __d__2."product"`
-          + ` ORDER BY MIN(__d__2."__ord__0"), MIN(__d__2."__ord__1")`
+          + `\nLEFT JOIN "data" T ON T."region" = __d__2."region" AND (T."country" = __d__2."country" OR __d__2."country" IS NULL) AND (T."city" = __d__2."city" OR __d__2."city" IS NULL) AND (T."department" = __d__2."department" OR __d__2."department" IS NULL) AND (T."product" = __d__2."product" OR __d__2."product" IS NULL) GROUP BY __d__2."region", __d__2."country", __d__2."city", __d__2."department", __d__2."product" ORDER BY MIN(__d__2."__sord__0"), MIN(__d__2."__ord__0"), MIN(__d__2."__ord__1")`
         );
       });
 
@@ -2859,19 +2814,17 @@ describe("Dimensional Projections", () => {
 
         expect(model.sqlStr()).to.equal(
           `WITH __d__0 AS (`
-          + `\n       SELECT "region", "country", "city", MIN(rowid) AS "__ord__0" FROM "data" WHERE "region" IN ('Europe') AND "country" IN ('UK') GROUP BY "region", "country", "city"`
+          + `\n       SELECT "region", "country", "city", MIN(rowid) AS "__ord__0", MIN(MIN(rowid)) OVER (PARTITION BY "region") AS "__sord__0" FROM "data" WHERE "region" IN ('Europe') AND "country" IN ('UK') GROUP BY "region", "country", "city"`
           + `\n       UNION ALL`
-          + `\n       SELECT "region", "country", CAST(NULL AS VARCHAR) AS "city", MIN(rowid) AS "__ord__0" FROM "data" WHERE "region" IN ('Europe') AND NOT (COALESCE("country" IN ('UK'), FALSE)) GROUP BY "region", "country"`
+          + `\n       SELECT "region", "country", CAST(NULL AS VARCHAR) AS "city", MIN(rowid) AS "__ord__0", MIN(MIN(rowid)) OVER (PARTITION BY "region") AS "__sord__0" FROM "data" WHERE "region" IN ('Europe') AND NOT (COALESCE("country" IN ('UK'), FALSE)) GROUP BY "region", "country"`
           + `\n       UNION ALL`
-          + `\n       SELECT "region", CAST(NULL AS VARCHAR) AS "country", CAST(NULL AS VARCHAR) AS "city", MIN(rowid) AS "__ord__0" FROM "data" WHERE NOT (COALESCE("region" IN ('Europe'), FALSE)) GROUP BY "region"`
+          + `\n       SELECT "region", CAST(NULL AS VARCHAR) AS "country", CAST(NULL AS VARCHAR) AS "city", MIN(rowid) AS "__ord__0", MIN(MIN(rowid)) OVER (PARTITION BY "region") AS "__sord__0" FROM "data" WHERE NOT (COALESCE("region" IN ('Europe'), FALSE)) GROUP BY "region"`
           + `\n     ),`
           + `\n     __d__1 AS (SELECT "department", "product", MIN(rowid) AS "__ord__1" FROM "data" GROUP BY "department", "product"),`
           + `\n     __d__2 AS (SELECT __d__0.*, CAST(NULL AS VARCHAR) AS "department", CAST(NULL AS VARCHAR) AS "product", 0 AS "__ord__1" FROM __d__0)`
           + `\nSELECT __d__2."region", __d__2."country", __d__2."city", __d__2."department", __d__2."product", SUM(T."revenue") AS "revenue"`
           + `\nFROM __d__2`
-          + `\nLEFT JOIN "data" T ON T."region" = __d__2."region" AND (T."country" = __d__2."country" OR __d__2."country" IS NULL) AND (T."city" = __d__2."city" OR __d__2."city" IS NULL) AND (T."department" = __d__2."department" OR __d__2."department" IS NULL) AND (T."product" = __d__2."product" OR __d__2."product" IS NULL)`
-          + ` GROUP BY __d__2."region", __d__2."country", __d__2."city", __d__2."department", __d__2."product"`
-          + ` ORDER BY MIN(__d__2."__ord__0"), MIN(__d__2."__ord__1")`
+          + `\nLEFT JOIN "data" T ON T."region" = __d__2."region" AND (T."country" = __d__2."country" OR __d__2."country" IS NULL) AND (T."city" = __d__2."city" OR __d__2."city" IS NULL) AND (T."department" = __d__2."department" OR __d__2."department" IS NULL) AND (T."product" = __d__2."product" OR __d__2."product" IS NULL) GROUP BY __d__2."region", __d__2."country", __d__2."city", __d__2."department", __d__2."product" ORDER BY MIN(__d__2."__sord__0"), MIN(__d__2."__ord__0"), MIN(__d__2."__ord__1")`
         );
       });
 
@@ -2914,25 +2867,23 @@ describe("Dimensional Projections", () => {
 
         expect(model.sqlStr()).to.equal(
           `WITH __d__0 AS (`
-          + `\n       SELECT "region", "country", "city", MIN(rowid) AS "__ord__0" FROM "data" WHERE "region" IN ('Europe') AND "country" IN ('UK') AND "city" IN ('London') GROUP BY "region", "country", "city"`
+          + `\n       SELECT "region", "country", "city", MIN(rowid) AS "__ord__0", MIN(MIN(rowid)) OVER (PARTITION BY "region") AS "__sord__0" FROM "data" WHERE "region" IN ('Europe') AND "country" IN ('UK') AND "city" IN ('London') GROUP BY "region", "country", "city"`
           + `\n       UNION ALL`
-          + `\n       SELECT "region", "country", "city", MIN(rowid) AS "__ord__0" FROM "data" WHERE "region" IN ('Europe') AND "country" IN ('UK') AND NOT (COALESCE("city" IN ('London'), FALSE)) GROUP BY "region", "country", "city"`
+          + `\n       SELECT "region", "country", "city", MIN(rowid) AS "__ord__0", MIN(MIN(rowid)) OVER (PARTITION BY "region") AS "__sord__0" FROM "data" WHERE "region" IN ('Europe') AND "country" IN ('UK') AND NOT (COALESCE("city" IN ('London'), FALSE)) GROUP BY "region", "country", "city"`
           + `\n       UNION ALL`
-          + `\n       SELECT "region", "country", CAST(NULL AS VARCHAR) AS "city", MIN(rowid) AS "__ord__0" FROM "data" WHERE "region" IN ('Europe') AND NOT (COALESCE("country" IN ('UK'), FALSE)) GROUP BY "region", "country"`
+          + `\n       SELECT "region", "country", CAST(NULL AS VARCHAR) AS "city", MIN(rowid) AS "__ord__0", MIN(MIN(rowid)) OVER (PARTITION BY "region") AS "__sord__0" FROM "data" WHERE "region" IN ('Europe') AND NOT (COALESCE("country" IN ('UK'), FALSE)) GROUP BY "region", "country"`
           + `\n       UNION ALL`
-          + `\n       SELECT "region", CAST(NULL AS VARCHAR) AS "country", CAST(NULL AS VARCHAR) AS "city", MIN(rowid) AS "__ord__0" FROM "data" WHERE NOT (COALESCE("region" IN ('Europe'), FALSE)) GROUP BY "region"`
+          + `\n       SELECT "region", CAST(NULL AS VARCHAR) AS "country", CAST(NULL AS VARCHAR) AS "city", MIN(rowid) AS "__ord__0", MIN(MIN(rowid)) OVER (PARTITION BY "region") AS "__sord__0" FROM "data" WHERE NOT (COALESCE("region" IN ('Europe'), FALSE)) GROUP BY "region"`
           + `\n     ),`
           + `\n     __d__1 AS (SELECT "department", CAST(NULL AS VARCHAR) AS "product", MIN(rowid) AS "__ord__1" FROM "data" GROUP BY "department"),`
           + `\n     __d__2 AS (`
-          + `\n       SELECT __d__0."region", __d__0."country", __d__0."city", __d__1."department", __d__1."product", __d__0."__ord__0", __d__1."__ord__1" FROM __d__0 CROSS JOIN __d__1 WHERE __d__0."region" IN ('Europe') AND __d__0."country" IN ('UK') AND __d__0."city" IN ('London')`
+          + `\n       SELECT __d__0."region", __d__0."country", __d__0."city", __d__1."department", __d__1."product", __d__0."__sord__0", __d__0."__ord__0", __d__1."__ord__1" FROM __d__0 CROSS JOIN __d__1 WHERE __d__0."region" IN ('Europe') AND __d__0."country" IN ('UK') AND __d__0."city" IN ('London')`
           + `\n       UNION ALL`
-          + `\n       SELECT __d__0."region", __d__0."country", __d__0."city", CAST(NULL AS VARCHAR) AS "department", CAST(NULL AS VARCHAR) AS "product", __d__0."__ord__0", 0 AS "__ord__1" FROM __d__0 WHERE NOT (COALESCE(__d__0."region" IN ('Europe'), FALSE) AND COALESCE(__d__0."country" IN ('UK'), FALSE) AND COALESCE(__d__0."city" IN ('London'), FALSE))`
+          + `\n       SELECT __d__0."region", __d__0."country", __d__0."city", CAST(NULL AS VARCHAR) AS "department", CAST(NULL AS VARCHAR) AS "product", __d__0."__sord__0", __d__0."__ord__0", 0 AS "__ord__1" FROM __d__0 WHERE NOT (COALESCE(__d__0."region" IN ('Europe'), FALSE) AND COALESCE(__d__0."country" IN ('UK'), FALSE) AND COALESCE(__d__0."city" IN ('London'), FALSE))`
           + `\n     )`
           + `\nSELECT __d__2."region", __d__2."country", __d__2."city", __d__2."department", __d__2."product", SUM(T."revenue") AS "revenue"`
           + `\nFROM __d__2`
-          + `\nLEFT JOIN "data" T ON T."region" = __d__2."region" AND (T."country" = __d__2."country" OR __d__2."country" IS NULL) AND (T."city" = __d__2."city" OR __d__2."city" IS NULL) AND (T."department" = __d__2."department" OR __d__2."department" IS NULL) AND (T."product" = __d__2."product" OR __d__2."product" IS NULL)`
-          + ` GROUP BY __d__2."region", __d__2."country", __d__2."city", __d__2."department", __d__2."product"`
-          + ` ORDER BY MIN(__d__2."__ord__0"), MIN(__d__2."__ord__1")`
+          + `\nLEFT JOIN "data" T ON T."region" = __d__2."region" AND (T."country" = __d__2."country" OR __d__2."country" IS NULL) AND (T."city" = __d__2."city" OR __d__2."city" IS NULL) AND (T."department" = __d__2."department" OR __d__2."department" IS NULL) AND (T."product" = __d__2."product" OR __d__2."product" IS NULL) GROUP BY __d__2."region", __d__2."country", __d__2."city", __d__2."department", __d__2."product" ORDER BY MIN(__d__2."__sord__0"), MIN(__d__2."__ord__0"), MIN(__d__2."__ord__1")`
         );
       });
 
@@ -2981,33 +2932,31 @@ describe("Dimensional Projections", () => {
 
         expect(model.sqlStr()).to.equal(
           `WITH __d__0 AS (`
-          + `\n       SELECT "region", "country", "city", MIN(rowid) AS "__ord__0" FROM "data" WHERE "region" IN ('Europe') AND "country" IN ('UK') AND "city" IN ('London') GROUP BY "region", "country", "city"`
+          + `\n       SELECT "region", "country", "city", MIN(rowid) AS "__ord__0", MIN(MIN(rowid)) OVER (PARTITION BY "region") AS "__sord__0" FROM "data" WHERE "region" IN ('Europe') AND "country" IN ('UK') AND "city" IN ('London') GROUP BY "region", "country", "city"`
           + `\n       UNION ALL`
-          + `\n       SELECT "region", "country", "city", MIN(rowid) AS "__ord__0" FROM "data" WHERE "region" IN ('Europe') AND "country" IN ('UK') AND NOT (COALESCE("city" IN ('London'), FALSE)) GROUP BY "region", "country", "city"`
+          + `\n       SELECT "region", "country", "city", MIN(rowid) AS "__ord__0", MIN(MIN(rowid)) OVER (PARTITION BY "region") AS "__sord__0" FROM "data" WHERE "region" IN ('Europe') AND "country" IN ('UK') AND NOT (COALESCE("city" IN ('London'), FALSE)) GROUP BY "region", "country", "city"`
           + `\n       UNION ALL`
-          + `\n       SELECT "region", "country", CAST(NULL AS VARCHAR) AS "city", MIN(rowid) AS "__ord__0" FROM "data" WHERE "region" IN ('Europe') AND NOT (COALESCE("country" IN ('UK'), FALSE)) GROUP BY "region", "country"`
+          + `\n       SELECT "region", "country", CAST(NULL AS VARCHAR) AS "city", MIN(rowid) AS "__ord__0", MIN(MIN(rowid)) OVER (PARTITION BY "region") AS "__sord__0" FROM "data" WHERE "region" IN ('Europe') AND NOT (COALESCE("country" IN ('UK'), FALSE)) GROUP BY "region", "country"`
           + `\n       UNION ALL`
-          + `\n       SELECT "region", "country", "city", MIN(rowid) AS "__ord__0" FROM "data" WHERE "region" IN ('North America') AND "city" IN ('New York') GROUP BY "region", "country", "city"`
+          + `\n       SELECT "region", "country", "city", MIN(rowid) AS "__ord__0", MIN(MIN(rowid)) OVER (PARTITION BY "region") AS "__sord__0" FROM "data" WHERE "region" IN ('North America') AND "city" IN ('New York') GROUP BY "region", "country", "city"`
           + `\n       UNION ALL`
-          + `\n       SELECT "region", "country", "city", MIN(rowid) AS "__ord__0" FROM "data" WHERE "region" IN ('North America') AND NOT (COALESCE("city" IN ('New York'), FALSE)) GROUP BY "region", "country", "city"`
+          + `\n       SELECT "region", "country", "city", MIN(rowid) AS "__ord__0", MIN(MIN(rowid)) OVER (PARTITION BY "region") AS "__sord__0" FROM "data" WHERE "region" IN ('North America') AND NOT (COALESCE("city" IN ('New York'), FALSE)) GROUP BY "region", "country", "city"`
           + `\n       UNION ALL`
-          + `\n       SELECT "region", CAST(NULL AS VARCHAR) AS "country", CAST(NULL AS VARCHAR) AS "city", MIN(rowid) AS "__ord__0" FROM "data" WHERE NOT (COALESCE("region" IN ('Europe','North America'), FALSE)) GROUP BY "region"`
+          + `\n       SELECT "region", CAST(NULL AS VARCHAR) AS "country", CAST(NULL AS VARCHAR) AS "city", MIN(rowid) AS "__ord__0", MIN(MIN(rowid)) OVER (PARTITION BY "region") AS "__sord__0" FROM "data" WHERE NOT (COALESCE("region" IN ('Europe','North America'), FALSE)) GROUP BY "region"`
           + `\n     ),`
           + `\n     __d__1 AS (`
-          + `\n       SELECT "department", "product", MIN(rowid) AS "__ord__1" FROM "data" WHERE "department" IN ('Electronics') GROUP BY "department", "product"`
+          + `\n       SELECT "department", "product", MIN(rowid) AS "__ord__1", MIN(MIN(rowid)) OVER (PARTITION BY "department") AS "__sord__1" FROM "data" WHERE "department" IN ('Electronics') GROUP BY "department", "product"`
           + `\n       UNION ALL`
-          + `\n       SELECT "department", CAST(NULL AS VARCHAR) AS "product", MIN(rowid) AS "__ord__1" FROM "data" WHERE NOT (COALESCE("department" IN ('Electronics'), FALSE)) GROUP BY "department"`
+          + `\n       SELECT "department", CAST(NULL AS VARCHAR) AS "product", MIN(rowid) AS "__ord__1", MIN(MIN(rowid)) OVER (PARTITION BY "department") AS "__sord__1" FROM "data" WHERE NOT (COALESCE("department" IN ('Electronics'), FALSE)) GROUP BY "department"`
           + `\n     ),`
           + `\n     __d__2 AS (`
-          + `\n       SELECT __d__0."region", __d__0."country", __d__0."city", __d__1."department", __d__1."product", __d__0."__ord__0", __d__1."__ord__1" FROM __d__0 CROSS JOIN __d__1 WHERE __d__0."region" IN ('Europe','North America') AND __d__0."city" IN ('London','New York')`
+          + `\n       SELECT __d__0."region", __d__0."country", __d__0."city", __d__1."department", __d__1."product", __d__0."__sord__0", __d__0."__ord__0", __d__1."__sord__1", __d__1."__ord__1" FROM __d__0 CROSS JOIN __d__1 WHERE __d__0."region" IN ('Europe','North America') AND __d__0."city" IN ('London','New York')`
           + `\n       UNION ALL`
-          + `\n       SELECT __d__0."region", __d__0."country", __d__0."city", CAST(NULL AS VARCHAR) AS "department", CAST(NULL AS VARCHAR) AS "product", __d__0."__ord__0", 0 AS "__ord__1" FROM __d__0 WHERE NOT (COALESCE(__d__0."region" IN ('Europe','North America'), FALSE) AND COALESCE(__d__0."city" IN ('London','New York'), FALSE))`
+          + `\n       SELECT __d__0."region", __d__0."country", __d__0."city", CAST(NULL AS VARCHAR) AS "department", CAST(NULL AS VARCHAR) AS "product", __d__0."__sord__0", __d__0."__ord__0", 0 AS "__sord__1", 0 AS "__ord__1" FROM __d__0 WHERE NOT (COALESCE(__d__0."region" IN ('Europe','North America'), FALSE) AND COALESCE(__d__0."city" IN ('London','New York'), FALSE))`
           + `\n     )`
           + `\nSELECT __d__2."region", __d__2."country", __d__2."city", __d__2."department", __d__2."product", SUM(T."revenue") AS "revenue"`
           + `\nFROM __d__2`
-          + `\nLEFT JOIN "data" T ON T."region" = __d__2."region" AND (T."country" = __d__2."country" OR __d__2."country" IS NULL) AND (T."city" = __d__2."city" OR __d__2."city" IS NULL) AND (T."department" = __d__2."department" OR __d__2."department" IS NULL) AND (T."product" = __d__2."product" OR __d__2."product" IS NULL)`
-          + ` GROUP BY __d__2."region", __d__2."country", __d__2."city", __d__2."department", __d__2."product"`
-          + ` ORDER BY MIN(__d__2."__ord__0"), MIN(__d__2."__ord__1")`
+          + `\nLEFT JOIN "data" T ON T."region" = __d__2."region" AND (T."country" = __d__2."country" OR __d__2."country" IS NULL) AND (T."city" = __d__2."city" OR __d__2."city" IS NULL) AND (T."department" = __d__2."department" OR __d__2."department" IS NULL) AND (T."product" = __d__2."product" OR __d__2."product" IS NULL) GROUP BY __d__2."region", __d__2."country", __d__2."city", __d__2."department", __d__2."product" ORDER BY MIN(__d__2."__sord__0"), MIN(__d__2."__ord__0"), MIN(__d__2."__sord__1"), MIN(__d__2."__ord__1")`
         );
       });
 
@@ -3058,32 +3007,30 @@ describe("Dimensional Projections", () => {
 
         expect(model.sqlStr()).to.equal(
           `WITH __d__0 AS (`
-          + `\n       SELECT "region", "country", MIN(rowid) AS "__ord__0" FROM "data" WHERE "region" IN ('Europe') AND "country" IN ('UK') GROUP BY "region", "country"`
+          + `\n       SELECT "region", "country", MIN(rowid) AS "__ord__0", MIN(MIN(rowid)) OVER (PARTITION BY "region") AS "__sord__0" FROM "data" WHERE "region" IN ('Europe') AND "country" IN ('UK') GROUP BY "region", "country"`
           + `\n       UNION ALL`
-          + `\n       SELECT "region", "country", MIN(rowid) AS "__ord__0" FROM "data" WHERE "region" IN ('Europe') AND NOT (COALESCE("country" IN ('UK'), FALSE)) GROUP BY "region", "country"`
+          + `\n       SELECT "region", "country", MIN(rowid) AS "__ord__0", MIN(MIN(rowid)) OVER (PARTITION BY "region") AS "__sord__0" FROM "data" WHERE "region" IN ('Europe') AND NOT (COALESCE("country" IN ('UK'), FALSE)) GROUP BY "region", "country"`
           + `\n       UNION ALL`
-          + `\n       SELECT "region", CAST(NULL AS VARCHAR) AS "country", MIN(rowid) AS "__ord__0" FROM "data" WHERE NOT (COALESCE("region" IN ('Europe'), FALSE)) GROUP BY "region"`
+          + `\n       SELECT "region", CAST(NULL AS VARCHAR) AS "country", MIN(rowid) AS "__ord__0", MIN(MIN(rowid)) OVER (PARTITION BY "region") AS "__sord__0" FROM "data" WHERE NOT (COALESCE("region" IN ('Europe'), FALSE)) GROUP BY "region"`
           + `\n     ),`
           + `\n     __d__1 AS (`
-          + `\n       SELECT "department", "product", MIN(rowid) AS "__ord__1" FROM "data" WHERE "department" IN ('Electronics') AND "product" IN ('Laptop') GROUP BY "department", "product"`
+          + `\n       SELECT "department", "product", MIN(rowid) AS "__ord__1", MIN(MIN(rowid)) OVER (PARTITION BY "department") AS "__sord__1" FROM "data" WHERE "department" IN ('Electronics') AND "product" IN ('Laptop') GROUP BY "department", "product"`
           + `\n       UNION ALL`
-          + `\n       SELECT "department", "product", MIN(rowid) AS "__ord__1" FROM "data" WHERE "department" IN ('Electronics') AND NOT (COALESCE("product" IN ('Laptop'), FALSE)) GROUP BY "department", "product"`
+          + `\n       SELECT "department", "product", MIN(rowid) AS "__ord__1", MIN(MIN(rowid)) OVER (PARTITION BY "department") AS "__sord__1" FROM "data" WHERE "department" IN ('Electronics') AND NOT (COALESCE("product" IN ('Laptop'), FALSE)) GROUP BY "department", "product"`
           + `\n       UNION ALL`
-          + `\n       SELECT "department", CAST(NULL AS VARCHAR) AS "product", MIN(rowid) AS "__ord__1" FROM "data" WHERE NOT (COALESCE("department" IN ('Electronics'), FALSE)) GROUP BY "department"`
+          + `\n       SELECT "department", CAST(NULL AS VARCHAR) AS "product", MIN(rowid) AS "__ord__1", MIN(MIN(rowid)) OVER (PARTITION BY "department") AS "__sord__1" FROM "data" WHERE NOT (COALESCE("department" IN ('Electronics'), FALSE)) GROUP BY "department"`
           + `\n     ),`
           + `\n     __d__2 AS (SELECT "channel", MIN(rowid) AS "__ord__2" FROM "data" GROUP BY "channel"),`
           + `\n     __d__3 AS (`
-          + `\n       SELECT __d__0."region", __d__0."country", __d__1."department", __d__1."product", __d__2."channel", __d__0."__ord__0", __d__1."__ord__1", __d__2."__ord__2" FROM __d__0 CROSS JOIN __d__1 CROSS JOIN __d__2 WHERE __d__0."region" IN ('Europe') AND __d__0."country" IN ('UK') AND __d__1."department" IN ('Electronics') AND __d__1."product" IN ('Laptop')`
+          + `\n       SELECT __d__0."region", __d__0."country", __d__1."department", __d__1."product", __d__2."channel", __d__0."__sord__0", __d__0."__ord__0", __d__1."__sord__1", __d__1."__ord__1", __d__2."__ord__2" FROM __d__0 CROSS JOIN __d__1 CROSS JOIN __d__2 WHERE __d__0."region" IN ('Europe') AND __d__0."country" IN ('UK') AND __d__1."department" IN ('Electronics') AND __d__1."product" IN ('Laptop')`
           + `\n       UNION ALL`
-          + `\n       SELECT __d__0."region", __d__0."country", __d__1."department", __d__1."product", CAST(NULL AS VARCHAR) AS "channel", __d__0."__ord__0", __d__1."__ord__1", 0 AS "__ord__2" FROM __d__0 CROSS JOIN __d__1 WHERE __d__0."region" IN ('Europe') AND __d__0."country" IN ('UK') AND NOT (COALESCE(__d__1."department" IN ('Electronics'), FALSE) AND COALESCE(__d__1."product" IN ('Laptop'), FALSE))`
+          + `\n       SELECT __d__0."region", __d__0."country", __d__1."department", __d__1."product", CAST(NULL AS VARCHAR) AS "channel", __d__0."__sord__0", __d__0."__ord__0", __d__1."__sord__1", __d__1."__ord__1", 0 AS "__ord__2" FROM __d__0 CROSS JOIN __d__1 WHERE __d__0."region" IN ('Europe') AND __d__0."country" IN ('UK') AND NOT (COALESCE(__d__1."department" IN ('Electronics'), FALSE) AND COALESCE(__d__1."product" IN ('Laptop'), FALSE))`
           + `\n       UNION ALL`
-          + `\n       SELECT __d__0."region", __d__0."country", CAST(NULL AS VARCHAR) AS "department", CAST(NULL AS VARCHAR) AS "product", CAST(NULL AS VARCHAR) AS "channel", __d__0."__ord__0", 0 AS "__ord__1", 0 AS "__ord__2" FROM __d__0 WHERE NOT (COALESCE(__d__0."region" IN ('Europe'), FALSE) AND COALESCE(__d__0."country" IN ('UK'), FALSE))`
+          + `\n       SELECT __d__0."region", __d__0."country", CAST(NULL AS VARCHAR) AS "department", CAST(NULL AS VARCHAR) AS "product", CAST(NULL AS VARCHAR) AS "channel", __d__0."__sord__0", __d__0."__ord__0", 0 AS "__sord__1", 0 AS "__ord__1", 0 AS "__ord__2" FROM __d__0 WHERE NOT (COALESCE(__d__0."region" IN ('Europe'), FALSE) AND COALESCE(__d__0."country" IN ('UK'), FALSE))`
           + `\n     )`
           + `\nSELECT __d__3."region", __d__3."country", __d__3."department", __d__3."product", __d__3."channel", SUM(T."revenue") AS "revenue"`
           + `\nFROM __d__3`
-          + `\nLEFT JOIN "data" T ON T."region" = __d__3."region" AND (T."country" = __d__3."country" OR __d__3."country" IS NULL) AND (T."department" = __d__3."department" OR __d__3."department" IS NULL) AND (T."product" = __d__3."product" OR __d__3."product" IS NULL) AND (T."channel" = __d__3."channel" OR __d__3."channel" IS NULL)`
-          + ` GROUP BY __d__3."region", __d__3."country", __d__3."department", __d__3."product", __d__3."channel"`
-          + ` ORDER BY MIN(__d__3."__ord__0"), MIN(__d__3."__ord__1"), MIN(__d__3."__ord__2")`
+          + `\nLEFT JOIN "data" T ON T."region" = __d__3."region" AND (T."country" = __d__3."country" OR __d__3."country" IS NULL) AND (T."department" = __d__3."department" OR __d__3."department" IS NULL) AND (T."product" = __d__3."product" OR __d__3."product" IS NULL) AND (T."channel" = __d__3."channel" OR __d__3."channel" IS NULL) GROUP BY __d__3."region", __d__3."country", __d__3."department", __d__3."product", __d__3."channel" ORDER BY MIN(__d__3."__sord__0"), MIN(__d__3."__ord__0"), MIN(__d__3."__sord__1"), MIN(__d__3."__ord__1"), MIN(__d__3."__ord__2")`
         );
       });
 
@@ -3103,6 +3050,40 @@ describe("Dimensional Projections", () => {
           [9820, 1400, null, null, 850, 1100, 4030],
         ]);
       });
+    });
+  });
+
+  describe("hierarchy segment ordering — cycling data does not interleave", () => {
+    async function makeCyclingModel() {
+      const cols: (string | Schema)[] = [
+        "employee", "department", "product",
+        { name: "revenue", displayName: "Revenue", type: "measure", aggregateFn: "sum" } as Schema,
+      ];
+      const employee   = ["Alice", "Bob", "Carol", "Dave", "Eve", "Frank"];
+      const department = ["Sales", "Engineering", "Sales", "Engineering", "Sales", "Engineering"];
+      const product    = ["Widget", "Gadget", "Gadget", "Widget", "Widget", "Gadget"];
+      const revenue    = [100, 200, 300, 400, 500, 600];
+      const data = [employee, department, product, revenue];
+      return InMemoryDataModel.create({ columns: cols, data });
+    }
+
+    it("selective open Sales+Engineering groups children under parent", async () => {
+      const model = await makeCyclingModel();
+      const config: PivotConfig = {
+        rows: "employee",
+        columns: {
+          expr: cross(hierarchy("department", "product"), "revenue"),
+          projection: [{ open: ["Sales"] }, { open: ["Engineering"] }],
+        },
+      };
+      const vm = await model.getViewModel(config);
+
+      expect(vm.columnFacets[0]).to.deep.equal([
+        "Sales", "Sales", "Engineering", "Engineering",
+      ]);
+      expect(vm.columnFacets[1]).to.deep.equal([
+        "Widget", "Gadget", "Gadget", "Widget",
+      ]);
     });
   });
 });

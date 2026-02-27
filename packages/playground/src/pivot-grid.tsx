@@ -1,7 +1,8 @@
 import React, {useEffect, useRef, useState} from "react";
 import "grid/dist/grid.css";
-import Grid, {GridDataViewModel} from "grid/dist/renderer";
-import {BrowserInMemoryDataModel, DuckDBWasmBundles, cross, hierarchy, GridData, MeasureSchema} from "grid/dist/index";
+import Grid, {GridDataViewModel, FacetCellRenderer, FacetDataContext, FacetRendererContext} from "grid/dist/renderer";
+import {BrowserInMemoryDataModel, DuckDBWasmBundles, cross, hierarchy, GridData, MeasureSchema, ProjectionState, AxisConfig, DimensionalProjectionPath} from "grid/dist/index";
+import feather from "feather-icons";
 
 const DUCKDB_BUNDLES: DuckDBWasmBundles = {
   mvp: {
@@ -57,25 +58,208 @@ const gridData: GridData = {
   ],
 };
 
+const ROW_EXPR = hierarchy("region", "country", "city");
+const COL_EXPR = cross(hierarchy("department", "product"), "revenue");
+
+const ROW_HIERARCHY_DEPTH = 3;
+const COL_HIERARCHY_DEPTH = 2;
+
+const svgIcon = (name: string, size = 12): HTMLElement => {
+  const wrapper = document.createElement("span");
+  wrapper.style.display = "inline-flex";
+  wrapper.style.alignItems = "center";
+  wrapper.style.opacity = "0.9";
+  wrapper.innerHTML = feather.icons[name as keyof typeof feather.icons].toSvg({ width: size, height: size, "stroke-width": 2.5 });
+  return wrapper;
+};
+
+const spinnerIcon = (size = 12): HTMLElement => {
+  const wrapper = document.createElement("span");
+  wrapper.style.display = "inline-flex";
+  wrapper.style.alignItems = "center";
+  wrapper.style.opacity = "0.9";
+  wrapper.innerHTML = feather.icons["loader" as keyof typeof feather.icons].toSvg({ width: size, height: size, "stroke-width": 2.5 });
+  const svg = wrapper.firstElementChild as SVGElement;
+  svg.style.animation = "spin 1s linear infinite";
+  return wrapper;
+};
+
+interface ProjectionTree {
+  [value: string]: ProjectionTree;
+}
+
+function toggleProjection(tree: ProjectionTree, path: (string | null)[], level: number): ProjectionTree {
+  const value = path[level]!;
+
+  if (level === 0) {
+    const newTree = {...tree};
+    if (value in newTree) {
+      delete newTree[value];
+    } else {
+      newTree[value] = {};
+    }
+    return newTree;
+  }
+
+  const ancestor = path[0]!;
+  if (!(ancestor in tree)) return tree;
+  const newTree = {...tree};
+  newTree[ancestor] = toggleProjectionAt(tree[ancestor], path, 1, level);
+  return newTree;
+}
+
+function toggleProjectionAt(subtree: ProjectionTree, path: (string | null)[], currentLevel: number, targetLevel: number): ProjectionTree {
+  const value = path[currentLevel]!;
+  if (currentLevel === targetLevel) {
+    const newSubtree = {...subtree};
+    if (value in newSubtree) {
+      delete newSubtree[value];
+    } else {
+      newSubtree[value] = {};
+    }
+    return newSubtree;
+  }
+
+  if (!(value in subtree)) return subtree;
+  const newSubtree = {...subtree};
+  newSubtree[value] = toggleProjectionAt(subtree[value], path, currentLevel + 1, targetLevel);
+  return newSubtree;
+}
+
+function treeToPaths(tree: ProjectionTree): DimensionalProjectionPath[] | undefined {
+  const keys = Object.keys(tree);
+  if (keys.length === 0) return [];
+
+  const paths: DimensionalProjectionPath[] = [];
+  for (const key of keys) {
+    const subtree = tree[key];
+    const childPaths = treeToPaths(subtree);
+    if (childPaths && childPaths.length > 0) {
+      for (const childPath of childPaths) {
+        paths.push({ open: [key], next: childPath });
+      }
+    } else {
+      paths.push({ open: [key] });
+    }
+  }
+  return paths;
+}
+
+function makeFacetRenderer(
+  axis: "row" | "col",
+  hierarchyDepth: number,
+  projectionTreeRef: React.MutableRefObject<ProjectionTree>,
+  modelRef: React.MutableRefObject<BrowserInMemoryDataModel | null>,
+  viewModelRef: React.MutableRefObject<GridDataViewModel | null>,
+  buildConfig: () => { rows: AxisConfig; columns: AxisConfig },
+): FacetCellRenderer {
+  return (data: string, dataCtx: FacetDataContext, rCtx: FacetRendererContext) => {
+    const isLeaf = dataCtx.level >= hierarchyDepth - 1;
+
+    const defsForFacet = dataCtx.viewModel.defsForFacet[axis];
+    const levelDef = defsForFacet[dataCtx.level];
+
+    const ns = `${axis}-${dataCtx.level}-${dataCtx.index}`;
+    const meta = dataCtx.viewModel.metaState.get(ns);
+    const isLoading = meta?.["loading"] === true;
+
+    if (isLoading) {
+      return {
+        left: spinnerIcon(11),
+        content: String(data ?? ""),
+      };
+    }
+
+    if (isLeaf || data == null) {
+      return String(data ?? "");
+    }
+
+    let iconName = "chevron-right";
+    if (levelDef) {
+      const ps = levelDef.projectionState;
+      if (ps === ProjectionState.PROJECTED) {
+        iconName = "chevron-down";
+      } else if (ps === ProjectionState.SOME_PROJECTED) {
+        iconName = levelDef.projectedValues.has(String(data)) ? "chevron-down" : "chevron-right";
+      }
+    }
+
+    const icon = svgIcon(iconName, 11);
+    icon.style.cursor = "pointer";
+
+    icon.addEventListener("click", async (e) => {
+      e.stopPropagation();
+      const viewModel = viewModelRef.current!;
+      const model = modelRef.current!;
+
+      dataCtx.viewModel.metaState.set(ns, "loading", true);
+      rCtx.render(viewModel);
+
+      projectionTreeRef.current = toggleProjection(projectionTreeRef.current, dataCtx.path, dataCtx.level);
+
+      const config = buildConfig();
+      const result = await model.getViewModelData(config);
+
+      viewModel.updateData(result.data, result.columnFacets, result.rowFacets, {
+        ...result.options,
+        facetRenderer: {
+          row: viewModel.facetRenderers.row,
+          column: viewModel.facetRenderers.column,
+        },
+      });
+
+      dataCtx.viewModel.metaState.clear(ns);
+      rCtx.render(viewModel);
+    });
+
+    return {
+      left: icon,
+      content: String(data ?? ""),
+    };
+  };
+}
+
 const PivotGridPlayground: React.FC = () => {
   const gridConRef = useRef<HTMLDivElement>(null);
   const gridRef = useRef<Grid | null>(null);
+  const modelRef = useRef<BrowserInMemoryDataModel | null>(null);
+  const viewModelRef = useRef<GridDataViewModel | null>(null);
+  const rowProjectionRef = useRef<ProjectionTree>({});
+  const colProjectionRef = useRef<ProjectionTree>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  const buildConfig = (): { rows: AxisConfig; columns: AxisConfig } => {
+    return {
+      rows: { expr: ROW_EXPR, projection: treeToPaths(rowProjectionRef.current) },
+      columns: { expr: COL_EXPR, projection: treeToPaths(colProjectionRef.current) },
+    };
+  };
 
   useEffect(() => {
     let cancelled = false;
 
     const init = async () => {
       const model = await BrowserInMemoryDataModel.create(gridData, DUCKDB_BUNDLES);
-      const viewModel = await model.getViewModel({
-        rows: hierarchy("region", "country"),
-        columns: cross("department", "revenue"),
-      });
+      modelRef.current = model;
+
+      const config = buildConfig();
+      const result = await model.getViewModelData(config);
 
       if (cancelled) return;
-
       if (!gridConRef.current) return;
+
+      const rowRenderer = makeFacetRenderer("row", ROW_HIERARCHY_DEPTH, rowProjectionRef, modelRef, viewModelRef, buildConfig);
+      const colRenderer = makeFacetRenderer("col", COL_HIERARCHY_DEPTH, colProjectionRef, modelRef, viewModelRef, buildConfig);
+
+      const viewModel = new GridDataViewModel(result.data, result.columnFacets, result.rowFacets, {
+        ...result.options,
+        facetRenderer: {
+          row: rowRenderer,
+          column: colRenderer,
+        },
+      });
+      viewModelRef.current = viewModel;
 
       if (!gridRef.current) {
         gridRef.current = new Grid({}, gridConRef.current);
@@ -99,9 +283,15 @@ const PivotGridPlayground: React.FC = () => {
   return (
     <>
       <h2>Pivot Grid</h2>
-      <p>rows: hierarchy(region, country) | columns: cross(department, revenue)</p>
+      <p>rows: hierarchy(region, country, city) | columns: cross(hierarchy(department, product), revenue)</p>
       {loading && <p>Loading DuckDB-WASM...</p>}
       {error && <p style={{color: "red"}}>Error: {error}</p>}
+      <style>{`
+        @keyframes spin {
+          from { transform: rotate(0deg); }
+          to { transform: rotate(360deg); }
+        }
+      `}</style>
       <div style={{
         position: "relative",
         background: "white",

@@ -101,6 +101,32 @@ export class GridDataViewModel {
     return this.#defsForFacet;
   }
 
+  updateData(
+    data: any[][],
+    columnFacets: (string | null)[][],
+    rowFacets?: (string | null)[][],
+    options?: GridDataViewModelOptions
+  ): void {
+    this.#numCols = data.length;
+    this.#numRows = data[0].length;
+    this.#colFacets = columnFacets;
+    this.#rowFacets = rowFacets;
+    this.#data = data;
+    if (options) {
+      this.#resolvedColDefs = this.#normalizeColDefs(options.colDefs ?? []);
+      if (options.facetRenderer) {
+        this.#resolvedFacetRenderers = {
+          row: options.facetRenderer.row ?? defaultFacetRenderer,
+          column: options.facetRenderer.column ?? defaultFacetRenderer,
+        };
+      }
+      this.#defsForFacet = {
+        row: options.colDefsForRowFacet ?? [],
+        col: options.colDefsForColFacet ?? [],
+      };
+    }
+  }
+
   setColSize(colIndex: number, colSize: ResolvedColDef["colSize"]): void {
     this.#resolvedColDefs[colIndex].colSize = colSize;
   }
