@@ -43,7 +43,7 @@ describe("Dimensional Projections", () => {
 
     it("IR -> SQL", async () => {
       const model = await makePatchedModel();
-      await model.getViewModelData(config);
+      await model.getViewModel(config);
 
       expect(model.sqlStr()).to.equal(
         `WITH __d__0 AS (SELECT "region", CAST(NULL AS VARCHAR) AS "country", CAST(NULL AS VARCHAR) AS "city", MIN(rowid) AS "__ord__0" FROM "data" GROUP BY "region"),`
@@ -69,7 +69,7 @@ describe("Dimensional Projections", () => {
 
     it("config -> IR -> SQL -> data-viewmodel (projection on rows)", async () => {
       const model = await makeModel();
-      const vm = await model.getViewModelData({ rows: rowConfig, columns: colExpr });
+      const vm = await model.getViewModel({ rows: rowConfig, columns: colExpr });
 
       expect(vm.rowFacets).to.deep.equal([
         ["North America", "Europe"],
@@ -91,7 +91,7 @@ describe("Dimensional Projections", () => {
 
     it("config -> IR -> SQL -> data-viewmodel (projection on both axes)", async () => {
       const model = await makeModel();
-      const vm = await model.getViewModelData(config);
+      const vm = await model.getViewModel(config);
 
       expect(vm.rowFacets).to.deep.equal([
         ["North America", "Europe"],
@@ -165,7 +165,7 @@ describe("Dimensional Projections", () => {
 
     it("IR -> SQL", async () => {
       const model = await makePatchedModel();
-      await model.getViewModelData(config);
+      await model.getViewModel(config);
 
       expect(model.sqlStr()).to.equal(
         `WITH __d__0 AS (`
@@ -195,7 +195,7 @@ describe("Dimensional Projections", () => {
 
     it("config -> IR -> SQL -> data-viewmodel", async () => {
       const model = await makeModel();
-      const vm = await model.getViewModelData(config);
+      const vm = await model.getViewModel(config);
 
       expect(vm.rowFacets).to.deep.equal([
         ["North America", "North America", "North America", "Europe", "Europe"],
@@ -267,7 +267,7 @@ describe("Dimensional Projections", () => {
 
       it("IR -> SQL", async () => {
         const model = await makePatchedModel();
-        await model.getViewModelData(config);
+        await model.getViewModel(config);
 
         expect(model.sqlStr()).to.equal(
           `WITH __d__0 AS (`
@@ -289,7 +289,7 @@ describe("Dimensional Projections", () => {
 
       it("config -> IR -> SQL -> data-viewmodel", async () => {
         const model = await makeModel();
-        const vm = await model.getViewModelData(config);
+        const vm = await model.getViewModel(config);
 
         expect(vm.rowFacets).to.deep.equal([
           ["North America", "North America", "Europe"],
@@ -368,7 +368,7 @@ describe("Dimensional Projections", () => {
 
       it("IR -> SQL", async () => {
         const model = await makePatchedModel();
-        await model.getViewModelData(config);
+        await model.getViewModel(config);
 
         expect(model.sqlStr()).to.equal(
           `WITH __d__0 AS (`
@@ -400,7 +400,7 @@ describe("Dimensional Projections", () => {
 
       it("config -> IR -> SQL -> data-viewmodel", async () => {
         const model = await makeModel();
-        const vm = await model.getViewModelData(config);
+        const vm = await model.getViewModel(config);
 
         expect(vm.rowFacets).to.deep.equal([
           ["North America", "North America", "Europe", "Europe"],
@@ -463,7 +463,7 @@ describe("Dimensional Projections", () => {
 
       it("IR -> SQL", async () => {
         const model = await makePatchedModel();
-        await model.getViewModelData(config);
+        await model.getViewModel(config);
 
         expect(model.sqlStr()).to.equal(
           `WITH __d__0 AS (`
@@ -487,7 +487,7 @@ describe("Dimensional Projections", () => {
 
       it("config -> IR -> SQL -> data-viewmodel", async () => {
         const model = await makeModel();
-        const vm = await model.getViewModelData(config);
+        const vm = await model.getViewModel(config);
 
         expect(vm.rowFacets).to.deep.equal([
           ["North America", "North America", "Europe", "Europe"],
@@ -584,7 +584,7 @@ describe("Dimensional Projections", () => {
 
         it("IR -> SQL", async () => {
           const model = await makePatchedModel();
-          await model.getViewModelData(config);
+          await model.getViewModel(config);
 
           expect(model.sqlStr()).to.equal(
             `WITH __d__0 AS (`
@@ -626,7 +626,7 @@ describe("Dimensional Projections", () => {
 
         it("config -> IR -> SQL -> data-viewmodel", async () => {
           const model = await makeModel();
-          const vm = await model.getViewModelData(config);
+          const vm = await model.getViewModel(config);
 
           expect(vm.rowFacets).to.deep.equal([
             ["North America", "North America", "North America", "Europe", "Europe"],
@@ -691,7 +691,7 @@ describe("Dimensional Projections", () => {
 
     it("IR -> SQL", async () => {
       const model = await makePatchedModel();
-      await model.getViewModelData(config);
+      await model.getViewModel(config);
 
       expect(model.sqlStr()).to.equal(
         `WITH __d__0 AS (SELECT "region", CAST(NULL AS VARCHAR) AS "country", MIN(rowid) AS "__ord__0" FROM "data" GROUP BY "region"),`
@@ -707,7 +707,7 @@ describe("Dimensional Projections", () => {
 
     it("config -> IR -> SQL -> data-viewmodel", async () => {
       const model = await makeModel();
-      const vm = await model.getViewModelData(config);
+      const vm = await model.getViewModel(config);
 
       expect(vm.rowFacets).to.deep.equal([
         ["North America", "Europe"],
@@ -773,7 +773,7 @@ describe("Dimensional Projections", () => {
 
     it("IR -> SQL", async () => {
       const model = await makePatchedModel();
-      await model.getViewModelData(config);
+      await model.getViewModel(config);
 
       expect(model.sqlStr()).to.equal(
         `WITH __d__0 AS (SELECT "region", "country", MIN(rowid) AS "__ord__0" FROM "data" GROUP BY "region", "country"),`
@@ -789,7 +789,7 @@ describe("Dimensional Projections", () => {
 
     it("config -> IR -> SQL -> data-viewmodel", async () => {
       const model = await makeModel();
-      const vm = await model.getViewModelData(config);
+      const vm = await model.getViewModel(config);
 
       expect(vm.rowFacets).to.deep.equal([
         ["North America", "North America", "Europe", "Europe"],
@@ -858,7 +858,7 @@ describe("Dimensional Projections", () => {
 
       it("IR -> SQL", async () => {
         const model = await makePatchedModel();
-        await model.getViewModelData(config);
+        await model.getViewModel(config);
 
         expect(model.sqlStr()).to.equal(
           `WITH __d__0 AS (SELECT "region", CAST(NULL AS VARCHAR) AS "country", CAST(NULL AS VARCHAR) AS "city", MIN(rowid) AS "__ord__0" FROM "data" GROUP BY "region"),`
@@ -882,7 +882,7 @@ describe("Dimensional Projections", () => {
 
       it("config -> IR -> SQL -> data-viewmodel", async () => {
         const model = await makeModel();
-        const vm = await model.getViewModelData(config);
+        const vm = await model.getViewModel(config);
 
         expect(vm.rowFacets).to.deep.equal([
           ["North America", "Europe", "Electronics", "Apparel"],
@@ -927,7 +927,7 @@ describe("Dimensional Projections", () => {
 
       it("IR -> SQL", async () => {
         const model = await makePatchedModel();
-        await model.getViewModelData(config);
+        await model.getViewModel(config);
 
         expect(model.sqlStr()).to.equal(
           `WITH __d__0 AS (SELECT "region", "country", CAST(NULL AS VARCHAR) AS "city", MIN(rowid) AS "__ord__0" FROM "data" GROUP BY "region", "country"),`
@@ -951,7 +951,7 @@ describe("Dimensional Projections", () => {
 
       it("config -> IR -> SQL -> data-viewmodel", async () => {
         const model = await makeModel();
-        const vm = await model.getViewModelData(config);
+        const vm = await model.getViewModel(config);
 
         expect(vm.rowFacets).to.deep.equal([
           ["North America", "North America", "Europe", "Europe",
@@ -997,7 +997,7 @@ describe("Dimensional Projections", () => {
 
       it("IR -> SQL", async () => {
         const model = await makePatchedModel();
-        await model.getViewModelData(config);
+        await model.getViewModel(config);
 
         expect(model.sqlStr()).to.equal(
           `WITH __d__0 AS (SELECT "region", "country", "city", MIN(rowid) AS "__ord__0" FROM "data" GROUP BY "region", "country", "city"),`
@@ -1021,7 +1021,7 @@ describe("Dimensional Projections", () => {
 
       it("config -> IR -> SQL -> data-viewmodel", async () => {
         const model = await makeModel();
-        const vm = await model.getViewModelData(config);
+        const vm = await model.getViewModel(config);
 
         expect(vm.rowFacets).to.deep.equal([
           ["North America", "North America", "North America",
@@ -1077,7 +1077,7 @@ describe("Dimensional Projections", () => {
 
       it("IR -> SQL", async () => {
         const model = await makePatchedModel();
-        await model.getViewModelData(config);
+        await model.getViewModel(config);
 
         expect(model.sqlStr()).to.equal(
           `WITH __d__0 AS (`
@@ -1109,7 +1109,7 @@ describe("Dimensional Projections", () => {
 
       it("config -> IR -> SQL -> data-viewmodel", async () => {
         const model = await makeModel();
-        const vm = await model.getViewModelData(config);
+        const vm = await model.getViewModel(config);
 
         expect(vm.rowFacets).to.deep.equal([
           ["North America", "Europe", "Europe", "Electronics", "Apparel"],
@@ -1161,7 +1161,7 @@ describe("Dimensional Projections", () => {
 
       it("IR -> SQL", async () => {
         const model = await makePatchedModel();
-        await model.getViewModelData(config);
+        await model.getViewModel(config);
 
         expect(model.sqlStr()).to.equal(
           `WITH __d__0 AS (`
@@ -1193,7 +1193,7 @@ describe("Dimensional Projections", () => {
 
       it("config -> IR -> SQL -> data-viewmodel", async () => {
         const model = await makeModel();
-        const vm = await model.getViewModelData(config);
+        const vm = await model.getViewModel(config);
 
         expect(vm.rowFacets).to.deep.equal([
           ["North America", "Europe", "Electronics", "Electronics", "Apparel"],
@@ -1245,7 +1245,7 @@ describe("Dimensional Projections", () => {
 
       it("IR -> SQL", async () => {
         const model = await makePatchedModel();
-        await model.getViewModelData(config);
+        await model.getViewModel(config);
 
         expect(model.sqlStr()).to.equal(
           `WITH __d__0 AS (`
@@ -1277,7 +1277,7 @@ describe("Dimensional Projections", () => {
 
       it("config -> IR -> SQL -> data-viewmodel", async () => {
         const model = await makeModel();
-        const vm = await model.getViewModelData(config);
+        const vm = await model.getViewModel(config);
 
         expect(vm.rowFacets).to.deep.equal([
           ["North America", "Europe", "Europe",
@@ -1333,7 +1333,7 @@ describe("Dimensional Projections", () => {
 
       it("IR -> SQL", async () => {
         const model = await makePatchedModel();
-        await model.getViewModelData(config);
+        await model.getViewModel(config);
 
         expect(model.sqlStr()).to.equal(
           `WITH __d__0 AS (`
@@ -1369,7 +1369,7 @@ describe("Dimensional Projections", () => {
 
       it("config -> IR -> SQL -> data-viewmodel", async () => {
         const model = await makeModel();
-        const vm = await model.getViewModelData(config);
+        const vm = await model.getViewModel(config);
 
         expect(vm.rowFacets).to.deep.equal([
           ["North America", "Europe", "Europe", "Electronics", "Electronics", "Apparel"],
@@ -1404,7 +1404,7 @@ describe("Dimensional Projections", () => {
 
       it("IR -> SQL", async () => {
         const model = await makePatchedModel();
-        await model.getViewModelData(config);
+        await model.getViewModel(config);
 
         expect(model.sqlStr()).to.equal(
           `WITH __d__0 AS (SELECT "region", MIN(rowid) AS "__ord__0" FROM "data" GROUP BY "region"),`
@@ -1420,7 +1420,7 @@ describe("Dimensional Projections", () => {
 
       it("config -> IR -> SQL -> data-viewmodel", async () => {
         const model = await makeModel();
-        const vm = await model.getViewModelData(config);
+        const vm = await model.getViewModel(config);
 
         expect(vm.rowFacets).to.deep.equal([
           ["North America", "Europe"],
@@ -1451,7 +1451,7 @@ describe("Dimensional Projections", () => {
 
       it("IR -> SQL", async () => {
         const model = await makePatchedModel();
-        await model.getViewModelData(config);
+        await model.getViewModel(config);
 
         expect(model.sqlStr()).to.equal(
           `WITH __d__0 AS (SELECT "region", MIN(rowid) AS "__ord__0" FROM "data" GROUP BY "region"),`
@@ -1467,7 +1467,7 @@ describe("Dimensional Projections", () => {
 
       it("config -> IR -> SQL -> data-viewmodel", async () => {
         const model = await makeModel();
-        const vm = await model.getViewModelData(config);
+        const vm = await model.getViewModel(config);
 
         expect(vm.rowFacets).to.deep.equal([
           ["North America", "North America", "Europe", "Europe"],
@@ -1498,7 +1498,7 @@ describe("Dimensional Projections", () => {
 
       it("IR -> SQL", async () => {
         const model = await makePatchedModel();
-        await model.getViewModelData(config);
+        await model.getViewModel(config);
 
         expect(model.sqlStr()).to.equal(
           `WITH __d__0 AS (SELECT "region", MIN(rowid) AS "__ord__0" FROM "data" GROUP BY "region"),`
@@ -1514,7 +1514,7 @@ describe("Dimensional Projections", () => {
 
       it("config -> IR -> SQL -> data-viewmodel", async () => {
         const model = await makeModel();
-        const vm = await model.getViewModelData(config);
+        const vm = await model.getViewModel(config);
 
         expect(vm.rowFacets).to.deep.equal([
           ["North America", "North America", "North America", "North America", "Europe", "Europe", "Europe", "Europe"],
@@ -1545,7 +1545,7 @@ describe("Dimensional Projections", () => {
 
       it("IR -> SQL", async () => {
         const model = await makePatchedModel();
-        await model.getViewModelData(config);
+        await model.getViewModel(config);
 
         expect(model.sqlStr()).to.equal(
           `WITH __d__0 AS (SELECT "region", MIN(rowid) AS "__ord__0" FROM "data" GROUP BY "region"),`
@@ -1565,7 +1565,7 @@ describe("Dimensional Projections", () => {
 
       it("config -> IR -> SQL -> data-viewmodel", async () => {
         const model = await makeModel();
-        const vm = await model.getViewModelData(config);
+        const vm = await model.getViewModel(config);
 
         expect(vm.rowFacets).to.deep.equal([
           ["North America", "North America", "North America", "Europe", "Europe", "Europe"],
@@ -1596,7 +1596,7 @@ describe("Dimensional Projections", () => {
 
       it("IR -> SQL", async () => {
         const model = await makePatchedModel();
-        await model.getViewModelData(config);
+        await model.getViewModel(config);
 
         expect(model.sqlStr()).to.equal(
           `WITH __d__0 AS (SELECT "region", MIN(rowid) AS "__ord__0" FROM "data" GROUP BY "region"),`
@@ -1614,7 +1614,7 @@ describe("Dimensional Projections", () => {
 
       it("config -> IR -> SQL -> data-viewmodel", async () => {
         const model = await makeModel();
-        const vm = await model.getViewModelData(config);
+        const vm = await model.getViewModel(config);
 
         expect(vm.rowFacets).to.deep.equal([
           ["North America", "North America", "Europe", "Europe"],
@@ -1658,7 +1658,7 @@ describe("Dimensional Projections", () => {
 
       it("IR -> SQL", async () => {
         const model = await makePatchedModel();
-        await model.getViewModelData(config);
+        await model.getViewModel(config);
 
         expect(model.sqlStr()).to.equal(
           `WITH __d__0 AS (SELECT "channel", MIN(rowid) AS "__ord__0" FROM "data" GROUP BY "channel"),`
@@ -1676,7 +1676,7 @@ describe("Dimensional Projections", () => {
 
       it("config -> IR -> SQL -> data-viewmodel", async () => {
         const model = await makeModel();
-        const vm = await model.getViewModelData(config);
+        const vm = await model.getViewModel(config);
 
         expect(vm.rowFacets).to.deep.equal([
           ["Online", "Retail", "Wholesale"],
@@ -1708,7 +1708,7 @@ describe("Dimensional Projections", () => {
 
       it("IR -> SQL", async () => {
         const model = await makePatchedModel();
-        await model.getViewModelData(config);
+        await model.getViewModel(config);
 
         expect(model.sqlStr()).to.equal(
           `WITH __d__0 AS (SELECT "channel", MIN(rowid) AS "__ord__0" FROM "data" GROUP BY "channel"),`
@@ -1726,7 +1726,7 @@ describe("Dimensional Projections", () => {
 
       it("config -> IR -> SQL -> data-viewmodel", async () => {
         const model = await makeModel();
-        const vm = await model.getViewModelData(config);
+        const vm = await model.getViewModel(config);
 
         expect(vm.rowFacets).to.deep.equal([
           ["Online", "Online", "Online", "Retail", "Retail", "Retail", "Wholesale", "Wholesale", "Wholesale"],
@@ -1758,7 +1758,7 @@ describe("Dimensional Projections", () => {
 
       it("IR -> SQL", async () => {
         const model = await makePatchedModel();
-        await model.getViewModelData(config);
+        await model.getViewModel(config);
 
         expect(model.sqlStr()).to.equal(
           `WITH __d__0 AS (SELECT "channel", MIN(rowid) AS "__ord__0" FROM "data" GROUP BY "channel"),`
@@ -1776,7 +1776,7 @@ describe("Dimensional Projections", () => {
 
       it("config -> IR -> SQL -> data-viewmodel", async () => {
         const model = await makeModel();
-        const vm = await model.getViewModelData(config);
+        const vm = await model.getViewModel(config);
 
         expect(vm.rowFacets).to.deep.equal([
           ["Online", "Online", "Online", "Online", "Online", "Online", "Retail", "Retail", "Retail", "Retail", "Retail", "Retail", "Wholesale", "Wholesale", "Wholesale", "Wholesale", "Wholesale", "Wholesale"],
@@ -1808,7 +1808,7 @@ describe("Dimensional Projections", () => {
 
       it("IR -> SQL", async () => {
         const model = await makePatchedModel();
-        await model.getViewModelData(config);
+        await model.getViewModel(config);
 
         expect(model.sqlStr()).to.equal(
           `WITH __d__0 AS (SELECT "channel", MIN(rowid) AS "__ord__0" FROM "data" GROUP BY "channel"),`
@@ -1830,7 +1830,7 @@ describe("Dimensional Projections", () => {
 
       it("config -> IR -> SQL -> data-viewmodel", async () => {
         const model = await makeModel();
-        const vm = await model.getViewModelData(config);
+        const vm = await model.getViewModel(config);
 
         expect(vm.rowFacets).to.deep.equal([
           ["Online", "Online", "Online", "Online", "Online", "Online", "Online", "Online", "Online", "Retail", "Retail", "Retail", "Retail", "Retail", "Retail", "Retail", "Retail", "Retail", "Wholesale", "Wholesale", "Wholesale", "Wholesale", "Wholesale", "Wholesale", "Wholesale", "Wholesale", "Wholesale"],
@@ -1866,7 +1866,7 @@ describe("Dimensional Projections", () => {
 
       it("IR -> SQL", async () => {
         const model = await makePatchedModel();
-        await model.getViewModelData(config);
+        await model.getViewModel(config);
 
         expect(model.sqlStr()).to.equal(
           `WITH __d__0 AS (`
@@ -1890,7 +1890,7 @@ describe("Dimensional Projections", () => {
 
       it("config -> IR -> SQL -> data-viewmodel", async () => {
         const model = await makeModel();
-        const vm = await model.getViewModelData(config);
+        const vm = await model.getViewModel(config);
 
         expect(vm.rowFacets).to.deep.equal([
           ["North America", "Europe", "Europe", "Europe", "Europe"],
@@ -1922,7 +1922,7 @@ describe("Dimensional Projections", () => {
 
       it("IR -> SQL", async () => {
         const model = await makePatchedModel();
-        await model.getViewModelData(config);
+        await model.getViewModel(config);
 
         expect(model.sqlStr()).to.equal(
           `WITH __d__0 AS (`
@@ -1950,7 +1950,7 @@ describe("Dimensional Projections", () => {
 
       it("config -> IR -> SQL -> data-viewmodel", async () => {
         const model = await makeModel();
-        const vm = await model.getViewModelData(config);
+        const vm = await model.getViewModel(config);
 
         expect(vm.rowFacets).to.deep.equal([
           ["North America", "North America", "North America", "North America", "Europe", "Europe", "Europe", "Europe"],
@@ -1989,7 +1989,7 @@ describe("Dimensional Projections", () => {
 
       it("IR -> SQL", async () => {
         const model = await makePatchedModel();
-        await model.getViewModelData(config);
+        await model.getViewModel(config);
 
         expect(model.sqlStr()).to.equal(
           `WITH __d__0 AS (SELECT "region", CAST(NULL AS VARCHAR) AS "country", MIN(rowid) AS "__ord__0" FROM "data" GROUP BY "region"),`
@@ -2017,7 +2017,7 @@ describe("Dimensional Projections", () => {
 
       it("config -> IR -> SQL -> data-viewmodel", async () => {
         const model = await makeModel();
-        const vm = await model.getViewModelData(config);
+        const vm = await model.getViewModel(config);
 
         expect(vm.rowFacets).to.deep.equal([
           ["North America", "Europe", "Online", "Retail", "Wholesale"],
@@ -2048,7 +2048,7 @@ describe("Dimensional Projections", () => {
 
       it("IR -> SQL", async () => {
         const model = await makePatchedModel();
-        await model.getViewModelData(config);
+        await model.getViewModel(config);
 
         expect(model.sqlStr()).to.equal(
           `WITH __d__0 AS (SELECT "region", "country", MIN(rowid) AS "__ord__0" FROM "data" GROUP BY "region", "country"),`
@@ -2076,7 +2076,7 @@ describe("Dimensional Projections", () => {
 
       it("config -> IR -> SQL -> data-viewmodel", async () => {
         const model = await makeModel();
-        const vm = await model.getViewModelData(config);
+        const vm = await model.getViewModel(config);
 
         expect(vm.rowFacets).to.deep.equal([
           ["North America", "North America", "Europe", "Europe", "Online", "Online", "Retail", "Retail", "Wholesale", "Wholesale"],
@@ -2107,7 +2107,7 @@ describe("Dimensional Projections", () => {
 
       it("IR -> SQL", async () => {
         const model = await makePatchedModel();
-        await model.getViewModelData(config);
+        await model.getViewModel(config);
 
         expect(model.sqlStr()).to.equal(
           `WITH __d__0 AS (SELECT "region", "country", MIN(rowid) AS "__ord__0" FROM "data" GROUP BY "region", "country"),`
@@ -2135,7 +2135,7 @@ describe("Dimensional Projections", () => {
 
       it("config -> IR -> SQL -> data-viewmodel", async () => {
         const model = await makeModel();
-        const vm = await model.getViewModelData(config);
+        const vm = await model.getViewModel(config);
 
         expect(vm.rowFacets).to.deep.equal([
           ["North America", "North America", "North America", "North America", "Europe", "Europe", "Europe", "Europe", "Online", "Online", "Retail", "Retail", "Wholesale", "Wholesale"],
@@ -2166,7 +2166,7 @@ describe("Dimensional Projections", () => {
 
       it("IR -> SQL", async () => {
         const model = await makePatchedModel();
-        await model.getViewModelData(config);
+        await model.getViewModel(config);
 
         expect(model.sqlStr()).to.equal(
           `WITH __d__0 AS (`
@@ -2198,7 +2198,7 @@ describe("Dimensional Projections", () => {
 
       it("config -> IR -> SQL -> data-viewmodel", async () => {
         const model = await makeModel();
-        const vm = await model.getViewModelData(config);
+        const vm = await model.getViewModel(config);
 
         expect(vm.rowFacets).to.deep.equal([
           ["North America", "Europe", "Europe", "Online", "Online", "Retail", "Retail", "Wholesale", "Wholesale"],
@@ -2240,7 +2240,7 @@ describe("Dimensional Projections", () => {
 
       it("IR -> SQL", async () => {
         const model = await makePatchedModel();
-        await model.getViewModelData(config);
+        await model.getViewModel(config);
 
         expect(model.sqlStr()).to.equal(
           `WITH __d__0 AS (`
@@ -2282,7 +2282,7 @@ describe("Dimensional Projections", () => {
 
       it("config -> IR -> SQL -> data-viewmodel", async () => {
         const model = await makeModel();
-        const vm = await model.getViewModelData(config);
+        const vm = await model.getViewModel(config);
 
         expect(vm.rowFacets).to.deep.equal([
           ["North America", "North America", "North America", "North America", "North America", "North America", "North America", "North America", "North America", "North America", "North America", "North America", "North America", "Europe", "Europe"],
@@ -2319,7 +2319,7 @@ describe("Dimensional Projections", () => {
 
       it("IR -> SQL", async () => {
         const model = await makePatchedModel();
-        await model.getViewModelData(config);
+        await model.getViewModel(config);
 
         expect(model.sqlStr()).to.equal(
           `WITH __d__0 AS (`
@@ -2337,7 +2337,7 @@ describe("Dimensional Projections", () => {
 
       it("config -> IR -> SQL -> data-viewmodel", async () => {
         const model = await makeModel();
-        const vm = await model.getViewModelData(config);
+        const vm = await model.getViewModel(config);
 
         expect(vm.rowFacets).to.deep.equal([
           ["North America", "Europe", "Europe"],
@@ -2368,7 +2368,7 @@ describe("Dimensional Projections", () => {
 
       it("IR -> SQL", async () => {
         const model = await makePatchedModel();
-        await model.getViewModelData(config);
+        await model.getViewModel(config);
 
         expect(model.sqlStr()).to.equal(
           `WITH __d__0 AS (`
@@ -2386,7 +2386,7 @@ describe("Dimensional Projections", () => {
 
       it("config -> IR -> SQL -> data-viewmodel", async () => {
         const model = await makeModel();
-        const vm = await model.getViewModelData(config);
+        const vm = await model.getViewModel(config);
 
         expect(vm.rowFacets).to.deep.equal([
           ["North America", "Europe", "Europe"],
@@ -2424,7 +2424,7 @@ describe("Dimensional Projections", () => {
 
       it("IR -> SQL", async () => {
         const model = await makePatchedModel();
-        await model.getViewModelData(config);
+        await model.getViewModel(config);
 
         expect(model.sqlStr()).to.equal(
           `WITH __d__0 AS (`
@@ -2446,7 +2446,7 @@ describe("Dimensional Projections", () => {
 
       it("config -> IR -> SQL -> data-viewmodel", async () => {
         const model = await makeModel();
-        const vm = await model.getViewModelData(config);
+        const vm = await model.getViewModel(config);
 
         expect(vm.rowFacets).to.deep.equal([
           ["North America", "North America", "North America", "Europe", "Europe"],
@@ -2481,7 +2481,7 @@ describe("Dimensional Projections", () => {
 
       it("IR -> SQL", async () => {
         const model = await makePatchedModel();
-        await model.getViewModelData(config);
+        await model.getViewModel(config);
 
         expect(model.sqlStr()).to.equal(
           `WITH __d__0 AS (SELECT "region", CAST(NULL AS VARCHAR) AS "country", CAST(NULL AS VARCHAR) AS "city", CAST(NULL AS VARCHAR) AS "department", MIN(rowid) AS "__ord__0" FROM "data" GROUP BY "region")`
@@ -2495,7 +2495,7 @@ describe("Dimensional Projections", () => {
 
       it("config -> IR -> SQL -> data-viewmodel", async () => {
         const model = await makeModel();
-        const vm = await model.getViewModelData(config);
+        const vm = await model.getViewModel(config);
 
         expect(vm.rowFacets).to.deep.equal([
           ["North America", "Europe"],
@@ -2527,7 +2527,7 @@ describe("Dimensional Projections", () => {
 
       it("IR -> SQL", async () => {
         const model = await makePatchedModel();
-        await model.getViewModelData(config);
+        await model.getViewModel(config);
 
         expect(model.sqlStr()).to.equal(
           `WITH __d__0 AS (`
@@ -2545,7 +2545,7 @@ describe("Dimensional Projections", () => {
 
       it("config -> IR -> SQL -> data-viewmodel", async () => {
         const model = await makeModel();
-        const vm = await model.getViewModelData(config);
+        const vm = await model.getViewModel(config);
 
         expect(vm.rowFacets).to.deep.equal([
           ["North America", "Europe", "Europe"],
@@ -2577,7 +2577,7 @@ describe("Dimensional Projections", () => {
 
       it("IR -> SQL", async () => {
         const model = await makePatchedModel();
-        await model.getViewModelData(config);
+        await model.getViewModel(config);
 
         expect(model.sqlStr()).to.equal(
           `WITH __d__0 AS (`
@@ -2595,7 +2595,7 @@ describe("Dimensional Projections", () => {
 
       it("config -> IR -> SQL -> data-viewmodel", async () => {
         const model = await makeModel();
-        const vm = await model.getViewModelData(config);
+        const vm = await model.getViewModel(config);
 
         expect(vm.rowFacets).to.deep.equal([
           ["North America", "Europe", "Europe"],
@@ -2633,7 +2633,7 @@ describe("Dimensional Projections", () => {
 
       it("IR -> SQL", async () => {
         const model = await makePatchedModel();
-        await model.getViewModelData(config);
+        await model.getViewModel(config);
 
         expect(model.sqlStr()).to.equal(
           `WITH __d__0 AS (`
@@ -2655,7 +2655,7 @@ describe("Dimensional Projections", () => {
 
       it("config -> IR -> SQL -> data-viewmodel", async () => {
         const model = await makeModel();
-        const vm = await model.getViewModelData(config);
+        const vm = await model.getViewModel(config);
 
         expect(vm.rowFacets).to.deep.equal([
           ["North America", "North America", "North America", "Europe", "Europe"],
@@ -2693,7 +2693,7 @@ describe("Dimensional Projections", () => {
 
       it("IR -> SQL", async () => {
         const model = await makePatchedModel();
-        await model.getViewModelData(config);
+        await model.getViewModel(config);
 
         expect(model.sqlStr()).to.equal(
           `WITH __d__0 AS (`
@@ -2717,7 +2717,7 @@ describe("Dimensional Projections", () => {
 
       it("config -> IR -> SQL -> data-viewmodel", async () => {
         const model = await makeModel();
-        const vm = await model.getViewModelData(config);
+        const vm = await model.getViewModel(config);
 
         expect(vm.rowFacets).to.deep.equal([
           ["North America", "North America", "North America", "North America", "Europe", "Europe"],
@@ -2753,7 +2753,7 @@ describe("Dimensional Projections", () => {
 
       it("IR -> SQL", async () => {
         const model = await makePatchedModel();
-        await model.getViewModelData(config);
+        await model.getViewModel(config);
 
         expect(model.sqlStr()).to.equal(
           `WITH __d__0 AS (SELECT "region", CAST(NULL AS VARCHAR) AS "country", CAST(NULL AS VARCHAR) AS "city", MIN(rowid) AS "__ord__0" FROM "data" GROUP BY "region"),`
@@ -2769,7 +2769,7 @@ describe("Dimensional Projections", () => {
 
       it("config -> IR -> SQL -> data-viewmodel", async () => {
         const model = await makeModel();
-        const vm = await model.getViewModelData(config);
+        const vm = await model.getViewModel(config);
 
         expect(vm.rowFacets).to.deep.equal([
           ["North America", "Europe"],
@@ -2802,7 +2802,7 @@ describe("Dimensional Projections", () => {
 
       it("IR -> SQL", async () => {
         const model = await makePatchedModel();
-        await model.getViewModelData(config);
+        await model.getViewModel(config);
 
         expect(model.sqlStr()).to.equal(
           `WITH __d__0 AS (`
@@ -2822,7 +2822,7 @@ describe("Dimensional Projections", () => {
 
       it("config -> IR -> SQL -> data-viewmodel", async () => {
         const model = await makeModel();
-        const vm = await model.getViewModelData(config);
+        const vm = await model.getViewModel(config);
 
         expect(vm.rowFacets).to.deep.equal([
           ["North America", "Europe", "Europe"],
@@ -2855,7 +2855,7 @@ describe("Dimensional Projections", () => {
 
       it("IR -> SQL", async () => {
         const model = await makePatchedModel();
-        await model.getViewModelData(config);
+        await model.getViewModel(config);
 
         expect(model.sqlStr()).to.equal(
           `WITH __d__0 AS (`
@@ -2877,7 +2877,7 @@ describe("Dimensional Projections", () => {
 
       it("config -> IR -> SQL -> data-viewmodel", async () => {
         const model = await makeModel();
-        const vm = await model.getViewModelData(config);
+        const vm = await model.getViewModel(config);
 
         expect(vm.rowFacets).to.deep.equal([
           ["North America", "Europe", "Europe"],
@@ -2910,7 +2910,7 @@ describe("Dimensional Projections", () => {
 
       it("IR -> SQL", async () => {
         const model = await makePatchedModel();
-        await model.getViewModelData(config);
+        await model.getViewModel(config);
 
         expect(model.sqlStr()).to.equal(
           `WITH __d__0 AS (`
@@ -2938,7 +2938,7 @@ describe("Dimensional Projections", () => {
 
       it("config -> IR -> SQL -> data-viewmodel", async () => {
         const model = await makeModel();
-        const vm = await model.getViewModelData(config);
+        const vm = await model.getViewModel(config);
 
         expect(vm.rowFacets).to.deep.equal([
           ["North America", "Europe", "Europe", "Europe"],
@@ -2977,7 +2977,7 @@ describe("Dimensional Projections", () => {
 
       it("IR -> SQL", async () => {
         const model = await makePatchedModel();
-        await model.getViewModelData(config);
+        await model.getViewModel(config);
 
         expect(model.sqlStr()).to.equal(
           `WITH __d__0 AS (`
@@ -3013,7 +3013,7 @@ describe("Dimensional Projections", () => {
 
       it("config -> IR -> SQL -> data-viewmodel", async () => {
         const model = await makeModel();
-        const vm = await model.getViewModelData(config);
+        const vm = await model.getViewModel(config);
 
         expect(vm.rowFacets).to.deep.equal([
           ["North America", "North America", "North America", "North America", "North America", "Europe", "Europe", "Europe", "Europe"],
@@ -3054,7 +3054,7 @@ describe("Dimensional Projections", () => {
 
       it("IR -> SQL", async () => {
         const model = await makePatchedModel();
-        await model.getViewModelData(config);
+        await model.getViewModel(config);
 
         expect(model.sqlStr()).to.equal(
           `WITH __d__0 AS (`
@@ -3089,7 +3089,7 @@ describe("Dimensional Projections", () => {
 
       it("config -> IR -> SQL -> data-viewmodel", async () => {
         const model = await makeModel();
-        const vm = await model.getViewModelData(config);
+        const vm = await model.getViewModel(config);
 
         expect(vm.rowFacets).to.deep.equal([
           ["North America", "Europe", "Europe", "Europe", "Europe", "Europe", "Europe"],

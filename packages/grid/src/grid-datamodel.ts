@@ -758,7 +758,7 @@ export abstract class GridDataModel {
     };
   }
 
-  async getViewModelData(config: PivotConfig): Promise<GridDataViewModel> {
+  async getViewModelData(config: PivotConfig): Promise<GridDataViewModelArgsObj> {
     const ir = this.getIR(config);
     const result = await this.getData(ir.merged);
     const [colDimCount, rowDimCount] = [ir.colIR, ir.rowIR].map(ir => dimSpecFields(ir.dimSpec).length);
@@ -851,6 +851,26 @@ export abstract class GridDataModel {
       ir.nRowConfig.projection,
       fullRowFacets.length - (ir.rowIR.measures.length > 0 ? 1 : 0));
 
-    return new GridDataViewModel(data, fullColFacets, fullRowFacets, { colDefsForColFacet, colDefsForRowFacet });
+    return {
+      data,
+      columnFacets: fullColFacets,
+      rowFacets: fullRowFacets,
+      options: { colDefsForColFacet, colDefsForRowFacet }
+    };
+
+    // return new GridDataViewModel(data, fullColFacets, fullRowFacets, { colDefsForColFacet, colDefsForRowFacet });
+  }
+
+  async getViewModel(config: PivotConfig): Promise<GridDataViewModel> {
+    const { data, columnFacets, rowFacets, options } = await this.getViewModelData(config);
+    return new GridDataViewModel(data, columnFacets, rowFacets, options);
   }
 }
+
+type GridDataViewModelArgs = ConstructorParameters<typeof GridDataViewModel>
+ type GridDataViewModelArgsObj = {
+    data: GridDataViewModelArgs[0];
+    columnFacets: GridDataViewModelArgs[1];
+    rowFacets: GridDataViewModelArgs[2];
+    options: GridDataViewModelArgs[3];
+  };

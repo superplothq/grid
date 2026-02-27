@@ -28,7 +28,7 @@ describe("Simple operator in pivot", () => {
 
     it("IR -> SQL", async () => {
       const model = await makePatchedModel();
-      await model.getViewModelData(simplePivotConfig);
+      await model.getViewModel(simplePivotConfig);
 
       expect(model.sqlStr()).to.equal(
         `WITH __d__0 AS (SELECT "region", MIN(rowid) AS "__ord__0" FROM "data" GROUP BY "region"),`
@@ -44,7 +44,7 @@ describe("Simple operator in pivot", () => {
 
     it("config -> IR -> SQL -> data-viewmodel", async () => {
       const model = await makeModel();
-      const vm = await model.getViewModelData(simplePivotConfig);
+      const vm = await model.getViewModel(simplePivotConfig);
 
       expect(vm.rowFacets).to.deep.equal([
         ["North America", "Europe"],
@@ -87,7 +87,7 @@ describe("Simple operator in pivot", () => {
 
     it("IR -> SQL", async () => {
       const model = await makePatchedModel();
-      await model.getViewModelData(config);
+      await model.getViewModel(config);
 
       expect(model.sqlStr()).to.equal(
         `WITH __d__0 AS (SELECT "region", "country", MIN(rowid) AS "__ord__0" FROM "data" GROUP BY "region", "country"),`
@@ -103,7 +103,7 @@ describe("Simple operator in pivot", () => {
 
     it("config -> IR -> SQL -> data-viewmodel", async () => {
       const model = await makeModel();
-      const vm = await model.getViewModelData(config);
+      const vm = await model.getViewModel(config);
 
       expect(vm.rowFacets).to.deep.equal([
         ["North America", "North America", "Europe", "Europe"],
@@ -166,7 +166,7 @@ describe("Simple operator in pivot", () => {
 
     it("IR -> SQL", async () => {
       const model = await makePatchedModel();
-      await model.getViewModelData(config);
+      await model.getViewModel(config);
 
       expect(model.sqlStr()).to.equal(
         `WITH __d__0 AS (SELECT "region", MIN(rowid) AS "__ord__0" FROM "data" GROUP BY "region"),`
@@ -184,7 +184,7 @@ describe("Simple operator in pivot", () => {
 
     it("config -> IR -> SQL -> data-viewmodel", async () => {
       const model = await makeModel();
-      const vm = await model.getViewModelData(config);
+      const vm = await model.getViewModel(config);
 
       expect(vm.rowFacets).to.deep.equal([
         ["North America", "North America", "Europe", "Europe"],
@@ -225,7 +225,7 @@ describe("Simple operator in pivot", () => {
 
     it("IR -> SQL", async () => {
       const model = await makePatchedModel();
-      await model.getViewModelData(config);
+      await model.getViewModel(config);
 
       expect(model.sqlStr()).to.equal(
         `WITH __d__0 AS (SELECT "region", MIN(rowid) AS "__ord__0" FROM "data" GROUP BY "region"),`
@@ -251,7 +251,7 @@ describe("Simple operator in pivot", () => {
 
     it("config -> IR -> SQL -> data-viewmodel", async () => {
       const model = await makeModel();
-      const vm = await model.getViewModelData(config);
+      const vm = await model.getViewModel(config);
 
       expect(vm.rowFacets).to.deep.equal([
         ["North America", "Europe"],
@@ -293,7 +293,7 @@ describe("Simple operator in pivot", () => {
 
     it("IR -> SQL", async () => {
       const model = await makePatchedModel();
-      await model.getViewModelData(config);
+      await model.getViewModel(config);
 
       expect(model.sqlStr()).to.equal(
         `WITH __d__0 AS (SELECT "region", MIN(rowid) AS "__ord__0" FROM "data" GROUP BY "region"),`
@@ -327,7 +327,7 @@ describe("Simple operator in pivot", () => {
 
     it("config -> IR -> SQL -> data-viewmodel", async () => {
       const model = await makeModel();
-      const vm = await model.getViewModelData(config);
+      const vm = await model.getViewModel(config);
 
       expect(vm.rowFacets).to.deep.equal([
         ["North America", "Europe", "Electronics", "Apparel"],
@@ -377,7 +377,7 @@ describe("Simple operator in pivot", () => {
 
     it("IR -> SQL", async () => {
       const model = await makePatchedModel();
-      await model.getViewModelData(config);
+      await model.getViewModel(config);
 
       expect(model.sqlStr()).to.equal(
         `WITH __d__0 AS (SELECT "region", MIN(rowid) AS "__ord__0" FROM "data" GROUP BY "region"),`
@@ -396,7 +396,7 @@ describe("Simple operator in pivot", () => {
 
     it("config -> IR -> SQL -> data-viewmodel", async () => {
       const model = await makeModel();
-      const vm = await model.getViewModelData(config);
+      const vm = await model.getViewModel(config);
 
       expect(vm.rowFacets).to.deep.equal([
         ["North America", "Europe"],
@@ -453,7 +453,7 @@ describe("Simple operator in pivot", () => {
 
     it("IR -> SQL", async () => {
       const model = await makePatchedModel();
-      await model.getViewModelData(config);
+      await model.getViewModel(config);
 
       expect(model.sqlStr()).to.equal(
         `WITH __d__0 AS (SELECT "region", MIN(rowid) AS "__ord__0" FROM "data" GROUP BY "region"),`
@@ -469,7 +469,7 @@ describe("Simple operator in pivot", () => {
 
     it("config -> IR -> SQL -> data-viewmodel", async () => {
       const model = await makeModel();
-      const vm = await model.getViewModelData(config);
+      const vm = await model.getViewModel(config);
 
       expect(vm.rowFacets).to.deep.equal([
         ["North America", "Europe"],
@@ -508,7 +508,7 @@ describe("Simple operator in pivot", () => {
 
     it("IR -> SQL", async () => {
       const model = await makePatchedModel();
-      await model.getViewModelData(config);
+      await model.getViewModel(config);
 
       expect(model.sqlStr()).to.equal(
         `WITH __d__0 AS (SELECT "department", MIN(rowid) AS "__ord__0" FROM "data" GROUP BY "department")`
@@ -522,7 +522,7 @@ describe("Simple operator in pivot", () => {
 
     it("config -> IR -> SQL -> data-viewmodel", async () => {
       const model = await makeModel();
-      const vm = await model.getViewModelData(config);
+      const vm = await model.getViewModel(config);
 
       expect(vm.rowFacets).to.deep.equal([
         ["revenue", "cost"],
@@ -564,7 +564,7 @@ describe("Simple operator in pivot", () => {
 
     it("IR -> SQL", async () => {
       const model = await makePatchedModel();
-      await model.getViewModelData(config);
+      await model.getViewModel(config);
 
       expect(model.sqlStr()).to.equal(
         `WITH __d__0 AS (SELECT "region", MIN(rowid) AS "__ord__0" FROM "data" GROUP BY "region")`
@@ -578,7 +578,7 @@ describe("Simple operator in pivot", () => {
 
     it("config -> IR -> SQL -> data-viewmodel", async () => {
       const model = await makeModel();
-      const vm = await model.getViewModelData(config);
+      const vm = await model.getViewModel(config);
 
       expect(vm.rowFacets).to.deep.equal([
         ["North America", "Europe"],
@@ -618,7 +618,7 @@ describe("Operator edge cases", () => {
 
     it("IR -> SQL", async () => {
       const model = await makePatchedModel();
-      await model.getViewModelData(config);
+      await model.getViewModel(config);
 
       expect(model.sqlStr()).to.equal(
         `WITH __d__0 AS (SELECT "region", "country", "city", MIN(rowid) AS "__ord__0" FROM "data" GROUP BY "region", "country", "city")`
@@ -632,7 +632,7 @@ describe("Operator edge cases", () => {
 
     it("config -> IR -> SQL -> data-viewmodel", async () => {
       const model = await makeModel();
-      const vm = await model.getViewModelData(config);
+      const vm = await model.getViewModel(config);
 
       expect(vm.rowFacets).to.deep.equal([
         ["North America", "North America", "North America", "Europe", "Europe"],
@@ -671,7 +671,7 @@ describe("Operator edge cases", () => {
 
     it("IR -> SQL", async () => {
       const model = await makePatchedModel();
-      await model.getViewModelData(config);
+      await model.getViewModel(config);
 
       expect(model.sqlStr()).to.equal(
         `WITH __d__0 AS (SELECT "department", MIN(rowid) AS "__ord__0" FROM "data" GROUP BY "department"),`
@@ -695,7 +695,7 @@ describe("Operator edge cases", () => {
 
     it("config -> IR -> SQL -> data-viewmodel", async () => {
       const model = await makeModel();
-      const vm = await model.getViewModelData(config);
+      const vm = await model.getViewModel(config);
 
       expect(vm.rowFacets).to.deep.equal([
         ["revenue", "cost"],
@@ -736,7 +736,7 @@ describe("Operator edge cases", () => {
 
     it("IR -> SQL", async () => {
       const model = await makePatchedModel();
-      await model.getViewModelData(config);
+      await model.getViewModel(config);
 
       expect(model.sqlStr()).to.equal(
         `WITH __d__0 AS (SELECT "region", MIN(rowid) AS "__ord__0" FROM "data" GROUP BY "region")`
@@ -750,7 +750,7 @@ describe("Operator edge cases", () => {
 
     it("config -> IR -> SQL -> data-viewmodel", async () => {
       const model = await makeModel();
-      const vm = await model.getViewModelData(config);
+      const vm = await model.getViewModel(config);
 
       expect(vm.rowFacets).to.deep.equal([
         ["North America", "Europe"],
@@ -787,7 +787,7 @@ describe("Operator edge cases", () => {
 
     it("IR -> SQL", async () => {
       const model = await makePatchedModel();
-      await model.getViewModelData(config);
+      await model.getViewModel(config);
 
       expect(model.sqlStr()).to.equal(
         `WITH __d__0 AS (SELECT "region", MIN(rowid) AS "__ord__0" FROM "data" GROUP BY "region")`
@@ -801,7 +801,7 @@ describe("Operator edge cases", () => {
 
     it("config -> IR -> SQL -> data-viewmodel", async () => {
       const model = await makeModel();
-      const vm = await model.getViewModelData(config);
+      const vm = await model.getViewModel(config);
 
       expect(vm.rowFacets).to.deep.equal([
         ["North America", "Europe"],
@@ -846,7 +846,7 @@ describe("Composite operators in pivot", () => {
 
     it("IR -> SQL", async () => {
       const model = await makePatchedModel();
-      await model.getViewModelData(config);
+      await model.getViewModel(config);
 
       expect(model.sqlStr()).to.equal(
         `WITH __d__0 AS (SELECT "region", "country", MIN(rowid) AS "__ord__0" FROM "data" GROUP BY "region", "country"),`
@@ -874,7 +874,7 @@ describe("Composite operators in pivot", () => {
 
     it("config -> IR -> SQL -> data-viewmodel", async () => {
       const model = await makeModel();
-      const vm = await model.getViewModelData(config);
+      const vm = await model.getViewModel(config);
 
       expect(vm.rowFacets).to.deep.equal([
         ["North America", "North America", "North America", "North America", "North America", "North America", "North America", "North America", "North America", "North America", "Europe", "Europe", "Europe", "Europe", "Europe", "Europe", "Europe", "Europe", "Europe", "Europe"],
@@ -927,7 +927,7 @@ describe("Composite operators in pivot", () => {
 
     it("IR -> SQL", async () => {
       const model = await makePatchedModel();
-      await model.getViewModelData(config);
+      await model.getViewModel(config);
 
       expect(model.sqlStr()).to.equal(
         `WITH __d__0 AS (SELECT "region", "country", MIN(rowid) AS "__ord__0" FROM "data" GROUP BY "region", "country"),`
@@ -945,7 +945,7 @@ describe("Composite operators in pivot", () => {
 
     it("config -> IR -> SQL -> data-viewmodel", async () => {
       const model = await makeModel();
-      const vm = await model.getViewModelData(config);
+      const vm = await model.getViewModel(config);
 
       expect(vm.rowFacets).to.deep.equal([
         ["North America", "North America", "North America", "North America", "North America", "North America", "Europe", "Europe", "Europe", "Europe", "Europe", "Europe"],
@@ -996,7 +996,7 @@ describe("Composite operators in pivot", () => {
 
     it("IR -> SQL", async () => {
       const model = await makePatchedModel();
-      await model.getViewModelData(config);
+      await model.getViewModel(config);
 
       expect(model.sqlStr()).to.equal(
         `WITH __d__0 AS (SELECT "region", "country", MIN(rowid) AS "__ord__0" FROM "data" GROUP BY "region", "country"),`
@@ -1020,7 +1020,7 @@ describe("Composite operators in pivot", () => {
 
     it("config -> IR -> SQL -> data-viewmodel", async () => {
       const model = await makeModel();
-      const vm = await model.getViewModelData(config);
+      const vm = await model.getViewModel(config);
 
       expect(vm.rowFacets).to.deep.equal([
         ["North America", "North America", "Europe", "Europe", "Electronics", "Apparel"],
@@ -1064,7 +1064,7 @@ describe("Composite operators in pivot", () => {
 
     it("IR -> SQL", async () => {
       const model = await makePatchedModel();
-      await model.getViewModelData(config);
+      await model.getViewModel(config);
 
       expect(model.sqlStr()).to.equal(
         `WITH __d__0 AS (SELECT "region", "country", MIN(rowid) AS "__ord__0" FROM "data" GROUP BY "region", "country"),`
@@ -1088,7 +1088,7 @@ describe("Composite operators in pivot", () => {
 
     it("config -> IR -> SQL -> data-viewmodel", async () => {
       const model = await makeModel();
-      const vm = await model.getViewModelData(config);
+      const vm = await model.getViewModel(config);
 
       expect(vm.rowFacets).to.deep.equal([
         ["North America", "North America", "Europe", "Europe", "Electronics", "Electronics", "Apparel", "Apparel"],
@@ -1132,7 +1132,7 @@ describe("Composite operators in pivot", () => {
 
     it("IR -> SQL", async () => {
       const model = await makePatchedModel();
-      await model.getViewModelData(config);
+      await model.getViewModel(config);
 
       expect(model.sqlStr()).to.equal(
         `WITH __d__0 AS (SELECT "region", "country", MIN(rowid) AS "__ord__0" FROM "data" GROUP BY "region", "country"),`
@@ -1156,7 +1156,7 @@ describe("Composite operators in pivot", () => {
 
     it("config -> IR -> SQL -> data-viewmodel", async () => {
       const model = await makeModel();
-      const vm = await model.getViewModelData(config);
+      const vm = await model.getViewModel(config);
 
       expect(vm.rowFacets).to.deep.equal([
         ["North America", "North America", "Europe", "Europe", "Electronics", "Electronics", "Apparel", "Apparel", "Apparel", "Electronics", "Apparel", "Apparel", "Electronics", "Apparel", "Electronics"],
@@ -1204,7 +1204,7 @@ describe("Composite operators in pivot", () => {
 
     it("IR -> SQL", async () => {
       const model = await makePatchedModel();
-      await model.getViewModelData(config);
+      await model.getViewModel(config);
 
       expect(model.sqlStr()).to.equal(
         `WITH __d__0 AS (SELECT "region", MIN(rowid) AS "__ord__0" FROM "data" GROUP BY "region"),`
@@ -1230,7 +1230,7 @@ describe("Composite operators in pivot", () => {
 
     it("config -> IR -> SQL -> data-viewmodel", async () => {
       const model = await makeModel();
-      const vm = await model.getViewModelData(config);
+      const vm = await model.getViewModel(config);
 
       expect(vm.rowFacets).to.deep.equal([
         ["North America", "Europe"],
@@ -1286,7 +1286,7 @@ describe("Composite operators in pivot", () => {
 
     it("IR -> SQL", async () => {
       const model = await makePatchedModel();
-      await model.getViewModelData(config);
+      await model.getViewModel(config);
 
       expect(model.sqlStr()).to.equal(
         `WITH __d__0 AS (SELECT "quarter", MIN(rowid) AS "__ord__0" FROM "data" GROUP BY "quarter"),`
@@ -1314,7 +1314,7 @@ describe("Composite operators in pivot", () => {
 
     it("config -> IR -> SQL -> data-viewmodel", async () => {
       const model = await makeModel();
-      const vm = await model.getViewModelData(config);
+      const vm = await model.getViewModel(config);
 
       expect(vm.rowFacets).to.deep.equal([["Q1", "Q2", "Q3"]]);
       expect(vm.columnFacets).to.deep.equal([

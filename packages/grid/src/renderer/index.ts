@@ -28,7 +28,7 @@ export type {
   ResolvedFacetRenderers,
 } from "./types";
 export { registerTheme } from "./registry";
-export { GridDataViewModel };
+export { GridDataViewModel, MetaState } from "./grid-data-viewmodel";
 export type { BaseViewModel as BaseViewState } from "./core/layout-proto";
 export type { LayoutEvents } from "./core/standard-layout";
 export type { EventEmitter };

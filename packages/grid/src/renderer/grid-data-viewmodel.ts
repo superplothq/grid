@@ -4,6 +4,34 @@ import { textRenderer, defaultFacetRenderer } from "./core/cell-renderers";
 
 const defaultColAutoSize: ColAutoSizeConfig = { strategy: "max-cell" };
 
+export class MetaState {
+  #store: Map<string, Record<string, any>> = new Map();
+
+  set(namespace: string, key: string, value: any): void {
+    let ns = this.#store.get(namespace);
+    if (!ns) {
+      ns = {};
+      this.#store.set(namespace, ns);
+    }
+    ns[key] = value;
+  }
+
+  get(namespace: string): Record<string, any> | undefined {
+    return this.#store.get(namespace);
+  }
+
+  clear(namespace: string, key?: string): void {
+    if (key === undefined) {
+      this.#store.delete(namespace);
+    } else {
+      const ns = this.#store.get(namespace);
+      if (ns) {
+        delete ns[key];
+      }
+    }
+  }
+}
+
 export class GridDataViewModel {
   #numRows: number;
   #numCols: number;
@@ -13,6 +41,7 @@ export class GridDataViewModel {
   #resolvedColDefs: ResolvedColDef[];
   #resolvedFacetRenderers: ResolvedFacetRenderers;
   #defsForFacet: { row: ColDefsForFacet[]; col: ColDefsForFacet[] };
+  readonly metaState: MetaState = new MetaState();
 
   constructor(
     data: any[][],

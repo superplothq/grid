@@ -1,5 +1,6 @@
 import { CellRenderer } from "./core/cell-renderers";
 import { ColDefsForFacet } from "../types";
+import { GridDataViewModel } from "./grid-data-viewmodel";
 
 export type Constructor<T> = new (...args: any[]) => T;
 
@@ -51,9 +52,12 @@ export interface ColDef<T = any> {
 }
 type El = HTMLElement | HTMLElement[] | string;
 
-export interface FacetRendererContext {}
+export interface FacetRendererContext {
+  render: (viewModel: GridDataViewModel) => void;
+}
 
 export interface FacetDataContext {
+  viewModel: GridDataViewModel;
   path: (string | null)[];
   level: number;
   index: number;

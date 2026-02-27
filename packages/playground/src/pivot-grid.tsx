@@ -68,7 +68,7 @@ const PivotGridPlayground: React.FC = () => {
 
     const init = async () => {
       const model = await BrowserInMemoryDataModel.create(gridData, DUCKDB_BUNDLES);
-      const viewModel = await model.getViewModelData({
+      const viewModel = await model.getViewModel({
         rows: hierarchy("region", "country"),
         columns: cross("department", "revenue"),
       });

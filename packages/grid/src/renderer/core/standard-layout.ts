@@ -1,6 +1,6 @@
 import {GridConfig} from "../grid-config";
 import {GridDataViewModel} from "../grid-data-viewmodel";
-import {IColAutoSizeStrategyFixedWidth, FacetCellRenderer, FacetCellContent, FacetDataContext} from "../types";
+import {IColAutoSizeStrategyFixedWidth, FacetCellRenderer, FacetCellContent, FacetDataContext, FacetRendererContext} from "../types";
 import {getTheme} from "../registry";
 import PLayout, {BaseViewModel, RenderCtx} from "./layout-proto";
 import {WithCellPlacement, WithEvents, addOrReplaceChildren} from "./mixins";
@@ -215,11 +215,15 @@ export default class StandardLayout extends StandardLayoutBase {
 
   #buildFacetCell(renderer: FacetCellRenderer, merge: MergeState, facets: (string | null)[][]): string | HTMLElement | HTMLElement[] {
     const dataCtx: FacetDataContext = {
+      viewModel: this.data!,
       path: facets[merge.start],
       level: merge.level,
       index: merge.start,
     };
-    const result = renderer(merge.value, dataCtx, {});
+    const rendererCtx: FacetRendererContext = {
+      render: (vm: GridDataViewModel) => this.renderWithDataViewModel(vm),
+    };
+    const result = renderer(merge.value, dataCtx, rendererCtx);
 
     const isFacetCellContent = typeof result === "object" && !(result instanceof HTMLElement) && !Array.isArray(result) && "content" in result;
 
@@ -305,6 +309,13 @@ export default class StandardLayout extends StandardLayoutBase {
   setData(data: GridDataViewModel): void {
     super.setData(data);
     this.#measureRowHeight();
+  }
+
+  renderWithDataViewModel(data: GridDataViewModel): void {
+    this.setData(data);
+    const t1 = performance.now();
+    const viewModel = this.calculateViewModel();
+    this.render(viewModel, { t1 });
   }
 
   calculateVerticalViewModel() {
