@@ -1,4 +1,5 @@
 import { SliceResult, GridDataViewModelOptions, ColDef, ResolvedColDef, ColAutoSizeConfig, ResolvedFacetRenderers } from "./types";
+import { ColDefsForFacet } from "../types";
 import { textRenderer, defaultFacetRenderer } from "./core/cell-renderers";
 
 const defaultColAutoSize: ColAutoSizeConfig = { strategy: "max-cell" };
@@ -11,6 +12,7 @@ export class GridDataViewModel {
   #data: any[][];
   #resolvedColDefs: ResolvedColDef[];
   #resolvedFacetRenderers: ResolvedFacetRenderers;
+  #defsForFacet: { row: ColDefsForFacet[]; col: ColDefsForFacet[] };
 
   constructor(
     data: any[][],
@@ -26,6 +28,10 @@ export class GridDataViewModel {
     this.#resolvedFacetRenderers = {
       row: options?.facetRenderer?.row ?? defaultFacetRenderer,
       column: options?.facetRenderer?.column ?? defaultFacetRenderer,
+    };
+    this.#defsForFacet = {
+      row: options?.colDefsForRowFacet ?? [],
+      col: options?.colDefsForColFacet ?? [],
     };
   }
 
@@ -60,6 +66,10 @@ export class GridDataViewModel {
 
   get facetRenderers(): ResolvedFacetRenderers {
     return this.#resolvedFacetRenderers;
+  }
+
+  get defsForFacet(): { row: ColDefsForFacet[]; col: ColDefsForFacet[] } {
+    return this.#defsForFacet;
   }
 
   setColSize(colIndex: number, colSize: ResolvedColDef["colSize"]): void {

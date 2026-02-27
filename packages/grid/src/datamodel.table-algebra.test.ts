@@ -2,7 +2,7 @@
 import { expect } from "chai";
 import { concat, cross, hierarchy } from "./grid-datamodel";
 import { makeModel, makePatchedModel } from "./datamodel.data.test";
-import { AxisExpr, PivotConfig } from "./types";
+import { AxisExpr, PivotConfig, ProjectionState } from "./types";
 
 describe("Simple operator in pivot", () => {
   describe("rows=region, columns=cross(department, revenue)", () => {
@@ -57,6 +57,10 @@ describe("Simple operator in pivot", () => {
         [8150, 5650],
         [1670, 1730],
       ]);
+      expect(vm.defsForFacet).to.deep.equal({
+        row: [{ projectionState: ProjectionState.PROJECTION_NOT_CONFIGURED, projectedValues: new Set() }],
+        col: [{ projectionState: ProjectionState.PROJECTION_NOT_CONFIGURED, projectedValues: new Set() }],
+      });
     });
   });
 
@@ -124,6 +128,18 @@ describe("Simple operator in pivot", () => {
         [290, null, null, null],
         [null, null, null, 1350],
       ]);
+      const NC = ProjectionState.PROJECTION_NOT_CONFIGURED;
+      expect(vm.defsForFacet).to.deep.equal({
+        row: [
+          { projectionState: NC, projectedValues: new Set() },
+          { projectionState: NC, projectedValues: new Set() },
+        ],
+        col: [
+          { projectionState: NC, projectedValues: new Set() },
+          { projectionState: NC, projectedValues: new Set() },
+          { projectionState: NC, projectedValues: new Set() },
+        ],
+      });
     });
   });
 
@@ -518,6 +534,10 @@ describe("Simple operator in pivot", () => {
         [13800, 9060],
         [3400, 1685],
       ]);
+      expect(vm.defsForFacet).to.deep.equal({
+        row: [],
+        col: [{ projectionState: ProjectionState.PROJECTION_NOT_CONFIGURED, projectedValues: new Set() }],
+      });
     });
   });
 

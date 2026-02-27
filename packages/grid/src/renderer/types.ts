@@ -1,4 +1,5 @@
 import { CellRenderer } from "./core/cell-renderers";
+import { ColDefsForFacet } from "../types";
 
 export type Constructor<T> = new (...args: any[]) => T;
 
@@ -48,7 +49,6 @@ export interface ColDef<T = any> {
   sampleData?: T;
   colSize?: ColAutoSizeConfig;
 }
-
 type El = HTMLElement | HTMLElement[] | string;
 
 export interface FacetRendererContext {}
@@ -78,6 +78,9 @@ export interface ResolvedFacetRenderers {
 
 export interface GridDataViewModelOptions {
   colDefs?: ColDef[];
+  // TODO[later] to be merged with colDefs
+  colDefsForRowFacet?: ColDefsForFacet[];
+  colDefsForColFacet?: ColDefsForFacet[];
   facetRenderer?: {
     row?: FacetCellRenderer;
     column?: FacetCellRenderer;

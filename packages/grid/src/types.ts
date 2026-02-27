@@ -97,3 +97,16 @@ export interface ViewModelDataTransformationConfig {
   };
   colDefs?: ColDef[];
 }
+
+
+export enum ProjectionState {
+  PROJECTED,
+  NOT_PROJECTED,
+  SOME_PROJECTED,
+  PROJECTION_NOT_CONFIGURED
+}
+
+export interface ColDefsForFacet extends ColDef {
+  projectionState: ProjectionState;
+  projectedValues: Set<string>;
+}

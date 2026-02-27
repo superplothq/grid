@@ -2,7 +2,7 @@
 import { expect } from "chai";
 import { concat, cross, hierarchy } from "./grid-datamodel";
 import { makeModel, makePatchedModel } from "./datamodel.data.test";
-import { AxisConfig, PivotConfig } from "./types";
+import { AxisConfig, PivotConfig, ProjectionState } from "./types";
 
 describe("Dimensional Projections", () => {
   describe("hierarchy base state — rows collapsed to region only", () => {
@@ -109,6 +109,17 @@ describe("Dimensional Projections", () => {
         [2330, 3250],
         [490, 750],
       ]);
+      const NP = ProjectionState.NOT_PROJECTED;
+      expect(vm.defsForFacet).to.deep.equal({
+        row: [
+          { projectionState: NP, projectedValues: new Set() },
+          { projectionState: NP, projectedValues: new Set() },
+          { projectionState: NP, projectedValues: new Set() },
+        ],
+        col: [
+          { projectionState: NP, projectedValues: new Set() },
+        ],
+      });
     });
   });
 
@@ -202,6 +213,16 @@ describe("Dimensional Projections", () => {
         [1150, 900, 280, 1550, 1700],
         [null, 290, 200, null, 750],
       ]);
+      expect(vm.defsForFacet).to.deep.equal({
+        row: [
+          { projectionState: ProjectionState.PROJECTED, projectedValues: new Set() },
+          { projectionState: ProjectionState.SOME_PROJECTED, projectedValues: new Set(["USA"]) },
+          { projectionState: ProjectionState.NOT_PROJECTED, projectedValues: new Set() },
+        ],
+        col: [
+          { projectionState: ProjectionState.PROJECTION_NOT_CONFIGURED, projectedValues: new Set() },
+        ],
+      });
     });
   });
 
@@ -493,6 +514,18 @@ describe("Dimensional Projections", () => {
           [null, null, 320, null],  // App/Shoes/Retail
           [null, 200, null, null],  // App/Shoes/Wholesale
         ]);
+        expect(vm.defsForFacet).to.deep.equal({
+          row: [
+            { projectionState: ProjectionState.SOME_PROJECTED, projectedValues: new Set(["North America", "Europe"]) },
+            { projectionState: ProjectionState.NOT_PROJECTED, projectedValues: new Set() },
+            { projectionState: ProjectionState.NOT_PROJECTED, projectedValues: new Set() },
+          ],
+          col: [
+            { projectionState: ProjectionState.PROJECTED, projectedValues: new Set() },
+            { projectionState: ProjectionState.PROJECTED, projectedValues: new Set() },
+            { projectionState: ProjectionState.NOT_PROJECTED, projectedValues: new Set() },
+          ],
+        });
       });
     });
 
@@ -691,6 +724,17 @@ describe("Dimensional Projections", () => {
         [1670, 1730],
         [830, 855],
       ]);
+      const NP = ProjectionState.NOT_PROJECTED;
+      expect(vm.defsForFacet).to.deep.equal({
+        row: [
+          { projectionState: NP, projectedValues: new Set() },
+          { projectionState: NP, projectedValues: new Set() },
+        ],
+        col: [
+          { projectionState: NP, projectedValues: new Set() },
+          { projectionState: NP, projectedValues: new Set() },
+        ],
+      });
     });
   });
 
@@ -766,6 +810,16 @@ describe("Dimensional Projections", () => {
         [250, 200, 320, 280],
         [120, 100, 160, 135],
       ]);
+      expect(vm.defsForFacet).to.deep.equal({
+        row: [
+          { projectionState: ProjectionState.PROJECTED, projectedValues: new Set() },
+          { projectionState: ProjectionState.NOT_PROJECTED, projectedValues: new Set() },
+        ],
+        col: [
+          { projectionState: ProjectionState.PROJECTED, projectedValues: new Set() },
+          { projectionState: ProjectionState.NOT_PROJECTED, projectedValues: new Set() },
+        ],
+      });
     });
   });
 
