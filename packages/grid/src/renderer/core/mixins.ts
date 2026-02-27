@@ -1,8 +1,18 @@
 import CellManager from "./cell-manager";
 
+export function addOrReplaceChildren(parent: HTMLElement, child: string | HTMLElement | HTMLElement[]): void {
+  if (typeof child === "string") {
+    parent.innerHTML = child;
+  } else if (Array.isArray(child)) {
+    parent.replaceChildren(...child);
+  } else {
+    parent.replaceChildren(child);
+  }
+}
+
 export interface PlaceCellOpts {
   key: string;
-  content: string;
+  content: string | HTMLElement | HTMLElement[];
   cls: string;
   gridRow: number;
   gridCol: number;
@@ -30,7 +40,7 @@ export function WithCellPlacement<TBase extends Constructor<HasCellManager>>(Bas
     placeCellInDom(opts: PlaceCellOpts): [HTMLElement, boolean] {
       const [cell, needAppend] = this.cellManager.acquire(opts.key);
 
-      cell.innerHTML = opts.content;
+      addOrReplaceChildren(cell, opts.content);
       cell.className = "cell " + opts.cls;
       cell.style.gridColumn = opts.extraStyles.colspan
         ? `${opts.gridCol} / span ${opts.extraStyles.colspan}`

@@ -21,6 +21,11 @@ export type {
   GridDataViewModelOptions,
   SliceResult,
   Theme,
+  FacetCellRenderer,
+  FacetRendererContext,
+  FacetDataContext,
+  FacetCellContent,
+  ResolvedFacetRenderers,
 } from "./types";
 export { registerTheme } from "./registry";
 export { GridDataViewModel };
@@ -31,6 +36,7 @@ export {
   textRenderer,
   createChartRenderer,
   defaultChartConfig,
+  defaultFacetRenderer,
   type CellConfig,
   type ChartConfig,
   type CellWithConfigRenderer,

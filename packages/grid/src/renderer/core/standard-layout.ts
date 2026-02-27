@@ -1,11 +1,11 @@
 import {GridConfig} from "../grid-config";
 import {GridDataViewModel} from "../grid-data-viewmodel";
-import {IColAutoSizeStrategyFixedWidth} from "../types";
+import {IColAutoSizeStrategyFixedWidth, FacetCellRenderer, FacetCellContent, FacetDataContext} from "../types";
 import {getTheme} from "../registry";
 import PLayout, {BaseViewModel, RenderCtx} from "./layout-proto";
-import {WithCellPlacement, WithEvents} from "./mixins";
+import {WithCellPlacement, WithEvents, addOrReplaceChildren} from "./mixins";
 import CellManager from "./cell-manager";
-import { computeMerges } from "../utils";
+import { computeMerges, MergeState } from "../utils";
 
 export type LayoutEvents = {
   renderComplete: {
@@ -95,7 +95,6 @@ export default class StandardLayout extends StandardLayoutBase {
 
     [this.#con, , this.#virtualPanelEl, this.#gridClipEl] = this.#attachShadowDom();
     this.#applyTheme();
-    this.#measureRowHeight();
   }
 
   viewModelProposal(proposal: ViewModelProposal): void {
@@ -164,20 +163,17 @@ export default class StandardLayout extends StandardLayoutBase {
     const facetSample = document.createElement("div");
     facetSample.className = "cell";
     facetSample.style.visibility = "hidden";
-    facetSample.textContent = "Mgy$123,456";
+    const sampleMerge: MergeState = { value: "Mgy$123,456", path: "Mgy$123,456", level: 0, start: 0, spanPrimary: 1, spanSecondary: 1 };
+    const colContent = this.#buildFacetCell(this.data!.facetRenderers.column, sampleMerge, [["Mgy$123,456"]]);
+    addOrReplaceChildren(facetSample, colContent);
     this.#con.appendChild(facetSample);
     this.rowHeightByType.facet = facetSample.getBoundingClientRect().height;
     this.#con.removeChild(facetSample);
 
-    if (!this.data) {
-      this.rowHeightByType.data = this.rowHeightByType.facet;
-      return;
-    }
-
-    const colDefs = this.data.colDefs;
+    const colDefs = this.data!.colDefs;
     const measureCells: HTMLElement[] = [];
 
-    for (let col = 0; col < this.data.numCols; col++) {
+    for (let col = 0; col < this.data!.numCols; col++) {
       const colDef = colDefs[col];
       const cell = document.createElement("div");
       cell.className = "cell data";
@@ -188,9 +184,9 @@ export default class StandardLayout extends StandardLayoutBase {
       if (colDef.cellHeight !== undefined) {
         cell.style.height = `${colDef.cellHeight}px`;
       } else {
-        const sampleValue = colDef.sampleData ?? this.data.getSlice(col, 0, col + 1, 1).data?.[0]?.[0];
+        const sampleValue = colDef.sampleData ?? this.data!.getSlice(col, 0, col + 1, 1).data?.[0]?.[0];
         const content = colDef.renderer(sampleValue, {});
-        this.#setCellContent(cell, content);
+        addOrReplaceChildren(cell, content);
       }
       measureCells.push(cell);
     }
@@ -200,7 +196,7 @@ export default class StandardLayout extends StandardLayoutBase {
     // cells and taking the max - we don't need gridTemplateRows: max-content since we need the pixel
     // value anyway for rowHeightByType.data.
     const prevTemplate = this.#con.style.gridTemplateColumns;
-    this.#con.style.gridTemplateColumns = `repeat(${this.data.numCols}, max-content)`;
+    this.#con.style.gridTemplateColumns = `repeat(${this.data!.numCols}, max-content)`;
     this.#con.append(...measureCells);
 
     let maxHeight = 0;
@@ -217,14 +213,50 @@ export default class StandardLayout extends StandardLayoutBase {
     console.log(`>>> Measured data row height: ${this.rowHeightByType.data}px facet row height: ${this.rowHeightByType.facet}px`);
   }
 
-  #setCellContent(cell: HTMLElement, content: string | HTMLElement | HTMLElement[]): void {
-    if (typeof content === "string") {
-      cell.innerHTML = content;
-    } else if (Array.isArray(content)) {
-      cell.replaceChildren(...content);
-    } else {
-      cell.replaceChildren(content);
+  #buildFacetCell(renderer: FacetCellRenderer, merge: MergeState, facets: (string | null)[][]): string | HTMLElement | HTMLElement[] {
+    const dataCtx: FacetDataContext = {
+      path: facets[merge.start],
+      level: merge.level,
+      index: merge.start,
+    };
+    const result = renderer(merge.value, dataCtx, {});
+
+    const isFacetCellContent = typeof result === "object" && !(result instanceof HTMLElement) && !Array.isArray(result) && "content" in result;
+
+    if (!isFacetCellContent) {
+      const span = document.createElement("span");
+      span.className = "content";
+      addOrReplaceChildren(span, result as string | HTMLElement | HTMLElement[]);
+      return span;
     }
+
+    const { left, content: center, right } = result as FacetCellContent;
+    const container = document.createElement("div");
+    container.className = "f-cell-con";
+
+    const children: HTMLElement[] = [];
+
+    if (left !== undefined) {
+      const leftDiv = document.createElement("div");
+      addOrReplaceChildren(leftDiv, left);
+      children.push(leftDiv);
+    }
+
+    const contentDiv = document.createElement("div");
+    contentDiv.className = "content";
+    if (center !== undefined) {
+      addOrReplaceChildren(contentDiv, center);
+    }
+    children.push(contentDiv);
+
+    if (right !== undefined) {
+      const rightDiv = document.createElement("div");
+      addOrReplaceChildren(rightDiv, right);
+      children.push(rightDiv);
+    }
+
+    container.append(...children);
+    return container;
   }
 
   #setupScrollListener(): void {
@@ -596,11 +628,12 @@ export default class StandardLayout extends StandardLayoutBase {
       const fixedSize = shouldApplyWidth ? colDef.colSize as IColAutoSizeStrategyFixedWidth : null;
 
       let boundaryCellCls = merge.start === 0 ? "l-edge" : (merge.start + merge.spanPrimary === numDataColsVisible ? "r-edge" : "");
+      const facetContent = this.#buildFacetCell(this.data!.facetRenderers.column, merge, sliceData.columnFacets!);
       const [cell, needAppend] = this.placeCellInDom({
         key,
         gridRow: merge.level + 1,
         gridCol: this.data!.numRowFacetLevels + merge.start + 1,
-        content: `<span class="content">${merge.value}</span>`,
+        content: facetContent,
         cls: `col-header level-${merge.level}${skipSizeClass}${!isLeafLevel ? " non-leaf" : ""} ${boundaryCellCls}`,
         extraStyles: {
           colspan,
@@ -831,11 +864,12 @@ export default class StandardLayout extends StandardLayoutBase {
       }
 
       const boundaryCellCls = `${isLeaf ? "r-edge" : ""} ${merge.level === 0 ? "l-edge" : ""}`;
+      const rowFacetContent = this.#buildFacetCell(this.data!.facetRenderers.row, merge, sliceData.rowFacets!);
       const [cell, needAppend] = this.placeCellInDom({
         key,
         gridRow: this.data!.numColFacetLevels + merge.start + 1,
         gridCol: merge.level + 1,
-        content: `<span class="content">${merge.value}</span>`,
+        content: rowFacetContent,
         cls: `row-header level-${merge.level}${isLeaf ? "" : " non-leaf"} ${boundaryCellCls}`,
         extraStyles: {
           rowspan: merge.spanPrimary,
@@ -882,7 +916,7 @@ export default class StandardLayout extends StandardLayoutBase {
             cell.innerHTML = "";
           } else {
             const content = colDef.renderer(value, {});
-            this.#setCellContent(cell, content);
+            addOrReplaceChildren(cell, content);
           }
           cell.dataset.cclix = String(absoluteColIndex); // short for cell column index
           cell.dataset.croix = String(absoluteRowIndex); // short for cell row index

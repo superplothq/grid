@@ -49,8 +49,39 @@ export interface ColDef<T = any> {
   colSize?: ColAutoSizeConfig;
 }
 
+type El = HTMLElement | HTMLElement[] | string;
+
+export interface FacetRendererContext {}
+
+export interface FacetDataContext {
+  path: (string | null)[];
+  level: number;
+  index: number;
+}
+
+export interface FacetCellContent {
+  left?: El;
+  content: El;
+  right?: El;
+}
+
+export type FacetCellRenderer<T = string> = (
+  data: T,
+  dataCtx: FacetDataContext,
+  ctx: FacetRendererContext
+) => FacetCellContent | El;
+
+export interface ResolvedFacetRenderers {
+  row: FacetCellRenderer;
+  column: FacetCellRenderer;
+}
+
 export interface GridDataViewModelOptions {
   colDefs?: ColDef[];
+  facetRenderer?: {
+    row?: FacetCellRenderer;
+    column?: FacetCellRenderer;
+  };
 }
 
 export interface ResolvedColDef extends ColDef {
