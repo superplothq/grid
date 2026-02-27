@@ -12,10 +12,10 @@ export function addOrReplaceChildren(parent: HTMLElement, child: string | HTMLEl
 
 export interface PlaceCellOpts {
   key: string;
-  content: string | HTMLElement | HTMLElement[];
   cls: string;
   gridRow: number;
   gridCol: number;
+  hintContentDirty?: boolean;
   extraStyles: {
     colspan?: number;
     rowspan?: number;
@@ -37,10 +37,10 @@ interface HasCellManager {
 
 export function WithCellPlacement<TBase extends Constructor<HasCellManager>>(Base: TBase) {
   abstract class Mixed extends Base {
-    placeCellInDom(opts: PlaceCellOpts): [HTMLElement, boolean] {
+    placeCellInDom(opts: PlaceCellOpts): [HTMLElement, boolean, boolean] {
       const [cell, needAppend] = this.cellManager.acquire(opts.key);
+      const contentDirty = needAppend || !opts.hintContentDirty;
 
-      addOrReplaceChildren(cell, opts.content);
       cell.className = "cell " + opts.cls;
       cell.style.gridColumn = opts.extraStyles.colspan
         ? `${opts.gridCol} / span ${opts.extraStyles.colspan}`
@@ -68,7 +68,7 @@ export function WithCellPlacement<TBase extends Constructor<HasCellManager>>(Bas
         cell.style.maxWidth = `${opts.extraStyles.maxWidth}px`;
       }
 
-      return [cell, needAppend];
+      return [cell, needAppend, contentDirty];
     }
   }
   return Mixed;

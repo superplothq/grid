@@ -269,7 +269,7 @@ export default class StandardLayout extends StandardLayoutBase {
         this.#scrollRAF = null;
         const t1 = performance.now();
         const viewModel = this.calculateViewModel();
-        this.render(viewModel, {t1});
+        this.render(viewModel, {t1, hintContentDirty: true});
       });
     });
   }
@@ -559,9 +559,19 @@ export default class StandardLayout extends StandardLayoutBase {
     }
   }
 
+  // ctx.hintContentDirty controls whether cell content dirty-checking is enabled.
+  // When set (true), cells reuse existing DOM content if the cell key matches — only positioning
+  // styles are updated. This avoids rebuilding facet renderer output and replacing children every
+  // frame, reducing both CPU work and GC pressure. It also preserves DOM state such as event
+  // listeners attached by custom renderers.
+  // The scroll handler sets this flag because scroll only changes which slice of the same dataset
+  // is visible; cells that map to the same absolute key contain identical content.
+  // When unset (undefined/false), content is always rebuilt and reappended — used by draw() to
+  // ensure fresh data is reflected after a viewmodel change.
   render(viewModel: ViewModel, ctx: RenderCtx): void {
     if (!this.data) throw new Error("Data is not set!");
     this.#renderCount++;
+    const hintContentDirty = ctx.hintContentDirty;
 
     const numDataColsVisible = viewModel.x1 - viewModel.x0;
     const numDataRowsVisible = viewModel.y1 - viewModel.y0;
@@ -590,17 +600,20 @@ export default class StandardLayout extends StandardLayoutBase {
     for (let hRow = 0; hRow < this.data!.numColFacetLevels; hRow++) {
       for (let hCol = 0; hCol < this.data!.numRowFacetLevels; hCol++) {
         const key = `corner-${hRow}-${hCol}`;
-        const [cell, needAppend] = this.placeCellInDom({
+        const [cell, needAppend, contentDirty] = this.placeCellInDom({
           key,
           gridRow: hRow + 1,
           gridCol: hCol + 1,
-          content: "",
+          hintContentDirty,
           cls: `corner level-${hRow}${hCol === this.data!.numRowFacetLevels - 1 ? " r-edge" : ""}${hRow === this.data!.numColFacetLevels - 1 ? " b-edge" : ""}`,
           extraStyles: {
             top: viewModel.colFacetsTopPositions[hRow],
             left: viewModel.rowFacetsLeftPositions[hCol],
           },
         });
+        if (contentDirty) {
+          addOrReplaceChildren(cell, "");
+        }
         needAppend && nodeAppendList.push(cell);
         this.#cellsToMeasure.push({ cell, sizeKey: hCol });
         this.#postRenderAdjustCellsPerLevel[hCol].push(cell);
@@ -628,12 +641,11 @@ export default class StandardLayout extends StandardLayoutBase {
       const fixedSize = shouldApplyWidth ? colDef.colSize as IColAutoSizeStrategyFixedWidth : null;
 
       let boundaryCellCls = merge.start === 0 ? "l-edge" : (merge.start + merge.spanPrimary === numDataColsVisible ? "r-edge" : "");
-      const facetContent = this.#buildFacetCell(this.data!.facetRenderers.column, merge, sliceData.columnFacets!);
-      const [cell, needAppend] = this.placeCellInDom({
+      const [cell, needAppend, contentDirty] = this.placeCellInDom({
         key,
         gridRow: merge.level + 1,
         gridCol: this.data!.numRowFacetLevels + merge.start + 1,
-        content: facetContent,
+        hintContentDirty,
         cls: `col-header header level-${merge.level}${skipSizeClass}${!isLeafLevel ? " non-leaf" : ""} ${boundaryCellCls}`,
         extraStyles: {
           colspan,
@@ -644,6 +656,10 @@ export default class StandardLayout extends StandardLayoutBase {
           ...(fixedSize?.maxWidthInPx !== undefined && { maxWidth: fixedSize.maxWidthInPx }),
         },
       });
+      if (contentDirty) {
+        const facetContent = this.#buildFacetCell(this.data!.facetRenderers.column, merge, sliceData.columnFacets!);
+        addOrReplaceChildren(cell, facetContent);
+      }
       if (!isLeafLevel) {
         nonLeafColFacets.push({ cell, mergeStart: merge.start, mergeSpan: merge.spanPrimary });
       }
@@ -864,12 +880,11 @@ export default class StandardLayout extends StandardLayoutBase {
       }
 
       const boundaryCellCls = `${isLeaf ? "r-edge" : ""} ${merge.level === 0 ? "l-edge" : ""}`;
-      const rowFacetContent = this.#buildFacetCell(this.data!.facetRenderers.row, merge, sliceData.rowFacets!);
-      const [cell, needAppend] = this.placeCellInDom({
+      const [cell, needAppend, contentDirty] = this.placeCellInDom({
         key,
         gridRow: this.data!.numColFacetLevels + merge.start + 1,
         gridCol: merge.level + 1,
-        content: rowFacetContent,
+        hintContentDirty,
         cls: `row-header header level-${merge.level}${isLeaf ? "" : " non-leaf"} ${boundaryCellCls}`,
         extraStyles: {
           rowspan: merge.spanPrimary,
@@ -878,6 +893,10 @@ export default class StandardLayout extends StandardLayoutBase {
           transform: "",
         },
       });
+      if (contentDirty) {
+        const rowFacetContent = this.#buildFacetCell(this.data!.facetRenderers.row, merge, sliceData.rowFacets!);
+        addOrReplaceChildren(cell, rowFacetContent);
+      }
       if (!isLeaf) {
         // TODO transform is applied to cell's content. Find a better way to do this as the content could be custom
         // component
@@ -906,10 +925,17 @@ export default class StandardLayout extends StandardLayoutBase {
         const absoluteRowIndex = this.data!.numColFacetLevels + viewModel.y0 + j;
         const key = `data-${absoluteColIndex}-${absoluteRowIndex}`;
         const value = colData[j];
-        const [cell, needAppend] = this.cellManager.acquire(key);
-        const needsContentRerender = needAppend || cell.dataset.cclix !== String(absoluteColIndex) || cell.dataset.croix !== String(absoluteRowIndex);
+        let boundaryCellCls = i === 0 ? "l-edge" : (i === numDataColsVisible - 1 ? "r-edge" : "");
+        const [cell, needAppend, contentDirty] = this.placeCellInDom({
+          key,
+          gridRow: this.data!.numColFacetLevels + j + 1,
+          gridCol,
+          hintContentDirty,
+          cls: `data ${boundaryCellCls} ${colDef.isCustom ? " custom-rendered" : ""}`,
+          extraStyles: {},
+        });
 
-        if (needsContentRerender) {
+        if (contentDirty) {
           contentCellRerenderCount++;
           const isNullish = value === null || value === undefined;
           if (isNullish) {
@@ -918,19 +944,13 @@ export default class StandardLayout extends StandardLayoutBase {
             const content = colDef.renderer(value, {});
             addOrReplaceChildren(cell, content);
           }
-          cell.dataset.cclix = String(absoluteColIndex); // short for cell column index
-          cell.dataset.croix = String(absoluteRowIndex); // short for cell row index
+          cell.dataset.cellType = "value";
+          cell.dataset.cclix = String(absoluteColIndex);
+          cell.dataset.croix = String(absoluteRowIndex);
+          cell.style.width = fixedSize?.widthInPx !== undefined ? `${fixedSize.widthInPx}px` : "";
+          cell.style.minWidth = fixedSize?.minWidthInPx !== undefined ? `${fixedSize.minWidthInPx}px` : "";
+          cell.style.maxWidth = fixedSize?.maxWidthInPx !== undefined ? `${fixedSize.maxWidthInPx}px` : "";
         }
-
-        let boundaryCellCls = i === 0 ? "l-edge" : (i === numDataColsVisible - 1 ? "r-edge" : "");
-        cell.className = `cell data ${boundaryCellCls} ${colDef.isCustom ? " custom-rendered" : ""}`;
-        cell.dataset.cellType = "value";
-        cell.style.gridColumn = `${gridCol}`;
-        cell.style.gridRow = `${this.data!.numColFacetLevels + j + 1}`;
-
-        cell.style.width = fixedSize?.widthInPx !== undefined ? `${fixedSize.widthInPx}px` : "";
-        cell.style.minWidth = fixedSize?.minWidthInPx !== undefined ? `${fixedSize.minWidthInPx}px` : "";
-        cell.style.maxWidth = fixedSize?.maxWidthInPx !== undefined ? `${fixedSize.maxWidthInPx}px` : "";
 
         needAppend && nodeAppendList.push(cell);
         if (!colDef.isCustom) {
@@ -948,9 +968,9 @@ export default class StandardLayout extends StandardLayoutBase {
 
       if (visFromRow > visToRow || visFromCol > visToCol) continue;
 
-      const [el, needAppend] = this.placeCellInDom({
+      const [el, needAppend, selContentDirty] = this.placeCellInDom({
         key: `sel-${sel.fromRow};${sel.toRow};${sel.fromCol};${sel.toCol}`,
-        content: "",
+        hintContentDirty,
         cls: "selection-overlay",
         gridRow: this.data!.numColFacetLevels + (visFromRow - viewModel.y0) + 1,
         gridCol: this.data!.numRowFacetLevels + (visFromCol - viewModel.x0) + 1,
@@ -959,6 +979,9 @@ export default class StandardLayout extends StandardLayoutBase {
           colspan: visToCol - visFromCol + 1,
         },
       });
+      if (selContentDirty) {
+        addOrReplaceChildren(el, "");
+      }
 
       needAppend && nodeAppendList.push(el);
     }
