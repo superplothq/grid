@@ -868,9 +868,9 @@ export abstract class GridDataModel {
 }
 
 type GridDataViewModelArgs = ConstructorParameters<typeof GridDataViewModel>
- type GridDataViewModelArgsObj = {
-    data: GridDataViewModelArgs[0];
-    columnFacets: GridDataViewModelArgs[1];
-    rowFacets: GridDataViewModelArgs[2];
-    options: GridDataViewModelArgs[3];
-  };
+type GridDataViewModelArgsObj = {
+  data: GridDataViewModelArgs[0];
+  columnFacets: GridDataViewModelArgs[1];
+  rowFacets: GridDataViewModelArgs[2];
+  options: GridDataViewModelArgs[3];
+};
