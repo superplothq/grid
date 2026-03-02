@@ -41,13 +41,23 @@ export function WithCellPlacement<TBase extends Constructor<HasCellManager>>(Bas
       const [cell, needAppend] = this.cellManager.acquire(opts.key);
       const contentDirty = needAppend || !opts.hintContentDirty;
 
-      cell.className = "cell " + opts.cls;
-      cell.style.gridColumn = opts.extraStyles.colspan
+      const cellCls = "cell " + opts.cls;
+      if (cell.className !== cellCls) {
+        cell.className = cellCls;
+      }
+
+      const gridCol = opts.extraStyles.colspan
         ? `${opts.gridCol} / span ${opts.extraStyles.colspan}`
         : `${opts.gridCol}`;
-      cell.style.gridRow = opts.extraStyles.rowspan
+      if (cell.style.gridColumn !== gridCol) {
+        cell.style.gridColumn = gridCol;
+      }
+      const gridRow = opts.extraStyles.rowspan
         ? `${opts.gridRow} / span ${opts.extraStyles.rowspan}`
         : `${opts.gridRow}`;
+      if (cell.style.gridRow !== gridRow) {
+        cell.style.gridRow = gridRow;
+      }
 
       if (opts.extraStyles.top !== undefined) {
         cell.style.top = `${opts.extraStyles.top}px`;
@@ -55,7 +65,7 @@ export function WithCellPlacement<TBase extends Constructor<HasCellManager>>(Bas
       if (opts.extraStyles.left !== undefined) {
         cell.style.left = `${opts.extraStyles.left}px`;
       }
-      if (opts.extraStyles.transform !== undefined) {
+      if (opts.extraStyles.transform !== undefined && cell.style.transform !== opts.extraStyles.transform) {
         cell.style.transform = opts.extraStyles.transform;
       }
       if (opts.extraStyles.width !== undefined) {

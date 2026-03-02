@@ -2,12 +2,20 @@
   box-sizing: border-box;
 }
 
+// Sub-cell offset for smooth scrolling:
+// We use margin-top/margin-left instead of the more conventional position:relative + top/left.
+// With position:relative, the container becomes a containing block for its position:sticky children
+// (column headers, row headers, corner cells). Firefox has a bug where it does not recalculate
+// sticky offsets when the containing block moves via top/left — it only does so after a DOM tree
+// mutation (e.g. replaceChildren) on the sticky element itself. This caused sticky facet cells
+// to flicker and drift during scrolling.
+// margin-top/margin-left shifts the container without creating a positioned ancestor, so sticky
+// children resolve their offsets directly against the scroll container, which is stationary.
+// This avoids the Firefox invalidation bug entirely.
 .grid-content {
   display: grid;
-  position: relative;
-  /* Sub-cell offset for smooth scrolling */
-  top: calc(-1 * var(--offset-y, 0px));
-  left: calc(-1 * var(--offset-x, 0px));
+  margin-top: calc(-1 * var(--offset-y, 0px));
+  margin-left: calc(-1 * var(--offset-x, 0px));
 }
 
   /* Base cell styling */
