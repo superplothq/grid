@@ -158,10 +158,9 @@ export default class StandardLayout extends StandardLayoutBase {
   }
 
   // calculate both facet and data row heights
-  // check if both calculation needs to be separated as later on column header can have icons etc.
   #measureRowHeight(): void {
     const facetSample = document.createElement("div");
-    facetSample.className = "cell col-header header";
+    facetSample.className = "cell col-facet facet";
     facetSample.style.visibility = "hidden";
     const sampleMerge: MergeState = { value: "Mgy$123,456", path: "Mgy$123,456", level: 0, start: 0, spanPrimary: 1, spanSecondary: 1 };
     const colFacetDefs = this.data!.facetDefs.col;
@@ -175,7 +174,7 @@ export default class StandardLayout extends StandardLayoutBase {
     headerSample.className = "cell col-header header";
     headerSample.style.visibility = "hidden";
     const headerContent = colFacetDefs[0].headerRenderer("Mgy$123,456", { viewModel: this.data!, axis: "col", level: 0 });
-    addOrReplaceChildren(headerSample, headerContent);
+    headerSample.replaceChildren(this.#buildCommonCell(headerContent));
     this.#con.appendChild(headerSample);
     facetHeight = Math.max(facetHeight, headerSample.getBoundingClientRect().height);
     this.#con.removeChild(headerSample);
@@ -224,19 +223,7 @@ export default class StandardLayout extends StandardLayoutBase {
     console.log(`>>> Measured data row height: ${this.rowHeightByType.data}px facet row height: ${this.rowHeightByType.facet}px`);
   }
 
-  #buildFacetCell(facetDefs: FacetDef[], merge: MergeState, facets: (string | null)[][]): string | HTMLElement | HTMLElement[] {
-    const renderer = facetDefs[merge.level].trackRenderer;
-    const dataCtx: FacetDataContext = {
-      viewModel: this.data!,
-      path: facets[merge.start],
-      level: merge.level,
-      index: merge.start,
-    };
-    const rendererCtx: FacetRendererContext = {
-      render: (vm: GridDataViewModel) => this.renderWithDataViewModel(vm),
-    };
-    const result = renderer(merge.value, dataCtx, rendererCtx);
-
+  #buildCommonCell(result: FacetCellContent | string | HTMLElement | HTMLElement[]): HTMLElement {
     const isFacetCellContent = typeof result === "object" && !(result instanceof HTMLElement) && !Array.isArray(result) && "content" in result;
 
     if (!isFacetCellContent) {
@@ -273,6 +260,20 @@ export default class StandardLayout extends StandardLayoutBase {
 
     container.append(...children);
     return container;
+  }
+
+  #buildFacetCell(facetDefs: FacetDef[], merge: MergeState, facets: (string | null)[][]): HTMLElement {
+    const renderer = facetDefs[merge.level].trackRenderer;
+    const dataCtx: FacetDataContext = {
+      viewModel: this.data!,
+      path: facets[merge.start],
+      level: merge.level,
+      index: merge.start,
+    };
+    const rendererCtx: FacetRendererContext = {
+      render: (vm: GridDataViewModel) => this.renderWithDataViewModel(vm),
+    };
+    return this.#buildCommonCell(renderer(merge.value, dataCtx, rendererCtx));
   }
 
   #setupScrollListener(): void {
@@ -632,7 +633,7 @@ export default class StandardLayout extends StandardLayoutBase {
 
         let shouldSpan = false;
         let isSpanned = false;
-        let headerContent: string | HTMLElement | HTMLElement[] | null = null;
+        let headerContent: FacetCellContent | string | HTMLElement | HTMLElement[] | null = null;
 
         if (axis === "col") {
           if (hRow < numColFacetLevels - 1) { // column facet header spanned horizontally
@@ -689,13 +690,14 @@ export default class StandardLayout extends StandardLayoutBase {
           }
         }
 
-        let cornerCls = `corner level-${hRow}`;
+        let cornerCls = `corner level-${hRow} header`;
         if (headerContent) {
-          cornerCls += " r-edge b-edge";
+          cornerCls += " b-edge";
         } else {
-          if (hCol === numRowFacetLevels - 1 || (shouldSpan && axis === "col")) cornerCls += " r-edge";
           if (hRow === numColFacetLevels - 1 || (shouldSpan && axis === "row")) cornerCls += " b-edge";
+          if (hRow === numColFacetLevels - 1) cornerCls += " nl-edge";
         }
+        if (hCol === numRowFacetLevels - 1 || (shouldSpan && axis === "col")) cornerCls += " r-edge";
 
         const [cell, needAppend, contentDirty] = this.placeCellInDom({
           key,
@@ -706,7 +708,7 @@ export default class StandardLayout extends StandardLayoutBase {
           extraStyles,
         });
         if (contentDirty) {
-          addOrReplaceChildren(cell, headerContent ?? "");
+          cell.replaceChildren(this.#buildCommonCell(headerContent ?? ""));
         }
         needAppend && nodeAppendList.push(cell);
         const hasHorizontalSpan = shouldSpan && axis === "col";
@@ -744,7 +746,7 @@ export default class StandardLayout extends StandardLayoutBase {
         gridRow: merge.level + 1,
         gridCol: this.data!.numRowFacetLevels + merge.start + 1,
         hintContentDirty,
-        cls: `col-header header level-${merge.level}${skipSizeClass}${!isLeafLevel ? " non-leaf" : ""} ${boundaryCellCls}`,
+        cls: `col-facet facet level-${merge.level}${skipSizeClass}${!isLeafLevel ? " non-leaf" : ""} ${boundaryCellCls}`,
         extraStyles: {
           colspan,
           top: viewModel.colFacetsTopPositions[merge.level],
@@ -983,7 +985,7 @@ export default class StandardLayout extends StandardLayoutBase {
         gridRow: this.data!.numColFacetLevels + merge.start + 1,
         gridCol: merge.level + 1,
         hintContentDirty,
-        cls: `row-header header level-${merge.level}${isLeaf ? "" : " non-leaf"} ${boundaryCellCls}`,
+        cls: `row-facet facet level-${merge.level}${isLeaf ? "" : " non-leaf"} ${boundaryCellCls}`,
         extraStyles: {
           rowspan: merge.spanPrimary,
           left: viewModel.rowFacetsLeftPositions[merge.level],
@@ -1187,15 +1189,15 @@ export default class StandardLayout extends StandardLayoutBase {
     cleanup();
 
     // For multiple level of column facets, the last level i.e. the leaf nodes are aligned with the cells of the column
-    // Meaning, for each vertical column these last level of column acts as a header. (we'll call these header)
+    // Meaning, for each vertical column these last level of column acts as a header. (we'll call these trackHeader)
     // Meaning, the last level of column facet alongside the value cells form a standard table. You can think of the
-    // nested facets (level_n-1 where nth is leaf nodes) are nesting/hierarchy that aligns with the header cells.
+    // nested facets (level_n-1 where nth is leaf nodes) are nesting/hierarchy that aligns with the trackHeader cells.
     // The sizing (width) always gets added to the last level of facets - the nested facets have colspan property set on
     // them that css grid layout manages while creating the nesting/hierarchy.
     const leafLevel = this.data!.numColFacetLevels - 1;
-    const headerCell = this.#con.querySelector<HTMLElement>(`[data-hix="${colIdx}"][data-facet-level="${leafLevel}"]`);
+    const trackHeaderCell = this.#con.querySelector<HTMLElement>(`[data-hix="${colIdx}"][data-facet-level="${leafLevel}"]`);
     const dataCells = Array.from(this.#con.querySelectorAll<HTMLElement>(`[data-cclix="${colIdx}"]`));
-    const cells: HTMLElement[] = headerCell ? [headerCell, ...dataCells] : dataCells;
+    const cells: HTMLElement[] = trackHeaderCell ? [trackHeaderCell, ...dataCells] : dataCells;
 
     if (cells.length === 0) {
       throw new Error(`No cells found for column ${colIdx}`);

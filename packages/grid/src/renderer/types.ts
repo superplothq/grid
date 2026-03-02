@@ -84,7 +84,7 @@ export interface FacetHeaderContext {
 export type FacetHeaderRenderer = (
   text: string,
   ctx: FacetHeaderContext
-) => string | HTMLElement | HTMLElement[];
+) => FacetCellContent | string | HTMLElement | HTMLElement[];
 
 export interface FacetMeta {
   projectionState: ProjectionState;
