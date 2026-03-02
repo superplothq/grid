@@ -863,7 +863,7 @@ export abstract class GridDataModel {
         facetDefs: {
           col: toPartialFacetDefs(colDefsForColFacet),
           row: toPartialFacetDefs(colDefsForRowFacet),
-          axis: "col",
+          axis: ir.rowIR.measures.length > 0 ? "row" : "col",
         },
       },
     };

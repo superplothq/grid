@@ -1,6 +1,6 @@
 import React, {useEffect, useRef, useState} from "react";
 import "grid/dist/grid.css";
-import Grid, {GridDataViewModel, FacetCellRenderer, FacetDataContext, FacetRendererContext} from "grid/dist/renderer";
+import Grid, {GridDataViewModel, FacetCellRenderer, FacetDataContext, FacetRendererContext, GridDataViewModelOptions} from "grid/dist/renderer";
 import {BrowserInMemoryDataModel, DuckDBWasmBundles, cross, hierarchy, GridData, MeasureSchema, ProjectionState, AxisConfig, DimensionalProjectionPath} from "grid/dist/index";
 import feather from "feather-icons";
 
@@ -57,6 +57,44 @@ const gridData: GridData = {
     [5, 3, 4, 6, 2, 3, 7, 4, 3, 5, 2, 4, 6, 3, 5, 4, 3, 2, 5, 4, 3, 6, 2, 3],
   ],
 };
+
+function mergeRenderers(
+  options: GridDataViewModelOptions | undefined,
+  viewModel: GridDataViewModel,
+): GridDataViewModelOptions {
+  const existingRow = viewModel.facetDefs.row;
+  const existingCol = viewModel.facetDefs.col;
+  const newRow = options?.facetDefs?.row ?? [];
+  const newCol = options?.facetDefs?.col ?? [];
+  return {
+    ...options,
+    facetDefs: {
+      ...options?.facetDefs!,
+      row: newRow.map((d, i) => ({ ...d, trackRenderer: existingRow[i]?.trackRenderer, text: existingRow[i]?.text })),
+      col: newCol.map((d, i) => ({ ...d, trackRenderer: existingCol[i]?.trackRenderer, text: existingCol[i]?.text })),
+    },
+  };
+}
+
+function buildFacetDefs(
+  options: GridDataViewModelOptions | undefined,
+  rowRenderer: FacetCellRenderer,
+  colRenderer: FacetCellRenderer,
+  rowHierarchyFields: string[],
+  colHierarchyFields: string[],
+): GridDataViewModelOptions {
+  return {
+    ...options,
+    facetDefs: {
+      ...options?.facetDefs!,
+      row: (options?.facetDefs?.row ?? []).map((d, i) => ({ ...d, trackRenderer: rowRenderer, text: rowHierarchyFields[i] ?? "" })),
+      col: (options?.facetDefs?.col ?? []).map((d, i) => ({ ...d, trackRenderer: colRenderer, text: colHierarchyFields[i] ?? "" })),
+    },
+  };
+}
+
+const ROW_HIERARCHY_FIELDS = ["region", "country", "city"];
+const COL_HIERARCHY_FIELDS = ["department", "product"];
 
 const ROW_DIMS = hierarchy("region", "country", "city");
 const COL_DIMS = hierarchy("department", "product");
@@ -157,8 +195,8 @@ function makeFacetRenderer(
   return (data: string, dataCtx: FacetDataContext, rCtx: FacetRendererContext) => {
     const isLeaf = dataCtx.level >= hierarchyDepth - 1;
 
-    const defsForFacet = dataCtx.viewModel.defsForFacet[axis];
-    const levelDef = defsForFacet[dataCtx.level];
+    const facetDef = dataCtx.viewModel.facetDefs[axis][dataCtx.level];
+    const levelMeta = facetDef?.meta;
 
     const ns = `${axis}-${dataCtx.level}-${dataCtx.index}`;
     const meta = dataCtx.viewModel.metaState.get(ns);
@@ -176,12 +214,12 @@ function makeFacetRenderer(
     }
 
     let iconName = "chevron-right";
-    if (levelDef) {
-      const ps = levelDef.projectionState;
+    if (levelMeta) {
+      const ps = levelMeta.projectionState;
       if (ps === ProjectionState.PROJECTED) {
         iconName = "chevron-down";
       } else if (ps === ProjectionState.SOME_PROJECTED) {
-        iconName = levelDef.projectedValues.has(String(data)) ? "chevron-down" : "chevron-right";
+        iconName = levelMeta.projectedValues.has(String(data)) ? "chevron-down" : "chevron-right";
       }
     }
 
@@ -201,13 +239,7 @@ function makeFacetRenderer(
       const config = buildConfig();
       const result = await model.getViewModelData(config);
 
-      viewModel.updateData(result.data, result.columnFacets, result.rowFacets, {
-        ...result.options,
-        facetRenderer: {
-          row: viewModel.facetRenderers.row,
-          column: viewModel.facetRenderers.column,
-        },
-      });
+      viewModel.updateData(result.data, result.columnFacets, result.rowFacets, mergeRenderers(result.options, viewModel));
 
       dataCtx.viewModel.metaState.clear(ns);
       rCtx.render(viewModel);
@@ -256,13 +288,10 @@ const PivotGridPlayground: React.FC = () => {
       const rowRenderer = makeFacetRenderer("row", ROW_HIERARCHY_DEPTH, rowProjectionRef, modelRef, viewModelRef, buildConfig);
       const colRenderer = makeFacetRenderer("col", COL_HIERARCHY_DEPTH, colProjectionRef, modelRef, viewModelRef, buildConfig);
 
-      const viewModel = new GridDataViewModel(result.data, result.columnFacets, result.rowFacets, {
-        ...result.options,
-        facetRenderer: {
-          row: rowRenderer,
-          column: colRenderer,
-        },
-      });
+      const viewModel = new GridDataViewModel(
+        result.data, result.columnFacets, result.rowFacets,
+        buildFacetDefs(result.options, rowRenderer, colRenderer, ROW_HIERARCHY_FIELDS, COL_HIERARCHY_FIELDS),
+      );
       viewModelRef.current = viewModel;
 
       if (!gridRef.current) {
@@ -303,13 +332,10 @@ const PivotGridPlayground: React.FC = () => {
     const rowRenderer = makeFacetRenderer("row", ROW_HIERARCHY_DEPTH, rowProjectionRef, modelRef, viewModelRef, buildConfig);
     const colRenderer = makeFacetRenderer("col", COL_HIERARCHY_DEPTH, colProjectionRef, modelRef, viewModelRef, buildConfig);
 
-    viewModel.updateData(result.data, result.columnFacets, result.rowFacets, {
-      ...result.options,
-      facetRenderer: {
-        row: rowRenderer,
-        column: colRenderer,
-      },
-    });
+    viewModel.updateData(
+      result.data, result.columnFacets, result.rowFacets,
+      buildFacetDefs(result.options, rowRenderer, colRenderer, ROW_HIERARCHY_FIELDS, COL_HIERARCHY_FIELDS),
+    );
 
     grid.draw();
   };

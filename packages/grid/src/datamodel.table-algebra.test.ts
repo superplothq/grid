@@ -3,6 +3,12 @@ import { expect } from "chai";
 import { concat, cross, hierarchy } from "./grid-datamodel";
 import { makeModel, makePatchedModel } from "./datamodel.data.test";
 import { AxisExpr, PivotConfig, ProjectionState } from "./types";
+import { GridDataViewModel } from "./renderer/grid-data-viewmodel";
+
+const facetMeta = (vm: GridDataViewModel) => ({
+  row: vm.facetDefs.row.map(d => d.meta).filter(m => m !== undefined),
+  col: vm.facetDefs.col.map(d => d.meta).filter(m => m !== undefined),
+});
 
 describe("Simple operator in pivot", () => {
   describe("rows=region, columns=cross(department, revenue)", () => {
@@ -57,7 +63,7 @@ describe("Simple operator in pivot", () => {
         [8150, 5650],
         [1670, 1730],
       ]);
-      expect(vm.defsForFacet).to.deep.equal({
+      expect(facetMeta(vm)).to.deep.equal({
         row: [{ projectionState: ProjectionState.PROJECTION_NOT_CONFIGURED, projectedValues: new Set() }],
         col: [{ projectionState: ProjectionState.PROJECTION_NOT_CONFIGURED, projectedValues: new Set() }],
       });
@@ -129,7 +135,7 @@ describe("Simple operator in pivot", () => {
         [null, null, null, 1350],
       ]);
       const NC = ProjectionState.PROJECTION_NOT_CONFIGURED;
-      expect(vm.defsForFacet).to.deep.equal({
+      expect(facetMeta(vm)).to.deep.equal({
         row: [
           { projectionState: NC, projectedValues: new Set() },
           { projectionState: NC, projectedValues: new Set() },
@@ -534,7 +540,7 @@ describe("Simple operator in pivot", () => {
         [13800, 9060],
         [3400, 1685],
       ]);
-      expect(vm.defsForFacet).to.deep.equal({
+      expect(facetMeta(vm)).to.deep.equal({
         row: [],
         col: [{ projectionState: ProjectionState.PROJECTION_NOT_CONFIGURED, projectedValues: new Set() }],
       });

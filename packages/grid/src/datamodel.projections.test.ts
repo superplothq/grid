@@ -4,6 +4,12 @@ import { concat, cross, hierarchy } from "./grid-datamodel";
 import { makeModel, makePatchedModel } from "./datamodel.data.test";
 import { InMemoryDataModel } from "./in-memory-datamodel";
 import { AxisConfig, PivotConfig, ProjectionState, Schema } from "./types";
+import { GridDataViewModel } from "./renderer/grid-data-viewmodel";
+
+const facetMeta = (vm: GridDataViewModel) => ({
+  row: vm.facetDefs.row.map(d => d.meta).filter(m => m !== undefined),
+  col: vm.facetDefs.col.map(d => d.meta).filter(m => m !== undefined),
+});
 
 describe("Dimensional Projections", () => {
   describe("hierarchy base state — rows collapsed to region only", () => {
@@ -111,7 +117,7 @@ describe("Dimensional Projections", () => {
         [490, 750],
       ]);
       const NP = ProjectionState.NOT_PROJECTED;
-      expect(vm.defsForFacet).to.deep.equal({
+      expect(facetMeta(vm)).to.deep.equal({
         row: [
           { projectionState: NP, projectedValues: new Set() },
           { projectionState: NP, projectedValues: new Set() },
@@ -212,7 +218,7 @@ describe("Dimensional Projections", () => {
         [1150, 900, 280, 1550, 1700],
         [null, 290, 200, null, 750],
       ]);
-      expect(vm.defsForFacet).to.deep.equal({
+      expect(facetMeta(vm)).to.deep.equal({
         row: [
           { projectionState: ProjectionState.PROJECTED, projectedValues: new Set() },
           { projectionState: ProjectionState.SOME_PROJECTED, projectedValues: new Set(["USA"]) },
@@ -507,7 +513,7 @@ describe("Dimensional Projections", () => {
           [null, null, 320, null],  // App/Shoes/Retail
           [null, 200, null, null],  // App/Shoes/Wholesale
         ]);
-        expect(vm.defsForFacet).to.deep.equal({
+        expect(facetMeta(vm)).to.deep.equal({
           row: [
             { projectionState: ProjectionState.SOME_PROJECTED, projectedValues: new Set(["North America", "Europe"]) },
             { projectionState: ProjectionState.NOT_PROJECTED, projectedValues: new Set() },
@@ -716,7 +722,7 @@ describe("Dimensional Projections", () => {
         [830, 855],
       ]);
       const NP = ProjectionState.NOT_PROJECTED;
-      expect(vm.defsForFacet).to.deep.equal({
+      expect(facetMeta(vm)).to.deep.equal({
         row: [
           { projectionState: NP, projectedValues: new Set() },
           { projectionState: NP, projectedValues: new Set() },
@@ -801,7 +807,7 @@ describe("Dimensional Projections", () => {
         [250, 200, 320, 280],
         [120, 100, 160, 135],
       ]);
-      expect(vm.defsForFacet).to.deep.equal({
+      expect(facetMeta(vm)).to.deep.equal({
         row: [
           { projectionState: ProjectionState.PROJECTED, projectedValues: new Set() },
           { projectionState: ProjectionState.NOT_PROJECTED, projectedValues: new Set() },
