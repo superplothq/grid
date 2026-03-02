@@ -58,8 +58,9 @@ const gridData: GridData = {
   ],
 };
 
-const ROW_EXPR = hierarchy("region", "country", "city");
-const COL_EXPR = cross(hierarchy("department", "product"), "revenue");
+const ROW_DIMS = hierarchy("region", "country", "city");
+const COL_DIMS = hierarchy("department", "product");
+const MEASURE = "revenue";
 
 const ROW_HIERARCHY_DEPTH = 3;
 const COL_HIERARCHY_DEPTH = 2;
@@ -228,11 +229,14 @@ const PivotGridPlayground: React.FC = () => {
   const colProjectionRef = useRef<ProjectionTree>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [measureOnRows, setMeasureOnRows] = useState(false);
+  const measureOnRowsRef = useRef(false);
 
   const buildConfig = (): { rows: AxisConfig; columns: AxisConfig } => {
+    const onRows = measureOnRowsRef.current;
     return {
-      rows: { expr: ROW_EXPR, projection: treeToPaths(rowProjectionRef.current) },
-      columns: { expr: COL_EXPR, projection: treeToPaths(colProjectionRef.current) },
+      rows: { expr: onRows ? cross(ROW_DIMS, MEASURE) : ROW_DIMS, projection: treeToPaths(rowProjectionRef.current) },
+      columns: { expr: onRows ? COL_DIMS : cross(COL_DIMS, MEASURE), projection: treeToPaths(colProjectionRef.current) },
     };
   };
 
@@ -280,10 +284,43 @@ const PivotGridPlayground: React.FC = () => {
     return () => { cancelled = true; };
   }, []);
 
+  const handleToggleMeasureAxis = async () => {
+    const model = modelRef.current;
+    const viewModel = viewModelRef.current;
+    const grid = gridRef.current;
+    if (!model || !viewModel || !grid) return;
+
+    const nextOnRows = !measureOnRowsRef.current;
+    measureOnRowsRef.current = nextOnRows;
+    setMeasureOnRows(nextOnRows);
+
+    rowProjectionRef.current = {};
+    colProjectionRef.current = {};
+
+    const config = buildConfig();
+    const result = await model.getViewModelData(config);
+
+    const rowRenderer = makeFacetRenderer("row", ROW_HIERARCHY_DEPTH, rowProjectionRef, modelRef, viewModelRef, buildConfig);
+    const colRenderer = makeFacetRenderer("col", COL_HIERARCHY_DEPTH, colProjectionRef, modelRef, viewModelRef, buildConfig);
+
+    viewModel.updateData(result.data, result.columnFacets, result.rowFacets, {
+      ...result.options,
+      facetRenderer: {
+        row: rowRenderer,
+        column: colRenderer,
+      },
+    });
+
+    grid.draw();
+  };
+
   return (
     <>
       <h2>Pivot Grid</h2>
       <p>rows: hierarchy(region, country, city) | columns: cross(hierarchy(department, product), revenue)</p>
+      <button onClick={handleToggleMeasureAxis} disabled={loading} style={{marginBottom: 8}}>
+        Measure on: {measureOnRows ? "Rows" : "Columns"}
+      </button>
       {loading && <p>Loading DuckDB-WASM...</p>}
       {error && <p style={{color: "red"}}>Error: {error}</p>}
       <style>{`

@@ -1,5 +1,5 @@
 import { CellRenderer } from "./core/cell-renderers";
-import { ColDefsForFacet } from "../types";
+import { ProjectionState } from "../types";
 import { GridDataViewModel } from "./grid-data-viewmodel";
 
 export type Constructor<T> = new (...args: any[]) => T;
@@ -44,7 +44,7 @@ export type ColAutoSizeConfig =
   | IColAutoSizeStrategyFixedWidth;
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export interface ColDef<T = any> {
+export interface VTrackDef<T = any> {
   renderer?: CellRenderer<T>;
   cellHeight?: number;
   sampleData?: T;
@@ -75,23 +75,40 @@ export type FacetCellRenderer<T = string> = (
   ctx: FacetRendererContext
 ) => FacetCellContent | El;
 
-export interface ResolvedFacetRenderers {
-  row: FacetCellRenderer;
-  column: FacetCellRenderer;
+export interface FacetHeaderContext {
+  viewModel: GridDataViewModel;
+  axis: "row" | "col";
+  level: number;
+}
+
+export type FacetHeaderRenderer = (
+  text: string,
+  ctx: FacetHeaderContext
+) => string | HTMLElement | HTMLElement[];
+
+export interface FacetMeta {
+  projectionState: ProjectionState;
+  projectedValues: Set<string>;
+}
+
+export interface FacetDef {
+  text: string;
+  headerRenderer: FacetHeaderRenderer;
+  trackRenderer: FacetCellRenderer;
+  meta?: FacetMeta;
+  pseudo?: boolean;
 }
 
 export interface GridDataViewModelOptions {
-  colDefs?: ColDef[];
-  // TODO[later] to be merged with colDefs
-  colDefsForRowFacet?: ColDefsForFacet[];
-  colDefsForColFacet?: ColDefsForFacet[];
-  facetRenderer?: {
-    row?: FacetCellRenderer;
-    column?: FacetCellRenderer;
+  vTrackDefs?: VTrackDef[];
+  facetDefs?: {
+    row: Partial<FacetDef>[];
+    col: Partial<FacetDef>[];
+    axis: "row" | "col";
   };
 }
 
-export interface ResolvedColDef extends ColDef {
+export interface ResolvedVTrackDef extends VTrackDef {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   renderer: CellRenderer<any>;
   isCustom: boolean;

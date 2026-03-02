@@ -1,6 +1,6 @@
 import { scaleLinear } from "d3-scale";
 import { line, curveCatmullRom } from "d3-shape";
-import { FacetCellRenderer } from "../types";
+import { FacetCellRenderer, FacetHeaderRenderer } from "../types";
 
 export interface RendererContext {}
 
@@ -8,6 +8,10 @@ export type CellRenderer<T> = (data: T, ctx: RendererContext) => string | HTMLEl
 
 export const defaultFacetRenderer: FacetCellRenderer = (data) => {
   return data == null ? "" : String(data);
+};
+
+export const defaultFacetHeaderRenderer: FacetHeaderRenderer = (text) => {
+  return text ?? "";
 };
 
 export const textRenderer: CellRenderer<unknown> = (data) => {

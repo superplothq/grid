@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import "grid/dist/grid.css";
-import Grid, { GridDataViewModel, LayoutEvents, SelectionPayload, ColDef, ColAutoSizeConfig, createChartRenderer, CellRenderer, FacetCellRenderer } from "grid/dist/renderer";
+import Grid, { GridDataViewModel, LayoutEvents, SelectionPayload, VTrackDef, ColAutoSizeConfig, createChartRenderer, CellRenderer, FacetCellRenderer } from "grid/dist/renderer";
 import feather from "feather-icons";
 
 interface TwoKeyData {
@@ -120,7 +120,7 @@ const NullFacetDemo: React.FC = () => {
       data,
       [colFacetLevel0, colFacetLevel1, colFacetLevel2],
       [rowFacetLevel0, rowFacetLevel1, rowFacetLevel2],
-      { facetRenderer: { row: rowFacetRenderer, column: colFacetRenderer } }
+      { facetDefs: { row: [{ trackRenderer: rowFacetRenderer }], col: [{ trackRenderer: colFacetRenderer }], axis: 'col' } }
     );
     grid.draw();
   }, []);
@@ -164,6 +164,8 @@ const GridPlayground: React.FC = () => {
     localStorage.getItem("grid_colSizeConfig") ?? ""
   );
   const [totalDataPoints, setTotalDataPoints] = useState(0);
+  const [showHeaders, setShowHeaders] = useState(false);
+  const showHeadersRef = useRef(false);
   const [events, setEvents] = useState<Array<{ name: string; payload: unknown }>>([]);
   const [perfMetrics, setPerfMetrics] = useState<LayoutEvents['debug_perf:metrics'] | null>(null);
 
@@ -516,26 +518,33 @@ const GridPlayground: React.FC = () => {
     // Parse applied col size config
     const colSizeOverrides = parseColSizeConfig(appliedColSizeConfig);
 
-    // Build colDefs array - one entry per column
-    const colDefs: ColDef[] = [];
+    // Build vTrackDefs array - one entry per column
+    const vTrackDefs: VTrackDef[] = [];
     for (let col = 0; col < totalCols; col++) {
       const colFacetsForCol = colFacetColMajor[col];
       const lastFacet = colFacetsForCol[colFacetsForCol.length - 1];
       const colSize = colSizeOverrides.get(col);
 
       if (lastFacet && lastFacet.endsWith("_1")) {
-        colDefs[col] = { renderer: lineChart, cellHeight: 24, sampleData: [50, 60, 70, 80, 90], colSize };
+        vTrackDefs[col] = { renderer: lineChart, cellHeight: 24, sampleData: [50, 60, 70, 80, 90], colSize };
       } else if (col === twoKeyColIndex) {
-        colDefs[col] = { renderer: twoKeyRenderer, cellHeight: 36, colSize };
+        vTrackDefs[col] = { renderer: twoKeyRenderer, cellHeight: 36, colSize };
       } else if (col === threeKeyColIndex) {
-        colDefs[col] = { renderer: threeKeyRenderer, cellHeight: 48, sampleData: { first: "1234", second: "5678", third: "9012" }, colSize };
+        vTrackDefs[col] = { renderer: threeKeyRenderer, cellHeight: 48, sampleData: { first: "1234", second: "5678", third: "9012" }, colSize };
       } else if (colSize) {
-        colDefs[col] = { colSize };
+        vTrackDefs[col] = { colSize };
       }
     }
 
     console.log("Generated data:", { totalRows, totalCols, rowFacets: rowFacetLevelMajor, colFacets: colFacetLevelMajor, data });
-    gridRef.current.data = new GridDataViewModel(data, colFacetLevelMajor, rowFacetLevelMajor, { colDefs, facetRenderer: { row: rowFacetRenderer, column: colFacetRenderer } });
+    gridRef.current.data = new GridDataViewModel(data, colFacetLevelMajor, rowFacetLevelMajor, {
+      vTrackDefs,
+      facetDefs: {
+        row: rowFacets.map((_, i) => ({ trackRenderer: rowFacetRenderer, ...(showHeadersRef.current && { text: `Row ${i}` }) })),
+        col: colFacets.map((_, i) => ({ trackRenderer: colFacetRenderer, ...(showHeadersRef.current && { text: `Col ${i}` }) })),
+        axis: 'col',
+      },
+    });
     gridRef.current.draw();
   };
 
@@ -589,6 +598,9 @@ const GridPlayground: React.FC = () => {
         </label>
         <button onClick={handleGenerate}>Generate</button>
         <button onClick={handleReset}>Reset</button>
+        <button onClick={() => { showHeadersRef.current = !showHeadersRef.current; setShowHeaders(showHeadersRef.current); handleGenerate(); }}>
+          {showHeaders ? "Hide Headers" : "Show Headers"}
+        </button>
         <span> Total data points: {totalDataPoints}</span>
       </div>
       <div style={{ marginTop: "8px" }}>

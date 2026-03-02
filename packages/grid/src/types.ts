@@ -1,4 +1,4 @@
-import {ColDef} from "./renderer/types";
+import {VTrackDef} from "./renderer/types";
 
 // TODO [Later] remember there might be custom aggregate function as well
 //   (those functions will be registered separately and the name will be used here)
@@ -95,7 +95,7 @@ export interface ViewModelDataTransformationConfig {
     rows: AxisExpr;
     columns: AxisExpr;
   };
-  colDefs?: ColDef[];
+  vTrackDefs?: VTrackDef[];
 }
 
 
@@ -106,7 +106,7 @@ export enum ProjectionState {
   PROJECTION_NOT_CONFIGURED
 }
 
-export interface ColDefsForFacet extends ColDef {
+export interface ColDefsForFacet {
   projectionState: ProjectionState;
   projectedValues: Set<string>;
 }

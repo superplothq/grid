@@ -17,6 +17,7 @@ import {
   ProjectionState,
   SegmentFilter,
 } from "./types";
+import { FacetDef } from "./renderer/types";
 
 /*
  * Cartesian product (×). Each child becomes a facet level; all combinations are enumerated.
@@ -851,14 +852,21 @@ export abstract class GridDataModel {
       ir.nRowConfig.projection,
       fullRowFacets.length - (ir.rowIR.measures.length > 0 ? 1 : 0));
 
+    const toPartialFacetDefs = (defs: ColDefsForFacet[]): Partial<FacetDef>[] =>
+      defs.map(d => ({ meta: { projectionState: d.projectionState, projectedValues: d.projectedValues } }));
+
     return {
       data,
       columnFacets: fullColFacets,
       rowFacets: fullRowFacets,
-      options: { colDefsForColFacet, colDefsForRowFacet }
+      options: {
+        facetDefs: {
+          col: toPartialFacetDefs(colDefsForColFacet),
+          row: toPartialFacetDefs(colDefsForRowFacet),
+          axis: "col",
+        },
+      },
     };
-
-    // return new GridDataViewModel(data, fullColFacets, fullRowFacets, { colDefsForColFacet, colDefsForRowFacet });
   }
 
   async getViewModel(config: PivotConfig): Promise<GridDataViewModel> {

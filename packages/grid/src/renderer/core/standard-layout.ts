@@ -1,6 +1,6 @@
 import {GridConfig} from "../grid-config";
 import {GridDataViewModel} from "../grid-data-viewmodel";
-import {IColAutoSizeStrategyFixedWidth, FacetCellRenderer, FacetCellContent, FacetDataContext, FacetRendererContext} from "../types";
+import {IColAutoSizeStrategyFixedWidth, FacetCellContent, FacetDataContext, FacetRendererContext, FacetDef, FacetHeaderContext} from "../types";
 import {getTheme} from "../registry";
 import PLayout, {BaseViewModel, RenderCtx} from "./layout-proto";
 import {WithCellPlacement, WithEvents, addOrReplaceChildren} from "./mixins";
@@ -164,13 +164,24 @@ export default class StandardLayout extends StandardLayoutBase {
     facetSample.className = "cell col-header header";
     facetSample.style.visibility = "hidden";
     const sampleMerge: MergeState = { value: "Mgy$123,456", path: "Mgy$123,456", level: 0, start: 0, spanPrimary: 1, spanSecondary: 1 };
-    const colContent = this.#buildFacetCell(this.data!.facetRenderers.column, sampleMerge, [["Mgy$123,456"]]);
+    const colFacetDefs = this.data!.facetDefs.col;
+    const colContent = this.#buildFacetCell(colFacetDefs, sampleMerge, [["Mgy$123,456"]]);
     addOrReplaceChildren(facetSample, colContent);
     this.#con.appendChild(facetSample);
-    this.rowHeightByType.facet = facetSample.getBoundingClientRect().height;
+    let facetHeight = facetSample.getBoundingClientRect().height;
     this.#con.removeChild(facetSample);
 
-    const colDefs = this.data!.colDefs;
+    const headerSample = document.createElement("div");
+    headerSample.className = "cell col-header header";
+    headerSample.style.visibility = "hidden";
+    const headerContent = colFacetDefs[0].headerRenderer("Mgy$123,456", { viewModel: this.data!, axis: "col", level: 0 });
+    addOrReplaceChildren(headerSample, headerContent);
+    this.#con.appendChild(headerSample);
+    facetHeight = Math.max(facetHeight, headerSample.getBoundingClientRect().height);
+    this.#con.removeChild(headerSample);
+    this.rowHeightByType.facet = facetHeight;
+
+    const colDefs = this.data!.vTrackDefs;
     const measureCells: HTMLElement[] = [];
 
     for (let col = 0; col < this.data!.numCols; col++) {
@@ -213,7 +224,8 @@ export default class StandardLayout extends StandardLayoutBase {
     console.log(`>>> Measured data row height: ${this.rowHeightByType.data}px facet row height: ${this.rowHeightByType.facet}px`);
   }
 
-  #buildFacetCell(renderer: FacetCellRenderer, merge: MergeState, facets: (string | null)[][]): string | HTMLElement | HTMLElement[] {
+  #buildFacetCell(facetDefs: FacetDef[], merge: MergeState, facets: (string | null)[][]): string | HTMLElement | HTMLElement[] {
+    const renderer = facetDefs[merge.level].trackRenderer;
     const dataCtx: FacetDataContext = {
       viewModel: this.data!,
       path: facets[merge.start],
@@ -608,31 +620,106 @@ export default class StandardLayout extends StandardLayoutBase {
     let nodeAppendList = [];
 
     // render corner cells which results from intersection of row and column facets
-    for (let hRow = 0; hRow < this.data!.numColFacetLevels; hRow++) {
-      for (let hCol = 0; hCol < this.data!.numRowFacetLevels; hCol++) {
+    const axis = this.data!.facetDefs.axis;
+    const rowFacetDefs = this.data!.facetDefs.row.filter(d => !d.pseudo);
+    const colFacetDefs = this.data!.facetDefs.col.filter(d => !d.pseudo);
+    const numRowFacetLevels = this.data!.numRowFacetLevels;
+    const numColFacetLevels = this.data!.numColFacetLevels;
+
+    for (let hRow = 0; hRow < numColFacetLevels; hRow++) { // each row of header cells
+      for (let hCol = 0; hCol < numRowFacetLevels; hCol++) { // each cell in a row
         const key = `corner-${hRow}-${hCol}`;
+
+        let shouldSpan = false;
+        let isSpanned = false;
+        let headerContent: string | HTMLElement | HTMLElement[] | null = null;
+
+        if (axis === "col") {
+          if (hRow < numColFacetLevels - 1) { // column facet header spanned horizontally
+            if (hCol === 0) {
+              shouldSpan = true;
+              const def = colFacetDefs[hRow];
+              if (def && !def.pseudo) {
+                const ctx: FacetHeaderContext = { viewModel: this.data!, axis: "col", level: hRow };
+                headerContent = def.headerRenderer(def.text, ctx);
+              }
+            } else { // the rest of the cells in the horizontal track are merged via colspan
+              isSpanned = true;
+            }
+          } else { // last row would hold all the row facet headers
+            const def = rowFacetDefs[hCol];
+            if (def && !def.pseudo) {
+              const ctx: FacetHeaderContext = { viewModel: this.data!, axis: "row", level: hCol };
+              headerContent = def.headerRenderer(def.text, ctx);
+            }
+          }
+        } else {
+          if (hCol < numRowFacetLevels - 1) { // row facet header spanned vertically
+            if (hRow === 0) {
+              shouldSpan = true;
+              const def = rowFacetDefs[hCol];
+              if (def && !def.pseudo) {
+                const ctx: FacetHeaderContext = { viewModel: this.data!, axis: "row", level: hCol };
+                headerContent = def.headerRenderer(def.text, ctx);
+              }
+            } else { // merged via rowspan
+              isSpanned = true;
+            }
+          } else { // the last column holds all the column facet headers
+            const def = colFacetDefs[hRow];
+            if (def && !def.pseudo) {
+              const ctx: FacetHeaderContext = { viewModel: this.data!, axis: "col", level: hRow };
+              headerContent = def.headerRenderer(def.text, ctx);
+            }
+          }
+        }
+
+        if (isSpanned) continue;
+
+        const extraStyles: Record<string, any> = {
+          top: viewModel.colFacetsTopPositions[hRow],
+          left: viewModel.rowFacetsLeftPositions[hCol],
+        };
+
+        if (shouldSpan) {
+          if (axis === "col") {
+            extraStyles.colspan = numRowFacetLevels;
+          } else {
+            extraStyles.rowspan = numColFacetLevels;
+          }
+        }
+
+        let cornerCls = `corner level-${hRow}`;
+        if (headerContent) {
+          cornerCls += " r-edge b-edge";
+        } else {
+          if (hCol === numRowFacetLevels - 1 || (shouldSpan && axis === "col")) cornerCls += " r-edge";
+          if (hRow === numColFacetLevels - 1 || (shouldSpan && axis === "row")) cornerCls += " b-edge";
+        }
+
         const [cell, needAppend, contentDirty] = this.placeCellInDom({
           key,
           gridRow: hRow + 1,
           gridCol: hCol + 1,
           hintContentDirty,
-          cls: `corner level-${hRow}${hCol === this.data!.numRowFacetLevels - 1 ? " r-edge" : ""}${hRow === this.data!.numColFacetLevels - 1 ? " b-edge" : ""}`,
-          extraStyles: {
-            top: viewModel.colFacetsTopPositions[hRow],
-            left: viewModel.rowFacetsLeftPositions[hCol],
-          },
+          cls: cornerCls,
+          extraStyles,
         });
         if (contentDirty) {
-          addOrReplaceChildren(cell, "");
+          addOrReplaceChildren(cell, headerContent ?? "");
         }
         needAppend && nodeAppendList.push(cell);
-        this.#cellsToMeasure.push({ cell, sizeKey: hCol });
-        this.#postRenderAdjustCellsPerLevel[hCol].push(cell);
+        const hasHorizontalSpan = shouldSpan && axis === "col";
+        if (!hasHorizontalSpan) {
+          // only push cells that are not merged horizontally otherwise incorrect cell size will be reported
+          this.#cellsToMeasure.push({ cell, sizeKey: hCol });
+          this.#postRenderAdjustCellsPerLevel[hCol].push(cell);
+        }
       }
     }
 
     // render column facets
-    const colDefs = this.data!.colDefs;
+    const colDefs = this.data!.vTrackDefs;
     // Horizontal sticky scrolling for non leaf column facets are applied after auto sizing, hence here we store the
     // value for which sticky scrolling should be applied.
     const nonLeafColFacets: { cell: HTMLElement; mergeStart: number; mergeSpan: number }[] = [];
@@ -668,7 +755,7 @@ export default class StandardLayout extends StandardLayoutBase {
         },
       });
       if (contentDirty) {
-        const facetContent = this.#buildFacetCell(this.data!.facetRenderers.column, merge, sliceData.columnFacets!);
+        const facetContent = this.#buildFacetCell(this.data!.facetDefs.col, merge, sliceData.columnFacets!);
         addOrReplaceChildren(cell, facetContent);
       }
       if (!isLeafLevel) {
@@ -905,7 +992,7 @@ export default class StandardLayout extends StandardLayoutBase {
         },
       });
       if (contentDirty) {
-        const rowFacetContent = this.#buildFacetCell(this.data!.facetRenderers.row, merge, sliceData.rowFacets!);
+        const rowFacetContent = this.#buildFacetCell(this.data!.facetDefs.row, merge, sliceData.rowFacets!);
         addOrReplaceChildren(cell, rowFacetContent);
       }
       if (!isLeaf) {
