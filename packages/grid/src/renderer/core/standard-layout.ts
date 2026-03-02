@@ -697,7 +697,8 @@ export default class StandardLayout extends StandardLayoutBase {
           if (hRow === numColFacetLevels - 1 || (shouldSpan && axis === "row")) cornerCls += " b-edge";
           if (hRow === numColFacetLevels - 1) cornerCls += " nl-edge";
         }
-        if (hCol === numRowFacetLevels - 1 || (shouldSpan && axis === "col")) cornerCls += " r-edge";
+        if (hCol === numRowFacetLevels - 1 || (shouldSpan && axis === "col")) cornerCls += " r-edge header-r-edge";
+        if (hRow === numColFacetLevels - 1) cornerCls += " header-b-edge";
 
         const [cell, needAppend, contentDirty] = this.placeCellInDom({
           key,
@@ -746,7 +747,7 @@ export default class StandardLayout extends StandardLayoutBase {
         gridRow: merge.level + 1,
         gridCol: this.data!.numRowFacetLevels + merge.start + 1,
         hintContentDirty,
-        cls: `col-facet facet level-${merge.level}${skipSizeClass}${!isLeafLevel ? " non-leaf" : ""} ${boundaryCellCls}`,
+        cls: `col-facet facet ${skipSizeClass}${!isLeafLevel ? " non-leaf" : " facet-b-edge"} ${boundaryCellCls}`,
         extraStyles: {
           colspan,
           top: viewModel.colFacetsTopPositions[merge.level],
@@ -985,7 +986,7 @@ export default class StandardLayout extends StandardLayoutBase {
         gridRow: this.data!.numColFacetLevels + merge.start + 1,
         gridCol: merge.level + 1,
         hintContentDirty,
-        cls: `row-facet facet level-${merge.level}${isLeaf ? "" : " non-leaf"} ${boundaryCellCls}`,
+        cls: `row-facet facet ${isLeaf ? " facet-r-edge" : " non-leaf"} ${boundaryCellCls}`,
         extraStyles: {
           rowspan: merge.spanPrimary,
           left: viewModel.rowFacetsLeftPositions[merge.level],
