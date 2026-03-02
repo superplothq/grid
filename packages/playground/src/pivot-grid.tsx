@@ -1,6 +1,6 @@
 import React, {useEffect, useRef, useState} from "react";
 import "grid/dist/grid.css";
-import Grid, {GridDataViewModel, FacetCellRenderer, FacetDataContext, FacetRendererContext, GridDataViewModelOptions} from "grid/dist/renderer";
+import Grid, {GridDataViewModel, FacetCellRenderer, FacetDataContext, FacetRendererContext, FacetHeaderRenderer, FacetHeaderContext, GridDataViewModelOptions} from "grid/dist/renderer";
 import {BrowserInMemoryDataModel, DuckDBWasmBundles, cross, hierarchy, GridData, MeasureSchema, ProjectionState, AxisConfig, DimensionalProjectionPath} from "grid/dist/index";
 import feather from "feather-icons";
 
@@ -70,8 +70,8 @@ function mergeRenderers(
     ...options,
     facetDefs: {
       ...options?.facetDefs!,
-      row: newRow.map((d, i) => ({ ...d, trackRenderer: existingRow[i]?.trackRenderer, text: existingRow[i]?.text })),
-      col: newCol.map((d, i) => ({ ...d, trackRenderer: existingCol[i]?.trackRenderer, text: existingCol[i]?.text })),
+      row: newRow.map((d, i) => ({ ...d, trackRenderer: existingRow[i]?.trackRenderer, headerRenderer: existingRow[i]?.headerRenderer, text: existingRow[i]?.text })),
+      col: newCol.map((d, i) => ({ ...d, trackRenderer: existingCol[i]?.trackRenderer, headerRenderer: existingCol[i]?.headerRenderer, text: existingCol[i]?.text })),
     },
   };
 }
@@ -87,11 +87,25 @@ function buildFacetDefs(
     ...options,
     facetDefs: {
       ...options?.facetDefs!,
-      row: (options?.facetDefs?.row ?? []).map((d, i) => ({ ...d, trackRenderer: rowRenderer, text: rowHierarchyFields[i] ?? "" })),
-      col: (options?.facetDefs?.col ?? []).map((d, i) => ({ ...d, trackRenderer: colRenderer, text: colHierarchyFields[i] ?? "" })),
+      row: (options?.facetDefs?.row ?? []).map((d, i) => ({ ...d, trackRenderer: rowRenderer, headerRenderer: rowHeaderRenderer, text: rowHierarchyFields[i] ?? "" })),
+      col: (options?.facetDefs?.col ?? []).map((d, i) => ({ ...d, trackRenderer: colRenderer, headerRenderer: colHeaderRenderer, text: colHierarchyFields[i] ?? "" })),
     },
   };
 }
+
+const rowHeaderRenderer: FacetHeaderRenderer = (text: string, _ctx: FacetHeaderContext) => {
+  return {
+    left: svgIcon("bar-chart-2", 11),
+    content: text,
+  };
+};
+
+const colHeaderRenderer: FacetHeaderRenderer = (text: string, _ctx: FacetHeaderContext) => {
+  return {
+    content: text,
+    right: svgIcon("filter", 11),
+  };
+};
 
 const ROW_HIERARCHY_FIELDS = ["region", "country", "city"];
 const COL_HIERARCHY_FIELDS = ["department", "product"];
