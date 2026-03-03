@@ -4,6 +4,14 @@ import {VTrackDef} from "./renderer/types";
 //   (those functions will be registered separately and the name will be used here)
 type AggregateFn = "sum" | "avg" | "count" | "min" | "max";
 
+export type SortDirection = "asc" | "desc" | "noop";
+
+export interface SortEntry {
+  field: string;
+  direction: SortDirection;
+  by?: string;
+}
+
 export interface Schema {
   name: string;
   displayName: string;
@@ -36,6 +44,7 @@ export type AxisConfig = { expr: AxisExpr; projection?: DimensionalProjectionPat
 export interface PivotConfig {
   rows: AxisExpr | AxisConfig;
   columns: AxisExpr | AxisConfig;
+  sort?: SortEntry[];
 }
 
 export interface SegmentFilter {
@@ -81,6 +90,7 @@ export type DimSpec =
 export interface IR {
   dimSpec: DimSpec;
   measures: Measure[];
+  sort?: SortEntry[];
 }
 
 export interface RawDataFromIR {

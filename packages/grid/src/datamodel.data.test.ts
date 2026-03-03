@@ -67,7 +67,7 @@ export async function makePatchedModel() {
     return origRunSQL(sql);
   };
   return Object.assign(model, {
-    sqlStr: () => sqls[sqls.length - 1],
+    sqlStr: () => sqls[0],
   });
 }
 
