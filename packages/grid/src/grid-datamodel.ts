@@ -6,6 +6,7 @@ import {
   DimSpec,
   DimensionalProjectionPath,
   FacetQuery,
+  Filter,
   HierarchySegment,
   IR,
   Measure,
@@ -379,14 +380,14 @@ function applyDimensionalProjectionToNode(spec: DimSpec, paths: DimensionalProje
     if (paths.length === 0) {
       // Base/collapsed state: only show the first level opened (e.g. region in hierarchy(region,country,city)).
       // Deeper fields become NULL. Users open values via projection paths to reveal deeper levels.
-      return { type: "hierarchy", fields: spec.fields, segments: [{ groupBy: [spec.fields[0]] }] };
+      return { type: "hierarchy", fields: spec.fields, filter: spec.filter, segments: [{ groupBy: [spec.fields[0]] }] };
     }
 
     const segments = buildHierarchySegments(spec.fields, paths, 0, { pass: [], fail: [] });
     if (segments.length === 1 && segments[0].groupBy.length === spec.fields.length && !segments[0].filter) {
       return spec;
     }
-    return { type: "hierarchy", fields: spec.fields, segments };
+    return { type: "hierarchy", fields: spec.fields, filter: spec.filter, segments };
   }
 
   /*
@@ -673,7 +674,7 @@ export abstract class GridDataModel {
    * The DimSpec tree drives SQL generation / in memory data operation: The upstrem needs to support how to decode the
    * table algebra operator like concat, cross, hierarchy etc.
    */
-  buildAxisIR(expr: AxisExpr): AxisIR {
+  buildAxisIR(expr: AxisExpr, fieldFilterMap: Map<string, Filter[]> = new Map()): AxisIR {
     if (typeof expr === "string") {
       const col = this.schema[this.schemaIndex.get(expr)!];
       if (!col) throw new Error(`Column name not found. You have added ${expr} in row/column config but it's not found in schema.`
@@ -681,17 +682,22 @@ export abstract class GridDataModel {
       if (col.type === "measure") {
         // TODO instead of adding default aggregation funciton here - merge with default config on top level of execution
         const aggregation = (col as MeasureSchema).aggregateFn ?? "sum";
-        return { dimSpec: { type: "none" }, measures: [{ field: expr, aggregation }] };
+        return { dimSpec: { type: "none" }, measures: [{ field: expr, aggregation, filter: fieldFilterMap.get(expr) || [] }] };
       }
-      return { dimSpec: { type: "simple", field: expr }, measures: [] };
+      return { dimSpec: { type: "simple", field: expr, filter: fieldFilterMap.get(expr) || [] }, measures: [] };
     }
 
     if (expr.type === "hierarchy") {
-      return { dimSpec: { type: "hierarchy", fields: expr.fields }, measures: [] };
+      const filters: Filter[] = [];
+      for (const f of expr.fields) {
+        const ff = fieldFilterMap.get(f);
+        if (ff) filters.push(...ff);
+      }
+      return { dimSpec: { type: "hierarchy", fields: expr.fields, filter: filters }, measures: [] };
     }
 
     if (expr.type === "cross") {
-      const childIRs = expr.children.map(c => this.buildAxisIR(c));
+      const childIRs = expr.children.map(c => this.buildAxisIR(c, fieldFilterMap));
       const dimChildren: DimSpec[] = [];
       const measures: Measure[] = [];
       for (const child of childIRs) {
@@ -707,7 +713,7 @@ export abstract class GridDataModel {
     }
 
     // concat
-    const childIRs = expr.children.map(c => this.buildAxisIR(c));
+    const childIRs = expr.children.map(c => this.buildAxisIR(c, fieldFilterMap));
     const dimChildren: DimSpec[] = [];
     const measures: Measure[] = [];
     for (const child of childIRs) {
@@ -729,7 +735,15 @@ export abstract class GridDataModel {
     nRowConfig: AxisConfig,
   } {
     const [colConfig, rowConfig] = [config.columns, config.rows].map(normalizeAxisConfig);
-    const [colIR, rowIR] = [colConfig.expr, rowConfig.expr].map(e => this.buildAxisIR(e));
+
+    const fieldFilterMap: Map<string, Filter[]> = new Map();
+    for (const f of config.filter || []) {
+      let arr = fieldFilterMap.get(f.field);
+      if (!arr) { arr = []; fieldFilterMap.set(f.field, arr); }
+      arr.push(f);
+    }
+
+    const [colIR, rowIR] = [colConfig.expr, rowConfig.expr].map(e => this.buildAxisIR(e, fieldFilterMap));
 
     if (colConfig.projection) colIR.dimSpec = applyDimensionalProjectionToNode(colIR.dimSpec, colConfig.projection, 1);
     if (rowConfig.projection) rowIR.dimSpec = applyDimensionalProjectionToNode(rowIR.dimSpec, rowConfig.projection, 0);

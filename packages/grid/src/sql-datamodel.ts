@@ -93,18 +93,46 @@ export abstract class SqlDataModel extends GridDataModel {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   protected abstract runSQL(sql: string): Promise<Record<string, any>[]>;
 
+  private buildFilterClause(f: Filter): string {
+    const col = `"${f.field}"`;
+    switch (f.op) {
+    case "eq": return `${col} = '${f.value}'`;
+    case "neq": return `${col} != '${f.value}'`;
+    case "in": return `${col} IN (${(f.value as string[]).map(v => `'${v}'`).join(",")})`;
+    case "not_in": return `${col} NOT IN (${(f.value as string[]).map(v => `'${v}'`).join(",")})`;
+    case "gt": return `${col} > ${f.value}`;
+    case "lt": return `${col} < ${f.value}`;
+    case "gte": return `${col} >= ${f.value}`;
+    case "lte": return `${col} <= ${f.value}`;
+    case "between": { const v = f.value as number[]; return `${col} BETWEEN ${v[0]} AND ${v[1]}`; }
+    case "contains": return `${col} LIKE '%${f.value}%'`;
+    case "doesNotContain": return `${col} NOT LIKE '%${f.value}%'`;
+    case "startsWith": return `${col} LIKE '${f.value}%'`;
+    case "endsWith": return `${col} LIKE '%${f.value}'`;
+    case "before": return `${col} < '${f.value}'`;
+    case "after": return `${col} > '${f.value}'`;
+    case "empty": return `${col} IS NULL`;
+    case "notEmpty": return `${col} IS NOT NULL`;
+    }
+  }
+
   private buildWhereClause(filters?: Filter[]): string {
     if (!filters || filters.length === 0) return "";
-    const clauses = filters.map(f => {
-      const col = `"${f.field}"`;
-      switch (f.op) {
-      case "eq": return `${col} = '${f.value}'`;
-      case "neq": return `${col} != '${f.value}'`;
-      case "in": return `${col} IN (${(f.value as string[]).map(v => `'${v}'`).join(",")})`;
-      case "not_in": return `${col} NOT IN (${(f.value as string[]).map(v => `'${v}'`).join(",")})`;
+    const byField = new Map<string, Filter[]>();
+    for (const f of filters) {
+      let arr = byField.get(f.field);
+      if (!arr) { arr = []; byField.set(f.field, arr); }
+      arr.push(f);
+    }
+    const fieldClauses: string[] = [];
+    for (const [, group] of byField) {
+      if (group.length === 1) {
+        fieldClauses.push(this.buildFilterClause(group[0]));
+      } else {
+        fieldClauses.push(`(${group.map(f => this.buildFilterClause(f)).join(" OR ")})`);
       }
-    });
-    return " WHERE " + clauses.join(" AND ");
+    }
+    return " WHERE " + fieldClauses.join(" AND ");
   }
 
   async resolveFacetValues(query: FacetQuery): Promise<string[][]> {
@@ -130,12 +158,19 @@ export abstract class SqlDataModel extends GridDataModel {
   async getData(branch: IR): Promise<RawDataFromIR> {
     const { dimSpec, measures } = branch;
 
+    const measureFilters = measures.filter(m => m.filter.length > 0);
+
     if (dimSpec.type === "none") {
       const measureSelect = measures.map(m => {
         const agg = m.aggregation.toUpperCase();
         return `${agg}("${m.field}") AS "${m.field}"`;
       });
-      const sql = `SELECT ${measureSelect.join(", ")} FROM "${this.table}"`;
+      let sql = `SELECT ${measureSelect.join(", ")} FROM "${this.table}"`;
+      if (measureFilters.length > 0) {
+        const allFilters = measureFilters.flatMap(m => m.filter);
+        const mWhere = this.buildWhereClause(allFilters);
+        sql = `WITH __result__ AS (${sql})\nSELECT * FROM __result__${mWhere}`;
+      }
       const rows = await this.runSQL(sql);
       const columns = measures.map(m => m.field);
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -191,7 +226,12 @@ export abstract class SqlDataModel extends GridDataModel {
     }
     const orderByClause = orderParts.length > 0 ? ` ORDER BY ${orderParts.join(", ")}` : "";
 
-    const sql = `WITH ${allCTEs.join(",\n     ")}\nSELECT ${selectClause}\nFROM ${gridCte}\nLEFT JOIN "${this.table}" T${joinClause}${groupByClause}${orderByClause}`;
+    let sql = `WITH ${allCTEs.join(",\n     ")}\nSELECT ${selectClause}\nFROM ${gridCte}\nLEFT JOIN "${this.table}" T${joinClause}${groupByClause}${orderByClause}`;
+    if (measureFilters.length > 0) {
+      const allMFilters = measureFilters.flatMap(m => m.filter);
+      const mWhere = this.buildWhereClause(allMFilters);
+      sql = `WITH ${allCTEs.join(",\n     ")},\n     __result__ AS (SELECT ${selectClause}\nFROM ${gridCte}\nLEFT JOIN "${this.table}" T${joinClause}${groupByClause}${orderByClause})\nSELECT * FROM __result__${mWhere}`;
+    }
     const rows = await this.runSQL(sql);
     const columns = [...dimFields, ...measures.map(m => m.field)];
     if (srcColumns.length > 0) {
@@ -267,7 +307,8 @@ export abstract class SqlDataModel extends GridDataModel {
     case "simple": {
       const name = `__d__${counter.n++}`;
       const ordCol = `__ord__${counter.n - 1}`;
-      const cte = `${name} AS (SELECT "${spec.field}", MIN(rowid) AS "${ordCol}" FROM "${this.table}" GROUP BY "${spec.field}")`;
+      const whereClause = this.buildWhereClause(spec.filter);
+      const cte = `${name} AS (SELECT "${spec.field}", MIN(rowid) AS "${ordCol}" FROM "${this.table}"${whereClause} GROUP BY "${spec.field}")`;
       return {
         cteName: name,
         ctes: [cte],
@@ -286,7 +327,8 @@ export abstract class SqlDataModel extends GridDataModel {
 
       if (!spec.segments) {
         const fieldList = spec.fields.map(f => `"${f}"`).join(", ");
-        const cte = `${name} AS (SELECT ${fieldList}, MIN(rowid) AS "${ordCol}" FROM "${this.table}" GROUP BY ${fieldList})`;
+        const dimFilterWhere = this.buildWhereClause(spec.filter);
+        const cte = `${name} AS (SELECT ${fieldList}, MIN(rowid) AS "${ordCol}" FROM "${this.table}"${dimFilterWhere} GROUP BY ${fieldList})`;
         const fieldToOrdCol = new Map(spec.fields.map(f => [f, ordCol] as const));
         return {
           cteName: name,
@@ -327,10 +369,13 @@ export abstract class SqlDataModel extends GridDataModel {
         }
         const groupByList = groupFields.map(f => `"${f}"`).join(", ");
 
-        let whereClause = "";
+        const whereParts: string[] = [];
         if (seg.filter) {
-          whereClause = ` WHERE ${filterToWhere(seg.filter)}`;
+          whereParts.push(filterToWhere(seg.filter));
         }
+        const dimWhere = this.buildWhereClause(spec.filter);
+        if (dimWhere) whereParts.push(dimWhere.replace(" WHERE ", ""));
+        const whereClause = whereParts.length > 0 ? ` WHERE ${whereParts.join(" AND ")}` : "";
 
         unionParts.push(`SELECT ${selectParts.join(", ")} FROM "${this.table}"${whereClause} GROUP BY ${groupByList}`);
       }

@@ -30,6 +30,7 @@ describe("Dimensional Projections", () => {
             {
               type: "hierarchy",
               fields: ["region", "country", "city"],
+              filter: [],
               segments: [{ groupBy: ["region"] }],
             },
             {
@@ -37,14 +38,14 @@ describe("Dimensional Projections", () => {
               children: [{
                 type: "concat",
                 children: [
-                  { type: "simple", field: "department" },
-                  { type: "simple", field: "channel" },
+                  { type: "simple", field: "department", filter: [] },
+                  { type: "simple", field: "channel", filter: [] },
                 ],
               }],
             },
           ],
         },
-        measures: [{ field: "revenue", aggregation: "sum" }],
+        measures: [{ field: "revenue", aggregation: "sum", filter: [] }],
       });
     });
 
@@ -149,6 +150,7 @@ describe("Dimensional Projections", () => {
             {
               type: "hierarchy",
               fields: ["region", "country", "city"],
+              filter: [],
               segments: [
                 { groupBy: ["region", "country", "city"], filter: { pass: [{ field: "country", values: ["USA"] }], fail: [] } },
                 { groupBy: ["region", "country"], filter: { pass: [], fail: [{ field: "country", values: ["USA"] }] } },
@@ -159,14 +161,14 @@ describe("Dimensional Projections", () => {
               children: [{
                 type: "concat",
                 children: [
-                  { type: "simple", field: "department" },
-                  { type: "simple", field: "channel" },
+                  { type: "simple", field: "department", filter: [] },
+                  { type: "simple", field: "channel", filter: [] },
                 ],
               }],
             },
           ],
         },
-        measures: [{ field: "revenue", aggregation: "sum" }],
+        measures: [{ field: "revenue", aggregation: "sum", filter: [] }],
       });
     });
 
@@ -252,6 +254,7 @@ describe("Dimensional Projections", () => {
               {
                 type: "hierarchy",
                 fields: ["region", "country", "city"],
+                filter: [],
                 segments: [
                   { groupBy: ["region", "country"], filter: { pass: [{ field: "region", values: ["North America"] }], fail: [] } },
                   { groupBy: ["region"], filter: { pass: [], fail: [{ field: "region", values: ["North America"] }] } },
@@ -260,13 +263,13 @@ describe("Dimensional Projections", () => {
               {
                 type: "cross",
                 children: [
-                  { type: "hierarchy", fields: ["department", "product"] },
-                  { type: "simple", field: "channel" },
+                  { type: "hierarchy", fields: ["department", "product"], filter: [] },
+                  { type: "simple", field: "channel", filter: [] },
                 ],
               },
             ],
           },
-          measures: [{ field: "revenue", aggregation: "sum" }],
+          measures: [{ field: "revenue", aggregation: "sum", filter: [] }],
         });
       });
 
@@ -339,6 +342,7 @@ describe("Dimensional Projections", () => {
               {
                 type: "hierarchy",
                 fields: ["region", "country", "city"],
+                filter: [],
                 segments: [
                   { groupBy: ["region", "country"], filter: { pass: [{ field: "region", values: ["North America"] }], fail: [] } },
                   { groupBy: ["region", "country"], filter: { pass: [{ field: "region", values: ["Europe"] }], fail: [] } },
@@ -351,12 +355,13 @@ describe("Dimensional Projections", () => {
                   {
                     type: "hierarchy",
                     fields: ["department", "product"],
+                    filter: [],
                     segments: [
                       { groupBy: ["department", "product"], filter: { pass: [{ field: "department", values: ["Electronics"] }], fail: [] } },
                       { groupBy: ["department"], filter: { pass: [], fail: [{ field: "department", values: ["Electronics"] }] } },
                     ],
                   },
-                  { type: "simple", field: "channel" },
+                  { type: "simple", field: "channel", filter: [] },
                 ],
                 segments: [
                   { visibleChildren: 2, filter: { pass: [{ field: "department", values: ["Electronics"] }], fail: [] } },
@@ -365,7 +370,7 @@ describe("Dimensional Projections", () => {
               },
             ],
           },
-          measures: [{ field: "revenue", aggregation: "sum" }],
+          measures: [{ field: "revenue", aggregation: "sum", filter: [] }],
         });
       });
 
@@ -443,6 +448,7 @@ describe("Dimensional Projections", () => {
               {
                 type: "hierarchy",
                 fields: ["region", "country", "city"],
+                filter: [],
                 segments: [
                   { groupBy: ["region", "country"], filter: { pass: [{ field: "region", values: ["North America"] }], fail: [] } },
                   { groupBy: ["region", "country"], filter: { pass: [{ field: "region", values: ["Europe"] }], fail: [] } },
@@ -452,13 +458,13 @@ describe("Dimensional Projections", () => {
               {
                 type: "cross",
                 children: [
-                  { type: "hierarchy", fields: ["department", "product"] },
-                  { type: "simple", field: "channel" },
+                  { type: "hierarchy", fields: ["department", "product"], filter: [] },
+                  { type: "simple", field: "channel", filter: [] },
                 ],
               },
             ],
           },
-          measures: [{ field: "revenue", aggregation: "sum" }],
+          measures: [{ field: "revenue", aggregation: "sum", filter: [] }],
         });
       });
 
@@ -546,6 +552,7 @@ describe("Dimensional Projections", () => {
                 {
                   type: "hierarchy",
                   fields: ["region", "country", "city"],
+                  filter: [],
                   segments: [
                     { groupBy: ["region", "country", "city"], filter: { pass: [{ field: "region", values: ["North America"] }, { field: "country", values: ["USA"] }], fail: [] } },
                     { groupBy: ["region", "country"], filter: { pass: [{ field: "region", values: ["North America"] }], fail: [{ field: "country", values: ["USA"] }] } },
@@ -560,6 +567,7 @@ describe("Dimensional Projections", () => {
                     {
                       type: "hierarchy",
                       fields: ["department", "product"],
+                      filter: [],
                       segments: [
                         { groupBy: ["department", "product"], filter: { pass: [{ field: "department", values: ["Electronics"] }, { field: "product", values: ["Laptop"] }], fail: [] } },
                         { groupBy: ["department", "product"], filter: { pass: [{ field: "department", values: ["Electronics"] }], fail: [{ field: "product", values: ["Laptop"] }] } },
@@ -568,7 +576,7 @@ describe("Dimensional Projections", () => {
                         { groupBy: ["department"], filter: { pass: [], fail: [{ field: "department", values: ["Electronics", "Apparel"] }] } },
                       ],
                     },
-                    { type: "simple", field: "channel" },
+                    { type: "simple", field: "channel", filter: [] },
                   ],
                   segments: [
                     { visibleChildren: 2, filter: { pass: [{ field: "department", values: ["Electronics", "Apparel"] }, { field: "product", values: ["Laptop", "Jacket"] }], fail: [] } },
@@ -577,7 +585,7 @@ describe("Dimensional Projections", () => {
                 },
               ],
             },
-            measures: [{ field: "revenue", aggregation: "sum" }],
+            measures: [{ field: "revenue", aggregation: "sum", filter: [] }],
           });
         });
 
@@ -668,6 +676,7 @@ describe("Dimensional Projections", () => {
             {
               type: "hierarchy",
               fields: ["region", "country"],
+              filter: [],
               segments: [{ groupBy: ["region"] }],
             },
             {
@@ -676,13 +685,14 @@ describe("Dimensional Projections", () => {
                 {
                   type: "hierarchy",
                   fields: ["department", "product"],
+                  filter: [],
                   segments: [{ groupBy: ["department"] }],
                 },
               ],
             },
           ],
         },
-        measures: [{ field: "revenue", aggregation: "sum" }, { field: "cost", aggregation: "sum" }],
+        measures: [{ field: "revenue", aggregation: "sum", filter: [] }, { field: "cost", aggregation: "sum", filter: [] }],
       });
     });
 
@@ -752,6 +762,7 @@ describe("Dimensional Projections", () => {
             {
               type: "hierarchy",
               fields: ["region", "country"],
+              filter: [],
             },
             {
               type: "cross",
@@ -759,12 +770,13 @@ describe("Dimensional Projections", () => {
                 {
                   type: "hierarchy",
                   fields: ["department", "product"],
+                  filter: [],
                 },
               ],
             },
           ],
         },
-        measures: [{ field: "revenue", aggregation: "sum" }, { field: "cost", aggregation: "sum" }],
+        measures: [{ field: "revenue", aggregation: "sum", filter: [] }, { field: "cost", aggregation: "sum", filter: [] }],
       });
     });
 
@@ -840,16 +852,18 @@ describe("Dimensional Projections", () => {
               {
                 type: "hierarchy",
                 fields: ["region", "country", "city"],
+                filter: [],
                 segments: [{ groupBy: ["region"] }],
               },
               {
                 type: "hierarchy",
                 fields: ["department", "product"],
+                filter: [],
                 segments: [{ groupBy: ["department"] }],
               },
             ],
           },
-          measures: [{ field: "revenue", aggregation: "sum" }],
+          measures: [{ field: "revenue", aggregation: "sum", filter: [] }],
         });
       });
 
@@ -910,15 +924,17 @@ describe("Dimensional Projections", () => {
               {
                 type: "hierarchy",
                 fields: ["region", "country", "city"],
+                filter: [],
                 segments: [{ groupBy: ["region", "country"] }],
               },
               {
                 type: "hierarchy",
                 fields: ["department", "product"],
+                filter: [],
               },
             ],
           },
-          measures: [{ field: "revenue", aggregation: "sum" }],
+          measures: [{ field: "revenue", aggregation: "sum", filter: [] }],
         });
       });
 
@@ -981,14 +997,16 @@ describe("Dimensional Projections", () => {
               {
                 type: "hierarchy",
                 fields: ["region", "country", "city"],
+                filter: [],
               },
               {
                 type: "hierarchy",
                 fields: ["department", "product"],
+                filter: [],
               },
             ],
           },
-          measures: [{ field: "revenue", aggregation: "sum" }],
+          measures: [{ field: "revenue", aggregation: "sum", filter: [] }],
         });
       });
 
@@ -1053,6 +1071,7 @@ describe("Dimensional Projections", () => {
               {
                 type: "hierarchy",
                 fields: ["region", "country", "city"],
+                filter: [],
                 segments: [
                   { groupBy: ["region", "country"], filter: { pass: [{ field: "region", values: ["Europe"] }], fail: [] } },
                   { groupBy: ["region"], filter: { pass: [], fail: [{ field: "region", values: ["Europe"] }] } },
@@ -1061,6 +1080,7 @@ describe("Dimensional Projections", () => {
               {
                 type: "hierarchy",
                 fields: ["department", "product"],
+                filter: [],
                 segments: [
                   { groupBy: ["department", "product"], filter: { pass: [{ field: "department", values: ["Europe"] }], fail: [] } },
                   { groupBy: ["department"], filter: { pass: [], fail: [{ field: "department", values: ["Europe"] }] } },
@@ -1068,7 +1088,7 @@ describe("Dimensional Projections", () => {
               },
             ],
           },
-          measures: [{ field: "revenue", aggregation: "sum" }],
+          measures: [{ field: "revenue", aggregation: "sum", filter: [] }],
         });
       });
 
@@ -1135,6 +1155,7 @@ describe("Dimensional Projections", () => {
               {
                 type: "hierarchy",
                 fields: ["region", "country", "city"],
+                filter: [],
                 segments: [
                   { groupBy: ["region", "country"], filter: { pass: [{ field: "region", values: ["Electronics"] }], fail: [] } },
                   { groupBy: ["region"], filter: { pass: [], fail: [{ field: "region", values: ["Electronics"] }] } },
@@ -1143,6 +1164,7 @@ describe("Dimensional Projections", () => {
               {
                 type: "hierarchy",
                 fields: ["department", "product"],
+                filter: [],
                 segments: [
                   { groupBy: ["department", "product"], filter: { pass: [{ field: "department", values: ["Electronics"] }], fail: [] } },
                   { groupBy: ["department"], filter: { pass: [], fail: [{ field: "department", values: ["Electronics"] }] } },
@@ -1150,7 +1172,7 @@ describe("Dimensional Projections", () => {
               },
             ],
           },
-          measures: [{ field: "revenue", aggregation: "sum" }],
+          measures: [{ field: "revenue", aggregation: "sum", filter: [] }],
         });
       });
 
@@ -1217,6 +1239,7 @@ describe("Dimensional Projections", () => {
               {
                 type: "hierarchy",
                 fields: ["region", "country", "city"],
+                filter: [],
                 segments: [
                   { groupBy: ["region", "country", "city"], filter: { pass: [{ field: "region", values: ["Europe"] }], fail: [] } },
                   { groupBy: ["region"], filter: { pass: [], fail: [{ field: "region", values: ["Europe"] }] } },
@@ -1225,6 +1248,7 @@ describe("Dimensional Projections", () => {
               {
                 type: "hierarchy",
                 fields: ["department", "product"],
+                filter: [],
                 segments: [
                   { groupBy: ["department", "product"], filter: { pass: [{ field: "department", values: ["Europe"] }], fail: [] } },
                   { groupBy: ["department"], filter: { pass: [], fail: [{ field: "department", values: ["Europe"] }] } },
@@ -1232,7 +1256,7 @@ describe("Dimensional Projections", () => {
               },
             ],
           },
-          measures: [{ field: "revenue", aggregation: "sum" }],
+          measures: [{ field: "revenue", aggregation: "sum", filter: [] }],
         });
       });
 
@@ -1301,6 +1325,7 @@ describe("Dimensional Projections", () => {
               {
                 type: "hierarchy",
                 fields: ["region", "country", "city"],
+                filter: [],
                 segments: [
                   { groupBy: ["region", "country"], filter: { pass: [{ field: "region", values: ["Europe"] }], fail: [] } },
                   { groupBy: ["region", "country"], filter: { pass: [{ field: "region", values: ["Electronics"] }], fail: [] } },
@@ -1310,6 +1335,7 @@ describe("Dimensional Projections", () => {
               {
                 type: "hierarchy",
                 fields: ["department", "product"],
+                filter: [],
                 segments: [
                   { groupBy: ["department", "product"], filter: { pass: [{ field: "department", values: ["Europe"] }], fail: [] } },
                   { groupBy: ["department", "product"], filter: { pass: [{ field: "department", values: ["Electronics"] }], fail: [] } },
@@ -1318,7 +1344,7 @@ describe("Dimensional Projections", () => {
               },
             ],
           },
-          measures: [{ field: "revenue", aggregation: "sum" }],
+          measures: [{ field: "revenue", aggregation: "sum", filter: [] }],
         });
       });
 
@@ -1387,7 +1413,7 @@ describe("Dimensional Projections", () => {
         const { merged } = model.getIR(config);
 
         expect(JSON.stringify(merged)).to.equal(
-          '{"dimSpec":{"type":"cross","children":[{"type":"simple","field":"region"},{"type":"hierarchy","fields":["department","product"]}],"segments":[{"visibleChildren":1}]},"measures":[{"field":"revenue","aggregation":"sum"}]}'
+          '{"dimSpec":{"type":"cross","children":[{"type":"simple","field":"region","filter":[]},{"type":"hierarchy","fields":["department","product"],"filter":[]}],"segments":[{"visibleChildren":1}]},"measures":[{"field":"revenue","aggregation":"sum","filter":[]}]}'
         );
       });
 
@@ -1434,7 +1460,7 @@ describe("Dimensional Projections", () => {
         const { merged } = model.getIR(config);
 
         expect(JSON.stringify(merged)).to.equal(
-          '{"dimSpec":{"type":"cross","children":[{"type":"simple","field":"region"},{"type":"hierarchy","fields":["department","product"],"segments":[{"groupBy":["department"]}]}]},"measures":[{"field":"revenue","aggregation":"sum"}]}'
+          '{"dimSpec":{"type":"cross","children":[{"type":"simple","field":"region","filter":[]},{"type":"hierarchy","fields":["department","product"],"filter":[],"segments":[{"groupBy":["department"]}]}]},"measures":[{"field":"revenue","aggregation":"sum","filter":[]}]}'
         );
       });
 
@@ -1481,7 +1507,7 @@ describe("Dimensional Projections", () => {
         const { merged } = model.getIR(config);
 
         expect(JSON.stringify(merged)).to.equal(
-          '{"dimSpec":{"type":"cross","children":[{"type":"simple","field":"region"},{"type":"hierarchy","fields":["department","product"]}]},"measures":[{"field":"revenue","aggregation":"sum"}]}'
+          '{"dimSpec":{"type":"cross","children":[{"type":"simple","field":"region","filter":[]},{"type":"hierarchy","fields":["department","product"],"filter":[]}]},"measures":[{"field":"revenue","aggregation":"sum","filter":[]}]}'
         );
       });
 
@@ -1528,7 +1554,7 @@ describe("Dimensional Projections", () => {
         const { merged } = model.getIR(config);
 
         expect(JSON.stringify(merged)).to.equal(
-          '{"dimSpec":{"type":"cross","children":[{"type":"simple","field":"region"},{"type":"hierarchy","fields":["department","product"],"segments":[{"groupBy":["department","product"],"filter":{"pass":[{"field":"department","values":["Electronics"]}],"fail":[]}},{"groupBy":["department"],"filter":{"pass":[],"fail":[{"field":"department","values":["Electronics"]}]}}]}]},"measures":[{"field":"revenue","aggregation":"sum"}]}'
+          '{"dimSpec":{"type":"cross","children":[{"type":"simple","field":"region","filter":[]},{"type":"hierarchy","fields":["department","product"],"filter":[],"segments":[{"groupBy":["department","product"],"filter":{"pass":[{"field":"department","values":["Electronics"]}],"fail":[]}},{"groupBy":["department"],"filter":{"pass":[],"fail":[{"field":"department","values":["Electronics"]}]}}]}]},"measures":[{"field":"revenue","aggregation":"sum","filter":[]}]}'
         );
       });
 
@@ -1577,7 +1603,7 @@ describe("Dimensional Projections", () => {
         const { merged } = model.getIR(config);
 
         expect(JSON.stringify(merged)).to.equal(
-          '{"dimSpec":{"type":"cross","children":[{"type":"cross","children":[{"type":"simple","field":"region"},{"type":"hierarchy","fields":["department","product"],"segments":[{"groupBy":["department"]}]}]},{"type":"cross","children":[{"type":"hierarchy","fields":["channel","quarter"],"segments":[{"groupBy":["channel"]}]}]}]},"measures":[{"field":"revenue","aggregation":"sum"},{"field":"cost","aggregation":"sum"}]}'
+          '{"dimSpec":{"type":"cross","children":[{"type":"cross","children":[{"type":"simple","field":"region","filter":[]},{"type":"hierarchy","fields":["department","product"],"filter":[],"segments":[{"groupBy":["department"]}]}]},{"type":"cross","children":[{"type":"hierarchy","fields":["channel","quarter"],"filter":[],"segments":[{"groupBy":["channel"]}]}]}]},"measures":[{"field":"revenue","aggregation":"sum","filter":[]},{"field":"cost","aggregation":"sum","filter":[]}]}'
         );
       });
 
@@ -1639,7 +1665,7 @@ describe("Dimensional Projections", () => {
         const { merged } = model.getIR(config);
 
         expect(JSON.stringify(merged)).to.equal(
-          '{"dimSpec":{"type":"cross","children":[{"type":"cross","children":[{"type":"simple","field":"channel"},{"type":"simple","field":"quarter"}],"segments":[{"visibleChildren":1}]},{"type":"hierarchy","fields":["department","product"]}],"segments":[{"visibleChildren":1}]},"measures":[{"field":"revenue","aggregation":"sum"}]}'
+          '{"dimSpec":{"type":"cross","children":[{"type":"cross","children":[{"type":"simple","field":"channel","filter":[]},{"type":"simple","field":"quarter","filter":[]}],"segments":[{"visibleChildren":1}]},{"type":"hierarchy","fields":["department","product"],"filter":[]}],"segments":[{"visibleChildren":1}]},"measures":[{"field":"revenue","aggregation":"sum","filter":[]}]}'
         );
       });
 
@@ -1689,7 +1715,7 @@ describe("Dimensional Projections", () => {
         const { merged } = model.getIR(config);
 
         expect(JSON.stringify(merged)).to.equal(
-          '{"dimSpec":{"type":"cross","children":[{"type":"cross","children":[{"type":"simple","field":"channel"},{"type":"simple","field":"quarter"}]},{"type":"hierarchy","fields":["department","product"]}],"segments":[{"visibleChildren":1}]},"measures":[{"field":"revenue","aggregation":"sum"}]}'
+          '{"dimSpec":{"type":"cross","children":[{"type":"cross","children":[{"type":"simple","field":"channel","filter":[]},{"type":"simple","field":"quarter","filter":[]}]},{"type":"hierarchy","fields":["department","product"],"filter":[]}],"segments":[{"visibleChildren":1}]},"measures":[{"field":"revenue","aggregation":"sum","filter":[]}]}'
         );
       });
 
@@ -1739,7 +1765,7 @@ describe("Dimensional Projections", () => {
         const { merged } = model.getIR(config);
 
         expect(JSON.stringify(merged)).to.equal(
-          '{"dimSpec":{"type":"cross","children":[{"type":"cross","children":[{"type":"simple","field":"channel"},{"type":"simple","field":"quarter"}]},{"type":"hierarchy","fields":["department","product"],"segments":[{"groupBy":["department"]}]}]},"measures":[{"field":"revenue","aggregation":"sum"}]}'
+          '{"dimSpec":{"type":"cross","children":[{"type":"cross","children":[{"type":"simple","field":"channel","filter":[]},{"type":"simple","field":"quarter","filter":[]}]},{"type":"hierarchy","fields":["department","product"],"filter":[],"segments":[{"groupBy":["department"]}]}]},"measures":[{"field":"revenue","aggregation":"sum","filter":[]}]}'
         );
       });
 
@@ -1789,7 +1815,7 @@ describe("Dimensional Projections", () => {
         const { merged } = model.getIR(config);
 
         expect(JSON.stringify(merged)).to.equal(
-          '{"dimSpec":{"type":"cross","children":[{"type":"cross","children":[{"type":"simple","field":"channel"},{"type":"simple","field":"quarter"}]},{"type":"hierarchy","fields":["department","product"],"segments":[{"groupBy":["department","product"],"filter":{"pass":[{"field":"department","values":["Electronics"]}],"fail":[]}},{"groupBy":["department"],"filter":{"pass":[],"fail":[{"field":"department","values":["Electronics"]}]}}]}]},"measures":[{"field":"revenue","aggregation":"sum"}]}'
+          '{"dimSpec":{"type":"cross","children":[{"type":"cross","children":[{"type":"simple","field":"channel","filter":[]},{"type":"simple","field":"quarter","filter":[]}]},{"type":"hierarchy","fields":["department","product"],"filter":[],"segments":[{"groupBy":["department","product"],"filter":{"pass":[{"field":"department","values":["Electronics"]}],"fail":[]}},{"groupBy":["department"],"filter":{"pass":[],"fail":[{"field":"department","values":["Electronics"]}]}}]}]},"measures":[{"field":"revenue","aggregation":"sum","filter":[]}]}'
         );
       });
 
@@ -1845,7 +1871,7 @@ describe("Dimensional Projections", () => {
         const { merged } = model.getIR(config);
 
         expect(JSON.stringify(merged)).to.equal(
-          '{"dimSpec":{"type":"cross","children":[{"type":"hierarchy","fields":["region","country"],"segments":[{"groupBy":["region","country"],"filter":{"pass":[{"field":"region","values":["Europe"]}],"fail":[]}},{"groupBy":["region"],"filter":{"pass":[],"fail":[{"field":"region","values":["Europe"]}]}}]},{"type":"hierarchy","fields":["department","product"],"segments":[{"groupBy":["department"]}]}],"segments":[{"visibleChildren":2,"filter":{"pass":[{"field":"region","values":["Europe"]}],"fail":[]}},{"visibleChildren":1,"filter":{"pass":[],"fail":[{"field":"region","values":["Europe"]}]}}]},"measures":[{"field":"revenue","aggregation":"sum"}]}'
+          '{"dimSpec":{"type":"cross","children":[{"type":"hierarchy","fields":["region","country"],"filter":[],"segments":[{"groupBy":["region","country"],"filter":{"pass":[{"field":"region","values":["Europe"]}],"fail":[]}},{"groupBy":["region"],"filter":{"pass":[],"fail":[{"field":"region","values":["Europe"]}]}}]},{"type":"hierarchy","fields":["department","product"],"filter":[],"segments":[{"groupBy":["department"]}]}],"segments":[{"visibleChildren":2,"filter":{"pass":[{"field":"region","values":["Europe"]}],"fail":[]}},{"visibleChildren":1,"filter":{"pass":[],"fail":[{"field":"region","values":["Europe"]}]}}]},"measures":[{"field":"revenue","aggregation":"sum","filter":[]}]}'
         );
       });
 
@@ -1899,7 +1925,7 @@ describe("Dimensional Projections", () => {
         const { merged } = model.getIR(config);
 
         expect(JSON.stringify(merged)).to.equal(
-          '{"dimSpec":{"type":"cross","children":[{"type":"hierarchy","fields":["region","country"],"segments":[{"groupBy":["region","country"],"filter":{"pass":[{"field":"region","values":["Europe"]}],"fail":[]}},{"groupBy":["region","country"],"filter":{"pass":[{"field":"region","values":["North America"]},{"field":"country","values":["USA"]}],"fail":[]}},{"groupBy":["region","country"],"filter":{"pass":[{"field":"region","values":["North America"]}],"fail":[{"field":"country","values":["USA"]}]}},{"groupBy":["region"],"filter":{"pass":[],"fail":[{"field":"region","values":["Europe","North America"]}]}}]},{"type":"hierarchy","fields":["department","product"],"segments":[{"groupBy":["department"]}]}],"segments":[{"visibleChildren":2,"filter":{"pass":[{"field":"region","values":["Europe","North America"]}],"fail":[]}},{"visibleChildren":1,"filter":{"pass":[],"fail":[{"field":"region","values":["Europe","North America"]}]}}]},"measures":[{"field":"revenue","aggregation":"sum"}]}'
+          '{"dimSpec":{"type":"cross","children":[{"type":"hierarchy","fields":["region","country"],"filter":[],"segments":[{"groupBy":["region","country"],"filter":{"pass":[{"field":"region","values":["Europe"]}],"fail":[]}},{"groupBy":["region","country"],"filter":{"pass":[{"field":"region","values":["North America"]},{"field":"country","values":["USA"]}],"fail":[]}},{"groupBy":["region","country"],"filter":{"pass":[{"field":"region","values":["North America"]}],"fail":[{"field":"country","values":["USA"]}]}},{"groupBy":["region"],"filter":{"pass":[],"fail":[{"field":"region","values":["Europe","North America"]}]}}]},{"type":"hierarchy","fields":["department","product"],"filter":[],"segments":[{"groupBy":["department"]}]}],"segments":[{"visibleChildren":2,"filter":{"pass":[{"field":"region","values":["Europe","North America"]}],"fail":[]}},{"visibleChildren":1,"filter":{"pass":[],"fail":[{"field":"region","values":["Europe","North America"]}]}}]},"measures":[{"field":"revenue","aggregation":"sum","filter":[]}]}'
         );
       });
 
@@ -1964,7 +1990,7 @@ describe("Dimensional Projections", () => {
         const { merged } = model.getIR(config);
 
         expect(JSON.stringify(merged)).to.equal(
-          '{"dimSpec":{"type":"concat","children":[{"type":"cross","children":[{"type":"hierarchy","fields":["region","country"],"segments":[{"groupBy":["region"]}]},{"type":"simple","field":"department"}],"segments":[{"visibleChildren":1}]},{"type":"cross","children":[{"type":"simple","field":"channel"},{"type":"simple","field":"department"}],"segments":[{"visibleChildren":1}]}]},"measures":[{"field":"revenue","aggregation":"sum"}]}'
+          '{"dimSpec":{"type":"concat","children":[{"type":"cross","children":[{"type":"hierarchy","fields":["region","country"],"filter":[],"segments":[{"groupBy":["region"]}]},{"type":"simple","field":"department","filter":[]}],"segments":[{"visibleChildren":1}]},{"type":"cross","children":[{"type":"simple","field":"channel","filter":[]},{"type":"simple","field":"department","filter":[]}],"segments":[{"visibleChildren":1}]}]},"measures":[{"field":"revenue","aggregation":"sum","filter":[]}]}'
         );
       });
 
@@ -2023,7 +2049,7 @@ describe("Dimensional Projections", () => {
         const { merged } = model.getIR(config);
 
         expect(JSON.stringify(merged)).to.equal(
-          '{"dimSpec":{"type":"concat","children":[{"type":"cross","children":[{"type":"hierarchy","fields":["region","country"]},{"type":"simple","field":"department"}],"segments":[{"visibleChildren":1}]},{"type":"cross","children":[{"type":"simple","field":"channel"},{"type":"simple","field":"department"}]}]},"measures":[{"field":"revenue","aggregation":"sum"}]}'
+          '{"dimSpec":{"type":"concat","children":[{"type":"cross","children":[{"type":"hierarchy","fields":["region","country"],"filter":[]},{"type":"simple","field":"department","filter":[]}],"segments":[{"visibleChildren":1}]},{"type":"cross","children":[{"type":"simple","field":"channel","filter":[]},{"type":"simple","field":"department","filter":[]}]}]},"measures":[{"field":"revenue","aggregation":"sum","filter":[]}]}'
         );
       });
 
@@ -2082,7 +2108,7 @@ describe("Dimensional Projections", () => {
         const { merged } = model.getIR(config);
 
         expect(JSON.stringify(merged)).to.equal(
-          '{"dimSpec":{"type":"concat","children":[{"type":"cross","children":[{"type":"hierarchy","fields":["region","country"]},{"type":"simple","field":"department"}]},{"type":"cross","children":[{"type":"simple","field":"channel"},{"type":"simple","field":"department"}]}]},"measures":[{"field":"revenue","aggregation":"sum"}]}'
+          '{"dimSpec":{"type":"concat","children":[{"type":"cross","children":[{"type":"hierarchy","fields":["region","country"],"filter":[]},{"type":"simple","field":"department","filter":[]}]},{"type":"cross","children":[{"type":"simple","field":"channel","filter":[]},{"type":"simple","field":"department","filter":[]}]}]},"measures":[{"field":"revenue","aggregation":"sum","filter":[]}]}'
         );
       });
 
@@ -2141,7 +2167,7 @@ describe("Dimensional Projections", () => {
         const { merged } = model.getIR(config);
 
         expect(JSON.stringify(merged)).to.equal(
-          '{"dimSpec":{"type":"concat","children":[{"type":"cross","children":[{"type":"hierarchy","fields":["region","country"],"segments":[{"groupBy":["region","country"],"filter":{"pass":[{"field":"region","values":["Europe"]}],"fail":[]}},{"groupBy":["region"],"filter":{"pass":[],"fail":[{"field":"region","values":["Europe"]}]}}]},{"type":"simple","field":"department"}],"segments":[{"visibleChildren":1}]},{"type":"cross","children":[{"type":"simple","field":"channel"},{"type":"simple","field":"department"}]}]},"measures":[{"field":"revenue","aggregation":"sum"}]}'
+          '{"dimSpec":{"type":"concat","children":[{"type":"cross","children":[{"type":"hierarchy","fields":["region","country"],"filter":[],"segments":[{"groupBy":["region","country"],"filter":{"pass":[{"field":"region","values":["Europe"]}],"fail":[]}},{"groupBy":["region"],"filter":{"pass":[],"fail":[{"field":"region","values":["Europe"]}]}}]},{"type":"simple","field":"department","filter":[]}],"segments":[{"visibleChildren":1}]},{"type":"cross","children":[{"type":"simple","field":"channel","filter":[]},{"type":"simple","field":"department","filter":[]}]}]},"measures":[{"field":"revenue","aggregation":"sum","filter":[]}]}'
         );
       });
 
@@ -2213,7 +2239,7 @@ describe("Dimensional Projections", () => {
         const { merged } = model.getIR(config);
 
         expect(JSON.stringify(merged)).to.equal(
-          '{"dimSpec":{"type":"cross","children":[{"type":"hierarchy","fields":["region","country","city"],"segments":[{"groupBy":["region","country","city"],"filter":{"pass":[{"field":"region","values":["North America"]},{"field":"country","values":["USA"]}],"fail":[]}},{"groupBy":["region","country"],"filter":{"pass":[{"field":"region","values":["North America"]}],"fail":[{"field":"country","values":["USA"]}]}},{"groupBy":["region","country"],"filter":{"pass":[{"field":"region","values":["Europe"]}],"fail":[]}},{"groupBy":["region"],"filter":{"pass":[],"fail":[{"field":"region","values":["North America","Europe"]}]}}]},{"type":"concat","children":[{"type":"hierarchy","fields":["department","product"],"segments":[{"groupBy":["department","product"],"filter":{"pass":[{"field":"department","values":["Electronics"]}],"fail":[]}},{"groupBy":["department"],"filter":{"pass":[],"fail":[{"field":"department","values":["Electronics"]}]}}]},{"type":"simple","field":"channel"}]}],"segments":[{"visibleChildren":2,"filter":{"pass":[{"field":"region","values":["North America","Europe"]},{"field":"country","values":["USA"]}],"fail":[]}},{"visibleChildren":1,"filter":{"pass":[],"fail":[{"field":"region","values":["North America","Europe"]},{"field":"country","values":["USA"]}]}}]},"measures":[{"field":"revenue","aggregation":"sum"}]}'
+          '{"dimSpec":{"type":"cross","children":[{"type":"hierarchy","fields":["region","country","city"],"filter":[],"segments":[{"groupBy":["region","country","city"],"filter":{"pass":[{"field":"region","values":["North America"]},{"field":"country","values":["USA"]}],"fail":[]}},{"groupBy":["region","country"],"filter":{"pass":[{"field":"region","values":["North America"]}],"fail":[{"field":"country","values":["USA"]}]}},{"groupBy":["region","country"],"filter":{"pass":[{"field":"region","values":["Europe"]}],"fail":[]}},{"groupBy":["region"],"filter":{"pass":[],"fail":[{"field":"region","values":["North America","Europe"]}]}}]},{"type":"concat","children":[{"type":"hierarchy","fields":["department","product"],"filter":[],"segments":[{"groupBy":["department","product"],"filter":{"pass":[{"field":"department","values":["Electronics"]}],"fail":[]}},{"groupBy":["department"],"filter":{"pass":[],"fail":[{"field":"department","values":["Electronics"]}]}}]},{"type":"simple","field":"channel","filter":[]}]}],"segments":[{"visibleChildren":2,"filter":{"pass":[{"field":"region","values":["North America","Europe"]},{"field":"country","values":["USA"]}],"fail":[]}},{"visibleChildren":1,"filter":{"pass":[],"fail":[{"field":"region","values":["North America","Europe"]},{"field":"country","values":["USA"]}]}}]},"measures":[{"field":"revenue","aggregation":"sum","filter":[]}]}'
         );
       });
 
@@ -2290,7 +2316,7 @@ describe("Dimensional Projections", () => {
         const { merged } = model.getIR(config);
 
         expect(JSON.stringify(merged)).to.equal(
-          '{"dimSpec":{"type":"hierarchy","fields":["region","country","city"],"segments":[{"groupBy":["region","country","city"],"filter":{"pass":[{"field":"region","values":["Europe"]}],"fail":[]}},{"groupBy":["region"],"filter":{"pass":[],"fail":[{"field":"region","values":["Europe"]}]}}]},"measures":[{"field":"revenue","aggregation":"sum"}]}'
+          '{"dimSpec":{"type":"hierarchy","fields":["region","country","city"],"filter":[],"segments":[{"groupBy":["region","country","city"],"filter":{"pass":[{"field":"region","values":["Europe"]}],"fail":[]}},{"groupBy":["region"],"filter":{"pass":[],"fail":[{"field":"region","values":["Europe"]}]}}]},"measures":[{"field":"revenue","aggregation":"sum","filter":[]}]}'
         );
       });
 
@@ -2337,7 +2363,7 @@ describe("Dimensional Projections", () => {
         const { merged } = model.getIR(config);
 
         expect(JSON.stringify(merged)).to.equal(
-          '{"dimSpec":{"type":"hierarchy","fields":["region","country","city"],"segments":[{"groupBy":["region","country","city"],"filter":{"pass":[{"field":"region","values":["Europe"]}],"fail":[]}},{"groupBy":["region"],"filter":{"pass":[],"fail":[{"field":"region","values":["Europe"]}]}}]},"measures":[{"field":"revenue","aggregation":"sum"}]}'
+          '{"dimSpec":{"type":"hierarchy","fields":["region","country","city"],"filter":[],"segments":[{"groupBy":["region","country","city"],"filter":{"pass":[{"field":"region","values":["Europe"]}],"fail":[]}},{"groupBy":["region"],"filter":{"pass":[],"fail":[{"field":"region","values":["Europe"]}]}}]},"measures":[{"field":"revenue","aggregation":"sum","filter":[]}]}'
         );
       });
 
@@ -2391,7 +2417,7 @@ describe("Dimensional Projections", () => {
         const { merged } = model.getIR(config);
 
         expect(JSON.stringify(merged)).to.equal(
-          '{"dimSpec":{"type":"hierarchy","fields":["region","country","city"],"segments":[{"groupBy":["region","country","city"],"filter":{"pass":[{"field":"region","values":["Europe"]}],"fail":[]}},{"groupBy":["region","country","city"],"filter":{"pass":[{"field":"region","values":["North America"]},{"field":"country","values":["USA"]}],"fail":[]}},{"groupBy":["region","country"],"filter":{"pass":[{"field":"region","values":["North America"]}],"fail":[{"field":"country","values":["USA"]}]}},{"groupBy":["region"],"filter":{"pass":[],"fail":[{"field":"region","values":["Europe","North America"]}]}}]},"measures":[{"field":"revenue","aggregation":"sum"}]}'
+          '{"dimSpec":{"type":"hierarchy","fields":["region","country","city"],"filter":[],"segments":[{"groupBy":["region","country","city"],"filter":{"pass":[{"field":"region","values":["Europe"]}],"fail":[]}},{"groupBy":["region","country","city"],"filter":{"pass":[{"field":"region","values":["North America"]},{"field":"country","values":["USA"]}],"fail":[]}},{"groupBy":["region","country"],"filter":{"pass":[{"field":"region","values":["North America"]}],"fail":[{"field":"country","values":["USA"]}]}},{"groupBy":["region"],"filter":{"pass":[],"fail":[{"field":"region","values":["Europe","North America"]}]}}]},"measures":[{"field":"revenue","aggregation":"sum","filter":[]}]}'
         );
       });
 
@@ -2446,7 +2472,7 @@ describe("Dimensional Projections", () => {
         const { merged } = model.getIR(config);
 
         expect(JSON.stringify(merged)).to.equal(
-          '{"dimSpec":{"type":"hierarchy","fields":["region","country","city","department"],"segments":[{"groupBy":["region"]}]},"measures":[{"field":"revenue","aggregation":"sum"}]}'
+          '{"dimSpec":{"type":"hierarchy","fields":["region","country","city","department"],"filter":[],"segments":[{"groupBy":["region"]}]},"measures":[{"field":"revenue","aggregation":"sum","filter":[]}]}'
         );
       });
 
@@ -2492,7 +2518,7 @@ describe("Dimensional Projections", () => {
         const { merged } = model.getIR(config);
 
         expect(JSON.stringify(merged)).to.equal(
-          '{"dimSpec":{"type":"hierarchy","fields":["region","country","city","department"],"segments":[{"groupBy":["region","country"],"filter":{"pass":[{"field":"region","values":["Europe"]}],"fail":[]}},{"groupBy":["region"],"filter":{"pass":[],"fail":[{"field":"region","values":["Europe"]}]}}]},"measures":[{"field":"revenue","aggregation":"sum"}]}'
+          '{"dimSpec":{"type":"hierarchy","fields":["region","country","city","department"],"filter":[],"segments":[{"groupBy":["region","country"],"filter":{"pass":[{"field":"region","values":["Europe"]}],"fail":[]}},{"groupBy":["region"],"filter":{"pass":[],"fail":[{"field":"region","values":["Europe"]}]}}]},"measures":[{"field":"revenue","aggregation":"sum","filter":[]}]}'
         );
       });
 
@@ -2540,7 +2566,7 @@ describe("Dimensional Projections", () => {
         const { merged } = model.getIR(config);
 
         expect(JSON.stringify(merged)).to.equal(
-          '{"dimSpec":{"type":"hierarchy","fields":["region","country","city","department"],"segments":[{"groupBy":["region","country","city"],"filter":{"pass":[{"field":"region","values":["Europe"]}],"fail":[]}},{"groupBy":["region"],"filter":{"pass":[],"fail":[{"field":"region","values":["Europe"]}]}}]},"measures":[{"field":"revenue","aggregation":"sum"}]}'
+          '{"dimSpec":{"type":"hierarchy","fields":["region","country","city","department"],"filter":[],"segments":[{"groupBy":["region","country","city"],"filter":{"pass":[{"field":"region","values":["Europe"]}],"fail":[]}},{"groupBy":["region"],"filter":{"pass":[],"fail":[{"field":"region","values":["Europe"]}]}}]},"measures":[{"field":"revenue","aggregation":"sum","filter":[]}]}'
         );
       });
 
@@ -2594,7 +2620,7 @@ describe("Dimensional Projections", () => {
         const { merged } = model.getIR(config);
 
         expect(JSON.stringify(merged)).to.equal(
-          '{"dimSpec":{"type":"hierarchy","fields":["region","country","city","department"],"segments":[{"groupBy":["region","country","city"],"filter":{"pass":[{"field":"region","values":["Europe"]}],"fail":[]}},{"groupBy":["region","country","city"],"filter":{"pass":[{"field":"region","values":["North America"]},{"field":"country","values":["USA"]}],"fail":[]}},{"groupBy":["region","country"],"filter":{"pass":[{"field":"region","values":["North America"]}],"fail":[{"field":"country","values":["USA"]}]}},{"groupBy":["region"],"filter":{"pass":[],"fail":[{"field":"region","values":["Europe","North America"]}]}}]},"measures":[{"field":"revenue","aggregation":"sum"}]}'
+          '{"dimSpec":{"type":"hierarchy","fields":["region","country","city","department"],"filter":[],"segments":[{"groupBy":["region","country","city"],"filter":{"pass":[{"field":"region","values":["Europe"]}],"fail":[]}},{"groupBy":["region","country","city"],"filter":{"pass":[{"field":"region","values":["North America"]},{"field":"country","values":["USA"]}],"fail":[]}},{"groupBy":["region","country"],"filter":{"pass":[{"field":"region","values":["North America"]}],"fail":[{"field":"country","values":["USA"]}]}},{"groupBy":["region"],"filter":{"pass":[],"fail":[{"field":"region","values":["Europe","North America"]}]}}]},"measures":[{"field":"revenue","aggregation":"sum","filter":[]}]}'
         );
       });
 
@@ -2652,7 +2678,7 @@ describe("Dimensional Projections", () => {
         const { merged } = model.getIR(config);
 
         expect(JSON.stringify(merged)).to.equal(
-          '{"dimSpec":{"type":"hierarchy","fields":["region","country","city","department"],"segments":[{"groupBy":["region","country","city"],"filter":{"pass":[{"field":"region","values":["Europe"]}],"fail":[]}},{"groupBy":["region","country","city","department"],"filter":{"pass":[{"field":"region","values":["North America"]},{"field":"country","values":["USA"]},{"field":"city","values":["New York"]}],"fail":[]}},{"groupBy":["region","country","city"],"filter":{"pass":[{"field":"region","values":["North America"]},{"field":"country","values":["USA"]}],"fail":[{"field":"city","values":["New York"]}]}},{"groupBy":["region","country"],"filter":{"pass":[{"field":"region","values":["North America"]}],"fail":[{"field":"country","values":["USA"]}]}},{"groupBy":["region"],"filter":{"pass":[],"fail":[{"field":"region","values":["Europe","North America"]}]}}]},"measures":[{"field":"revenue","aggregation":"sum"}]}'
+          '{"dimSpec":{"type":"hierarchy","fields":["region","country","city","department"],"filter":[],"segments":[{"groupBy":["region","country","city"],"filter":{"pass":[{"field":"region","values":["Europe"]}],"fail":[]}},{"groupBy":["region","country","city","department"],"filter":{"pass":[{"field":"region","values":["North America"]},{"field":"country","values":["USA"]},{"field":"city","values":["New York"]}],"fail":[]}},{"groupBy":["region","country","city"],"filter":{"pass":[{"field":"region","values":["North America"]},{"field":"country","values":["USA"]}],"fail":[{"field":"city","values":["New York"]}]}},{"groupBy":["region","country"],"filter":{"pass":[{"field":"region","values":["North America"]}],"fail":[{"field":"country","values":["USA"]}]}},{"groupBy":["region"],"filter":{"pass":[],"fail":[{"field":"region","values":["Europe","North America"]}]}}]},"measures":[{"field":"revenue","aggregation":"sum","filter":[]}]}'
         );
       });
 
@@ -2710,7 +2736,7 @@ describe("Dimensional Projections", () => {
         const { merged } = model.getIR(config);
 
         expect(JSON.stringify(merged)).to.equal(
-          '{"dimSpec":{"type":"cross","children":[{"type":"hierarchy","fields":["region","country","city"],"segments":[{"groupBy":["region"]}]},{"type":"hierarchy","fields":["department","product"]}],"segments":[{"visibleChildren":1}]},"measures":[{"field":"revenue","aggregation":"sum"}]}'
+          '{"dimSpec":{"type":"cross","children":[{"type":"hierarchy","fields":["region","country","city"],"filter":[],"segments":[{"groupBy":["region"]}]},{"type":"hierarchy","fields":["department","product"],"filter":[]}],"segments":[{"visibleChildren":1}]},"measures":[{"field":"revenue","aggregation":"sum","filter":[]}]}'
         );
       });
 
@@ -2759,7 +2785,7 @@ describe("Dimensional Projections", () => {
         const { merged } = model.getIR(config);
 
         expect(JSON.stringify(merged)).to.equal(
-          '{"dimSpec":{"type":"cross","children":[{"type":"hierarchy","fields":["region","country","city"],"segments":[{"groupBy":["region","country"],"filter":{"pass":[{"field":"region","values":["Europe"]}],"fail":[]}},{"groupBy":["region"],"filter":{"pass":[],"fail":[{"field":"region","values":["Europe"]}]}}]},{"type":"hierarchy","fields":["department","product"]}],"segments":[{"visibleChildren":1}]},"measures":[{"field":"revenue","aggregation":"sum"}]}'
+          '{"dimSpec":{"type":"cross","children":[{"type":"hierarchy","fields":["region","country","city"],"filter":[],"segments":[{"groupBy":["region","country"],"filter":{"pass":[{"field":"region","values":["Europe"]}],"fail":[]}},{"groupBy":["region"],"filter":{"pass":[],"fail":[{"field":"region","values":["Europe"]}]}}]},{"type":"hierarchy","fields":["department","product"],"filter":[]}],"segments":[{"visibleChildren":1}]},"measures":[{"field":"revenue","aggregation":"sum","filter":[]}]}'
         );
       });
 
@@ -2810,7 +2836,7 @@ describe("Dimensional Projections", () => {
         const { merged } = model.getIR(config);
 
         expect(JSON.stringify(merged)).to.equal(
-          '{"dimSpec":{"type":"cross","children":[{"type":"hierarchy","fields":["region","country","city"],"segments":[{"groupBy":["region","country","city"],"filter":{"pass":[{"field":"region","values":["Europe"]},{"field":"country","values":["UK"]}],"fail":[]}},{"groupBy":["region","country"],"filter":{"pass":[{"field":"region","values":["Europe"]}],"fail":[{"field":"country","values":["UK"]}]}},{"groupBy":["region"],"filter":{"pass":[],"fail":[{"field":"region","values":["Europe"]}]}}]},{"type":"hierarchy","fields":["department","product"]}],"segments":[{"visibleChildren":1}]},"measures":[{"field":"revenue","aggregation":"sum"}]}'
+          '{"dimSpec":{"type":"cross","children":[{"type":"hierarchy","fields":["region","country","city"],"filter":[],"segments":[{"groupBy":["region","country","city"],"filter":{"pass":[{"field":"region","values":["Europe"]},{"field":"country","values":["UK"]}],"fail":[]}},{"groupBy":["region","country"],"filter":{"pass":[{"field":"region","values":["Europe"]}],"fail":[{"field":"country","values":["UK"]}]}},{"groupBy":["region"],"filter":{"pass":[],"fail":[{"field":"region","values":["Europe"]}]}}]},{"type":"hierarchy","fields":["department","product"],"filter":[]}],"segments":[{"visibleChildren":1}]},"measures":[{"field":"revenue","aggregation":"sum","filter":[]}]}'
         );
       });
 
@@ -2863,7 +2889,7 @@ describe("Dimensional Projections", () => {
         const { merged } = model.getIR(config);
 
         expect(JSON.stringify(merged)).to.equal(
-          '{"dimSpec":{"type":"cross","children":[{"type":"hierarchy","fields":["region","country","city"],"segments":[{"groupBy":["region","country","city"],"filter":{"pass":[{"field":"region","values":["Europe"]},{"field":"country","values":["UK"]},{"field":"city","values":["London"]}],"fail":[]}},{"groupBy":["region","country","city"],"filter":{"pass":[{"field":"region","values":["Europe"]},{"field":"country","values":["UK"]}],"fail":[{"field":"city","values":["London"]}]}},{"groupBy":["region","country"],"filter":{"pass":[{"field":"region","values":["Europe"]}],"fail":[{"field":"country","values":["UK"]}]}},{"groupBy":["region"],"filter":{"pass":[],"fail":[{"field":"region","values":["Europe"]}]}}]},{"type":"hierarchy","fields":["department","product"],"segments":[{"groupBy":["department"]}]}],"segments":[{"visibleChildren":2,"filter":{"pass":[{"field":"region","values":["Europe"]},{"field":"country","values":["UK"]},{"field":"city","values":["London"]}],"fail":[]}},{"visibleChildren":1,"filter":{"pass":[],"fail":[{"field":"region","values":["Europe"]},{"field":"country","values":["UK"]},{"field":"city","values":["London"]}]}}]},"measures":[{"field":"revenue","aggregation":"sum"}]}'
+          '{"dimSpec":{"type":"cross","children":[{"type":"hierarchy","fields":["region","country","city"],"filter":[],"segments":[{"groupBy":["region","country","city"],"filter":{"pass":[{"field":"region","values":["Europe"]},{"field":"country","values":["UK"]},{"field":"city","values":["London"]}],"fail":[]}},{"groupBy":["region","country","city"],"filter":{"pass":[{"field":"region","values":["Europe"]},{"field":"country","values":["UK"]}],"fail":[{"field":"city","values":["London"]}]}},{"groupBy":["region","country"],"filter":{"pass":[{"field":"region","values":["Europe"]}],"fail":[{"field":"country","values":["UK"]}]}},{"groupBy":["region"],"filter":{"pass":[],"fail":[{"field":"region","values":["Europe"]}]}}]},{"type":"hierarchy","fields":["department","product"],"filter":[],"segments":[{"groupBy":["department"]}]}],"segments":[{"visibleChildren":2,"filter":{"pass":[{"field":"region","values":["Europe"]},{"field":"country","values":["UK"]},{"field":"city","values":["London"]}],"fail":[]}},{"visibleChildren":1,"filter":{"pass":[],"fail":[{"field":"region","values":["Europe"]},{"field":"country","values":["UK"]},{"field":"city","values":["London"]}]}}]},"measures":[{"field":"revenue","aggregation":"sum","filter":[]}]}'
         );
       });
 
@@ -2928,7 +2954,7 @@ describe("Dimensional Projections", () => {
         const { merged } = model.getIR(config);
 
         expect(JSON.stringify(merged)).to.equal(
-          '{"dimSpec":{"type":"cross","children":[{"type":"hierarchy","fields":["region","country","city"],"segments":[{"groupBy":["region","country","city"],"filter":{"pass":[{"field":"region","values":["Europe"]},{"field":"country","values":["UK"]},{"field":"city","values":["London"]}],"fail":[]}},{"groupBy":["region","country","city"],"filter":{"pass":[{"field":"region","values":["Europe"]},{"field":"country","values":["UK"]}],"fail":[{"field":"city","values":["London"]}]}},{"groupBy":["region","country"],"filter":{"pass":[{"field":"region","values":["Europe"]}],"fail":[{"field":"country","values":["UK"]}]}},{"groupBy":["region","country","city"],"filter":{"pass":[{"field":"region","values":["North America"]},{"field":"city","values":["New York"]}],"fail":[]}},{"groupBy":["region","country","city"],"filter":{"pass":[{"field":"region","values":["North America"]}],"fail":[{"field":"city","values":["New York"]}]}},{"groupBy":["region"],"filter":{"pass":[],"fail":[{"field":"region","values":["Europe","North America"]}]}}]},{"type":"hierarchy","fields":["department","product"],"segments":[{"groupBy":["department","product"],"filter":{"pass":[{"field":"department","values":["Electronics"]}],"fail":[]}},{"groupBy":["department"],"filter":{"pass":[],"fail":[{"field":"department","values":["Electronics"]}]}}]}],"segments":[{"visibleChildren":2,"filter":{"pass":[{"field":"region","values":["Europe","North America"]},{"field":"city","values":["London","New York"]}],"fail":[]}},{"visibleChildren":1,"filter":{"pass":[],"fail":[{"field":"region","values":["Europe","North America"]},{"field":"city","values":["London","New York"]}]}}]},"measures":[{"field":"revenue","aggregation":"sum"}]}'
+          '{"dimSpec":{"type":"cross","children":[{"type":"hierarchy","fields":["region","country","city"],"filter":[],"segments":[{"groupBy":["region","country","city"],"filter":{"pass":[{"field":"region","values":["Europe"]},{"field":"country","values":["UK"]},{"field":"city","values":["London"]}],"fail":[]}},{"groupBy":["region","country","city"],"filter":{"pass":[{"field":"region","values":["Europe"]},{"field":"country","values":["UK"]}],"fail":[{"field":"city","values":["London"]}]}},{"groupBy":["region","country"],"filter":{"pass":[{"field":"region","values":["Europe"]}],"fail":[{"field":"country","values":["UK"]}]}},{"groupBy":["region","country","city"],"filter":{"pass":[{"field":"region","values":["North America"]},{"field":"city","values":["New York"]}],"fail":[]}},{"groupBy":["region","country","city"],"filter":{"pass":[{"field":"region","values":["North America"]}],"fail":[{"field":"city","values":["New York"]}]}},{"groupBy":["region"],"filter":{"pass":[],"fail":[{"field":"region","values":["Europe","North America"]}]}}]},{"type":"hierarchy","fields":["department","product"],"filter":[],"segments":[{"groupBy":["department","product"],"filter":{"pass":[{"field":"department","values":["Electronics"]}],"fail":[]}},{"groupBy":["department"],"filter":{"pass":[],"fail":[{"field":"department","values":["Electronics"]}]}}]}],"segments":[{"visibleChildren":2,"filter":{"pass":[{"field":"region","values":["Europe","North America"]},{"field":"city","values":["London","New York"]}],"fail":[]}},{"visibleChildren":1,"filter":{"pass":[],"fail":[{"field":"region","values":["Europe","North America"]},{"field":"city","values":["London","New York"]}]}}]},"measures":[{"field":"revenue","aggregation":"sum","filter":[]}]}'
         );
       });
 
@@ -3003,7 +3029,7 @@ describe("Dimensional Projections", () => {
         const { merged } = model.getIR(config);
 
         expect(JSON.stringify(merged)).to.equal(
-          '{"dimSpec":{"type":"cross","children":[{"type":"hierarchy","fields":["region","country"],"segments":[{"groupBy":["region","country"],"filter":{"pass":[{"field":"region","values":["Europe"]},{"field":"country","values":["UK"]}],"fail":[]}},{"groupBy":["region","country"],"filter":{"pass":[{"field":"region","values":["Europe"]}],"fail":[{"field":"country","values":["UK"]}]}},{"groupBy":["region"],"filter":{"pass":[],"fail":[{"field":"region","values":["Europe"]}]}}]},{"type":"hierarchy","fields":["department","product"],"segments":[{"groupBy":["department","product"],"filter":{"pass":[{"field":"department","values":["Electronics"]},{"field":"product","values":["Laptop"]}],"fail":[]}},{"groupBy":["department","product"],"filter":{"pass":[{"field":"department","values":["Electronics"]}],"fail":[{"field":"product","values":["Laptop"]}]}},{"groupBy":["department"],"filter":{"pass":[],"fail":[{"field":"department","values":["Electronics"]}]}}]},{"type":"simple","field":"channel"}],"segments":[{"visibleChildren":3,"filter":{"pass":[{"field":"region","values":["Europe"]},{"field":"country","values":["UK"]},{"field":"department","values":["Electronics"]},{"field":"product","values":["Laptop"]}],"fail":[]}},{"visibleChildren":2,"filter":{"pass":[{"field":"region","values":["Europe"]},{"field":"country","values":["UK"]}],"fail":[{"field":"department","values":["Electronics"]},{"field":"product","values":["Laptop"]}]}},{"visibleChildren":1,"filter":{"pass":[],"fail":[{"field":"region","values":["Europe"]},{"field":"country","values":["UK"]}]}}]},"measures":[{"field":"revenue","aggregation":"sum"}]}'
+          '{"dimSpec":{"type":"cross","children":[{"type":"hierarchy","fields":["region","country"],"filter":[],"segments":[{"groupBy":["region","country"],"filter":{"pass":[{"field":"region","values":["Europe"]},{"field":"country","values":["UK"]}],"fail":[]}},{"groupBy":["region","country"],"filter":{"pass":[{"field":"region","values":["Europe"]}],"fail":[{"field":"country","values":["UK"]}]}},{"groupBy":["region"],"filter":{"pass":[],"fail":[{"field":"region","values":["Europe"]}]}}]},{"type":"hierarchy","fields":["department","product"],"filter":[],"segments":[{"groupBy":["department","product"],"filter":{"pass":[{"field":"department","values":["Electronics"]},{"field":"product","values":["Laptop"]}],"fail":[]}},{"groupBy":["department","product"],"filter":{"pass":[{"field":"department","values":["Electronics"]}],"fail":[{"field":"product","values":["Laptop"]}]}},{"groupBy":["department"],"filter":{"pass":[],"fail":[{"field":"department","values":["Electronics"]}]}}]},{"type":"simple","field":"channel","filter":[]}],"segments":[{"visibleChildren":3,"filter":{"pass":[{"field":"region","values":["Europe"]},{"field":"country","values":["UK"]},{"field":"department","values":["Electronics"]},{"field":"product","values":["Laptop"]}],"fail":[]}},{"visibleChildren":2,"filter":{"pass":[{"field":"region","values":["Europe"]},{"field":"country","values":["UK"]}],"fail":[{"field":"department","values":["Electronics"]},{"field":"product","values":["Laptop"]}]}},{"visibleChildren":1,"filter":{"pass":[],"fail":[{"field":"region","values":["Europe"]},{"field":"country","values":["UK"]}]}}]},"measures":[{"field":"revenue","aggregation":"sum","filter":[]}]}'
         );
       });
 
