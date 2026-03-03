@@ -5,10 +5,12 @@
 Sorting operates on the **aggregated flat data** — after GROUP BY and aggregation, before reshape into the pivot structure. The reshape step preserves row order, so sorting the flat result directly controls row ordering in the final grid.
 
 ```
-PivotConfig → IR → getData() (GROUP BY) → flat rows → sort → reshape → GridDataViewModel
+PivotConfig → IR → getData() (GROUP BY + ORDER BY) → flat rows → reshape → GridDataViewModel
 ```
 
 In SQL-based datamodels, sorting translates to an `ORDER BY` clause on the aggregated query.
+
+Column facet order is always independent of row sorting — column facets are derived from a separate query on the column dimSpec alone.
 
 ---
 
@@ -18,8 +20,9 @@ In SQL-based datamodels, sorting translates to an `ORDER BY` clause on the aggre
 type SortDirection = 'asc' | 'desc';
 
 interface SortEntry {
-  field: string;
+  field: string;          // row dimension field to sort by
   direction: SortDirection;
+  by?: string;            // measure field — triggers measure sort instead of alphabetical
 }
 
 export interface PivotConfig {
@@ -33,35 +36,53 @@ Array order is the sort level order. Entry at index 0 is the outermost sort, las
 
 ---
 
-## Constraints
+## Sort Modes
 
-- If a measure appears in the sort, it must be the **last** entry.
-- Dimensions in the sort define grouping boundaries; the measure sorts within the innermost group.
+### Alphabetical sort (no `by`)
 
----
+Sorts by the dimension value itself.
 
-## Multilevel Sorting
-
-Given `sort = [{ field: 'Region', direction: 'asc' }, { field: 'Category', direction: 'asc' }, { field: 'Revenue', direction: 'desc' }]`:
-
-1. Rows are first ordered by Region ascending
-2. Within each Region, ordered by Category ascending
-3. Within each Region+Category group, ordered by Revenue descending
-
-SQL equivalent:
-
-```sql
-SELECT region, category, SUM(revenue) AS revenue
-FROM table
-GROUP BY region, category
-ORDER BY region ASC, category ASC, revenue DESC
+```typescript
+sort: [{ field: "region", direction: "asc" }]
+// SQL: ORDER BY region ASC
 ```
 
+See test: `datamodel.table-algebra.test.ts` — "rows=region, columns=cross(department, revenue), sort region asc"
+
+### Measure sort (with `by`)
+
+Sorts by the aggregated value of the measure specified in `by`. Uses a window function to compute the aggregate at the correct grouping level.
+
+```typescript
+sort: [{ field: "region", direction: "desc", by: "revenue" }]
+// SQL: ORDER BY SUM(SUM(T."revenue")) OVER (PARTITION BY region) DESC
+```
+
+See test: `datamodel.table-algebra.test.ts` — "rows=region, columns=cross(department, revenue), sort region by revenue desc"
+
+### Mixing both in the same sort list
+
+Alphabetical and measure sort entries can be freely mixed.
+
+```typescript
+sort: [
+  { field: "region", direction: "asc" },                  // alphabetical
+  { field: "country", direction: "desc", by: "revenue" }, // measure sort
+]
+```
+
+See test: `datamodel.table-algebra.test.ts` — "rows=hierarchy(region, country), columns=cross(department, revenue), sort region asc + country by revenue desc"
+
 ---
 
-## Single Measure Sort (n=1)
+## Internal: `"noop"` Direction
 
-When sort has only a measure (`sort = [{ field: 'Revenue', direction: 'desc' }]`), each row is treated independently — no dimensional grouping, flat sort by that measure value.
+When the user's `sort` array doesn't mention every row dimension, `getIR()` pads the resolved sort list with `{ direction: "noop" }` entries for the missing dims. This preserves natural insertion order at those levels using a window function: `MIN(MIN(__ord__)) OVER (PARTITION BY <dims up to this level>)`.
+
+Example: `rows = hierarchy("region", "country")`, `sort = [{ field: "country", direction: "desc", by: "revenue" }]`
+Resolved: `[{ field: "region", direction: "noop" }, { field: "country", direction: "desc", by: "revenue" }]`
+
+See test: `datamodel.table-algebra.test.ts` — "rows=hierarchy(region, country), columns=cross(department, revenue), sort country by revenue desc (region noop)"
 
 ---
 

@@ -1,8 +1,9 @@
 import React, {useEffect, useRef, useState} from "react";
 import "grid/dist/grid.css";
 import Grid, {GridDataViewModel, FacetCellRenderer, FacetDataContext, FacetRendererContext, FacetHeaderRenderer, FacetHeaderContext, GridDataViewModelOptions} from "grid/dist/renderer";
-import {BrowserInMemoryDataModel, DuckDBWasmBundles, cross, hierarchy, GridData, MeasureSchema, ProjectionState, AxisConfig, DimensionalProjectionPath} from "grid/dist/index";
+import {BrowserInMemoryDataModel, DuckDBWasmBundles, cross, hierarchy, GridData, MeasureSchema, ProjectionState, AxisConfig, DimensionalProjectionPath, SortEntry} from "grid/dist/index";
 import feather from "feather-icons";
+import SortDropdown, {SortEntryConfig} from "./sort-dropdown";
 
 const DUCKDB_BUNDLES: DuckDBWasmBundles = {
   mvp: {
@@ -82,23 +83,19 @@ function buildFacetDefs(
   colRenderer: FacetCellRenderer,
   rowHierarchyFields: string[],
   colHierarchyFields: string[],
+  rowHeaderRendererFn: FacetHeaderRenderer,
 ): GridDataViewModelOptions {
   return {
     ...options,
     facetDefs: {
       ...options?.facetDefs!,
-      row: (options?.facetDefs?.row ?? []).map((d, i) => ({ ...d, trackRenderer: rowRenderer, headerRenderer: rowHeaderRenderer, text: rowHierarchyFields[i] ?? "" })),
+      row: (options?.facetDefs?.row ?? []).map((d, i) => ({ ...d, trackRenderer: rowRenderer, headerRenderer: rowHeaderRendererFn, text: rowHierarchyFields[i] ?? "" })),
       col: (options?.facetDefs?.col ?? []).map((d, i) => ({ ...d, trackRenderer: colRenderer, headerRenderer: colHeaderRenderer, text: colHierarchyFields[i] ?? "" })),
     },
   };
 }
 
-const rowHeaderRenderer: FacetHeaderRenderer = (text: string, _ctx: FacetHeaderContext) => {
-  return {
-    left: svgIcon("bar-chart-2", 11),
-    content: text,
-  };
-};
+const MEASURE_NAMES = (gridData.columns.filter(c => typeof c === "object" && (c as MeasureSchema).type === "measure") as MeasureSchema[]).map(m => m.name);
 
 const colHeaderRenderer: FacetHeaderRenderer = (text: string, _ctx: FacetHeaderContext) => {
   return {
@@ -204,7 +201,7 @@ function makeFacetRenderer(
   projectionTreeRef: React.MutableRefObject<ProjectionTree>,
   modelRef: React.MutableRefObject<BrowserInMemoryDataModel | null>,
   viewModelRef: React.MutableRefObject<GridDataViewModel | null>,
-  buildConfig: () => { rows: AxisConfig; columns: AxisConfig },
+  buildConfig: () => { rows: AxisConfig; columns: AxisConfig; sort?: SortEntry[] },
 ): FacetCellRenderer {
   return (data: string, dataCtx: FacetDataContext, rCtx: FacetRendererContext) => {
     const isLeaf = dataCtx.level >= hierarchyDepth - 1;
@@ -277,12 +274,40 @@ const PivotGridPlayground: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [measureOnRows, setMeasureOnRows] = useState(false);
   const measureOnRowsRef = useRef(false);
+  const sortEntriesRef = useRef<SortEntry[]>([]);
+  const [multiSortEntries, setMultiSortEntries] = useState<SortEntryConfig[]>([]);
+  const multiSortEntriesRef = useRef(multiSortEntries);
+  multiSortEntriesRef.current = multiSortEntries;
+  const [sortDropdownState, setSortDropdownState] = useState<{field: string; anchorEl: HTMLElement} | null>(null);
+  const setSortDropdownStateRef = useRef(setSortDropdownState);
+  setSortDropdownStateRef.current = setSortDropdownState;
 
-  const buildConfig = (): { rows: AxisConfig; columns: AxisConfig } => {
+  const buildConfig = (): { rows: AxisConfig; columns: AxisConfig; sort?: SortEntry[] } => {
     const onRows = measureOnRowsRef.current;
     return {
       rows: { expr: onRows ? cross(ROW_DIMS, MEASURE) : ROW_DIMS, projection: treeToPaths(rowProjectionRef.current) },
       columns: { expr: onRows ? COL_DIMS : cross(COL_DIMS, MEASURE), projection: treeToPaths(colProjectionRef.current) },
+      sort: sortEntriesRef.current.length > 0 ? sortEntriesRef.current : undefined,
+    };
+  };
+
+  const rowHeaderRenderer: FacetHeaderRenderer = (text: string, ctx: FacetHeaderContext) => {
+    const field = ROW_HIERARCHY_FIELDS[ctx.level];
+    const hasSortApplied = sortEntriesRef.current.some(e => e.field === field);
+    const icon = svgIcon("bar-chart-2", 11);
+    icon.style.cursor = "pointer";
+    if (hasSortApplied) {
+      icon.style.background = "rgba(92, 95, 119, 0.15)";
+      icon.style.borderRadius = "3px";
+      icon.style.padding = "1px";
+    }
+    icon.addEventListener("click", (e) => {
+      e.stopPropagation();
+      setSortDropdownStateRef.current({field, anchorEl: icon});
+    });
+    return {
+      left: icon,
+      content: text,
     };
   };
 
@@ -304,7 +329,7 @@ const PivotGridPlayground: React.FC = () => {
 
       const viewModel = new GridDataViewModel(
         result.data, result.columnFacets, result.rowFacets,
-        buildFacetDefs(result.options, rowRenderer, colRenderer, ROW_HIERARCHY_FIELDS, COL_HIERARCHY_FIELDS),
+        buildFacetDefs(result.options, rowRenderer, colRenderer, ROW_HIERARCHY_FIELDS, COL_HIERARCHY_FIELDS, rowHeaderRenderer),
       );
       viewModelRef.current = viewModel;
 
@@ -348,11 +373,45 @@ const PivotGridPlayground: React.FC = () => {
 
     viewModel.updateData(
       result.data, result.columnFacets, result.rowFacets,
-      buildFacetDefs(result.options, rowRenderer, colRenderer, ROW_HIERARCHY_FIELDS, COL_HIERARCHY_FIELDS),
+      buildFacetDefs(result.options, rowRenderer, colRenderer, ROW_HIERARCHY_FIELDS, COL_HIERARCHY_FIELDS, rowHeaderRenderer),
     );
 
     grid.draw();
   };
+
+  const handleMultiSortChange = (entries: SortEntryConfig[]) => {
+    setMultiSortEntries(entries);
+  };
+
+  const handleSortApply = async (entries: SortEntryConfig[]) => {
+    const model = modelRef.current;
+    const viewModel = viewModelRef.current;
+    const grid = gridRef.current;
+    if (!model || !viewModel || !grid) return;
+
+    setMultiSortEntries(entries);
+    sortEntriesRef.current = entries.map(e => ({
+      field: e.field,
+      direction: e.direction,
+      by: e.by,
+    }));
+
+    const config = buildConfig();
+    const result = await model.getViewModelData(config);
+
+    const rowRenderer = makeFacetRenderer("row", ROW_HIERARCHY_DEPTH, rowProjectionRef, modelRef, viewModelRef, buildConfig);
+    const colRenderer = makeFacetRenderer("col", COL_HIERARCHY_DEPTH, colProjectionRef, modelRef, viewModelRef, buildConfig);
+
+    viewModel.updateData(
+      result.data, result.columnFacets, result.rowFacets,
+      buildFacetDefs(result.options, rowRenderer, colRenderer, ROW_HIERARCHY_FIELDS, COL_HIERARCHY_FIELDS, rowHeaderRenderer),
+    );
+    grid.draw();
+
+    setSortDropdownState(null);
+  };
+
+  const dropdownAnchorRect = sortDropdownState?.anchorEl.getBoundingClientRect();
 
   return (
     <>
@@ -381,6 +440,30 @@ const PivotGridPlayground: React.FC = () => {
         contain: "layout style",
       }} ref={gridConRef}>
       </div>
+
+      {sortDropdownState && dropdownAnchorRect && (
+        <>
+          <div
+            style={{position: "fixed", top: 0, left: 0, right: 0, bottom: 0, zIndex: 999}}
+            onClick={() => setSortDropdownState(null)}
+          />
+          <div style={{
+            position: "fixed",
+            top: dropdownAnchorRect.bottom + 4,
+            left: dropdownAnchorRect.left,
+            zIndex: 1000,
+          }}>
+            <SortDropdown
+              field={sortDropdownState.field}
+              measures={MEASURE_NAMES}
+              multiSortEntries={multiSortEntries}
+              onApply={handleSortApply}
+              onMultiSortChange={handleMultiSortChange}
+              onClose={() => setSortDropdownState(null)}
+            />
+          </div>
+        </>
+      )}
     </>
   );
 };
