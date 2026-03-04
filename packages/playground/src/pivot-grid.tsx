@@ -1,9 +1,10 @@
 import React, {useEffect, useRef, useState} from "react";
 import "grid/dist/grid.css";
 import Grid, {GridDataViewModel, FacetCellRenderer, FacetDataContext, FacetRendererContext, FacetHeaderRenderer, FacetHeaderContext, GridDataViewModelOptions} from "grid/dist/renderer";
-import {BrowserInMemoryDataModel, DuckDBWasmBundles, cross, hierarchy, GridData, MeasureSchema, ProjectionState, AxisConfig, DimensionalProjectionPath, SortEntry} from "grid/dist/index";
+import {BrowserInMemoryDataModel, DuckDBWasmBundles, cross, hierarchy, GridData, MeasureSchema, ProjectionState, AxisConfig, DimensionalProjectionPath, SortEntry, Filter, ScalarFilter} from "grid/dist/index";
 import feather from "feather-icons";
 import SortDropdown, {SortEntryConfig} from "./sort-dropdown";
+import FilterDropdown from "./filter-dropdown";
 
 const DUCKDB_BUNDLES: DuckDBWasmBundles = {
   mvp: {
@@ -84,25 +85,19 @@ function buildFacetDefs(
   rowHierarchyFields: string[],
   colHierarchyFields: string[],
   rowHeaderRendererFn: FacetHeaderRenderer,
+  colHeaderRendererFn: FacetHeaderRenderer,
 ): GridDataViewModelOptions {
   return {
     ...options,
     facetDefs: {
       ...options?.facetDefs!,
       row: (options?.facetDefs?.row ?? []).map((d, i) => ({ ...d, trackRenderer: rowRenderer, headerRenderer: rowHeaderRendererFn, text: rowHierarchyFields[i] ?? "" })),
-      col: (options?.facetDefs?.col ?? []).map((d, i) => ({ ...d, trackRenderer: colRenderer, headerRenderer: colHeaderRenderer, text: colHierarchyFields[i] ?? "" })),
+      col: (options?.facetDefs?.col ?? []).map((d, i) => ({ ...d, trackRenderer: colRenderer, headerRenderer: colHeaderRendererFn, text: colHierarchyFields[i] ?? "" })),
     },
   };
 }
 
 const MEASURE_NAMES = (gridData.columns.filter(c => typeof c === "object" && (c as MeasureSchema).type === "measure") as MeasureSchema[]).map(m => m.name);
-
-const colHeaderRenderer: FacetHeaderRenderer = (text: string, _ctx: FacetHeaderContext) => {
-  return {
-    content: text,
-    right: svgIcon("filter", 11),
-  };
-};
 
 const ROW_HIERARCHY_FIELDS = ["region", "country", "city"];
 const COL_HIERARCHY_FIELDS = ["department", "product"];
@@ -201,7 +196,7 @@ function makeFacetRenderer(
   projectionTreeRef: React.MutableRefObject<ProjectionTree>,
   modelRef: React.MutableRefObject<BrowserInMemoryDataModel | null>,
   viewModelRef: React.MutableRefObject<GridDataViewModel | null>,
-  buildConfig: () => { rows: AxisConfig; columns: AxisConfig; sort?: SortEntry[] },
+  buildConfig: () => { rows: AxisConfig; columns: AxisConfig; sort?: SortEntry[]; filter?: Filter[] },
 ): FacetCellRenderer {
   return (data: string, dataCtx: FacetDataContext, rCtx: FacetRendererContext) => {
     const isLeaf = dataCtx.level >= hierarchyDepth - 1;
@@ -281,33 +276,101 @@ const PivotGridPlayground: React.FC = () => {
   const [sortDropdownState, setSortDropdownState] = useState<{field: string; anchorEl: HTMLElement} | null>(null);
   const setSortDropdownStateRef = useRef(setSortDropdownState);
   setSortDropdownStateRef.current = setSortDropdownState;
+  const filterMapRef = useRef<Map<string, ScalarFilter[]>>(new Map());
+  const [filterDropdownState, setFilterDropdownState] = useState<{field: string; fieldType: "dimension" | "measure"; anchorEl: HTMLElement} | null>(null);
+  const setFilterDropdownStateRef = useRef(setFilterDropdownState);
+  setFilterDropdownStateRef.current = setFilterDropdownState;
+  const filterDistinctValuesRef = useRef<string[] | null>(null);
+  const [filterDistinctValues, setFilterDistinctValues] = useState<string[] | null>(null);
 
-  const buildConfig = (): { rows: AxisConfig; columns: AxisConfig; sort?: SortEntry[] } => {
+  const openFilterDropdown = (field: string, fieldType: "dimension" | "measure", anchorEl: HTMLElement) => {
+    setSortDropdownStateRef.current(null);
+    filterDistinctValuesRef.current = null;
+    setFilterDistinctValues(null);
+    setFilterDropdownState({field, fieldType, anchorEl});
+    if (fieldType === "dimension") {
+      const model = modelRef.current;
+      if (model) {
+        model.resolveFacetValues({type: "facet", fields: [field], mode: "distinct"}).then(result => {
+          filterDistinctValuesRef.current = result[0];
+          setFilterDistinctValues(result[0]);
+        });
+      }
+    }
+  };
+  const openFilterDropdownRef = useRef(openFilterDropdown);
+  openFilterDropdownRef.current = openFilterDropdown;
+
+  const getFieldType = (fieldName: string): "dimension" | "measure" => {
+    const col = gridData.columns.find(c => (typeof c === "object" ? (c as MeasureSchema).name : c) === fieldName);
+    return (typeof col === "object" && (col as MeasureSchema).type === "measure") ? "measure" : "dimension";
+  };
+
+  const buildConfig = (): { rows: AxisConfig; columns: AxisConfig; sort?: SortEntry[]; filter?: Filter[] } => {
     const onRows = measureOnRowsRef.current;
+    const allFilters: Filter[] = [];
+    filterMapRef.current.forEach(filters => { allFilters.push(...filters); });
     return {
       rows: { expr: onRows ? cross(ROW_DIMS, MEASURE) : ROW_DIMS, projection: treeToPaths(rowProjectionRef.current) },
       columns: { expr: onRows ? COL_DIMS : cross(COL_DIMS, MEASURE), projection: treeToPaths(colProjectionRef.current) },
       sort: sortEntriesRef.current.length > 0 ? sortEntriesRef.current : undefined,
+      filter: allFilters.length > 0 ? allFilters : undefined,
     };
   };
 
   const rowHeaderRenderer: FacetHeaderRenderer = (text: string, ctx: FacetHeaderContext) => {
     const field = ROW_HIERARCHY_FIELDS[ctx.level];
     const hasSortApplied = sortEntriesRef.current.some(e => e.field === field);
-    const icon = svgIcon("bar-chart-2", 11);
-    icon.style.cursor = "pointer";
+    const sortIcon = svgIcon("bar-chart-2", 11);
+    sortIcon.style.cursor = "pointer";
     if (hasSortApplied) {
-      icon.style.background = "rgba(92, 95, 119, 0.15)";
-      icon.style.borderRadius = "3px";
-      icon.style.padding = "1px";
+      sortIcon.style.background = "rgba(92, 95, 119, 0.15)";
+      sortIcon.style.borderRadius = "3px";
+      sortIcon.style.padding = "1px";
     }
-    icon.addEventListener("click", (e) => {
+    sortIcon.addEventListener("click", (e) => {
       e.stopPropagation();
-      setSortDropdownStateRef.current({field, anchorEl: icon});
+      setFilterDropdownStateRef.current(null);
+      setSortDropdownStateRef.current({field, anchorEl: sortIcon});
+    });
+
+    const hasFilterApplied = filterMapRef.current.has(field);
+    const filterIcon = svgIcon("filter", 11);
+    filterIcon.style.cursor = "pointer";
+    if (hasFilterApplied) {
+      filterIcon.style.background = "rgba(92, 95, 119, 0.15)";
+      filterIcon.style.borderRadius = "3px";
+      filterIcon.style.padding = "1px";
+    }
+    filterIcon.addEventListener("click", (e) => {
+      e.stopPropagation();
+      openFilterDropdownRef.current(field, getFieldType(field), filterIcon);
+    });
+
+    return {
+      left: sortIcon,
+      content: text,
+      right: filterIcon,
+    };
+  };
+
+  const colHeaderRenderer: FacetHeaderRenderer = (text: string, ctx: FacetHeaderContext) => {
+    const field = COL_HIERARCHY_FIELDS[ctx.level];
+    const hasFilterApplied = filterMapRef.current.has(field);
+    const filterIcon = svgIcon("filter", 11);
+    filterIcon.style.cursor = "pointer";
+    if (hasFilterApplied) {
+      filterIcon.style.background = "rgba(92, 95, 119, 0.15)";
+      filterIcon.style.borderRadius = "3px";
+      filterIcon.style.padding = "1px";
+    }
+    filterIcon.addEventListener("click", (e) => {
+      e.stopPropagation();
+      openFilterDropdownRef.current(field, getFieldType(field), filterIcon);
     });
     return {
-      left: icon,
       content: text,
+      right: filterIcon,
     };
   };
 
@@ -329,7 +392,7 @@ const PivotGridPlayground: React.FC = () => {
 
       const viewModel = new GridDataViewModel(
         result.data, result.columnFacets, result.rowFacets,
-        buildFacetDefs(result.options, rowRenderer, colRenderer, ROW_HIERARCHY_FIELDS, COL_HIERARCHY_FIELDS, rowHeaderRenderer),
+        buildFacetDefs(result.options, rowRenderer, colRenderer, ROW_HIERARCHY_FIELDS, COL_HIERARCHY_FIELDS, rowHeaderRenderer, colHeaderRenderer),
       );
       viewModelRef.current = viewModel;
 
@@ -373,7 +436,7 @@ const PivotGridPlayground: React.FC = () => {
 
     viewModel.updateData(
       result.data, result.columnFacets, result.rowFacets,
-      buildFacetDefs(result.options, rowRenderer, colRenderer, ROW_HIERARCHY_FIELDS, COL_HIERARCHY_FIELDS, rowHeaderRenderer),
+      buildFacetDefs(result.options, rowRenderer, colRenderer, ROW_HIERARCHY_FIELDS, COL_HIERARCHY_FIELDS, rowHeaderRenderer, colHeaderRenderer),
     );
 
     grid.draw();
@@ -404,14 +467,61 @@ const PivotGridPlayground: React.FC = () => {
 
     viewModel.updateData(
       result.data, result.columnFacets, result.rowFacets,
-      buildFacetDefs(result.options, rowRenderer, colRenderer, ROW_HIERARCHY_FIELDS, COL_HIERARCHY_FIELDS, rowHeaderRenderer),
+      buildFacetDefs(result.options, rowRenderer, colRenderer, ROW_HIERARCHY_FIELDS, COL_HIERARCHY_FIELDS, rowHeaderRenderer, colHeaderRenderer),
     );
     grid.draw();
 
     setSortDropdownState(null);
   };
 
+  const handleFilterApply = async (field: string, filters: ScalarFilter[]) => {
+    const model = modelRef.current;
+    const viewModel = viewModelRef.current;
+    const grid = gridRef.current;
+    if (!model || !viewModel || !grid) return;
+
+    filterMapRef.current.set(field, filters);
+
+    const config = buildConfig();
+    const result = await model.getViewModelData(config);
+
+    const rowRenderer = makeFacetRenderer("row", ROW_HIERARCHY_DEPTH, rowProjectionRef, modelRef, viewModelRef, buildConfig);
+    const colRenderer = makeFacetRenderer("col", COL_HIERARCHY_DEPTH, colProjectionRef, modelRef, viewModelRef, buildConfig);
+
+    viewModel.updateData(
+      result.data, result.columnFacets, result.rowFacets,
+      buildFacetDefs(result.options, rowRenderer, colRenderer, ROW_HIERARCHY_FIELDS, COL_HIERARCHY_FIELDS, rowHeaderRenderer, colHeaderRenderer),
+    );
+    grid.draw();
+
+    setFilterDropdownState(null);
+  };
+
+  const handleFilterClear = async (field: string) => {
+    const model = modelRef.current;
+    const viewModel = viewModelRef.current;
+    const grid = gridRef.current;
+    if (!model || !viewModel || !grid) return;
+
+    filterMapRef.current.delete(field);
+
+    const config = buildConfig();
+    const result = await model.getViewModelData(config);
+
+    const rowRenderer = makeFacetRenderer("row", ROW_HIERARCHY_DEPTH, rowProjectionRef, modelRef, viewModelRef, buildConfig);
+    const colRenderer = makeFacetRenderer("col", COL_HIERARCHY_DEPTH, colProjectionRef, modelRef, viewModelRef, buildConfig);
+
+    viewModel.updateData(
+      result.data, result.columnFacets, result.rowFacets,
+      buildFacetDefs(result.options, rowRenderer, colRenderer, ROW_HIERARCHY_FIELDS, COL_HIERARCHY_FIELDS, rowHeaderRenderer, colHeaderRenderer),
+    );
+    grid.draw();
+
+    setFilterDropdownState(null);
+  };
+
   const dropdownAnchorRect = sortDropdownState?.anchorEl.getBoundingClientRect();
+  const filterAnchorRect = filterDropdownState?.anchorEl.getBoundingClientRect();
 
   return (
     <>
@@ -460,6 +570,31 @@ const PivotGridPlayground: React.FC = () => {
               onApply={handleSortApply}
               onMultiSortChange={handleMultiSortChange}
               onClose={() => setSortDropdownState(null)}
+            />
+          </div>
+        </>
+      )}
+
+      {filterDropdownState && filterAnchorRect && (
+        <>
+          <div
+            style={{position: "fixed", top: 0, left: 0, right: 0, bottom: 0, zIndex: 999}}
+            onClick={() => setFilterDropdownState(null)}
+          />
+          <div style={{
+            position: "fixed",
+            top: filterAnchorRect.bottom + 4,
+            left: filterAnchorRect.left,
+            zIndex: 1000,
+          }}>
+            <FilterDropdown
+              field={filterDropdownState.field}
+              fieldType={filterDropdownState.fieldType}
+              distinctValues={filterDistinctValues}
+              currentFilters={filterMapRef.current.get(filterDropdownState.field) ?? []}
+              onApply={handleFilterApply}
+              onClear={handleFilterClear}
+              onClose={() => setFilterDropdownState(null)}
             />
           </div>
         </>
