@@ -27,7 +27,7 @@ describe("Simple operator in pivot", () => {
         measures: [],
       });
       expect(colIR).to.deep.equal({
-        dimSpec: { type: "cross", children: [{ type: "simple", field: "department", filter: [] }] },
+        dimSpec: { type: "cross", children: [{ type: "simple", field: "department", filter: [] }], filter: [] },
         measures: [{ field: "revenue", aggregation: "sum", filter: [] }],
       });
     });
@@ -86,7 +86,7 @@ describe("Simple operator in pivot", () => {
         measures: [],
       });
       expect(colIR).to.deep.equal({
-        dimSpec: { type: "cross", children: [{ type: "hierarchy", fields: ["department", "product", "channel"], filter: [] }] },
+        dimSpec: { type: "cross", children: [{ type: "hierarchy", fields: ["department", "product", "channel"], filter: [] }], filter: [] },
         measures: [{ field: "revenue", aggregation: "sum", filter: [] }],
       });
     });
@@ -161,11 +161,11 @@ describe("Simple operator in pivot", () => {
       const colIR = model.buildAxisIR(config.columns as AxisExpr);
 
       expect(rowIR).to.deep.equal({
-        dimSpec: { type: "cross", children: [{ type: "simple", field: "region", filter: [] }, { type: "simple", field: "department", filter: [] }] },
+        dimSpec: { type: "cross", children: [{ type: "simple", field: "region", filter: [] }, { type: "simple", field: "department", filter: [] }], filter: [] },
         measures: [],
       });
       expect(colIR).to.deep.equal({
-        dimSpec: { type: "cross", children: [{ type: "simple", field: "channel", filter: [] }] },
+        dimSpec: { type: "cross", children: [{ type: "simple", field: "channel", filter: [] }], filter: [] },
         measures: [{ field: "revenue", aggregation: "sum", filter: [] }],
       });
     });
@@ -224,7 +224,7 @@ describe("Simple operator in pivot", () => {
         measures: [],
       });
       expect(colIR).to.deep.equal({
-        dimSpec: { type: "cross", children: [{ type: "concat", children: [{ type: "simple", field: "department", filter: [] }, { type: "simple", field: "channel", filter: [] }] }] },
+        dimSpec: { type: "cross", children: [{ type: "concat", children: [{ type: "simple", field: "department", filter: [] }, { type: "simple", field: "channel", filter: [] }] }], filter: [] },
         measures: [{ field: "revenue", aggregation: "sum", filter: [] }],
       });
     });
@@ -292,7 +292,7 @@ describe("Simple operator in pivot", () => {
         measures: [],
       });
       expect(colIR).to.deep.equal({
-        dimSpec: { type: "cross", children: [{ type: "concat", children: [{ type: "simple", field: "channel", filter: [] }, { type: "simple", field: "quarter", filter: [] }] }] },
+        dimSpec: { type: "cross", children: [{ type: "concat", children: [{ type: "simple", field: "channel", filter: [] }, { type: "simple", field: "quarter", filter: [] }] }], filter: [] },
         measures: [{ field: "revenue", aggregation: "sum", filter: [] }],
       });
     });
@@ -376,6 +376,7 @@ describe("Simple operator in pivot", () => {
             { type: "simple", field: "channel", filter: [] },
             { type: "simple", field: "quarter", filter: [] },
           ],
+          filter: [],
         },
         measures: [{ field: "revenue", aggregation: "sum", filter: [] }],
       });
@@ -448,7 +449,7 @@ describe("Simple operator in pivot", () => {
       const colIR = model.buildAxisIR(config.columns as AxisExpr);
 
       expect(rowIR).to.deep.equal({
-        dimSpec: { type: "cross", children: [{ type: "simple", field: "region", filter: [] }] },
+        dimSpec: { type: "cross", children: [{ type: "simple", field: "region", filter: [] }], filter: [] },
         measures: [{ field: "revenue", aggregation: "sum", filter: [] }],
       });
       expect(colIR).to.deep.equal({
@@ -841,11 +842,12 @@ describe("Composite operators in pivot", () => {
             { type: "hierarchy", fields: ["region", "country"], filter: [] },
             { type: "concat", children: [{ type: "simple", field: "channel", filter: [] }, { type: "simple", field: "segment", filter: [] }] },
           ],
+          filter: [],
         },
         measures: [],
       });
       expect(colIR).to.deep.equal({
-        dimSpec: { type: "cross", children: [{ type: "simple", field: "department", filter: [] }] },
+        dimSpec: { type: "cross", children: [{ type: "simple", field: "department", filter: [] }], filter: [] },
         measures: [{ field: "revenue", aggregation: "sum", filter: [] }, { field: "cost", aggregation: "sum", filter: [] }],
       });
     });
@@ -918,11 +920,12 @@ describe("Composite operators in pivot", () => {
             { type: "hierarchy", fields: ["region", "country"], filter: [] },
             { type: "simple", field: "channel", filter: [] },
           ],
+          filter: [],
         },
         measures: [],
       });
       expect(colIR).to.deep.equal({
-        dimSpec: { type: "cross", children: [{ type: "simple", field: "department", filter: [] }] },
+        dimSpec: { type: "cross", children: [{ type: "simple", field: "department", filter: [] }], filter: [] },
         measures: [
           { field: "revenue", aggregation: "sum", filter: [] },
           { field: "cost", aggregation: "sum", filter: [] },
@@ -1203,6 +1206,7 @@ describe("Composite operators in pivot", () => {
               { type: "simple", field: "channel", filter: [] },
             ],
           }],
+          filter: [],
         },
         measures: [{ field: "revenue", aggregation: "sum", filter: [] }],
       });
@@ -1283,8 +1287,10 @@ describe("Composite operators in pivot", () => {
                 { type: "simple", field: "region", filter: [] },
                 { type: "concat", children: [{ type: "simple", field: "department", filter: [] }, { type: "simple", field: "channel", filter: [] }] },
               ],
+              filter: [],
             },
           ],
+          filter: [],
         },
         measures: [{ field: "revenue", aggregation: "sum", filter: [] }],
       });
@@ -1560,7 +1566,7 @@ describe("Filtering", () => {
     const config: PivotConfig = {
       rows: "region",
       columns: cross("department", "revenue"),
-      filter: [{ field: "region", op: "eq", value: "North America" }],
+      filter: [{ type: "scalar", field: "region", op: "eq", value: "North America" }],
     };
 
     it("config -> IR -> SQL -> data-viewmodel", async () => {
@@ -1586,8 +1592,8 @@ describe("Filtering", () => {
       rows: "country",
       columns: cross("department", "revenue"),
       filter: [
-        { field: "country", op: "eq", value: "USA" },
-        { field: "country", op: "eq", value: "UK" },
+        { type: "scalar", field: "country", op: "eq", value: "USA" },
+        { type: "scalar", field: "country", op: "eq", value: "UK" },
       ],
     };
 
@@ -1615,8 +1621,8 @@ describe("Filtering", () => {
       rows: hierarchy("region", "country"),
       columns: cross("department", "revenue"),
       filter: [
-        { field: "region", op: "eq", value: "North America" },
-        { field: "department", op: "eq", value: "Electronics" },
+        { type: "scalar", field: "region", op: "eq", value: "North America" },
+        { type: "scalar", field: "department", op: "eq", value: "Electronics" },
       ],
     };
 
@@ -1643,7 +1649,7 @@ describe("Filtering", () => {
     const config: PivotConfig = {
       rows: "region",
       columns: cross("department", "revenue"),
-      filter: [{ field: "department", op: "eq", value: "Electronics" }],
+      filter: [{ type: "scalar", field: "department", op: "eq", value: "Electronics" }],
     };
 
     it("config -> IR -> SQL -> data-viewmodel", async () => {
@@ -1667,7 +1673,7 @@ describe("Filtering", () => {
     const config: PivotConfig = {
       rows: "country",
       columns: cross("department", "revenue"),
-      filter: [{ field: "revenue", op: "gt", value: 2000 }],
+      filter: [{ type: "scalar", field: "revenue", op: "gt", value: 2000 }],
     };
 
     it("config -> IR -> SQL -> data-viewmodel", async () => {
@@ -1697,7 +1703,7 @@ describe("Filtering", () => {
     const config: PivotConfig = {
       rows: hierarchy("region", "country"),
       columns: "revenue",
-      filter: [{ field: "region", op: "eq", value: "Europe" }],
+      filter: [{ type: "scalar", field: "region", op: "eq", value: "Europe" }],
     };
 
     it("config -> IR -> SQL -> data-viewmodel", async () => {
@@ -1721,7 +1727,7 @@ describe("Filtering", () => {
     const config: PivotConfig = {
       rows: "region",
       columns: cross("department", "revenue"),
-      filter: [{ field: "department", op: "in", value: ["Electronics"] }],
+      filter: [{ type: "scalar", field: "department", op: "in", value: ["Electronics"] }],
     };
 
     it("config -> IR -> SQL -> data-viewmodel", async () => {
@@ -1745,7 +1751,7 @@ describe("Filtering", () => {
     const config: PivotConfig = {
       rows: "region",
       columns: cross("department", "revenue"),
-      filter: [{ field: "region", op: "eq", value: "North America" }],
+      filter: [{ type: "scalar", field: "region", op: "eq", value: "North America" }],
     };
 
     it("IR -> SQL", async () => {
@@ -1769,7 +1775,7 @@ describe("Filtering", () => {
     const config: PivotConfig = {
       rows: "region",
       columns: cross("department", "revenue"),
-      filter: [{ field: "revenue", op: "gt", value: 5000 }],
+      filter: [{ type: "scalar", field: "revenue", op: "gt", value: 5000 }],
     };
 
     it("IR -> SQL", async () => {
@@ -1787,6 +1793,130 @@ describe("Filtering", () => {
         + ` ORDER BY MIN(__d__2."__ord__0"), MIN(__d__2."__ord__1"))`
         + `\nSELECT * FROM __result__ WHERE "revenue" > 5000`
       );
+    });
+  });
+
+  describe("Tuple filter on cross", () => {
+    const config: PivotConfig = {
+      rows: hierarchy("region", "country"),
+      columns: cross("department", "revenue"),
+      filter: [{ type: "tuple", fields: ["region", "department"], op: "in", value: [["North America", "Electronics"], ["Europe", "Apparel"]] }],
+    };
+
+    it("config -> IR -> SQL -> data-viewmodel", async () => {
+      const model = await makeModel();
+      const vm = await model.getViewModel(config);
+
+      expect(vm.rowFacets).to.deep.equal([
+        ["North America", "North America", "Europe", "Europe"],
+        ["USA", "Canada", "UK", "Germany"],
+      ]);
+      expect(vm.columnFacets).to.deep.equal([
+        ["Electronics", "Apparel"],
+        ["revenue", "revenue"],
+      ]);
+      expect(vm.getSlice(0, 0, vm.numCols, vm.numRows).data).to.deep.equal([
+        [6450, 1700, null, null],
+        [null, null, 1100, 630],
+      ]);
+    });
+
+    it("IR -> SQL", async () => {
+      const model = await makePatchedModel();
+      await model.getViewModel(config);
+
+      expect(model.sqlStr()).to.equal(
+        `WITH __d__0 AS (SELECT "region", "country", MIN(rowid) AS "__ord__0" FROM "data" GROUP BY "region", "country"),`
+        + `\n     __d__1 AS (SELECT "department", MIN(rowid) AS "__ord__1" FROM "data" GROUP BY "department"),`
+        + `\n     __d__2 AS (SELECT * FROM __d__0 CROSS JOIN __d__1 WHERE ("region", "department") IN (('North America', 'Electronics'), ('Europe', 'Apparel')))`
+        + `\nSELECT __d__2."region", __d__2."country", __d__2."department", SUM(T."revenue") AS "revenue"`
+        + `\nFROM __d__2`
+        + `\nLEFT JOIN "data" T ON T."region" = __d__2."region" AND T."country" = __d__2."country" AND T."department" = __d__2."department"`
+        + ` GROUP BY __d__2."region", __d__2."country", __d__2."department"`
+        + ` ORDER BY MIN(__d__2."__ord__0"), MIN(__d__2."__ord__1")`
+      );
+    });
+  });
+
+  describe("Tuple filter on hierarchy", () => {
+    const config: PivotConfig = {
+      rows: hierarchy("region", "country"),
+      columns: "revenue",
+      filter: [{ type: "tuple", fields: ["region", "country"], op: "in", value: [["North America", "USA"], ["Europe", "Germany"]] }],
+    };
+
+    it("config -> IR -> SQL -> data-viewmodel", async () => {
+      const model = await makeModel();
+      const vm = await model.getViewModel(config);
+
+      expect(vm.rowFacets).to.deep.equal([
+        ["North America", "Europe"],
+        ["USA", "Germany"],
+      ]);
+      expect(vm.columnFacets).to.deep.equal([
+        ["revenue"],
+      ]);
+      // USA: 1200+1500+800+300+350+1100+900+250+950+290 = 7640
+      // Germany: 1300+750+350+280+1350 = 4030
+      expect(vm.getSlice(0, 0, vm.numCols, vm.numRows).data).to.deep.equal([
+        [7640, 4030],
+      ]);
+    });
+  });
+
+  describe("Tuple not_in filter", () => {
+    const config: PivotConfig = {
+      rows: hierarchy("region", "country"),
+      columns: "revenue",
+      filter: [{ type: "tuple", fields: ["region", "country"], op: "not_in", value: [["North America", "USA"], ["Europe", "Germany"]] }],
+    };
+
+    it("config -> IR -> SQL -> data-viewmodel", async () => {
+      const model = await makeModel();
+      const vm = await model.getViewModel(config);
+
+      expect(vm.rowFacets).to.deep.equal([
+        ["North America", "Europe"],
+        ["Canada", "UK"],
+      ]);
+      expect(vm.columnFacets).to.deep.equal([
+        ["revenue"],
+      ]);
+      // Canada: 1000+700+280+200 = 2180
+      // UK: 1400+850+400+320+380 = 3350
+      expect(vm.getSlice(0, 0, vm.numCols, vm.numRows).data).to.deep.equal([
+        [2180, 3350],
+      ]);
+    });
+  });
+
+  describe("Tuple + scalar filter combined", () => {
+    const config: PivotConfig = {
+      rows: hierarchy("region", "country"),
+      columns: cross("department", "revenue"),
+      filter: [
+        { type: "scalar", field: "department", op: "eq", value: "Electronics" },
+        { type: "tuple", fields: ["region", "country"], op: "in", value: [["North America", "USA"], ["Europe", "UK"]] },
+      ],
+    };
+
+    it("config -> IR -> SQL -> data-viewmodel", async () => {
+      const model = await makeModel();
+      const vm = await model.getViewModel(config);
+
+      expect(vm.rowFacets).to.deep.equal([
+        ["North America", "Europe"],
+        ["USA", "UK"],
+      ]);
+      expect(vm.columnFacets).to.deep.equal([
+        ["Electronics"],
+        ["revenue"],
+      ]);
+      // USA/Electronics: 1200+1500+800+1100+900+950 = 6450
+      // UK/Electronics: 1400+850 = 2250
+      expect(vm.getSlice(0, 0, vm.numCols, vm.numRows).data).to.deep.equal([
+        [6450, 2250],
+      ]);
     });
   });
 });

@@ -7,9 +7,11 @@ import {
   IR,
   MeasureSchema,
   RawDataFromIR,
+  ScalarFilter,
   Schema,
   SegmentFilter,
   SortEntry,
+  TupleFilter,
 } from "./types";
 
 /*
@@ -93,7 +95,16 @@ export abstract class SqlDataModel extends GridDataModel {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   protected abstract runSQL(sql: string): Promise<Record<string, any>[]>;
 
-  private buildFilterClause(f: Filter): string {
+  private buildTupleFilterClause(tf: TupleFilter): string {
+    const cols = `(${tf.fields.map(f => `"${f}"`).join(", ")})`;
+    const tuples = tf.value.map(t =>
+      `(${t.map(v => typeof v === "number" ? String(v) : `'${v}'`).join(", ")})`
+    ).join(", ");
+    const op = tf.op === "in" ? "IN" : "NOT IN";
+    return `${cols} ${op} (${tuples})`;
+  }
+
+  private buildFilterClause(f: ScalarFilter): string {
     const col = `"${f.field}"`;
     switch (f.op) {
     case "eq": return `${col} = '${f.value}'`;
@@ -118,20 +129,35 @@ export abstract class SqlDataModel extends GridDataModel {
 
   private buildWhereClause(filters?: Filter[]): string {
     if (!filters || filters.length === 0) return "";
-    const byField = new Map<string, Filter[]>();
+    const scalarFilters: ScalarFilter[] = [];
+    const tupleFiltersList: TupleFilter[] = [];
     for (const f of filters) {
-      let arr = byField.get(f.field);
-      if (!arr) { arr = []; byField.set(f.field, arr); }
-      arr.push(f);
-    }
-    const fieldClauses: string[] = [];
-    for (const [, group] of byField) {
-      if (group.length === 1) {
-        fieldClauses.push(this.buildFilterClause(group[0]));
+      if (f.type === "tuple") {
+        tupleFiltersList.push(f);
       } else {
-        fieldClauses.push(`(${group.map(f => this.buildFilterClause(f)).join(" OR ")})`);
+        scalarFilters.push(f);
       }
     }
+    const fieldClauses: string[] = [];
+    if (scalarFilters.length > 0) {
+      const byField = new Map<string, ScalarFilter[]>();
+      for (const f of scalarFilters) {
+        let arr = byField.get(f.field);
+        if (!arr) { arr = []; byField.set(f.field, arr); }
+        arr.push(f);
+      }
+      for (const [, group] of byField) {
+        if (group.length === 1) {
+          fieldClauses.push(this.buildFilterClause(group[0]));
+        } else {
+          fieldClauses.push(`(${group.map(f => this.buildFilterClause(f)).join(" OR ")})`);
+        }
+      }
+    }
+    for (const tf of tupleFiltersList) {
+      fieldClauses.push(this.buildTupleFilterClause(tf));
+    }
+    if (fieldClauses.length === 0) return "";
     return " WHERE " + fieldClauses.join(" AND ");
   }
 
@@ -434,7 +460,8 @@ export abstract class SqlDataModel extends GridDataModel {
 
       const gridName = `__d__${counter.n++}`;
       const joinParts = childResults.map(c => c.cteName).join(" CROSS JOIN ");
-      const gridCte = `${gridName} AS (SELECT * FROM ${joinParts})`;
+      const filterWhere = this.buildWhereClause(spec.filter);
+      const gridCte = `${gridName} AS (SELECT * FROM ${joinParts}${filterWhere})`;
       allCTEs.push(gridCte);
 
       return {

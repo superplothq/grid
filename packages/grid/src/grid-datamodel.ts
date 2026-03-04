@@ -13,11 +13,13 @@ import {
   MeasureSchema,
   PivotConfig,
   RawDataFromIR,
+  ScalarFilter,
   Schema,
   ColDefsForFacet,
   ProjectionState,
   SegmentFilter,
   SortEntry,
+  TupleFilter,
 } from "./types";
 import { FacetDef } from "./renderer/types";
 
@@ -483,7 +485,7 @@ function applyDimensionalProjectionToNode(spec: DimSpec, paths: DimensionalProje
     const hasGatingBeforeLast = gatingFilters.some(g => g.childIdx < lastReachableChildIdx);
     const needsSegments = someUnreachable || hasGatingBeforeLast;
     if (!needsSegments) {
-      return { type: "cross", children: newChildren };
+      return { type: "cross", children: newChildren, filter: spec.filter };
     }
 
     const crossSegments: CrossSegment[] = [];
@@ -523,7 +525,7 @@ function applyDimensionalProjectionToNode(spec: DimSpec, paths: DimensionalProje
       }
     }
 
-    return { type: "cross", children: newChildren, segments: crossSegments };
+    return { type: "cross", children: newChildren, segments: crossSegments, filter: spec.filter };
   }
   }
 }
@@ -674,7 +676,7 @@ export abstract class GridDataModel {
    * The DimSpec tree drives SQL generation / in memory data operation: The upstrem needs to support how to decode the
    * table algebra operator like concat, cross, hierarchy etc.
    */
-  buildAxisIR(expr: AxisExpr, fieldFilterMap: Map<string, Filter[]> = new Map()): AxisIR {
+  buildAxisIR(expr: AxisExpr, fieldFilterMap: Map<string, ScalarFilter[]> = new Map(), tupleFilters: TupleFilter[] = []): AxisIR {
     if (typeof expr === "string") {
       const col = this.schema[this.schemaIndex.get(expr)!];
       if (!col) throw new Error(`Column name not found. You have added ${expr} in row/column config but it's not found in schema.`
@@ -693,11 +695,17 @@ export abstract class GridDataModel {
         const ff = fieldFilterMap.get(f);
         if (ff) filters.push(...ff);
       }
+      const fieldSet = new Set(expr.fields);
+      for (const tf of tupleFilters) {
+        if (tf.fields.every(f => fieldSet.has(f))) {
+          filters.push(tf);
+        }
+      }
       return { dimSpec: { type: "hierarchy", fields: expr.fields, filter: filters }, measures: [] };
     }
 
     if (expr.type === "cross") {
-      const childIRs = expr.children.map(c => this.buildAxisIR(c, fieldFilterMap));
+      const childIRs = expr.children.map(c => this.buildAxisIR(c, fieldFilterMap, tupleFilters));
       const dimChildren: DimSpec[] = [];
       const measures: Measure[] = [];
       for (const child of childIRs) {
@@ -706,14 +714,27 @@ export abstract class GridDataModel {
         }
         measures.push(...child.measures);
       }
-      const dimSpec: DimSpec = dimChildren.length === 0
-        ? { type: "none" }
-        : { type: "cross", children: dimChildren };
+      if (dimChildren.length === 0) {
+        return { dimSpec: { type: "none" }, measures };
+      }
+      // Attach tuple filters that span multiple children of this cross.
+      // Every recursive call receives the full tupleFilters list. A tuple filter whose fields
+      // are all within a single child's fields will be handled by that child's recursive call
+      // (on a hierarchy or deeper cross). We skip those here to avoid duplication.
+      const childFieldSets = dimChildren.map(c => new Set(dimSpecFields(c)));
+      const crossFields = new Set(dimChildren.flatMap(c => dimSpecFields(c)));
+      const crossTupleFilters: TupleFilter[] = [];
+      for (const tf of tupleFilters) {
+        if (!tf.fields.every(f => crossFields.has(f))) continue;
+        if (childFieldSets.some(fs => tf.fields.every(f => fs.has(f)))) continue;
+        crossTupleFilters.push(tf);
+      }
+      const dimSpec: DimSpec = { type: "cross", children: dimChildren, filter: crossTupleFilters };
       return { dimSpec, measures };
     }
 
     // concat
-    const childIRs = expr.children.map(c => this.buildAxisIR(c, fieldFilterMap));
+    const childIRs = expr.children.map(c => this.buildAxisIR(c, fieldFilterMap, tupleFilters));
     const dimChildren: DimSpec[] = [];
     const measures: Measure[] = [];
     for (const child of childIRs) {
@@ -736,14 +757,19 @@ export abstract class GridDataModel {
   } {
     const [colConfig, rowConfig] = [config.columns, config.rows].map(normalizeAxisConfig);
 
-    const fieldFilterMap: Map<string, Filter[]> = new Map();
+    const fieldFilterMap: Map<string, ScalarFilter[]> = new Map();
+    const tupleFilters: TupleFilter[] = [];
     for (const f of config.filter || []) {
-      let arr = fieldFilterMap.get(f.field);
-      if (!arr) { arr = []; fieldFilterMap.set(f.field, arr); }
-      arr.push(f);
+      if (f.type === "tuple") {
+        tupleFilters.push(f);
+      } else {
+        let arr = fieldFilterMap.get(f.field);
+        if (!arr) { arr = []; fieldFilterMap.set(f.field, arr); }
+        arr.push(f);
+      }
     }
 
-    const [colIR, rowIR] = [colConfig.expr, rowConfig.expr].map(e => this.buildAxisIR(e, fieldFilterMap));
+    const [colIR, rowIR] = [colConfig.expr, rowConfig.expr].map(e => this.buildAxisIR(e, fieldFilterMap, tupleFilters));
 
     if (colConfig.projection) colIR.dimSpec = applyDimensionalProjectionToNode(colIR.dimSpec, colConfig.projection, 1);
     if (rowConfig.projection) rowIR.dimSpec = applyDimensionalProjectionToNode(rowIR.dimSpec, rowConfig.projection, 0);
@@ -753,9 +779,25 @@ export abstract class GridDataModel {
     // and measures. We combine both axes into a single DimSpec (row dims as left child, col dims
     // as right child) so the server executes one query. After results come back, we use
     // rowDimCount/colDimCount to split the result columns back into row and col facet spaces.
+    const claimedTupleFilters = new Set<TupleFilter>();
+    for (const ir of [rowIR, colIR]) {
+      const collectClaimed = (spec: DimSpec) => {
+        if (spec.type === "simple" || spec.type === "hierarchy") {
+          for (const f of spec.filter) { if (f.type === "tuple") claimedTupleFilters.add(f); }
+        } else if (spec.type === "cross") {
+          for (const f of spec.filter) { if (f.type === "tuple") claimedTupleFilters.add(f); }
+          for (const c of spec.children) collectClaimed(c);
+        } else if (spec.type === "concat") {
+          for (const c of spec.children) collectClaimed(c);
+        }
+      };
+      collectClaimed(ir.dimSpec);
+    }
+    const unclaimedTupleFilters = tupleFilters.filter(tf => !claimedTupleFilters.has(tf));
+
     let combinedDimSpec: DimSpec;
     if (rowIR.dimSpec.type !== "none" && colIR.dimSpec.type !== "none") {
-      combinedDimSpec = { type: "cross", children: [rowIR.dimSpec, colIR.dimSpec] };
+      combinedDimSpec = { type: "cross", children: [rowIR.dimSpec, colIR.dimSpec], filter: unclaimedTupleFilters };
     } else if (rowIR.dimSpec.type !== "none") {
       combinedDimSpec = rowIR.dimSpec;
     } else if (colIR.dimSpec.type !== "none") {
