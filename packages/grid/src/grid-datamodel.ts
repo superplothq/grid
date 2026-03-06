@@ -16,6 +16,7 @@ import {
   ColDefsForFacet,
   ProjectionState,
   SegmentFilter,
+  SortEntry,
 } from "./types";
 import { FacetDef } from "./renderer/types";
 
@@ -749,8 +750,21 @@ export abstract class GridDataModel {
       combinedDimSpec = { type: "none" };
     }
 
+    let resolvedSort: SortEntry[] | undefined;
+    if (config.sort) {
+      const rowDimFields = dimSpecFields(rowIR.dimSpec);
+      resolvedSort = rowDimFields.map(f => {
+        const userEntry = config.sort!.find(s => s.field === f);
+        if (userEntry) return userEntry;
+        return { field: f, direction: "noop" as const };
+      });
+    }
+
+    const merged: IR = { dimSpec: combinedDimSpec, measures };
+    if (resolvedSort) merged.sort = resolvedSort;
+
     return {
-      merged: { dimSpec: combinedDimSpec, measures },
+      merged,
       colIR,
       rowIR,
       measures,
@@ -761,17 +775,26 @@ export abstract class GridDataModel {
 
   async getViewModelData(config: PivotConfig): Promise<GridDataViewModelArgsObj> {
     const ir = this.getIR(config);
-    const result = await this.getData(ir.merged);
     const [colDimCount, rowDimCount] = [ir.colIR, ir.rowIR].map(ir => dimSpecFields(ir.dimSpec).length);
     const totalDimCount = rowDimCount + colDimCount;
+
+    // Column facet space: always derived from a separate getData call on the column dimSpec.
+    // This ensures column order is always in natural CTE order, independent of any row sorting.
+    // Row facet space: extracted from the main result's iteration order (reflects sort).
+    // NOTE: when sort is absent, the main query's default ORDER BY includes __ord__ columns for
+    // column dims too (since the combined dimSpec merges row+col). This is redundant — only row
+    // ordering matters here — but harmless. When sort is present it only covers row dims already.
+    const mainDataPromise = this.getData(ir.merged);
+    const colFacetPromise = colDimCount > 0
+      ? this.getData({ dimSpec: ir.colIR.dimSpec, measures: [] })
+      : undefined;
+
+    const [result, colResult] = await Promise.all([mainDataPromise, colFacetPromise]);
     const numResultRows = result.data[0]?.length ?? 0;
 
-    // The result's dimension columns follow the DimSpec tree traversal order. Since we always
-    // construct combinedDimSpec as cross(rowDimSpec, colDimSpec), row dims occupy columns
-    // 0..rowDimCount and col dims occupy rowDimCount..rowDimCount+colDimCount. We extract
-    // each axis's facet space by slicing the corresponding column range.
-    const [colFacetSpace, rowFacetSpace] = [[rowDimCount, colDimCount], [0, rowDimCount]]
-      .map(([startCol, colCount]) => colCount > 0 ? this.extractFacetSpace(result, startCol, colCount, numResultRows) : []);
+    // slice to exclude __src__ columns that getData appends for concat dimSpecs
+    const colFacetSpace = colResult ? colResult.data.slice(0, colDimCount) : [];
+    const rowFacetSpace = rowDimCount > 0 ? this.extractFacetSpace(result, 0, rowDimCount, numResultRows) : [];
 
     // colFacetSpace/rowFacetSpace contain only dimension facet levels (no measures).
     // Here we expand each dimension position by repeating it once per measure, and append

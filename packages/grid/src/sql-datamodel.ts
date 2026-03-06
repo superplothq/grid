@@ -9,6 +9,7 @@ import {
   RawDataFromIR,
   Schema,
   SegmentFilter,
+  SortEntry,
 } from "./types";
 
 /*
@@ -177,11 +178,15 @@ export abstract class SqlDataModel extends GridDataModel {
     //   ORDER BY MIN(__d__4."__ord__0"), __d__4."__src__0", MIN(__d__4."__cord__0")
     //   (by region, then concat branch, then value within branch)
     const orderParts: string[] = [];
-    for (const oe of cteResult.orderExprs) {
-      if (oe.type === "src") {
-        orderParts.push(`${gridCte}."${oe.expr}"`);
-      } else {
-        orderParts.push(`MIN(${gridCte}."${oe.expr}")`);
+    if (branch.sort) {
+      orderParts.push(...this.buildSortOrderParts(branch.sort, gridCte, cteResult));
+    } else {
+      for (const oe of cteResult.orderExprs) {
+        if (oe.type === "src") {
+          orderParts.push(`${gridCte}."${oe.expr}"`);
+        } else {
+          orderParts.push(`MIN(${gridCte}."${oe.expr}")`);
+        }
       }
     }
     const orderByClause = orderParts.length > 0 ? ` ORDER BY ${orderParts.join(", ")}` : "";
@@ -204,6 +209,37 @@ export abstract class SqlDataModel extends GridDataModel {
     });
 
     return { columns, data };
+  }
+
+  private buildSortOrderParts(sort: SortEntry[], gridCte: string, cteResult: CTEResult): string[] {
+    const parts: string[] = [];
+    const dimFieldsAccum: string[] = [];
+
+    for (const entry of sort) {
+      dimFieldsAccum.push(entry.field);
+      const partitionFields = dimFieldsAccum.map(f => `${gridCte}."${f}"`).join(", ");
+
+      if (entry.direction === "noop") {
+        const ordCol = this.findOrdColForField(entry.field, cteResult);
+        parts.push(`MIN(MIN(${gridCte}."${ordCol}")) OVER (PARTITION BY ${partitionFields})`);
+      } else if (!entry.by) {
+        parts.push(`${gridCte}."${entry.field}" ${entry.direction.toUpperCase()}`);
+      } else {
+        const agg = this.getAggregation(entry.by);
+        parts.push(`SUM(${agg.toUpperCase()}(T."${entry.by}")) OVER (PARTITION BY ${partitionFields}) ${entry.direction.toUpperCase()}`);
+      }
+    }
+
+    return parts;
+  }
+
+  private findOrdColForField(field: string, cteResult: CTEResult): string {
+    const ordCol = cteResult.fieldToOrdCol.get(field);
+    if (ordCol) return ordCol;
+    for (const oe of cteResult.orderExprs) {
+      if (oe.type === "ord") return oe.expr;
+    }
+    return field;
   }
 
   // Recursively walks the DimSpec tree and produces CTE definitions in dependency order.
@@ -240,6 +276,7 @@ export abstract class SqlDataModel extends GridDataModel {
         srcColumns: [],
         concatInfos: [],
         nullableFields: [],
+        fieldToOrdCol: new Map([[spec.field, ordCol]]),
       };
     }
 
@@ -250,6 +287,7 @@ export abstract class SqlDataModel extends GridDataModel {
       if (!spec.segments) {
         const fieldList = spec.fields.map(f => `"${f}"`).join(", ");
         const cte = `${name} AS (SELECT ${fieldList}, MIN(rowid) AS "${ordCol}" FROM "${this.table}" GROUP BY ${fieldList})`;
+        const fieldToOrdCol = new Map(spec.fields.map(f => [f, ordCol] as const));
         return {
           cteName: name,
           ctes: [cte],
@@ -258,6 +296,7 @@ export abstract class SqlDataModel extends GridDataModel {
           srcColumns: [],
           concatInfos: [],
           nullableFields: [],
+          fieldToOrdCol,
         };
       }
 
@@ -306,6 +345,7 @@ export abstract class SqlDataModel extends GridDataModel {
       }
       orderExprs.push({ type: "ord", expr: ordCol });
 
+      const fieldToOrdCol = new Map(spec.fields.map(f => [f, ordCol] as const));
       return {
         cteName: name,
         ctes: [cte],
@@ -314,6 +354,7 @@ export abstract class SqlDataModel extends GridDataModel {
         srcColumns: [],
         concatInfos: [],
         nullableFields: [...nullableSet],
+        fieldToOrdCol,
       };
     }
 
@@ -330,6 +371,7 @@ export abstract class SqlDataModel extends GridDataModel {
       const allSrcColumns: string[] = [];
       const allConcatInfos: ConcatInfo[] = [];
       const allNullableFields: string[] = [];
+      const allFieldToOrdCol = new Map<string, string>();
 
       for (const child of childResults) {
         allCTEs.push(...child.ctes);
@@ -338,6 +380,7 @@ export abstract class SqlDataModel extends GridDataModel {
         allSrcColumns.push(...child.srcColumns);
         allConcatInfos.push(...child.concatInfos);
         allNullableFields.push(...(child.nullableFields || []));
+        for (const [f, o] of child.fieldToOrdCol) allFieldToOrdCol.set(f, o);
       }
 
       if (childResults.length === 1) {
@@ -357,6 +400,7 @@ export abstract class SqlDataModel extends GridDataModel {
         srcColumns: allSrcColumns,
         concatInfos: allConcatInfos,
         nullableFields: allNullableFields,
+        fieldToOrdCol: allFieldToOrdCol,
       };
     }
 
@@ -421,6 +465,7 @@ export abstract class SqlDataModel extends GridDataModel {
         srcColumns: [srcCol],
         concatInfos: [concatInfo],
         nullableFields: [],
+        fieldToOrdCol: new Map(),
       };
     }
     default:
@@ -439,6 +484,10 @@ export abstract class SqlDataModel extends GridDataModel {
     const allSrcColumns: string[] = childResults.flatMap(c => c.srcColumns);
     const allConcatInfos: ConcatInfo[] = childResults.flatMap(c => c.concatInfos);
     const allNullableFields: string[] = childResults.flatMap(c => c.nullableFields || []);
+    const allFieldToOrdCol = new Map<string, string>();
+    for (const child of childResults) {
+      for (const [f, o] of child.fieldToOrdCol) allFieldToOrdCol.set(f, o);
+    }
 
     const fieldToChildCte = new Map<string, string>();
     for (const child of childResults) {
@@ -474,6 +523,7 @@ export abstract class SqlDataModel extends GridDataModel {
           srcColumns: allSrcColumns,
           concatInfos: allConcatInfos,
           nullableFields: allNullableFields,
+          fieldToOrdCol: allFieldToOrdCol,
         };
       }
 
@@ -495,6 +545,7 @@ export abstract class SqlDataModel extends GridDataModel {
           srcColumns: allSrcColumns,
           concatInfos: allConcatInfos,
           nullableFields: allNullableFields,
+          fieldToOrdCol: allFieldToOrdCol,
         };
       }
 
@@ -506,6 +557,7 @@ export abstract class SqlDataModel extends GridDataModel {
         srcColumns: allSrcColumns,
         concatInfos: allConcatInfos,
         nullableFields: allNullableFields,
+        fieldToOrdCol: allFieldToOrdCol,
       };
     }
 
@@ -580,6 +632,7 @@ export abstract class SqlDataModel extends GridDataModel {
       srcColumns: allSrcColumns,
       concatInfos: allConcatInfos,
       nullableFields: allNullableFields,
+      fieldToOrdCol: allFieldToOrdCol,
     };
   }
 
@@ -730,4 +783,5 @@ interface CTEResult {
   srcColumns: string[];
   concatInfos: ConcatInfo[];
   nullableFields: string[];
+  fieldToOrdCol: Map<string, string>;
 }

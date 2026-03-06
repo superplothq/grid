@@ -1343,3 +1343,214 @@ describe("Composite operators in pivot", () => {
     });
   });
 });
+
+describe("Sorting", () => {
+  describe("rows=region, columns=cross(department, revenue), sort region asc", () => {
+    const config: PivotConfig = {
+      rows: "region",
+      columns: cross("department", "revenue"),
+      sort: [{ field: "region", direction: "asc" }],
+    };
+
+    it("config -> IR -> SQL -> data-viewmodel", async () => {
+      const model = await makeModel();
+      const vm = await model.getViewModel(config);
+
+      // Alphabetical asc: Europe < North America
+      expect(vm.rowFacets).to.deep.equal([
+        ["Europe", "North America"],
+      ]);
+      // Column order must remain unchanged (Electronics, Apparel)
+      expect(vm.columnFacets).to.deep.equal([
+        ["Electronics", "Apparel"],
+        ["revenue", "revenue"],
+      ]);
+      expect(vm.getSlice(0, 0, vm.numCols, vm.numRows).data).to.deep.equal([
+        [5650, 8150],
+        [1730, 1670],
+      ]);
+    });
+  });
+
+  describe("rows=region, columns=cross(department, revenue), sort region desc", () => {
+    const config: PivotConfig = {
+      rows: "region",
+      columns: cross("department", "revenue"),
+      sort: [{ field: "region", direction: "desc" }],
+    };
+
+    it("config -> IR -> SQL -> data-viewmodel", async () => {
+      const model = await makeModel();
+      const vm = await model.getViewModel(config);
+
+      // Alphabetical desc: North America > Europe
+      expect(vm.rowFacets).to.deep.equal([
+        ["North America", "Europe"],
+      ]);
+      expect(vm.columnFacets).to.deep.equal([
+        ["Electronics", "Apparel"],
+        ["revenue", "revenue"],
+      ]);
+      expect(vm.getSlice(0, 0, vm.numCols, vm.numRows).data).to.deep.equal([
+        [8150, 5650],
+        [1670, 1730],
+      ]);
+    });
+  });
+
+  describe("rows=region, columns=cross(department, revenue), sort region by revenue desc", () => {
+    const config: PivotConfig = {
+      rows: "region",
+      columns: cross("department", "revenue"),
+      sort: [{ field: "region", direction: "desc", by: "revenue" }],
+    };
+
+    it("config -> IR -> SQL -> data-viewmodel", async () => {
+      const model = await makeModel();
+      const vm = await model.getViewModel(config);
+
+      // NA total revenue=9820, EU=7380 → desc: NA first
+      expect(vm.rowFacets).to.deep.equal([
+        ["North America", "Europe"],
+      ]);
+      expect(vm.columnFacets).to.deep.equal([
+        ["Electronics", "Apparel"],
+        ["revenue", "revenue"],
+      ]);
+      expect(vm.getSlice(0, 0, vm.numCols, vm.numRows).data).to.deep.equal([
+        [8150, 5650],
+        [1670, 1730],
+      ]);
+    });
+  });
+
+  describe("rows=region, columns=cross(department, revenue), sort region by revenue asc", () => {
+    const config: PivotConfig = {
+      rows: "region",
+      columns: cross("department", "revenue"),
+      sort: [{ field: "region", direction: "asc", by: "revenue" }],
+    };
+
+    it("config -> IR -> SQL -> data-viewmodel", async () => {
+      const model = await makeModel();
+      const vm = await model.getViewModel(config);
+
+      // NA total revenue=9820, EU=7380 → asc: EU first
+      expect(vm.rowFacets).to.deep.equal([
+        ["Europe", "North America"],
+      ]);
+      expect(vm.columnFacets).to.deep.equal([
+        ["Electronics", "Apparel"],
+        ["revenue", "revenue"],
+      ]);
+      expect(vm.getSlice(0, 0, vm.numCols, vm.numRows).data).to.deep.equal([
+        [5650, 8150],
+        [1730, 1670],
+      ]);
+    });
+  });
+
+  describe("rows=hierarchy(region, country), columns=cross(department, revenue), sort country by revenue desc (region noop)", () => {
+    const config: PivotConfig = {
+      rows: hierarchy("region", "country"),
+      columns: cross("department", "revenue"),
+      sort: [{ field: "country", direction: "desc", by: "revenue" }],
+    };
+
+    it("config -> IR -> SQL -> data-viewmodel", async () => {
+      const model = await makeModel();
+      const vm = await model.getViewModel(config);
+
+      // region noop → NA first (natural order), EU second
+      // Within NA: USA=7640, Canada=2180 → desc: USA, Canada
+      // Within EU: Germany=4030, UK=3350 → desc: Germany, UK
+      expect(vm.rowFacets).to.deep.equal([
+        ["North America", "North America", "Europe", "Europe"],
+        ["USA", "Canada", "Germany", "UK"],
+      ]);
+      expect(vm.columnFacets).to.deep.equal([
+        ["Electronics", "Apparel"],
+        ["revenue", "revenue"],
+      ]);
+      // NA/USA: Elec=4750+1700+950=sum of USA electronics rows → let me recalculate
+      // USA Electronics: rows 0,1,2,5,6,20 = 1200+1500+800+1100+900+950=6450
+      // USA Apparel: rows 3,4,7,22 = 300+350+250+290=1190
+      // Canada Electronics: rows 8,9 = 1000+700=1700
+      // Canada Apparel: rows 10,11 = 280+200=480
+      // Germany Electronics: rows 16,17,23 = 1300+750+1350=3400
+      // Germany Apparel: rows 18,19 = 350+280=630
+      // UK Electronics: rows 12,13 = 1400+850=2250
+      // UK Apparel: rows 14,15,21 = 400+320+380=1100
+      expect(vm.getSlice(0, 0, vm.numCols, vm.numRows).data).to.deep.equal([
+        [6450, 1700, 3400, 2250],
+        [1190, 480, 630, 1100],
+      ]);
+    });
+  });
+
+  describe("rows=hierarchy(region, country), columns=cross(department, revenue), sort region asc + country by revenue desc", () => {
+    const config: PivotConfig = {
+      rows: hierarchy("region", "country"),
+      columns: cross("department", "revenue"),
+      sort: [
+        { field: "region", direction: "asc" },
+        { field: "country", direction: "desc", by: "revenue" },
+      ],
+    };
+
+    it("config -> IR -> SQL -> data-viewmodel", async () => {
+      const model = await makeModel();
+      const vm = await model.getViewModel(config);
+
+      // region asc: Europe, North America
+      // Within EU: Germany=4030 > UK=3350 → Germany, UK
+      // Within NA: USA=7640 > Canada=2180 → USA, Canada
+      expect(vm.rowFacets).to.deep.equal([
+        ["Europe", "Europe", "North America", "North America"],
+        ["Germany", "UK", "USA", "Canada"],
+      ]);
+      expect(vm.columnFacets).to.deep.equal([
+        ["Electronics", "Apparel"],
+        ["revenue", "revenue"],
+      ]);
+      expect(vm.getSlice(0, 0, vm.numCols, vm.numRows).data).to.deep.equal([
+        [3400, 2250, 6450, 1700],
+        [630, 1100, 1190, 480],
+      ]);
+    });
+  });
+
+  describe("rows=cross(region, department), columns=cross(channel, revenue), sort region asc + department desc", () => {
+    const config: PivotConfig = {
+      rows: cross("region", "department"),
+      columns: cross("channel", "revenue"),
+      sort: [
+        { field: "region", direction: "asc" },
+        { field: "department", direction: "desc" },
+      ],
+    };
+
+    it("config -> IR -> SQL -> data-viewmodel", async () => {
+      const model = await makeModel();
+      const vm = await model.getViewModel(config);
+
+      // region asc: Europe, North America
+      // department desc: Electronics > Apparel
+      // So: EU/Elec, EU/App, NA/Elec, NA/App
+      expect(vm.rowFacets).to.deep.equal([
+        ["Europe", "Europe", "North America", "North America"],
+        ["Electronics", "Apparel", "Electronics", "Apparel"],
+      ]);
+      // Column order must remain unchanged (Online, Retail, Wholesale)
+      expect(vm.columnFacets).to.deep.equal([
+        ["Online", "Retail", "Wholesale"],
+        ["revenue", "revenue", "revenue"],
+      ]);
+      expect(vm.getSlice(0, 0, vm.numCols, vm.numRows).data).to.deep.equal([
+        [2700, 680, 6450, 550],
+        [2200, 1050, 1700, 630],
+        [750, null, null, 490],
+      ]);
+    });
+  });
+});
