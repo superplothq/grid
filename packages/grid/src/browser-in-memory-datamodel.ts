@@ -13,7 +13,7 @@ export class BrowserInMemoryDataModel extends DuckDBWasmDataModel {
     super(schema, table, wasmDb, wasmConn);
   }
 
-  static async create(gridData: GridData, bundles: DuckDBWasmBundles): Promise<BrowserInMemoryDataModel> {
+  static async create(gridData: GridData, bundles?: DuckDBWasmBundles): Promise<BrowserInMemoryDataModel> {
     const schema: Schema[] = gridData.columns.map((col) => {
       if (typeof col === "string") {
         return {name: col, displayName: col, type: "dimension" as const};

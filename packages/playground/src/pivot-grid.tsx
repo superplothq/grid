@@ -1,21 +1,10 @@
 import React, {useEffect, useRef, useState} from "react";
 import "grid/dist/grid.css";
 import Grid, {GridDataViewModel, FacetCellRenderer, FacetDataContext, FacetRendererContext, FacetHeaderRenderer, FacetHeaderContext, GridDataViewModelOptions} from "grid/dist/renderer";
-import {BrowserInMemoryDataModel, DuckDBWasmBundles, cross, hierarchy, GridData, MeasureSchema, ProjectionState, AxisConfig, DimensionalProjectionPath, SortEntry, Filter, ScalarFilter} from "grid/dist/index";
+import {BrowserInMemoryDataModel, cross, hierarchy, GridData, MeasureSchema, ProjectionState, AxisConfig, DimensionalProjectionPath, SortEntry, Filter, ScalarFilter} from "grid/dist/index";
 import feather from "feather-icons";
 import SortDropdown, {SortEntryConfig} from "./sort-dropdown";
 import FilterDropdown from "./filter-dropdown";
-
-const DUCKDB_BUNDLES: DuckDBWasmBundles = {
-  mvp: {
-    mainModule: "/duckdb-mvp.wasm",
-    mainWorker: "/duckdb-browser-mvp.worker.js",
-  },
-  eh: {
-    mainModule: "/duckdb-eh.wasm",
-    mainWorker: "/duckdb-browser-eh.worker.js",
-  },
-};
 
 const gridData: GridData = {
   columns: [
@@ -378,7 +367,7 @@ const PivotGridPlayground: React.FC = () => {
     let cancelled = false;
 
     const init = async () => {
-      const model = await BrowserInMemoryDataModel.create(gridData, DUCKDB_BUNDLES);
+      const model = await BrowserInMemoryDataModel.create(gridData);
       modelRef.current = model;
 
       const config = buildConfig();

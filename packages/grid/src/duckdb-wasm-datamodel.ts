@@ -7,6 +7,17 @@ export interface DuckDBWasmBundles {
   eh?: { mainModule: string; mainWorker: string };
 }
 
+const DEFAULT_BUNDLES: DuckDBWasmBundles = {
+  mvp: {
+    mainModule: new URL("@duckdb/duckdb-wasm/dist/duckdb-mvp.wasm", import.meta.url).href,
+    mainWorker: new URL("@duckdb/duckdb-wasm/dist/duckdb-browser-mvp.worker.js", import.meta.url).href,
+  },
+  eh: {
+    mainModule: new URL("@duckdb/duckdb-wasm/dist/duckdb-eh.wasm", import.meta.url).href,
+    mainWorker: new URL("@duckdb/duckdb-wasm/dist/duckdb-browser-eh.worker.js", import.meta.url).href,
+  },
+};
+
 export class DuckDBWasmDataModel extends SqlDataModel {
   protected wasmDb: duckdb.AsyncDuckDB;
   protected wasmConn: duckdb.AsyncDuckDBConnection;
@@ -22,7 +33,7 @@ export class DuckDBWasmDataModel extends SqlDataModel {
     this.wasmConn = wasmConn;
   }
 
-  static async create(schema: Schema[], table: string, bundles: DuckDBWasmBundles): Promise<DuckDBWasmDataModel> {
+  static async create(schema: Schema[], table: string, bundles: DuckDBWasmBundles = DEFAULT_BUNDLES): Promise<DuckDBWasmDataModel> {
     const bundle = await duckdb.selectBundle({
       mvp: {mainModule: bundles.mvp.mainModule, mainWorker: bundles.mvp.mainWorker},
       eh: bundles.eh ? {mainModule: bundles.eh.mainModule, mainWorker: bundles.eh.mainWorker} : undefined,
@@ -54,12 +65,10 @@ export class DuckDBWasmDataModel extends SqlDataModel {
     return new DuckDBWasmDataModel(schema, table, db, conn);
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   protected runSQL(sql: string): Promise<Record<string, any>[]> {
     return this.wasmConn.query(sql).then(result => result.toArray().map(row => row.toJSON()));
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   async loadData(data: any[][]): Promise<void> {
     const numCols = this.schema.length;
     const numRows = data[0]?.length ?? 0;
