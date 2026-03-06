@@ -1,11 +1,11 @@
-import {GridConfig} from "../grid-config";
-import {GridDataViewModel} from "../grid-data-viewmodel";
-import {IColAutoSizeStrategyFixedWidth, FacetCellContent, FacetDataContext, FacetRendererContext, FacetDef, FacetHeaderContext} from "../types";
-import {getTheme} from "../registry";
+import {GridConfig} from "./grid-config";
+import {GridDataViewModel} from "./grid-data-viewmodel";
+import {IColAutoSizeStrategyFixedWidth, FacetCellContent, FacetDataContext, FacetRendererContext, FacetDef, FacetHeaderContext} from "./types";
+import {getTheme} from "./registry";
 import PLayout, {BaseViewModel, RenderCtx} from "./layout-proto";
 import {WithCellPlacement, WithEvents, addOrReplaceChildren} from "./mixins";
 import CellManager from "./cell-manager";
-import { computeMerges, MergeState } from "../utils";
+import { computeMerges, MergeState } from "./utils";
 
 export type LayoutEvents = {
   renderComplete: {

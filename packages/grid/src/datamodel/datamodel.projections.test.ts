@@ -4,7 +4,7 @@ import { concat, cross, hierarchy } from "./grid-datamodel";
 import { makeModel, makePatchedModel } from "./datamodel.data.test";
 import { InMemoryDataModel } from "./in-memory-datamodel";
 import { AxisConfig, PivotConfig, ProjectionState, Schema } from "./types";
-import { GridDataViewModel } from "./renderer/grid-data-viewmodel";
+import { GridDataViewModel } from "../renderer/grid-data-viewmodel";
 
 const facetMeta = (vm: GridDataViewModel) => ({
   row: vm.facetDefs.row.map(d => d.meta).filter(m => m !== undefined),

@@ -1,5 +1,5 @@
 import { SliceResult, GridDataViewModelOptions, ResolvedVTrackDef, ColAutoSizeConfig, FacetDef } from "./types";
-import { textRenderer, defaultFacetRenderer, defaultFacetHeaderRenderer } from "./core/cell-renderers";
+import { textRenderer, defaultFacetRenderer, defaultFacetHeaderRenderer } from "./cell-renderers";
 
 const defaultColAutoSize: ColAutoSizeConfig = { strategy: "max-cell" };
 

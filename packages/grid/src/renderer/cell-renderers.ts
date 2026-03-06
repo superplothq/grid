@@ -1,6 +1,6 @@
 import { scaleLinear } from "d3-scale";
 import { line, curveCatmullRom } from "d3-shape";
-import { FacetCellRenderer, FacetHeaderRenderer } from "../types";
+import { FacetCellRenderer, FacetHeaderRenderer } from "./types";
 
 export interface RendererContext {}
 

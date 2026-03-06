@@ -1,4 +1,4 @@
-import { GridDataViewModel } from "./renderer/grid-data-viewmodel";
+import { GridDataViewModel } from "../renderer/grid-data-viewmodel";
 import {
   AxisConfig,
   AxisExpr,
@@ -21,7 +21,7 @@ import {
   SortEntry,
   TupleFilter,
 } from "./types";
-import { FacetDef } from "./renderer/types";
+import { FacetDef } from "../renderer/types";
 
 /*
  * Cartesian product (×). Each child becomes a facet level; all combinations are enumerated.

@@ -1,11 +1,11 @@
 import {GridDataViewModel} from "./grid-data-viewmodel";
 import { GridConfig, defaultConfig } from "./grid-config";
-import CellManager from "./core/cell-manager";
+import CellManager from "./cell-manager";
 import {addToRegistry} from "./registry";
 import { Constructor } from "./types";
 import "./themes";
-import StandardLayout, { LayoutEvents } from "./core/standard-layout";
-import { WithEvents, EventEmitter } from "./core/mixins";
+import StandardLayout, { LayoutEvents } from "./standard-layout";
+import { WithEvents, EventEmitter } from "./mixins";
 
 // TODO this used to be the entry point, now it's not, so lot of this config
 // is not necessary
@@ -32,8 +32,8 @@ export type {
 } from "./types";
 export { registerTheme } from "./registry";
 export { GridDataViewModel, MetaState } from "./grid-data-viewmodel";
-export type { BaseViewModel as BaseViewState } from "./core/layout-proto";
-export type { LayoutEvents } from "./core/standard-layout";
+export type { BaseViewModel as BaseViewState } from "./layout-proto";
+export type { LayoutEvents } from "./standard-layout";
 export type { EventEmitter };
 export {
   textRenderer,
@@ -46,7 +46,7 @@ export {
   type CellWithConfigRenderer,
   type CellRenderer,
   type RendererContext,
-} from "./core/cell-renderers";
+} from "./cell-renderers";
 
 export type SelectionPayload = {
   hash: string;

@@ -1,5 +1,5 @@
-import { CellRenderer } from "./core/cell-renderers";
-import { ProjectionState } from "../types";
+import { CellRenderer } from "./cell-renderers";
+import { ProjectionState } from "../datamodel/types";
 import { GridDataViewModel } from "./grid-data-viewmodel";
 
 export type Constructor<T> = new (...args: any[]) => T;
