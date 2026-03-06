@@ -1,5 +1,5 @@
 import duckdb from "duckdb";
-import {SqlDataModel} from "./sql-datamodel";
+import {SqlDataModel, schemaToSqlType, schemaToPlaceholder} from "./sql-datamodel";
 import {
   Schema,
 } from "./types";
@@ -23,10 +23,7 @@ export class DuckDBDataModel extends SqlDataModel {
     const conn = new duckdb.Connection(db);
 
     // TODO ability to define duckdb specific schema from outside
-    const colDefs = schema.map((s) => {
-      const sqlType = s.type === "measure" ? "DOUBLE" : "VARCHAR";
-      return `"${s.name}" ${sqlType}`;
-    });
+    const colDefs = schema.map((s) => `"${s.name}" ${schemaToSqlType(s)}`);
     const ddl = `CREATE TABLE "${table}" (${colDefs.join(", ")})`;
 
     await new Promise<void>((resolve, reject) => {
@@ -39,13 +36,15 @@ export class DuckDBDataModel extends SqlDataModel {
     return new DuckDBDataModel(schema, table, db, conn);
   }
 
-  async loadData(data: any[][]): Promise<void> {
+  async loadData(data: any[][], replace: Map<string, Map<string, string>> = new Map()): Promise<void> {
     const numCols = this.schema.length;
     const numRows = data[0]?.length ?? 0;
     if (numRows === 0) return;
 
     const stmt = await new Promise<duckdb.Statement>((resolve, reject) => {
-      const placeholders = this.schema.map(() => "?").join(", ");
+      const placeholders = this.schema.map((s) =>
+        schemaToPlaceholder(s, replace.get(s.name) ?? new Map())
+      ).join(", ");
       const sql = `INSERT INTO "${this.table}" VALUES (${placeholders})`;
       this.conn.prepare(sql, (err: Error | null, stmt: duckdb.Statement) => {
         if (err) reject(err);

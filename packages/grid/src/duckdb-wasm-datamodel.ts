@@ -1,5 +1,5 @@
 import * as duckdb from "@duckdb/duckdb-wasm";
-import {SqlDataModel} from "./sql-datamodel";
+import {SqlDataModel, schemaToSqlType, schemaToPlaceholder} from "./sql-datamodel";
 import {Schema} from "./types";
 
 export interface DuckDBWasmBundles {
@@ -55,10 +55,7 @@ export class DuckDBWasmDataModel extends SqlDataModel {
 
     const conn = await db.connect();
 
-    const colDefs = schema.map((s) => {
-      const sqlType = s.type === "measure" ? "DOUBLE" : "VARCHAR";
-      return `"${s.name}" ${sqlType}`;
-    });
+    const colDefs = schema.map((s) => `"${s.name}" ${schemaToSqlType(s)}`);
     const ddl = `CREATE TABLE "${table}" (${colDefs.join(", ")})`;
     await conn.query(ddl);
 
@@ -74,12 +71,14 @@ export class DuckDBWasmDataModel extends SqlDataModel {
     return this.wasmConn.query(sql).then(result => result.toArray().map(row => row.toJSON()));
   }
 
-  async loadData(data: any[][]): Promise<void> {
+  async loadData(data: any[][], replace: Map<string, Map<string, string>> = new Map()): Promise<void> {
     const numCols = this.schema.length;
     const numRows = data[0]?.length ?? 0;
     if (numRows === 0) return;
 
-    const placeholders = this.schema.map(() => "?").join(", ");
+    const placeholders = this.schema.map((s) =>
+      schemaToPlaceholder(s, replace.get(s.name) ?? new Map())
+    ).join(", ");
     const sql = `INSERT INTO "${this.table}" VALUES (${placeholders})`;
     const stmt = await this.wasmConn.prepare(sql);
 

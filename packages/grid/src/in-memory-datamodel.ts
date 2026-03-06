@@ -25,7 +25,7 @@ export class InMemoryDataModel extends DuckDBDataModel {
       (parent as any).conn,
     );
 
-    await instance.loadData(gridData.data);
+    await instance.loadData(gridData.data, gridData.replace);
 
     return instance;
   }

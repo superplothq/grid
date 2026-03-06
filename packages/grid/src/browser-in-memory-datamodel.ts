@@ -24,7 +24,7 @@ export class BrowserInMemoryDataModel extends DuckDBWasmDataModel {
     const tableName = "data";
     const {db, conn} = await DuckDBWasmDataModel.createWasmResources(schema, tableName, bundles);
     const instance = new BrowserInMemoryDataModel(schema, tableName, db, conn);
-    await instance.loadData(gridData.data);
+    await instance.loadData(gridData.data, gridData.replace);
     return instance;
   }
 }

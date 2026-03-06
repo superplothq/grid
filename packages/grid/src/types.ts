@@ -12,10 +12,14 @@ export interface SortEntry {
   by?: string;
 }
 
+export type SchemaSubtype = "quantitative" | "temporal" | "nominal";
+
 export interface Schema {
   name: string;
   displayName?: string;
   type: "measure" | "dimension";
+  subtype?: SchemaSubtype;
+  datetimeFormat?: string;
 }
 
 export interface MeasureSchema extends Schema {
@@ -26,6 +30,7 @@ export interface MeasureSchema extends Schema {
 export interface GridData {
   columns: (string | Schema)[];
   data: any[][];
+  replace?: Map<string, Map<string, string>>;
 }
 
 export type AxisExpr =

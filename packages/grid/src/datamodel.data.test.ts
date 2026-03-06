@@ -1,6 +1,6 @@
 import { expect } from "chai";
 import { InMemoryDataModel } from "./in-memory-datamodel";
-import { Schema } from "./types";
+import { GridData, MeasureSchema, Schema } from "./types";
 
 // 24 rows, 8 dimensions + 4 measures (column-major format)
 //
@@ -76,10 +76,78 @@ describe("GridDataModel", () => {
     const model = await makeModel();
     const schema = (model as any).schema;
     expect(schema).to.have.length(12);
-    expect(schema.filter((s: any) => s.type === "dimension")).to.have.length(8);
-    expect(schema.filter((s: any) => s.type === "measure")).to.have.length(4);
+    expect(schema.filter((s: Schema) => s.type === "dimension")).to.have.length(8);
+    expect(schema.filter((s: Schema) => s.type === "measure")).to.have.length(4);
 
     const rows = await (model as any).runSQL("SELECT COUNT(*) as cnt FROM data");
     expect(Number(rows[0].cnt)).to.equal(24);
+  });
+});
+
+describe("Schema extensions", () => {
+  it("should parse temporal columns with datetimeFormat", async () => {
+    const gridData: GridData = {
+      columns: [
+        { name: "order_date", displayName: "Order Date", type: "dimension", subtype: "temporal", datetimeFormat: "%m/%d/%Y" } as Schema,
+        { name: "revenue", displayName: "Revenue", type: "measure", aggregateFn: "sum" } as MeasureSchema,
+      ],
+      data: [
+        ["03/15/2024", "12/25/2023", "01/01/2025"],
+        [100, 200, 300],
+      ],
+    };
+
+    const model = await InMemoryDataModel.create(gridData);
+    const rows = await (model as any).runSQL("SELECT order_date, revenue FROM data ORDER BY order_date");
+    expect(rows).to.have.length(3);
+    expect(new Date(rows[0].order_date).getFullYear()).to.equal(2023);
+    expect(new Date(rows[1].order_date).getFullYear()).to.equal(2024);
+    expect(new Date(rows[2].order_date).getFullYear()).to.equal(2025);
+  });
+
+  it("should apply replace transformations during load", async () => {
+    const gridData: GridData = {
+      columns: [
+        "category",
+        { name: "amount", displayName: "Amount", type: "measure", aggregateFn: "sum" } as MeasureSchema,
+      ],
+      data: [
+        ["Electronics", "Apparel"],
+        ["$1,200", "$950"],
+      ],
+      replace: new Map([
+        ["amount", new Map([["$", ""], [",", ""]])],
+      ]),
+    };
+
+    const model = await InMemoryDataModel.create(gridData);
+    const rows = await (model as any).runSQL("SELECT category, amount FROM data ORDER BY amount");
+    expect(rows).to.have.length(2);
+    expect(Number(rows[0].amount)).to.equal(950);
+    expect(Number(rows[1].amount)).to.equal(1200);
+  });
+
+  it("should apply replace and temporal parsing together", async () => {
+    const gridData: GridData = {
+      columns: [
+        { name: "sale_date", displayName: "Sale Date", type: "dimension", subtype: "temporal", datetimeFormat: "%d-%m-%Y" } as Schema,
+        { name: "price", displayName: "Price", type: "measure", aggregateFn: "sum" } as MeasureSchema,
+      ],
+      data: [
+        ["15-03-2024", "25-12-2023"],
+        ["$500", "$750"],
+      ],
+      replace: new Map([
+        ["price", new Map([["$", ""]])],
+      ]),
+    };
+
+    const model = await InMemoryDataModel.create(gridData);
+    const rows = await (model as any).runSQL("SELECT sale_date, price FROM data ORDER BY sale_date");
+    expect(rows).to.have.length(2);
+    expect(new Date(rows[0].sale_date).getFullYear()).to.equal(2023);
+    expect(Number(rows[0].price)).to.equal(750);
+    expect(new Date(rows[1].sale_date).getFullYear()).to.equal(2024);
+    expect(Number(rows[1].price)).to.equal(500);
   });
 });

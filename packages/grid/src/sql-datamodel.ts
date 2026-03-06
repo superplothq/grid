@@ -87,6 +87,23 @@ function filterToWhereQualified(filter: SegmentFilter, fieldToCte: Map<string, s
   return parts.join(" AND ");
 }
 
+export function schemaToSqlType(s: Schema): string {
+  if (s.type === "measure") return "DOUBLE";
+  if (s.subtype === "temporal") return "TIMESTAMP";
+  return "VARCHAR";
+}
+
+export function schemaToPlaceholder(s: Schema, replacements: Map<string, string>): string {
+  let expr = "?";
+  for (const [search, replace] of replacements) {
+    expr = `REPLACE(${expr}, '${search}', '${replace}')`;
+  }
+  if (s.subtype === "temporal" && s.datetimeFormat) {
+    expr = `strptime(${expr}, '${s.datetimeFormat}')`;
+  }
+  return expr;
+}
+
 export abstract class SqlDataModel extends GridDataModel {
   protected constructor(schema: Schema[], table: string) {
     super(schema, table);
