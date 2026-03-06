@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import "grid/dist/grid.css";
-import Grid, { GridDataViewModel, LayoutEvents, SelectionPayload, ColDef, ColAutoSizeConfig, createChartRenderer, CellRenderer } from "grid/dist/renderer";
+import Grid, { GridDataViewModel, LayoutEvents, SelectionPayload, VTrackDef, ColAutoSizeConfig, createChartRenderer, CellRenderer, FacetCellRenderer } from "grid/dist/renderer";
+import feather from "feather-icons";
 
 interface TwoKeyData {
   primary: string;
@@ -28,6 +29,39 @@ const threeKeyRenderer: CellRenderer<ThreeKeyData> = (data) => {
     <div>${data.second}</div>
     <div>${data.third}</div>
   </div>`;
+};
+
+const svgIcon = (name: string, size = 12): HTMLElement => {
+  const wrapper = document.createElement("span");
+  wrapper.style.display = "inline-flex";
+  wrapper.style.alignItems = "center";
+  wrapper.style.opacity = "0.9";
+  wrapper.innerHTML = feather.icons[name as keyof typeof feather.icons].toSvg({ width: size, height: size, "stroke-width": 2.5 });
+  return wrapper;
+};
+
+const rowFacetRenderer: FacetCellRenderer = (data, ctx) => {
+  const isLeaf = ctx.level === ctx.path.length - 1;
+  if (isLeaf) return String(data ?? "");
+  return {
+    left: svgIcon("chevron-right", 11),
+    content: String(data ?? ""),
+  };
+};
+
+const colFacetRenderer: FacetCellRenderer = (data, ctx) => {
+  const isLeaf = ctx.level === ctx.path.length - 1;
+  if (!isLeaf) {
+    return {
+      left: svgIcon("chevron-right", 11),
+      content: String(data ?? ""),
+    };
+  }
+  return {
+    left: svgIcon("arrow-down", 10),
+    content: String(data ?? ""),
+    right: svgIcon("filter", 10),
+  };
 };
 
 // Declare the custom element for TypeScript
@@ -85,7 +119,8 @@ const NullFacetDemo: React.FC = () => {
     grid.data = new GridDataViewModel(
       data,
       [colFacetLevel0, colFacetLevel1, colFacetLevel2],
-      [rowFacetLevel0, rowFacetLevel1, rowFacetLevel2]
+      [rowFacetLevel0, rowFacetLevel1, rowFacetLevel2],
+      { facetDefs: { row: [{ trackRenderer: rowFacetRenderer }], col: [{ trackRenderer: colFacetRenderer }], axis: 'col' } }
     );
     grid.draw();
   }, []);
@@ -129,6 +164,8 @@ const GridPlayground: React.FC = () => {
     localStorage.getItem("grid_colSizeConfig") ?? ""
   );
   const [totalDataPoints, setTotalDataPoints] = useState(0);
+  const [showHeaders, setShowHeaders] = useState(false);
+  const showHeadersRef = useRef(false);
   const [events, setEvents] = useState<Array<{ name: string; payload: unknown }>>([]);
   const [perfMetrics, setPerfMetrics] = useState<LayoutEvents['debug_perf:metrics'] | null>(null);
 
@@ -481,26 +518,33 @@ const GridPlayground: React.FC = () => {
     // Parse applied col size config
     const colSizeOverrides = parseColSizeConfig(appliedColSizeConfig);
 
-    // Build colDefs array - one entry per column
-    const colDefs: ColDef[] = [];
+    // Build vTrackDefs array - one entry per column
+    const vTrackDefs: VTrackDef[] = [];
     for (let col = 0; col < totalCols; col++) {
       const colFacetsForCol = colFacetColMajor[col];
       const lastFacet = colFacetsForCol[colFacetsForCol.length - 1];
       const colSize = colSizeOverrides.get(col);
 
       if (lastFacet && lastFacet.endsWith("_1")) {
-        colDefs[col] = { renderer: lineChart, cellHeight: 24, sampleData: [50, 60, 70, 80, 90], colSize };
+        vTrackDefs[col] = { renderer: lineChart, cellHeight: 24, sampleData: [50, 60, 70, 80, 90], colSize };
       } else if (col === twoKeyColIndex) {
-        colDefs[col] = { renderer: twoKeyRenderer, cellHeight: 36, colSize };
+        vTrackDefs[col] = { renderer: twoKeyRenderer, cellHeight: 36, colSize };
       } else if (col === threeKeyColIndex) {
-        colDefs[col] = { renderer: threeKeyRenderer, cellHeight: 48, sampleData: { first: "1234", second: "5678", third: "9012" }, colSize };
+        vTrackDefs[col] = { renderer: threeKeyRenderer, cellHeight: 48, sampleData: { first: "1234", second: "5678", third: "9012" }, colSize };
       } else if (colSize) {
-        colDefs[col] = { colSize };
+        vTrackDefs[col] = { colSize };
       }
     }
 
     console.log("Generated data:", { totalRows, totalCols, rowFacets: rowFacetLevelMajor, colFacets: colFacetLevelMajor, data });
-    gridRef.current.data = new GridDataViewModel(data, colFacetLevelMajor, rowFacetLevelMajor, { colDefs });
+    gridRef.current.data = new GridDataViewModel(data, colFacetLevelMajor, rowFacetLevelMajor, {
+      vTrackDefs,
+      facetDefs: {
+        row: rowFacets.map((_, i) => ({ trackRenderer: rowFacetRenderer, ...(showHeadersRef.current && { text: `Row ${i}` }) })),
+        col: colFacets.map((_, i) => ({ trackRenderer: colFacetRenderer, ...(showHeadersRef.current && { text: `Col ${i}` }) })),
+        axis: 'col',
+      },
+    });
     gridRef.current.draw();
   };
 
@@ -554,6 +598,9 @@ const GridPlayground: React.FC = () => {
         </label>
         <button onClick={handleGenerate}>Generate</button>
         <button onClick={handleReset}>Reset</button>
+        <button onClick={() => { showHeadersRef.current = !showHeadersRef.current; setShowHeaders(showHeadersRef.current); handleGenerate(); }}>
+          {showHeaders ? "Hide Headers" : "Show Headers"}
+        </button>
         <span> Total data points: {totalDataPoints}</span>
       </div>
       <div style={{ marginTop: "8px" }}>

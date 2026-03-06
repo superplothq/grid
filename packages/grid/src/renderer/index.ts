@@ -16,14 +16,22 @@ export type {
   IColAutoSizeStrategyMaxCell,
   IColAutoSizeStrategyFixedWidth,
   ColAutoSizeConfig,
-  ColDef,
-  ResolvedColDef,
+  VTrackDef,
+  ResolvedVTrackDef,
   GridDataViewModelOptions,
   SliceResult,
   Theme,
+  FacetCellRenderer,
+  FacetRendererContext,
+  FacetDataContext,
+  FacetCellContent,
+  FacetDef,
+  FacetMeta,
+  FacetHeaderRenderer,
+  FacetHeaderContext,
 } from "./types";
 export { registerTheme } from "./registry";
-export { GridDataViewModel };
+export { GridDataViewModel, MetaState } from "./grid-data-viewmodel";
 export type { BaseViewModel as BaseViewState } from "./core/layout-proto";
 export type { LayoutEvents } from "./core/standard-layout";
 export type { EventEmitter };
@@ -31,6 +39,8 @@ export {
   textRenderer,
   createChartRenderer,
   defaultChartConfig,
+  defaultFacetRenderer,
+  defaultFacetHeaderRenderer,
   type CellConfig,
   type ChartConfig,
   type CellWithConfigRenderer,

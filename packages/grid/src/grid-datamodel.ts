@@ -13,8 +13,11 @@ import {
   PivotConfig,
   RawDataFromIR,
   Schema,
+  ColDefsForFacet,
+  ProjectionState,
   SegmentFilter,
 } from "./types";
+import { FacetDef } from "./renderer/types";
 
 /*
  * Cartesian product (×). Each child becomes a facet level; all combinations are enumerated.
@@ -182,6 +185,33 @@ function advancePaths(paths: DimensionalProjectionPath[]): DimensionalProjection
   const result: DimensionalProjectionPath[] = [];
   for (const p of paths) {
     if (p.next) result.push(p.next);
+  }
+  return result;
+}
+
+function buildColDefsForFacet(projection: DimensionalProjectionPath[] | undefined, numLevels: number): ColDefsForFacet[] {
+  const result: ColDefsForFacet[] = [];
+  if (projection === undefined) {
+    for (let i = 0; i < numLevels; i++) {
+      result.push({ projectionState: ProjectionState.PROJECTION_NOT_CONFIGURED, projectedValues: new Set() });
+    }
+    return result;
+  }
+  let paths = projection;
+  for (let i = 0; i < numLevels; i++) {
+    if (paths.length === 0) {
+      result.push({ projectionState: ProjectionState.NOT_PROJECTED, projectedValues: new Set() });
+      continue;
+    }
+    const merged = mergedOpenValuesAcrossProjectionPaths(paths);
+    if (merged === "*") {
+      result.push({ projectionState: ProjectionState.PROJECTED, projectedValues: new Set() });
+    } else if (merged.length > 0) {
+      result.push({ projectionState: ProjectionState.SOME_PROJECTED, projectedValues: new Set(merged) });
+    } else {
+      result.push({ projectionState: ProjectionState.NOT_PROJECTED, projectedValues: new Set() });
+    }
+    paths = advancePaths(paths);
   }
   return result;
 }
@@ -694,6 +724,8 @@ export abstract class GridDataModel {
     colIR: AxisIR,
     rowIR: AxisIR,
     measures: Measure[],
+    nColConfig: AxisConfig,
+    nRowConfig: AxisConfig,
   } {
     const [colConfig, rowConfig] = [config.columns, config.rows].map(normalizeAxisConfig);
     const [colIR, rowIR] = [colConfig.expr, rowConfig.expr].map(e => this.buildAxisIR(e));
@@ -721,11 +753,13 @@ export abstract class GridDataModel {
       merged: { dimSpec: combinedDimSpec, measures },
       colIR,
       rowIR,
-      measures
+      measures,
+      nColConfig: colConfig,
+      nRowConfig: rowConfig,
     };
   }
 
-  async getViewModelData(config: PivotConfig): Promise<GridDataViewModel> {
+  async getViewModelData(config: PivotConfig): Promise<GridDataViewModelArgsObj> {
     const ir = this.getIR(config);
     const result = await this.getData(ir.merged);
     const [colDimCount, rowDimCount] = [ir.colIR, ir.rowIR].map(ir => dimSpecFields(ir.dimSpec).length);
@@ -809,6 +843,42 @@ export abstract class GridDataModel {
       }
     }
 
-    return new GridDataViewModel(data, fullColFacets, fullRowFacets);
+    // fullColFacets includes a measure-name level when measures are present — subtract 1 since
+    // that level is not a dimension and has no projection state.
+    const colDefsForColFacet = buildColDefsForFacet(
+      ir.nColConfig.projection,
+      fullColFacets.length - (ir.colIR.measures.length > 0 ? 1 : 0));
+    const colDefsForRowFacet = buildColDefsForFacet(
+      ir.nRowConfig.projection,
+      fullRowFacets.length - (ir.rowIR.measures.length > 0 ? 1 : 0));
+
+    const toPartialFacetDefs = (defs: ColDefsForFacet[]): Partial<FacetDef>[] =>
+      defs.map(d => ({ meta: { projectionState: d.projectionState, projectedValues: d.projectedValues } }));
+
+    return {
+      data,
+      columnFacets: fullColFacets,
+      rowFacets: fullRowFacets,
+      options: {
+        facetDefs: {
+          col: toPartialFacetDefs(colDefsForColFacet),
+          row: toPartialFacetDefs(colDefsForRowFacet),
+          axis: ir.rowIR.measures.length > 0 ? "row" : "col",
+        },
+      },
+    };
+  }
+
+  async getViewModel(config: PivotConfig): Promise<GridDataViewModel> {
+    const { data, columnFacets, rowFacets, options } = await this.getViewModelData(config);
+    return new GridDataViewModel(data, columnFacets, rowFacets, options);
   }
 }
+
+type GridDataViewModelArgs = ConstructorParameters<typeof GridDataViewModel>
+type GridDataViewModelArgsObj = {
+  data: GridDataViewModelArgs[0];
+  columnFacets: GridDataViewModelArgs[1];
+  rowFacets: GridDataViewModelArgs[2];
+  options: GridDataViewModelArgs[3];
+};

@@ -2,12 +2,20 @@
   box-sizing: border-box;
 }
 
+// Sub-cell offset for smooth scrolling:
+// We use margin-top/margin-left instead of the more conventional position:relative + top/left.
+// With position:relative, the container becomes a containing block for its position:sticky children
+// (column facets, row facets, corner cells(headers)). Firefox has a bug where it does not recalculate
+// sticky offsets when the containing block moves via top/left — it only does so after a DOM tree
+// mutation (e.g. replaceChildren) on the sticky element itself. This caused sticky facet cells
+// to flicker and drift during scrolling.
+// margin-top/margin-left shifts the container without creating a positioned ancestor, so sticky
+// children resolve their offsets directly against the scroll container, which is stationary.
+// This avoids the Firefox invalidation bug entirely.
 .grid-content {
   display: grid;
-  position: relative;
-  /* Sub-cell offset for smooth scrolling */
-  top: calc(-1 * var(--offset-y, 0px));
-  left: calc(-1 * var(--offset-x, 0px));
+  margin-top: calc(-1 * var(--offset-y, 0px));
+  margin-left: calc(-1 * var(--offset-x, 0px));
 }
 
   /* Base cell styling */
@@ -19,10 +27,11 @@
   overflow: hidden;
   text-overflow: ellipsis;
   font-size: calc(var(--font-size) * 1px);
+  font-weight: var(--font-weight);
   display: flex;
   align-items: center;
 
-  &.l-edge {
+  &.l-edge, &.nl-edge {
     border-left: none;
   }
 
@@ -30,7 +39,19 @@
     border-right: calc(var(--vertical-border-width) * 1px) solid var(--vertical-border-color);
   }
 
-  &.col-header {
+  &.b-edge {
+    border-bottom: calc(var(--horizontal-border-width) * 1px) solid var(--horizontal-border-color) !important;
+  }
+
+  &.facet-b-edge, &.header-b-edge {
+    border-bottom: calc(var(--data-left-border-width) * 1px) solid var(--data-left-border-color) !important;
+  }
+
+  &.facet-r-edge, &.header-r-edge {
+    border-right: calc(var(--data-top-border-width) * 1px) solid var(--data-top-border-color) !important;
+  }
+
+  &.col-facet {
     background: var(--column-facet-background-color);
     justify-content: center;
     position: sticky;
@@ -68,7 +89,7 @@
     }
   }
 
-  &.row-header {
+  &.row-facet {
     background: var(--row-facet-background-color);
     position: sticky;
     z-index: 15;
@@ -80,6 +101,15 @@
       text-overflow: ellipsis;
       white-space: nowrap;
       min-width: 0;
+    }
+  }
+
+  &.facet, &.header {
+    .f-cell-con {
+      display: flex;
+      gap: 0.65rem;
+      justify-content: center;
+      align-items: center;
     }
   }
 
@@ -95,19 +125,16 @@
     }
   }
 
+  &.header {
+    background: var(--facet-header-background-color);
+    color: var(--facet-header-font-color);
+    font-size: calc(var(--facet-header-font-size) * 1px);
+    font-weight: var(--facet-header-font-weight);
+  }
+
   &.corner {
-    background: var(--column-facet-background-color);
     position: sticky;
     z-index: 30;
-    border: none !important;
-
-    &.r-edge {
-      border-right: calc(var(--vertical-border-width) * 1px) solid var(--vertical-border-color) !important;
-    }
-
-    &.b-edge {
-      border-bottom: calc(var(--horizontal-border-width) * 1px) solid var(--horizontal-border-color) !important;
-    }
   }
 
   &.selection-overlay {

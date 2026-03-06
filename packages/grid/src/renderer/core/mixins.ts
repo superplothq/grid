@@ -1,11 +1,21 @@
 import CellManager from "./cell-manager";
 
+export function addOrReplaceChildren(parent: HTMLElement, child: string | HTMLElement | HTMLElement[]): void {
+  if (typeof child === "string") {
+    parent.innerHTML = child;
+  } else if (Array.isArray(child)) {
+    parent.replaceChildren(...child);
+  } else {
+    parent.replaceChildren(child);
+  }
+}
+
 export interface PlaceCellOpts {
   key: string;
-  content: string;
   cls: string;
   gridRow: number;
   gridCol: number;
+  hintContentDirty?: boolean;
   extraStyles: {
     colspan?: number;
     rowspan?: number;
@@ -27,17 +37,27 @@ interface HasCellManager {
 
 export function WithCellPlacement<TBase extends Constructor<HasCellManager>>(Base: TBase) {
   abstract class Mixed extends Base {
-    placeCellInDom(opts: PlaceCellOpts): [HTMLElement, boolean] {
+    placeCellInDom(opts: PlaceCellOpts): [HTMLElement, boolean, boolean] {
       const [cell, needAppend] = this.cellManager.acquire(opts.key);
+      const contentDirty = needAppend || !opts.hintContentDirty;
 
-      cell.innerHTML = opts.content;
-      cell.className = "cell " + opts.cls;
-      cell.style.gridColumn = opts.extraStyles.colspan
+      const cellCls = "cell " + opts.cls;
+      if (cell.className !== cellCls) {
+        cell.className = cellCls;
+      }
+
+      const gridCol = opts.extraStyles.colspan
         ? `${opts.gridCol} / span ${opts.extraStyles.colspan}`
         : `${opts.gridCol}`;
-      cell.style.gridRow = opts.extraStyles.rowspan
+      if (cell.style.gridColumn !== gridCol) {
+        cell.style.gridColumn = gridCol;
+      }
+      const gridRow = opts.extraStyles.rowspan
         ? `${opts.gridRow} / span ${opts.extraStyles.rowspan}`
         : `${opts.gridRow}`;
+      if (cell.style.gridRow !== gridRow) {
+        cell.style.gridRow = gridRow;
+      }
 
       if (opts.extraStyles.top !== undefined) {
         cell.style.top = `${opts.extraStyles.top}px`;
@@ -45,7 +65,7 @@ export function WithCellPlacement<TBase extends Constructor<HasCellManager>>(Bas
       if (opts.extraStyles.left !== undefined) {
         cell.style.left = `${opts.extraStyles.left}px`;
       }
-      if (opts.extraStyles.transform !== undefined) {
+      if (opts.extraStyles.transform !== undefined && cell.style.transform !== opts.extraStyles.transform) {
         cell.style.transform = opts.extraStyles.transform;
       }
       if (opts.extraStyles.width !== undefined) {
@@ -58,7 +78,7 @@ export function WithCellPlacement<TBase extends Constructor<HasCellManager>>(Bas
         cell.style.maxWidth = `${opts.extraStyles.maxWidth}px`;
       }
 
-      return [cell, needAppend];
+      return [cell, needAppend, contentDirty];
     }
   }
   return Mixed;

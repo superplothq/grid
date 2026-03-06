@@ -1,5 +1,5 @@
 import { expect } from "chai";
-import { GridDataViewModel } from "./grid-data-viewmodel";
+import { GridDataViewModel, MetaState } from "./grid-data-viewmodel";
 
 const colFacets2Levels: string[][] = [
   ["A", "A", "A", "B", "B", "B"],
@@ -32,6 +32,55 @@ const colFacets1Level: string[][] = [
   ["P", "Q", "R", "S"],
 ];
 const data4x5 = makeData(4, 5);
+
+describe("MetaState", () => {
+  let metaState: MetaState;
+
+  beforeEach(() => {
+    metaState = new MetaState();
+  });
+
+  it("should set and get a value in a namespace", () => {
+    metaState.set("ns1", "key1", "value1");
+    expect(metaState.get("ns1")).to.deep.equal({ key1: "value1" });
+  });
+
+  it("should return undefined for unknown namespace", () => {
+    expect(metaState.get("unknown")).to.be.undefined;
+  });
+
+  it("should overwrite an existing key", () => {
+    metaState.set("ns1", "key1", "value1");
+    metaState.set("ns1", "key1", "value2");
+    expect(metaState.get("ns1")).to.deep.equal({ key1: "value2" });
+  });
+
+  it("should store multiple keys in a namespace", () => {
+    metaState.set("ns1", "a", 1);
+    metaState.set("ns1", "b", 2);
+    expect(metaState.get("ns1")).to.deep.equal({ a: 1, b: 2 });
+  });
+
+  it("should clear a single key from a namespace", () => {
+    metaState.set("ns1", "a", 1);
+    metaState.set("ns1", "b", 2);
+    metaState.clear("ns1", "a");
+    expect(metaState.get("ns1")).to.deep.equal({ b: 2 });
+  });
+
+  it("should clear an entire namespace", () => {
+    metaState.set("ns1", "a", 1);
+    metaState.set("ns1", "b", 2);
+    metaState.clear("ns1");
+    expect(metaState.get("ns1")).to.be.undefined;
+  });
+
+  it("should be available on GridDataViewModel", () => {
+    const vm = new GridDataViewModel(data4x5, colFacets1Level);
+    vm.metaState.set("test", "loading", true);
+    expect(vm.metaState.get("test")).to.deep.equal({ loading: true });
+  });
+});
 
 describe("GridDataViewModel.getSlice", () => {
   describe("1 column facet level, no row facets", () => {

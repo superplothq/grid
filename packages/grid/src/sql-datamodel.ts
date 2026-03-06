@@ -263,6 +263,14 @@ export abstract class SqlDataModel extends GridDataModel {
 
       const unionParts: string[] = [];
       const nullableSet = new Set<string>();
+      // When multiple segments exist (e.g. selectively opening Sales and Engineering),
+      // each segment produces rows via UNION ALL sharing the same __ord__ column (MIN(rowid)).
+      // If the source data cycles (Sales, Engineering, Sales, Engineering, ...),
+      // the global ORDER BY MIN(__ord__) interleaves children from different parents.
+      // To fix this, we add __sord__ = MIN(MIN(rowid)) OVER (PARTITION BY parent_field),
+      // which groups all children under their parent while preserving natural data order.
+      const hasMultipleSegments = spec.segments.length > 1;
+      const segOrdCol = `__sord__${counter.n - 1}`;
 
       for (const seg of spec.segments) {
         const groupFields = seg.groupBy;
@@ -274,6 +282,10 @@ export abstract class SqlDataModel extends GridDataModel {
           ...nullFields.map(f => `CAST(NULL AS VARCHAR) AS "${f}"`),
           `MIN(rowid) AS "${ordCol}"`,
         ];
+        if (hasMultipleSegments) {
+          const parentField = spec.fields[0];
+          selectParts.push(`MIN(MIN(rowid)) OVER (PARTITION BY "${parentField}") AS "${segOrdCol}"`);
+        }
         const groupByList = groupFields.map(f => `"${f}"`).join(", ");
 
         let whereClause = "";
@@ -288,11 +300,17 @@ export abstract class SqlDataModel extends GridDataModel {
         ? `${name} AS (${unionParts[0]})`
         : `${name} AS (\n       ${unionParts.join("\n       UNION ALL\n       ")}\n     )`;
 
+      const orderExprs: OrderExpr[] = [];
+      if (hasMultipleSegments) {
+        orderExprs.push({ type: "ord", expr: segOrdCol });
+      }
+      orderExprs.push({ type: "ord", expr: ordCol });
+
       return {
         cteName: name,
         ctes: [cte],
         fields: [...spec.fields],
-        orderExprs: [{ type: "ord", expr: ordCol }],
+        orderExprs,
         srcColumns: [],
         concatInfos: [],
         nullableFields: [...nullableSet],
