@@ -44,6 +44,7 @@ export type AxisConfig = { expr: AxisExpr; projection?: DimensionalProjectionPat
 export interface PivotConfig {
   rows: AxisExpr | AxisConfig;
   columns: AxisExpr | AxisConfig;
+  filter?: Filter[];
   sort?: SortEntry[];
 }
 
@@ -62,29 +63,48 @@ export interface CrossSegment {
   filter?: SegmentFilter;
 }
 
-export interface Filter {
+export interface ScalarFilter {
+  type: "scalar";
   field: string;
-  op: "eq" | "neq" | "in" | "not_in";
-  value: string | string[];
+  op: "eq" | "neq" | "in" | "not_in"
+    | "gt" | "lt" | "gte" | "lte"
+    | "between"
+    | "contains" | "doesNotContain" | "startsWith" | "endsWith"
+    | "before" | "after"
+    | "empty" | "notEmpty";
+  value: string | string[] | number | number[] | null;
 }
+
+export interface TupleFilter {
+  type: "tuple";
+  fields: string[];
+  op: "in" | "not_in";
+  value: (string | number)[][];
+}
+
+export type Filter = ScalarFilter | TupleFilter;
 
 export interface FacetQuery {
   type: "facet";
   fields: string[];
   mode: "distinct" | "group";
-  filters?: Filter[];
+  filters?: ScalarFilter[];
 }
 
 export interface Measure {
   field: string;
   aggregation: AggregateFn;
+  filter: ScalarFilter[];
 }
 
+// hierarchy groups multiple fields into a single leaf node (e.g. hierarchy("region", "country")).
+// A filter on any of its fields (e.g. region="Europe") must land on the hierarchy node itself
+// because there is no deeper simple node to attach it to — the hierarchy IS the leaf CTE.
 export type DimSpec =
   | { type: "none" }
-  | { type: "simple"; field: string }
-  | { type: "hierarchy"; fields: string[]; segments?: HierarchySegment[] }
-  | { type: "cross"; children: DimSpec[]; segments?: CrossSegment[] }
+  | { type: "simple"; field: string; filter: Filter[] }
+  | { type: "hierarchy"; fields: string[]; segments?: HierarchySegment[]; filter: Filter[] }
+  | { type: "cross"; children: DimSpec[]; segments?: CrossSegment[]; filter: Filter[] }
   | { type: "concat"; children: DimSpec[] };
 
 export interface IR {
