@@ -14,7 +14,7 @@ export interface SortEntry {
 
 export interface Schema {
   name: string;
-  displayName: string;
+  displayName?: string;
   type: "measure" | "dimension";
 }
 

@@ -65,6 +65,11 @@ export class DuckDBWasmDataModel extends SqlDataModel {
     return new DuckDBWasmDataModel(schema, table, db, conn);
   }
 
+  protected static async createWasmResources(schema: Schema[], table: string, bundles: DuckDBWasmBundles = DEFAULT_BUNDLES): Promise<{db: duckdb.AsyncDuckDB; conn: duckdb.AsyncDuckDBConnection}> {
+    const instance = await DuckDBWasmDataModel.create(schema, table, bundles);
+    return {db: instance.wasmDb, conn: instance.wasmConn};
+  }
+
   protected runSQL(sql: string): Promise<Record<string, any>[]> {
     return this.wasmConn.query(sql).then(result => result.toArray().map(row => row.toJSON()));
   }
