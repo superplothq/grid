@@ -1,4 +1,4 @@
-import { GridDataViewModel } from "../renderer/grid-data-viewmodel";
+import { PivotDataViewModel } from "../renderer/pivot-data-viewmodel";
 import {
   AxisConfig,
   AxisExpr,
@@ -948,16 +948,16 @@ export abstract class GridDataModel {
     };
   }
 
-  async getViewModel(config: PivotConfig): Promise<GridDataViewModel> {
+  async getViewModel(config: PivotConfig): Promise<PivotDataViewModel> {
     const { data, columnFacets, rowFacets, options } = await this.getViewModelData(config);
-    return new GridDataViewModel(data, columnFacets, rowFacets, options);
+    return new PivotDataViewModel(data, columnFacets, rowFacets, options);
   }
 }
 
-type GridDataViewModelArgs = ConstructorParameters<typeof GridDataViewModel>
+type PivotDataViewModelArgs = ConstructorParameters<typeof PivotDataViewModel>
 type GridDataViewModelArgsObj = {
-  data: GridDataViewModelArgs[0];
-  columnFacets: GridDataViewModelArgs[1];
-  rowFacets: GridDataViewModelArgs[2];
-  options: GridDataViewModelArgs[3];
+  data: PivotDataViewModelArgs[0];
+  columnFacets: PivotDataViewModelArgs[1];
+  rowFacets: PivotDataViewModelArgs[2];
+  options: PivotDataViewModelArgs[3];
 };

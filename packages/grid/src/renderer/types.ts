@@ -15,12 +15,28 @@ export type GridWin = Window & {
   };
 };
 
-export interface SliceResult {
+export type FacetData = (string | null)[][];
+
+export interface FlatRowMeta {
+  depth: number;
+  isLeaf: boolean;
+  isExpanded: boolean;
+}
+
+export interface BaseSliceResult {
   numRows: number;
   numCols: number;
   columnFacets?: (string | null)[][];
-  rowFacets?: (string | null)[][];
   data?: any[][];
+}
+
+export interface PivotSliceResult extends BaseSliceResult {
+  rowFacets: (string | null)[][];
+}
+
+export interface FlatSliceResult extends BaseSliceResult {
+  rowFacets: (string | null)[];
+  rowMeta: FlatRowMeta[];
 }
 
 export interface IColAutoSize {

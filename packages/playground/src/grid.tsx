@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import "grid/dist/grid.css";
-import Grid, { GridDataViewModel, LayoutEvents, SelectionPayload, VTrackDef, ColAutoSizeConfig, createChartRenderer, CellRenderer, FacetCellRenderer } from "grid/dist/renderer";
+import Grid, { PivotDataViewModel, LayoutEvents, SelectionPayload, VTrackDef, ColAutoSizeConfig, createChartRenderer, CellRenderer, FacetCellRenderer } from "grid/dist/renderer";
 import feather from "feather-icons";
 
 interface TwoKeyData {
@@ -116,7 +116,7 @@ const NullFacetDemo: React.FC = () => {
     }
 
     const grid = new Grid({}, ref.current);
-    grid.data = new GridDataViewModel(
+    grid.data = new PivotDataViewModel(
       data,
       [colFacetLevel0, colFacetLevel1, colFacetLevel2],
       [rowFacetLevel0, rowFacetLevel1, rowFacetLevel2],
@@ -537,7 +537,7 @@ const GridPlayground: React.FC = () => {
     }
 
     console.log("Generated data:", { totalRows, totalCols, rowFacets: rowFacetLevelMajor, colFacets: colFacetLevelMajor, data });
-    gridRef.current.data = new GridDataViewModel(data, colFacetLevelMajor, rowFacetLevelMajor, {
+    gridRef.current.data = new PivotDataViewModel(data, colFacetLevelMajor, rowFacetLevelMajor, {
       vTrackDefs,
       facetDefs: {
         row: rowFacets.map((_, i) => ({ trackRenderer: rowFacetRenderer, ...(showHeadersRef.current && { text: `Row ${i}` }) })),

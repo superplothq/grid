@@ -1,22 +1,41 @@
 # Facet Rendering & Cell Layout
 
-The renderer is driven entirely by `GridDataViewModel`. Any consumer that wants to render a grid must populate this view model with the correct facet and data arrays.
+The renderer is driven entirely by `GridDataViewModel` and its subclasses. Any consumer that wants to render a grid must populate a view model with the correct facet and data arrays.
 
-`GridDataViewModel` holds **column facets** `(string | null)[][]`, optional **row facets** `(string | null)[][]`, and **value cells** as column-major 2D arrays. The renderer calls `getSlice(x0, y0, x1, y1)` to get the visible portion for virtualized rendering.
+## Class Hierarchy
 
-## Ragged Dimension Spanning via Null Values
+```
+GridDataViewModel (abstract base)
+  ├── PivotDataViewModel       — multi-level row facets for pivot tables
+  └── FlattenedDataViewModel   — single row facet + packed Uint8Array metadata for row grouping
+```
+
+`GridDataViewModel` holds **column facets** `(string | null)[][]`, **value cells** as column-major 2D arrays, and shared behavior (column slicing, data slicing, facet def normalization, `MetaState`). Row facet storage and slice result shape are defined by each subclass.
+
+The renderer calls `getSlice(x0, y0, x1, y1)` to get the visible portion for virtualized rendering. Each subclass returns a different slice result type:
+
+- **`PivotDataViewModel`** returns `PivotSliceResult` — `rowFacets: (string | null)[][]` (item-major, one array per row with values for each facet level)
+- **`FlattenedDataViewModel`** returns `FlatSliceResult` — `rowFacets: (string | null)[]` (flat array, one value per row) + `rowMeta: FlatRowMeta[]` (unpacked depth/isLeaf/isExpanded per row)
+
+Both share a common `BaseSliceResult` with `numRows`, `numCols`, `columnFacets`, and `data`.
+
+## PivotDataViewModel
+
+Multi-level row facets for pivot tables. Row facets are stored as `(string | null)[][]` in level-major format. `getSlice()` returns `PivotSliceResult` with `rowFacets` converted to item-major format.
+
+Basic usage of data-viewmodel ([test cases](packages/grid/src/renderer/grid-data-viewmodel.test.ts)).
+
+### Ragged Dimension Spanning via Null Values
 
 Facet arrays use `null` to signal "this level does not apply." A facet entry like `["Region", null, null]` means the item exists only at level 0 and should visually span across levels 1 and 2. This is how the view model represents ragged (non-uniform depth) dimension spaces.
 
-`getSlice()` preserves these nulls in the returned `SliceResult`. The renderer uses them to compute **secondary spans** — how many facet levels a single cell covers. For row facets this becomes a colspan (cell stretches rightward); for column facets it becomes a rowspan (cell stretches downward).
+`getSlice()` preserves these nulls in the returned slice result. The renderer uses them to compute **secondary spans** — how many facet levels a single cell covers. For row facets this becomes a colspan (cell stretches rightward); for column facets it becomes a rowspan (cell stretches downward).
 
-## Hierarchy via Value Merging
+### Hierarchy via Value Merging
 
 The view model drives hierarchy through repeated values across consecutive items in the facet arrays. When consecutive rows/columns share the same facet value at a given level (and the same ancestor path above it), the renderer merges them into a single cell with a **primary span**.
 
 The hierarchical path is the sequence of facet values from level 0 down to the current level. Two items merge only when their full path matches, they are consecutive, and they have the same null shape (secondary span). This prevents false merges across gaps or across items with different depth structures.
-
-Basic usage of data-viewmodel ([test cases](packages/grid/src/renderer/grid-data-viewmodel.test.ts)).
 
 
 ### Example
@@ -177,13 +196,41 @@ viewModel.metaState.clear(namespace, key);         // clear a single key from na
 viewModel.metaState.clear(namespace);              // clear entire namespace
 ```
 
+## FlattenedDataViewModel
+
+`FlattenedDataViewModel` supports row grouping with a tree-like, variable-depth structure. Instead of multi-level row facet arrays, it stores a single flat `(string | null)[]` for row labels and a packed `Uint8Array` for per-row metadata.
+
+### Packed Metadata Bit Layout (1 byte per row)
+
+```
+Bits [7-4]: depth (0-15)
+Bit  [3]:   isLeaf
+Bit  [2]:   isExpanded
+Bits [1-0]: reserved
+```
+
+Use `createRowMeta(depth, isLeaf, isExpanded)` to build bytes. `getSlice()` unpacks into `FlatRowMeta` objects:
+
+```ts
+interface FlatRowMeta {
+  depth: number;
+  isLeaf: boolean;
+  isExpanded: boolean;
+}
+```
+
+Mutation methods `expand(rowIndex)`, `collapse(rowIndex)`, and `toggleExpand(rowIndex)` flip bits in-place on the `Uint8Array`.
+
 ## Data Flow
 
 ```
-GridDataViewModel.getSlice()
-  → SliceResult { columnFacets, rowFacets, data }
+PivotDataViewModel.getSlice()
+  → PivotSliceResult { columnFacets, rowFacets: (string|null)[][], data }
     → computeMerges() → MergeState[] { level, start, spanPrimary, spanSecondary }
       → CSS Grid placement with span syntax
+
+FlattenedDataViewModel.getSlice()
+  → FlatSliceResult { columnFacets, rowFacets: (string|null)[], rowMeta: FlatRowMeta[], data }
 ```
 
 Value cells occupy the grid area after the facet headers — row facet levels take the leftmost columns, column facet levels take the topmost rows.

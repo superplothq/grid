@@ -1,5 +1,6 @@
 import { expect } from "chai";
-import { GridDataViewModel, MetaState } from "./grid-data-viewmodel";
+import { MetaState } from "./grid-data-viewmodel";
+import { PivotDataViewModel } from "./pivot-data-viewmodel";
 
 const colFacets2Levels: string[][] = [
   ["A", "A", "A", "B", "B", "B"],
@@ -76,7 +77,7 @@ describe("MetaState", () => {
   });
 
   it("should be available on GridDataViewModel", () => {
-    const vm = new GridDataViewModel(data4x5, colFacets1Level);
+    const vm = new PivotDataViewModel(data4x5, colFacets1Level);
     vm.metaState.set("test", "loading", true);
     expect(vm.metaState.get("test")).to.deep.equal({ loading: true });
   });
@@ -84,10 +85,10 @@ describe("MetaState", () => {
 
 describe("GridDataViewModel.getSlice", () => {
   describe("1 column facet level, no row facets", () => {
-    let vm: GridDataViewModel;
+    let vm: PivotDataViewModel;
 
     beforeEach(() => {
-      vm = new GridDataViewModel(data4x5, colFacets1Level);
+      vm = new PivotDataViewModel(data4x5, colFacets1Level);
     });
 
     it("should slice full data range", () => {
@@ -185,10 +186,10 @@ describe("GridDataViewModel.getSlice", () => {
   });
 
   describe("2 column facet levels, 3 row facet levels", () => {
-    let vm: GridDataViewModel;
+    let vm: PivotDataViewModel;
 
     beforeEach(() => {
-      vm = new GridDataViewModel(data6x8, colFacets2Levels, rowFacets3Levels);
+      vm = new PivotDataViewModel(data6x8, colFacets2Levels, rowFacets3Levels);
     });
 
     it("should slice full data range with all facets", () => {

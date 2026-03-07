@@ -1,6 +1,6 @@
 import React, {useEffect, useRef, useState} from "react";
 import "grid/dist/grid.css";
-import Grid, {GridDataViewModel, FacetCellRenderer, FacetDataContext, FacetRendererContext, FacetHeaderRenderer, FacetHeaderContext, GridDataViewModelOptions} from "grid/dist/renderer";
+import Grid, {PivotDataViewModel, FacetCellRenderer, FacetDataContext, FacetRendererContext, FacetHeaderRenderer, FacetHeaderContext, GridDataViewModelOptions} from "grid/dist/renderer";
 import {BrowserInMemoryDataModel, cross, hierarchy, GridData, MeasureSchema, ProjectionState, AxisConfig, DimensionalProjectionPath, SortEntry, Filter, ScalarFilter} from "grid/dist/index";
 import feather from "feather-icons";
 import SortDropdown, {SortEntryConfig} from "./sort-dropdown";
@@ -51,7 +51,7 @@ const gridData: GridData = {
 
 function mergeRenderers(
   options: GridDataViewModelOptions | undefined,
-  viewModel: GridDataViewModel,
+  viewModel: PivotDataViewModel,
 ): GridDataViewModelOptions {
   const existingRow = viewModel.facetDefs.row;
   const existingCol = viewModel.facetDefs.col;
@@ -184,7 +184,7 @@ function makeFacetRenderer(
   hierarchyDepth: number,
   projectionTreeRef: React.MutableRefObject<ProjectionTree>,
   modelRef: React.MutableRefObject<BrowserInMemoryDataModel | null>,
-  viewModelRef: React.MutableRefObject<GridDataViewModel | null>,
+  viewModelRef: React.MutableRefObject<PivotDataViewModel | null>,
   buildConfig: () => { rows: AxisConfig; columns: AxisConfig; sort?: SortEntry[]; filter?: Filter[] },
 ): FacetCellRenderer {
   return (data: string, dataCtx: FacetDataContext, rCtx: FacetRendererContext) => {
@@ -251,7 +251,7 @@ const PivotGridPlayground: React.FC = () => {
   const gridConRef = useRef<HTMLDivElement>(null);
   const gridRef = useRef<Grid | null>(null);
   const modelRef = useRef<BrowserInMemoryDataModel | null>(null);
-  const viewModelRef = useRef<GridDataViewModel | null>(null);
+  const viewModelRef = useRef<PivotDataViewModel | null>(null);
   const rowProjectionRef = useRef<ProjectionTree>({});
   const colProjectionRef = useRef<ProjectionTree>({});
   const [loading, setLoading] = useState(true);
@@ -379,7 +379,7 @@ const PivotGridPlayground: React.FC = () => {
       const rowRenderer = makeFacetRenderer("row", ROW_HIERARCHY_DEPTH, rowProjectionRef, modelRef, viewModelRef, buildConfig);
       const colRenderer = makeFacetRenderer("col", COL_HIERARCHY_DEPTH, colProjectionRef, modelRef, viewModelRef, buildConfig);
 
-      const viewModel = new GridDataViewModel(
+      const viewModel = new PivotDataViewModel(
         result.data, result.columnFacets, result.rowFacets,
         buildFacetDefs(result.options, rowRenderer, colRenderer, ROW_HIERARCHY_FIELDS, COL_HIERARCHY_FIELDS, rowHeaderRenderer, colHeaderRenderer),
       );

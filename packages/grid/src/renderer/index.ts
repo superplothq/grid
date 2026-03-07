@@ -19,7 +19,9 @@ export type {
   VTrackDef,
   ResolvedVTrackDef,
   GridDataViewModelOptions,
-  SliceResult,
+  BaseSliceResult,
+  PivotSliceResult,
+  FlatSliceResult,
   Theme,
   FacetCellRenderer,
   FacetRendererContext,
@@ -29,9 +31,13 @@ export type {
   FacetMeta,
   FacetHeaderRenderer,
   FacetHeaderContext,
+  FacetData,
+  FlatRowMeta,
 } from "./types";
 export { registerTheme } from "./registry";
 export { GridDataViewModel, MetaState } from "./grid-data-viewmodel";
+export { PivotDataViewModel } from "./pivot-data-viewmodel";
+export { FlattenedDataViewModel, createRowMeta } from "./flattened-data-viewmodel";
 export type { BaseViewModel as BaseViewState } from "./layout-proto";
 export type { LayoutEvents } from "./standard-layout";
 export type { EventEmitter };

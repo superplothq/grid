@@ -1,6 +1,6 @@
 import {GridConfig} from "./grid-config";
 import {GridDataViewModel} from "./grid-data-viewmodel";
-import {IColAutoSizeStrategyFixedWidth, FacetCellContent, FacetDataContext, FacetRendererContext, FacetDef, FacetHeaderContext} from "./types";
+import {IColAutoSizeStrategyFixedWidth, FacetCellContent, FacetDataContext, FacetRendererContext, FacetDef, FacetHeaderContext, PivotSliceResult} from "./types";
 import {getTheme} from "./registry";
 import PLayout, {BaseViewModel, RenderCtx} from "./layout-proto";
 import {WithCellPlacement, WithEvents, addOrReplaceChildren} from "./mixins";
@@ -601,7 +601,7 @@ export default class StandardLayout extends StandardLayoutBase {
     const numDataRowsVisible = viewModel.y1 - viewModel.y0;
 
     this.#updateVirtualPanel(viewModel);
-    const sliceData = this.data.getSlice(viewModel.x0, viewModel.y0, viewModel.x1, viewModel.y1);
+    const sliceData = this.data.getSlice(viewModel.x0, viewModel.y0, viewModel.x1, viewModel.y1) as PivotSliceResult;
 
     const template = this.getGridTemplate(
       this.data!.numRowFacetLevels,

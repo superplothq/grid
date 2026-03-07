@@ -1,4 +1,4 @@
-import { SliceResult, GridDataViewModelOptions, ResolvedVTrackDef, ColAutoSizeConfig, FacetDef } from "./types";
+import { BaseSliceResult, GridDataViewModelOptions, ResolvedVTrackDef, ColAutoSizeConfig, FacetDef, FacetData } from "./types";
 import { textRenderer, defaultFacetRenderer, defaultFacetHeaderRenderer } from "./cell-renderers";
 
 const defaultColAutoSize: ColAutoSizeConfig = { strategy: "max-cell" };
@@ -31,37 +31,60 @@ export class MetaState {
   }
 }
 
-export class GridDataViewModel {
+export abstract class GridDataViewModel {
   #numRows: number;
   #numCols: number;
-  #colFacets: (string | null)[][];
-  #rowFacets?: (string | null)[][];
-  #data: any[][];
-  #resolvedVTrackDefs: ResolvedVTrackDef[];
-  #facetDefs: { row: FacetDef[]; col: FacetDef[]; axis: "row" | "col" };
+  #colFacets: FacetData;
+  protected data: any[][];
+  #resolvedVTrackDefs!: ResolvedVTrackDef[];
+  #facetDefs!: { row: FacetDef[]; col: FacetDef[]; axis: "row" | "col" };
   readonly metaState: MetaState = new MetaState();
 
-  constructor(
-    data: any[][],
-    columnFacets: (string | null)[][],
-    rowFacets?: (string | null)[][],
-    options?: GridDataViewModelOptions) {
+  constructor(data: any[][], columnFacets: FacetData) {
     this.#numCols = data.length;
     this.#numRows = data[0].length;
     this.#colFacets = columnFacets;
-    this.#rowFacets = rowFacets;
-    this.#data = data;
-    const normalized = this.#normalizeOptions(options, this.#numCols, columnFacets.length, rowFacets?.length ?? 0);
-    this.#resolvedVTrackDefs = normalized.resolvedVTrackDefs;
-    this.#facetDefs = normalized.facetDefs;
+    this.data = data;
   }
 
-  #normalizeOptions(
+  protected updateBase(data: any[][], columnFacets: FacetData): void {
+    this.#numCols = data.length;
+    this.#numRows = data[0].length;
+    this.#colFacets = columnFacets;
+    this.data = data;
+  }
+
+  protected init(options: GridDataViewModelOptions | undefined): void {
+    const base = this.normalizeBaseOptions(options, this.#numCols, this.#colFacets.length);
+    this.#resolvedVTrackDefs = base.resolvedVTrackDefs;
+    this.#facetDefs = {
+      row: this.normalizeRowFacetDefs(options),
+      col: base.colFacetDefs,
+      axis: options?.facetDefs?.axis ?? "col",
+    };
+  }
+
+  private normalizeRowFacetDefs(options: GridDataViewModelOptions | undefined): FacetDef[] {
+    const inputFacetDefs = options?.facetDefs;
+    const rowFacetDefs: FacetDef[] = [];
+    for (let i = 0; i < this.numRowFacetLevels; i++) {
+      const d = inputFacetDefs?.row[i];
+      rowFacetDefs.push({
+        text: d?.text ?? "",
+        trackRenderer: d?.trackRenderer ?? defaultFacetRenderer,
+        headerRenderer: d?.headerRenderer ?? defaultFacetHeaderRenderer,
+        ...(d?.meta !== undefined && { meta: d.meta }),
+        ...(d?.pseudo !== undefined && { pseudo: d.pseudo }),
+      });
+    }
+    return rowFacetDefs;
+  }
+
+  private normalizeBaseOptions(
     options: GridDataViewModelOptions | undefined,
     numCols: number,
     numColFacetLevels: number,
-    numRowFacetLevels: number,
-  ): { resolvedVTrackDefs: ResolvedVTrackDef[]; facetDefs: { row: FacetDef[]; col: FacetDef[]; axis: "row" | "col" } } {
+  ): { resolvedVTrackDefs: ResolvedVTrackDef[]; colFacetDefs: FacetDef[] } {
     const inputVTrackDefs = options?.vTrackDefs;
     const resolvedVTrackDefs: ResolvedVTrackDef[] = [];
     for (let col = 0; col < numCols; col++) {
@@ -96,26 +119,7 @@ export class GridDataViewModel {
       });
     }
 
-    const rowFacetDefs: FacetDef[] = [];
-    for (let i = 0; i < numRowFacetLevels; i++) {
-      const d = inputFacetDefs?.row[i];
-      rowFacetDefs.push({
-        text: d?.text ?? "",
-        trackRenderer: d?.trackRenderer ?? defaultFacetRenderer,
-        headerRenderer: d?.headerRenderer ?? defaultFacetHeaderRenderer,
-        ...(d?.meta !== undefined && { meta: d.meta }),
-        ...(d?.pseudo !== undefined && { pseudo: d.pseudo }),
-      });
-    }
-
-    return {
-      resolvedVTrackDefs,
-      facetDefs: {
-        row: rowFacetDefs,
-        col: colFacetDefs,
-        axis: inputFacetDefs?.axis ?? "col",
-      },
-    };
+    return { resolvedVTrackDefs, colFacetDefs };
   }
 
   get vTrackDefs(): ResolvedVTrackDef[] {
@@ -126,29 +130,11 @@ export class GridDataViewModel {
     return this.#facetDefs;
   }
 
-  updateData(
-    data: any[][],
-    columnFacets: (string | null)[][],
-    rowFacets?: (string | null)[][],
-    options?: GridDataViewModelOptions
-  ): void {
-    this.#numCols = data.length;
-    this.#numRows = data[0].length;
-    this.#colFacets = columnFacets;
-    this.#rowFacets = rowFacets;
-    this.#data = data;
-    const normalized = this.#normalizeOptions(options, this.#numCols, columnFacets.length, rowFacets?.length ?? 0);
-    this.#resolvedVTrackDefs = normalized.resolvedVTrackDefs;
-    this.#facetDefs = normalized.facetDefs;
-  }
-
   setColSize(colIndex: number, colSize: ResolvedVTrackDef["colSize"]): void {
     this.#resolvedVTrackDefs[colIndex].colSize = colSize;
   }
 
-  get numRowFacetLevels() {
-    return this.#rowFacets?.length ?? 0;
-  }
+  abstract get numRowFacetLevels(): number;
 
   get numColFacetLevels() {
     return this.#colFacets.length;
@@ -166,17 +152,15 @@ export class GridDataViewModel {
     return this.#colFacets[level][colIndex];
   }
 
-  get columnFacets(): (string | null)[][] {
+  get columnFacets(): FacetData {
     return this.#colFacets;
   }
 
-  get rowFacets(): (string | null)[][] {
-    return this.#rowFacets || [];
-  }
+  abstract get rowFacets(): FacetData;
 
   // TODO this can be optimized since this sits in the hot path of every render cycle
   //      we can operate using just pointers.
-  getSlice(x0: number, y0: number, x1: number, y1: number): SliceResult {
+  protected sliceBase(x0: number, y0: number, x1: number, y1: number): BaseSliceResult {
     if (x0 === x1 && y0 === y1) {
       return {
         numRows: this.#numRows,
@@ -193,22 +177,11 @@ export class GridDataViewModel {
       columnFacets.push(facets);
     }
 
-    const rowFacets: (string | null)[][] = [];
-    if (this.numRowFacetLevels) {
-      for (let y = y0; y < y1; y++) {
-        const facets: (string | null)[] = [];
-        for (let level = 0; level < this.numRowFacetLevels; level++) {
-          facets.push(this.#rowFacets![level][y]);
-        }
-        rowFacets.push(facets);
-      }
-    }
-
     const data: any[][] = [];
     for (let x = x0; x < x1; x++) {
       const column: any[] = [];
       for (let y = y0; y < y1; y++) {
-        column.push(this.#data[x][y]);
+        column.push(this.data[x][y]);
       }
       data.push(column);
     }
@@ -217,8 +190,9 @@ export class GridDataViewModel {
       numRows: this.#numRows,
       numCols: this.#numCols,
       columnFacets,
-      rowFacets,
       data,
     };
   }
+
+  abstract getSlice(x0: number, y0: number, x1: number, y1: number): BaseSliceResult;
 }
