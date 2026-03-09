@@ -21,11 +21,14 @@ export interface FlatRowMeta {
   depth: number;
   isLeaf: boolean;
   isExpanded: boolean;
+  isAncestor?: boolean;
 }
 
 export interface BaseSliceResult {
   numRows: number;
   numCols: number;
+  sliceNumRows: number;
+  sliceNumCols: number;
   columnFacets?: (string | null)[][];
   data?: any[][];
 }
@@ -37,6 +40,8 @@ export interface PivotSliceResult extends BaseSliceResult {
 export interface FlatSliceResult extends BaseSliceResult {
   rowFacets: (string | null)[];
   rowMeta: FlatRowMeta[];
+  numAncestors: number;
+  maxDepth: number;
 }
 
 export interface IColAutoSize {
@@ -77,6 +82,7 @@ export interface FacetDataContext {
   path: (string | null)[];
   level: number;
   index: number;
+  flatMeta?: FlatRowMeta;
 }
 
 export interface FacetCellContent {

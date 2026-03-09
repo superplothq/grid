@@ -102,6 +102,16 @@
       white-space: nowrap;
       min-width: 0;
     }
+
+    &.grouped-row {
+      padding-left: calc(var(--cell-padding-x) * 1px);
+      margin-left: calc(var(--depth, 0) * 16px);
+      justify-content: flex-start;
+    }
+
+    &.sticky-row {
+      z-index: 18;
+    }
   }
 
   &.facet, &.header {
@@ -122,6 +132,11 @@
     &.custom-rendered {
       justify-content: center;
       padding: 0;
+    }
+
+    &.sticky-row {
+      position: sticky;
+      z-index: 18;
     }
   }
 

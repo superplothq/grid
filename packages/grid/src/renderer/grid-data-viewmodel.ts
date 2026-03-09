@@ -165,6 +165,8 @@ export abstract class GridDataViewModel {
       return {
         numRows: this.#numRows,
         numCols: this.#numCols,
+        sliceNumRows: 0,
+        sliceNumCols: 0,
       };
     }
 
@@ -189,6 +191,8 @@ export abstract class GridDataViewModel {
     return {
       numRows: this.#numRows,
       numCols: this.#numCols,
+      sliceNumRows: y1 - y0,
+      sliceNumCols: x1 - x0,
       columnFacets,
       data,
     };

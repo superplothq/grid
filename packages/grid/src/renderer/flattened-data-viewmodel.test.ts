@@ -179,6 +179,62 @@ describe("FlattenedDataViewModel", () => {
     });
   });
 
+  describe("ancestor backtracking", () => {
+    const data = makeData(3, 8);
+    const colFacets: string[][] = [["A", "B", "C"]];
+    const rf = ["Root", "L1-A", "L2-A", "L2-B", "L1-B", "L2-C", "Root2", "L1-C"];
+    const rm = new Uint8Array([
+      createRowMeta(0, false, true),   // 0: Root     depth=0
+      createRowMeta(1, false, true),   // 1: L1-A     depth=1
+      createRowMeta(2, true, false),   // 2: L2-A     depth=2
+      createRowMeta(2, true, false),   // 3: L2-B     depth=2
+      createRowMeta(1, false, true),   // 4: L1-B     depth=1
+      createRowMeta(2, true, false),   // 5: L2-C     depth=2
+      createRowMeta(0, false, true),   // 6: Root2    depth=0
+      createRowMeta(1, true, false),   // 7: L1-C     depth=1
+    ]);
+
+    it("should not prepend ancestors when y0 is 0", () => {
+      const vm = new FlattenedDataViewModel(data, colFacets, rf, rm);
+      const result = vm.getSlice(0, 0, 3, 3);
+      expect(result.sliceNumRows).to.equal(3);
+      expect(result.rowFacets).to.deep.equal(["Root", "L1-A", "L2-A"]);
+      expect(result.rowMeta.some(m => m.isAncestor)).to.be.false;
+      expect(result.data).to.deep.equal([[0, 1, 2], [100, 101, 102], [200, 201, 202]]);
+    });
+
+    it("should not prepend ancestors when depth of y0 is 0", () => {
+      const vm = new FlattenedDataViewModel(data, colFacets, rf, rm);
+      const result = vm.getSlice(0, 6, 3, 8);
+      expect(result.sliceNumRows).to.equal(2);
+      expect(result.rowFacets).to.deep.equal(["Root2", "L1-C"]);
+      expect(result.rowMeta.some(m => m.isAncestor)).to.be.false;
+      expect(result.data).to.deep.equal([[6, 7], [106, 107], [206, 207]]);
+    });
+
+    it("should prepend single ancestor at depth 0 for row at depth 1", () => {
+      const vm = new FlattenedDataViewModel(data, colFacets, rf, rm);
+      const result = vm.getSlice(0, 4, 3, 6);
+      expect(result.sliceNumRows).to.equal(3);
+      expect(result.rowFacets).to.deep.equal(["Root", "L1-B", "L2-C"]);
+      expect(result.rowMeta[0]).to.deep.equal({ depth: 0, isLeaf: false, isExpanded: true, isAncestor: true });
+      expect(result.rowMeta[1].isAncestor).to.be.undefined;
+      expect(result.rowMeta[2].isAncestor).to.be.undefined;
+      expect(result.data).to.deep.equal([[0, 4, 5], [100, 104, 105], [200, 204, 205]]);
+    });
+
+    it("should prepend multiple ancestors for row at depth 2", () => {
+      const vm = new FlattenedDataViewModel(data, colFacets, rf, rm);
+      const result = vm.getSlice(0, 5, 3, 6);
+      expect(result.sliceNumRows).to.equal(3);
+      expect(result.rowFacets).to.deep.equal(["Root", "L1-B", "L2-C"]);
+      expect(result.rowMeta[0]).to.deep.equal({ depth: 0, isLeaf: false, isExpanded: true, isAncestor: true });
+      expect(result.rowMeta[1]).to.deep.equal({ depth: 1, isLeaf: false, isExpanded: true, isAncestor: true });
+      expect(result.rowMeta[2].isAncestor).to.be.undefined;
+      expect(result.data).to.deep.equal([[0, 4, 5], [100, 104, 105], [200, 204, 205]]);
+    });
+  });
+
   describe("updateData", () => {
     it("should replace all data", () => {
       const vm = new FlattenedDataViewModel([[1]], [["A"]], ["G"], new Uint8Array([createRowMeta(0, true, false)]));

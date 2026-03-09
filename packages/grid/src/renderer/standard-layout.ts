@@ -50,9 +50,15 @@ export interface ViewModel extends BaseViewModel {
   selections: SelectionState[];
 }
 
-interface CellToMeasure {
+export interface CellToMeasure {
   cell: HTMLElement;
   sizeKey: number;
+}
+
+export interface CellRenderResult {
+  cellsToMeasure: CellToMeasure[];
+  adjustCells: { cell: HTMLElement; level: number }[];
+  nodesToAppend: HTMLElement[];
 }
 
 const StandardLayoutBase = WithEvents<LayoutEvents>()(WithCellPlacement(PLayout));
@@ -164,7 +170,7 @@ export default class StandardLayout extends StandardLayoutBase {
     facetSample.style.visibility = "hidden";
     const sampleMerge: MergeState = { value: "Mgy$123,456", path: "Mgy$123,456", level: 0, start: 0, spanPrimary: 1, spanSecondary: 1 };
     const colFacetDefs = this.data!.facetDefs.col;
-    const colContent = this.#buildFacetCell(colFacetDefs, sampleMerge, [["Mgy$123,456"]]);
+    const colContent = this.buildFacetCell(colFacetDefs, sampleMerge, [["Mgy$123,456"]]);
     addOrReplaceChildren(facetSample, colContent);
     this.#con.appendChild(facetSample);
     let facetHeight = facetSample.getBoundingClientRect().height;
@@ -174,7 +180,7 @@ export default class StandardLayout extends StandardLayoutBase {
     headerSample.className = "cell col-header header";
     headerSample.style.visibility = "hidden";
     const headerContent = colFacetDefs[0].headerRenderer("Mgy$123,456", { viewModel: this.data!, axis: "col", level: 0 });
-    headerSample.replaceChildren(this.#buildCommonCell(headerContent));
+    headerSample.replaceChildren(this.buildCommonCell(headerContent));
     this.#con.appendChild(headerSample);
     facetHeight = Math.max(facetHeight, headerSample.getBoundingClientRect().height);
     this.#con.removeChild(headerSample);
@@ -223,7 +229,7 @@ export default class StandardLayout extends StandardLayoutBase {
     console.log(`>>> Measured data row height: ${this.rowHeightByType.data}px facet row height: ${this.rowHeightByType.facet}px`);
   }
 
-  #buildCommonCell(result: FacetCellContent | string | HTMLElement | HTMLElement[]): HTMLElement {
+  protected buildCommonCell(result: FacetCellContent | string | HTMLElement | HTMLElement[]): HTMLElement {
     const isFacetCellContent = typeof result === "object" && !(result instanceof HTMLElement) && !Array.isArray(result) && "content" in result;
 
     if (!isFacetCellContent) {
@@ -262,7 +268,7 @@ export default class StandardLayout extends StandardLayoutBase {
     return container;
   }
 
-  #buildFacetCell(facetDefs: FacetDef[], merge: MergeState, facets: (string | null)[][]): HTMLElement {
+  protected buildFacetCell(facetDefs: FacetDef[], merge: MergeState, facets: (string | null)[][]): HTMLElement {
     const renderer = facetDefs[merge.level].trackRenderer;
     const dataCtx: FacetDataContext = {
       viewModel: this.data!,
@@ -273,7 +279,7 @@ export default class StandardLayout extends StandardLayoutBase {
     const rendererCtx: FacetRendererContext = {
       render: (vm: GridDataViewModel) => this.renderWithDataViewModel(vm),
     };
-    return this.#buildCommonCell(renderer(merge.value, dataCtx, rendererCtx));
+    return this.buildCommonCell(renderer(merge.value, dataCtx, rendererCtx));
   }
 
   #setupScrollListener(): void {
@@ -569,7 +575,7 @@ export default class StandardLayout extends StandardLayoutBase {
     }
 
     this.#cellsToMeasure = [];
-  } 
+  }
 
   #onLayoutBootstrap(viewModel: ViewModel): void {
     this.#updateVirtualPanel(viewModel);
@@ -598,7 +604,6 @@ export default class StandardLayout extends StandardLayoutBase {
     const hintContentDirty = ctx.hintContentDirty;
 
     const numDataColsVisible = viewModel.x1 - viewModel.x0;
-    const numDataRowsVisible = viewModel.y1 - viewModel.y0;
 
     this.#updateVirtualPanel(viewModel);
     const sliceData = this.data.getSlice(viewModel.x0, viewModel.y0, viewModel.x1, viewModel.y1) as PivotSliceResult;
@@ -606,21 +611,21 @@ export default class StandardLayout extends StandardLayoutBase {
     const template = this.getGridTemplate(
       this.data!.numRowFacetLevels,
       this.data!.numColFacetLevels,
-      numDataColsVisible,
-      numDataRowsVisible
+      sliceData.sliceNumCols,
+      sliceData.sliceNumRows
     );
     this.#con.style.gridTemplateColumns = template.columns;
     this.#con.style.gridTemplateRows = template.rows;
 
     this.cellManager.beginFrame();
     this.#cellsToMeasure = [];
-
     for (let i = 0; i < this.data!.numRowFacetLevels; i++) {
       this.#postRenderAdjustCellsPerLevel.push([]);
     }
-    let nodeAppendList = [];
 
     // render corner cells which results from intersection of row and column facets
+    let nodeAppendList: HTMLElement[] = [];
+
     const axis = this.data!.facetDefs.axis;
     const rowFacetDefs = this.data!.facetDefs.row.filter(d => !d.pseudo);
     const colFacetDefs = this.data!.facetDefs.col.filter(d => !d.pseudo);
@@ -709,7 +714,7 @@ export default class StandardLayout extends StandardLayoutBase {
           extraStyles,
         });
         if (contentDirty) {
-          cell.replaceChildren(this.#buildCommonCell(headerContent ?? ""));
+          cell.replaceChildren(this.buildCommonCell(headerContent ?? ""));
         }
         needAppend && nodeAppendList.push(cell);
         const hasHorizontalSpan = shouldSpan && axis === "col";
@@ -758,7 +763,7 @@ export default class StandardLayout extends StandardLayoutBase {
         },
       });
       if (contentDirty) {
-        const facetContent = this.#buildFacetCell(this.data!.facetDefs.col, merge, sliceData.columnFacets!);
+        const facetContent = this.buildFacetCell(this.data!.facetDefs.col, merge, sliceData.columnFacets!);
         addOrReplaceChildren(cell, facetContent);
       }
       if (!isLeafLevel) {
@@ -785,9 +790,111 @@ export default class StandardLayout extends StandardLayoutBase {
       }
     }
 
-    // render row facets
-    merges.length = 0;
-    merges = computeMerges(this.data!.numRowFacetLevels, numDataRowsVisible, sliceData.rowFacets!);
+    const rowFacetResult = this.renderRowFacets(sliceData, viewModel, { hintContentDirty });
+    this.#addCellRenderResult(rowFacetResult);
+    nodeAppendList.push(...rowFacetResult.nodesToAppend);
+
+    const dataResult = this.renderDataCells(sliceData, viewModel, { hintContentDirty });
+    this.#addCellRenderResult(dataResult);
+    nodeAppendList.push(...dataResult.nodesToAppend);
+    const contentCellRerenderCount = dataResult.contentCellRerenderCount;
+
+    // draw selections if present
+    for (const sel of viewModel.selections) {
+      const visFromRow = Math.max(sel.fromRow, viewModel.y0);
+      const visToRow = Math.min(sel.toRow, viewModel.y1 - 1);
+      const visFromCol = Math.max(sel.fromCol, viewModel.x0);
+      const visToCol = Math.min(sel.toCol, viewModel.x1 - 1);
+
+      if (visFromRow > visToRow || visFromCol > visToCol) continue;
+
+      const [el, needAppend, selContentDirty] = this.placeCellInDom({
+        key: `sel-${sel.fromRow};${sel.toRow};${sel.fromCol};${sel.toCol}`,
+        hintContentDirty,
+        cls: "selection-overlay",
+        gridRow: this.data!.numColFacetLevels + (visFromRow - viewModel.y0) + 1,
+        gridCol: this.data!.numRowFacetLevels + (visFromCol - viewModel.x0) + 1,
+        extraStyles: {
+          rowspan: visToRow - visFromRow + 1,
+          colspan: visToCol - visFromCol + 1,
+        },
+      });
+      if (selContentDirty) {
+        addOrReplaceChildren(el, "");
+      }
+
+      needAppend && nodeAppendList.push(el);
+    }
+
+    // append all cells to the DOM in one go
+    this.#con.append(...nodeAppendList);
+
+    // endFrame returns cells that were not used this render cycle - remove them from DOM but hold it in the pool
+    const cellsToRemove = this.cellManager.endFrame();
+    for (const cell of cellsToRemove) {
+      this.#con.removeChild(cell);
+    }
+
+    this.#autosizeCells();
+
+    // After autosizing of column, should we apply sticky scrolling for column facets
+    // very similar to row facets sticky scrolling calculation
+    if (nonLeafColFacets.length > 0) {
+      const visibleDataWidth = this.mountPoint.clientWidth - viewModel.rowFacetsWidth;
+      const colLeftPositions: number[] = [];
+      let accWidth = -viewModel.offsetX;
+      for (let i = 0; i < numDataColsVisible; i++) {
+        colLeftPositions[i] = accWidth;
+        accWidth += this.getColumnWidth(this.data!.numRowFacetLevels + viewModel.x0 + i);
+      }
+
+      for (const { cell, mergeStart, mergeSpan } of nonLeafColFacets) {
+        let cellWidth = 0;
+        for (let i = 0; i < mergeSpan; i++) {
+          cellWidth += this.getColumnWidth(this.data!.numRowFacetLevels + viewModel.x0 + mergeStart + i);
+        }
+        const cellLeftInDataArea = colLeftPositions[mergeStart];
+        const cellRightInDataArea = cellLeftInDataArea + cellWidth;
+
+        const clippedLeft = Math.max(0, -cellLeftInDataArea);
+        const clippedRight = Math.max(0, cellRightInDataArea - visibleDataWidth);
+
+        const rawOffset = (clippedLeft - clippedRight) / 2;
+        const firstColWidth = this.getColumnWidth(this.data!.numRowFacetLevels + viewModel.x0 + mergeStart);
+        const maxOffset = Math.max(0, (cellWidth - firstColWidth) / 2);
+        const labelOffset = Math.max(-maxOffset, Math.min(maxOffset, rawOffset));
+
+        (cell.firstElementChild as HTMLElement).style.transform = labelOffset !== 0 ? `translateX(${labelOffset}px)` : "";
+      }
+    }
+
+    this.#setupScrollListener();
+
+    if (!this.#layoutBootstrapped) {
+      this.#layoutBootstrapped = true;
+      const vmUpdated = this.calculateViewModel();
+      this.#onLayoutBootstrap(vmUpdated);
+      this.#raiseRenderCompleteEvent(vmUpdated, ctx, {nodeAppendList, cellsToRemove, contentCellRerenderCount});
+    } else {
+      this.#raiseRenderCompleteEvent(viewModel, ctx, {nodeAppendList, cellsToRemove, contentCellRerenderCount});
+    }
+
+    this.#postRenderAdjustCellsPerLevel.length = 0;
+  }
+
+  #addCellRenderResult(result: CellRenderResult): void {
+    this.#cellsToMeasure.push(...result.cellsToMeasure);
+    for (const { cell, level } of result.adjustCells) {
+      this.#postRenderAdjustCellsPerLevel[level].push(cell);
+    }
+  }
+
+  protected renderRowFacets(sliceData: PivotSliceResult, viewModel: ViewModel, ctx: { hintContentDirty: boolean | undefined }): CellRenderResult {
+    const adjustCells: { cell: HTMLElement; level: number }[] = [];
+    const nodesToAppend: HTMLElement[] = [];
+    const hintContentDirty = ctx.hintContentDirty;
+    const numDataRowsVisible = sliceData.sliceNumRows;
+    let merges = computeMerges(this.data!.numRowFacetLevels, numDataRowsVisible, sliceData.rowFacets!);
     const rowHeight = this.rowHeightByType.data;
     const visibleDataHeight = this.mountPoint.clientHeight - viewModel.colFacetsHeight;
 
@@ -995,7 +1102,7 @@ export default class StandardLayout extends StandardLayoutBase {
         },
       });
       if (contentDirty) {
-        const rowFacetContent = this.#buildFacetCell(this.data!.facetDefs.row, merge, sliceData.rowFacets!);
+        const rowFacetContent = this.buildFacetCell(this.data!.facetDefs.row, merge, sliceData.rowFacets!);
         addOrReplaceChildren(cell, rowFacetContent);
       }
       if (!isLeaf) {
@@ -1004,15 +1111,23 @@ export default class StandardLayout extends StandardLayoutBase {
         (cell.firstElementChild as HTMLElement).style.transform = labelOffset !== 0 ? `translateY(${labelOffset}px)` : "";
       }
       cell.dataset.cellType = "row-facet";
-      needAppend && nodeAppendList.push(cell);
+      needAppend && nodesToAppend.push(cell);
       // NOTE: we don't add row facets for column width measurement as corner cells are sent with for measurement
       // itself. This is important as row cells might have span that would would divide the track to equal parts in case
       // secondary span is present. However since corner cells are never merged, they'd provide correct track
       // mesasurement.
-      this.#postRenderAdjustCellsPerLevel[merge.level].push(cell);
+      adjustCells.push({ cell, level: merge.level });
     }
+    return { cellsToMeasure: [], adjustCells, nodesToAppend };
+  }
 
-    // render data cells
+  protected renderDataCells(sliceData: PivotSliceResult, viewModel: ViewModel, ctx: { hintContentDirty: boolean | undefined }): CellRenderResult & { contentCellRerenderCount: number } {
+    const cellsToMeasure: CellToMeasure[] = [];
+    const nodesToAppend: HTMLElement[] = [];
+    const hintContentDirty = ctx.hintContentDirty;
+    const numDataColsVisible = sliceData.sliceNumCols;
+    const numDataRowsVisible = sliceData.sliceNumRows;
+    const colDefs = this.data!.vTrackDefs;
     let contentCellRerenderCount = 0;
     for (let i = 0; i < numDataColsVisible; i++) {
       const colData = sliceData.data ? sliceData.data[i] ?? [] : [];
@@ -1053,94 +1168,13 @@ export default class StandardLayout extends StandardLayoutBase {
           cell.style.maxWidth = fixedSize?.maxWidthInPx !== undefined ? `${fixedSize.maxWidthInPx}px` : "";
         }
 
-        needAppend && nodeAppendList.push(cell);
+        needAppend && nodesToAppend.push(cell);
         if (!colDef.isCustom) {
-          this.#cellsToMeasure.push({ cell, sizeKey: absoluteColIndex });
+          cellsToMeasure.push({ cell, sizeKey: absoluteColIndex });
         }
       }
     }
-
-    // draw selections if present
-    for (const sel of viewModel.selections) {
-      const visFromRow = Math.max(sel.fromRow, viewModel.y0);
-      const visToRow = Math.min(sel.toRow, viewModel.y1 - 1);
-      const visFromCol = Math.max(sel.fromCol, viewModel.x0);
-      const visToCol = Math.min(sel.toCol, viewModel.x1 - 1);
-
-      if (visFromRow > visToRow || visFromCol > visToCol) continue;
-
-      const [el, needAppend, selContentDirty] = this.placeCellInDom({
-        key: `sel-${sel.fromRow};${sel.toRow};${sel.fromCol};${sel.toCol}`,
-        hintContentDirty,
-        cls: "selection-overlay",
-        gridRow: this.data!.numColFacetLevels + (visFromRow - viewModel.y0) + 1,
-        gridCol: this.data!.numRowFacetLevels + (visFromCol - viewModel.x0) + 1,
-        extraStyles: {
-          rowspan: visToRow - visFromRow + 1,
-          colspan: visToCol - visFromCol + 1,
-        },
-      });
-      if (selContentDirty) {
-        addOrReplaceChildren(el, "");
-      }
-
-      needAppend && nodeAppendList.push(el);
-    }
-
-    // append all cells to the DOM in one go
-    this.#con.append(...nodeAppendList);
-
-    // endFrame returns cells that were not used this render cycle - remove them from DOM but hold it in the pool
-    const cellsToRemove = this.cellManager.endFrame();
-    for (const cell of cellsToRemove) {
-      this.#con.removeChild(cell);
-    }
-
-    this.#autosizeCells();
-
-    // After autosizing of column, should we apply sticky scrolling for column facets
-    // very similar to row facets sticky scrolling calculation
-    if (nonLeafColFacets.length > 0) {
-      const visibleDataWidth = this.mountPoint.clientWidth - viewModel.rowFacetsWidth;
-      const colLeftPositions: number[] = [];
-      let accWidth = -viewModel.offsetX;
-      for (let i = 0; i < numDataColsVisible; i++) {
-        colLeftPositions[i] = accWidth;
-        accWidth += this.getColumnWidth(this.data!.numRowFacetLevels + viewModel.x0 + i);
-      }
-
-      for (const { cell, mergeStart, mergeSpan } of nonLeafColFacets) {
-        let cellWidth = 0;
-        for (let i = 0; i < mergeSpan; i++) {
-          cellWidth += this.getColumnWidth(this.data!.numRowFacetLevels + viewModel.x0 + mergeStart + i);
-        }
-        const cellLeftInDataArea = colLeftPositions[mergeStart];
-        const cellRightInDataArea = cellLeftInDataArea + cellWidth;
-
-        const clippedLeft = Math.max(0, -cellLeftInDataArea);
-        const clippedRight = Math.max(0, cellRightInDataArea - visibleDataWidth);
-
-        const rawOffset = (clippedLeft - clippedRight) / 2;
-        const firstColWidth = this.getColumnWidth(this.data!.numRowFacetLevels + viewModel.x0 + mergeStart);
-        const maxOffset = Math.max(0, (cellWidth - firstColWidth) / 2);
-        const labelOffset = Math.max(-maxOffset, Math.min(maxOffset, rawOffset));
-
-        (cell.firstElementChild as HTMLElement).style.transform = labelOffset !== 0 ? `translateX(${labelOffset}px)` : "";
-      }
-    }
-
-    this.#setupScrollListener();
-
-    if (!this.#layoutBootstrapped) {
-      this.#layoutBootstrapped = true;
-      const vmUpdated = this.calculateViewModel();
-      this.#onLayoutBootstrap(vmUpdated);
-      this.#raiseRenderCompleteEvent(vmUpdated, ctx, {nodeAppendList, cellsToRemove, contentCellRerenderCount});
-    } else {
-      this.#raiseRenderCompleteEvent(viewModel, ctx, {nodeAppendList, cellsToRemove, contentCellRerenderCount});
-    }
-
-    this.#postRenderAdjustCellsPerLevel.length = 0;
+    return { cellsToMeasure, adjustCells: [], nodesToAppend, contentCellRerenderCount };
   }
 
   #raiseRenderCompleteEvent(viewModel: ViewModel, ctx: RenderCtx, additionalMetrics: {

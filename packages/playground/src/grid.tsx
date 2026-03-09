@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import "grid/dist/grid.css";
-import Grid, { PivotDataViewModel, LayoutEvents, SelectionPayload, VTrackDef, ColAutoSizeConfig, createChartRenderer, CellRenderer, FacetCellRenderer } from "grid/dist/renderer";
+import Grid, { PivotDataViewModel, FlattenedDataViewModel, createRowMeta, GroupedRowLayout, StandardLayout, LayoutEvents, SelectionPayload, VTrackDef, ColAutoSizeConfig, createChartRenderer, CellRenderer, FacetCellRenderer } from "grid/dist/renderer";
 import feather from "feather-icons";
 
 interface TwoKeyData {
@@ -163,9 +163,13 @@ const GridPlayground: React.FC = () => {
   const [appliedColSizeConfig, setAppliedColSizeConfig] = useState(() =>
     localStorage.getItem("grid_colSizeConfig") ?? ""
   );
+  const [layoutMode, setLayoutMode] = useState<"pivot" | "grouped">(() =>
+    (localStorage.getItem("grid_layoutMode") as "pivot" | "grouped") ?? "pivot"
+  );
   const [totalDataPoints, setTotalDataPoints] = useState(0);
   const [showHeaders, setShowHeaders] = useState(false);
   const showHeadersRef = useRef(false);
+  const gridLayoutModeRef = useRef<"pivot" | "grouped">("pivot");
   const [events, setEvents] = useState<Array<{ name: string; payload: unknown }>>([]);
   const [perfMetrics, setPerfMetrics] = useState<LayoutEvents['debug_perf:metrics'] | null>(null);
 
@@ -499,7 +503,9 @@ const GridPlayground: React.FC = () => {
 
     // Create or update grid
     if (!gridRef.current) {
-      gridRef.current = new Grid({}, gridConRef.current);
+      const LayoutClass = layoutMode === "grouped" ? GroupedRowLayout : StandardLayout;
+      gridRef.current = new Grid({}, gridConRef.current, LayoutClass);
+      gridLayoutModeRef.current = layoutMode;
       for (const e of ['renderComplete', 'selectionAdded', 'selectionRemoved']) {
         gridRef.current.on(e as any, (payload) => {
           setEvents((prev) => [{ name: e, payload }, ...prev.slice(0, 49)]);
@@ -537,21 +543,53 @@ const GridPlayground: React.FC = () => {
     }
 
     console.log("Generated data:", { totalRows, totalCols, rowFacets: rowFacetLevelMajor, colFacets: colFacetLevelMajor, data });
-    gridRef.current.data = new PivotDataViewModel(data, colFacetLevelMajor, rowFacetLevelMajor, {
-      vTrackDefs,
-      facetDefs: {
-        row: rowFacets.map((_, i) => ({ trackRenderer: rowFacetRenderer, ...(showHeadersRef.current && { text: `Row ${i}` }) })),
-        col: colFacets.map((_, i) => ({ trackRenderer: colFacetRenderer, ...(showHeadersRef.current && { text: `Col ${i}` }) })),
-        axis: 'col',
-      },
-    });
+
+    if (layoutMode === "grouped" && rowFacets.length > 0) {
+      const flatRowFacet: (string | null)[] = [];
+      const flatRowMetaBytes: number[] = [];
+      const flatData: (string | number[] | TwoKeyData | ThreeKeyData)[][] = [];
+      for (let c = 0; c < totalCols; c++) flatData.push([]);
+
+      const emitTree = (depth: number) => {
+        if (depth === rowFacets.length) return;
+        const isLeaf = depth === rowFacets.length - 1;
+        for (let i = 0; i < rowFacets[depth]; i++) {
+          flatRowFacet.push(`RF${depth}_${i}`);
+          flatRowMetaBytes.push(createRowMeta(depth, isLeaf, !isLeaf));
+          for (let c = 0; c < totalCols; c++) {
+            flatData[c].push(generateRandomNumber(4, 7));
+          }
+          emitTree(depth + 1);
+        }
+      };
+      emitTree(0);
+
+      const flatRowMeta = new Uint8Array(flatRowMetaBytes);
+      gridRef.current.data = new FlattenedDataViewModel(flatData, colFacetLevelMajor, flatRowFacet, flatRowMeta, {
+        vTrackDefs,
+        facetDefs: {
+          row: [{ trackRenderer: rowFacetRenderer, ...(showHeadersRef.current && { text: "Row" }) }],
+          col: colFacets.map((_, i) => ({ trackRenderer: colFacetRenderer, ...(showHeadersRef.current && { text: `Col ${i}` }) })),
+          axis: 'col',
+        },
+      });
+    } else {
+      gridRef.current.data = new PivotDataViewModel(data, colFacetLevelMajor, rowFacetLevelMajor, {
+        vTrackDefs,
+        facetDefs: {
+          row: rowFacets.map((_, i) => ({ trackRenderer: rowFacetRenderer, ...(showHeadersRef.current && { text: `Row ${i}` }) })),
+          col: colFacets.map((_, i) => ({ trackRenderer: colFacetRenderer, ...(showHeadersRef.current && { text: `Col ${i}` }) })),
+          axis: 'col',
+        },
+      });
+    }
     gridRef.current.draw();
   };
 
-  // Generate grid on page load with current input values
+  // Generate grid on page load and when layout mode changes
   useEffect(() => {
     handleGenerate();
-  }, []);
+  }, [layoutMode]);
 
   return (
     <>
@@ -600,6 +638,13 @@ const GridPlayground: React.FC = () => {
         <button onClick={handleReset}>Reset</button>
         <button onClick={() => { showHeadersRef.current = !showHeadersRef.current; setShowHeaders(showHeadersRef.current); handleGenerate(); }}>
           {showHeaders ? "Hide Headers" : "Show Headers"}
+        </button>
+        <button onClick={() => {
+          const next = layoutMode === "pivot" ? "grouped" : "pivot";
+          setLayoutMode(next);
+          localStorage.setItem("grid_layoutMode", next);
+        }}>
+          Layout: {layoutMode === "pivot" ? "Pivot" : "Grouped"}
         </button>
         <span> Total data points: {totalDataPoints}</span>
       </div>
@@ -675,7 +720,7 @@ const GridPlayground: React.FC = () => {
         </div>
       )}
       <hr/>
-      <div style={{
+      <div key={layoutMode} style={{
         position: "relative",
         background: "white",
         height: "calc(100vh - 400px)",
@@ -685,7 +730,12 @@ const GridPlayground: React.FC = () => {
         padding: 0,
         boxSizing: "border-box",
         contain: "layout style",
-      }} ref={gridConRef}>
+      }} ref={(el) => {
+        if (el && el !== gridConRef.current) {
+          (gridConRef as React.MutableRefObject<HTMLDivElement | null>).current = el;
+          gridRef.current = null;
+        }
+      }}>
       </div>
       <details>
         <summary>Perf</summary>

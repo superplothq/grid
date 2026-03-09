@@ -10,6 +10,7 @@ import { WithEvents, EventEmitter } from "./mixins";
 // TODO this used to be the entry point, now it's not, so lot of this config
 // is not necessary
 export { StandardLayout };
+export { default as GroupedRowLayout } from "./grouped-row-layout";
 export { GridConfig, defaultConfig } from "./grid-config";
 export type {
   IColAutoSize,
@@ -89,12 +90,12 @@ export default class Grid extends GridWithEvents {
   #renderCount = 0;
   #selections: Map<string, [fromRow: number, fromCol: number, toRow: number, toCol: number]> = new Map();
 
-  constructor(config: Partial<GridConfig>, mountPoint: HTMLElement) {
+  constructor(config: Partial<GridConfig>, mountPoint: HTMLElement, LayoutClass?: typeof StandardLayout) {
     super();
     this.#config = { ...defaultConfig, ...config };
 
     this.#cellManager = new CellManager();
-    this.#layout = new StandardLayout(this.#config, mountPoint, this.#cellManager);
+    this.#layout = new (LayoutClass ?? StandardLayout)(this.#config, mountPoint, this.#cellManager);
 
     // Forward layout events to Grid
     this.forwardFrom(this.#layout as unknown as EventEmitter<LayoutEvents>, ["renderComplete", "debug_perf:metrics"]);
