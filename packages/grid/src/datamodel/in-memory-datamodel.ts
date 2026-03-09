@@ -1,5 +1,5 @@
-import {DuckDBDataModel} from "./duckdb-datamodel";
-import {GridData, Schema} from "./types";
+import { DuckDBDataModel } from "./duckdb-datamodel";
+import { GridData, Schema } from "./types";
 
 // @ts-expect-error - static create() intentionally has a different signature than DuckDBDataModel.create()
 export class InMemoryDataModel extends DuckDBDataModel {

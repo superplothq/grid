@@ -128,8 +128,13 @@ export interface GridDataViewModelOptions {
 }
 
 export interface ResolvedVTrackDef extends VTrackDef {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   renderer: CellRenderer<any>;
   isCustom: boolean;
   colSize: ColAutoSizeConfig;
 }
+
+export interface CellToMeasure {
+  cell: HTMLElement;
+  sizeKey: number;
+}
+

@@ -3,6 +3,7 @@ module.exports = {
   extends: ["../../.eslintrc.js"],
   rules: {
     semi: ["error", "always"],
+    "object-curly-spacing": ["warn", "always"],
   },
   ignorePatterns: ["dist/**"],
   overrides: [

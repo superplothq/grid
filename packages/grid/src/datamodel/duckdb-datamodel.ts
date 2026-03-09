@@ -1,5 +1,5 @@
 import duckdb from "duckdb";
-import {SqlDataModel, schemaToSqlType, schemaToPlaceholder} from "./sql-datamodel";
+import { SqlDataModel, schemaToSqlType, schemaToPlaceholder } from "./sql-datamodel";
 import {
   Schema,
 } from "./types";

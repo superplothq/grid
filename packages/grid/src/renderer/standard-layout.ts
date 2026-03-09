@@ -1,10 +1,19 @@
-import {GridConfig} from "./grid-config";
-import {GridDataViewModel} from "./grid-data-viewmodel";
-import {IColAutoSizeStrategyFixedWidth, FacetCellContent, FacetDataContext, FacetRendererContext, FacetDef, FacetHeaderContext, PivotSliceResult} from "./types";
-import {getTheme} from "./registry";
-import PLayout, {BaseViewModel, RenderCtx} from "./layout-proto";
-import {WithCellPlacement, WithEvents, addOrReplaceChildren} from "./mixins";
 import CellManager from "./cell-manager";
+import { GridConfig } from "./grid-config";
+import { GridDataViewModel } from "./grid-data-viewmodel";
+import PLayout, { BaseViewModel, RenderCtx } from "./layout-proto";
+import { addOrReplaceChildren, WithCellPlacement, WithEvents } from "./mixins";
+import { getTheme } from "./registry";
+import {
+  CellToMeasure,
+  FacetCellContent,
+  FacetDataContext,
+  FacetDef,
+  FacetHeaderContext,
+  FacetRendererContext,
+  IColAutoSizeStrategyFixedWidth,
+  PivotSliceResult
+} from "./types";
 import { computeMerges, MergeState } from "./utils";
 
 export type LayoutEvents = {
@@ -48,11 +57,6 @@ export interface ViewModel extends BaseViewModel {
   rowFacetsLeftPositions: number[];
   colFacetsTopPositions: number[];
   selections: SelectionState[];
-}
-
-export interface CellToMeasure {
-  cell: HTMLElement;
-  sizeKey: number;
 }
 
 export interface CellRenderResult {
@@ -292,7 +296,7 @@ export default class StandardLayout extends StandardLayoutBase {
         this.#scrollRAF = null;
         const t1 = performance.now();
         const viewModel = this.calculateViewModel();
-        this.render(viewModel, {t1, hintContentDirty: true});
+        this.render(viewModel, { t1, hintContentDirty: true });
       });
     });
   }
@@ -876,9 +880,9 @@ export default class StandardLayout extends StandardLayoutBase {
       this.#layoutBootstrapped = true;
       const vmUpdated = this.calculateViewModel();
       this.#onLayoutBootstrap(vmUpdated);
-      this.#raiseRenderCompleteEvent(vmUpdated, ctx, {nodeAppendList, cellsToRemove, contentCellRerenderCount});
+      this.#raiseRenderCompleteEvent(vmUpdated, ctx, { nodeAppendList, cellsToRemove, contentCellRerenderCount });
     } else {
-      this.#raiseRenderCompleteEvent(viewModel, ctx, {nodeAppendList, cellsToRemove, contentCellRerenderCount});
+      this.#raiseRenderCompleteEvent(viewModel, ctx, { nodeAppendList, cellsToRemove, contentCellRerenderCount });
     }
 
     this.#postRenderAdjustCellsPerLevel.length = 0;

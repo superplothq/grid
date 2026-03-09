@@ -1,7 +1,7 @@
-import StandardLayout, {CellRenderResult, CellToMeasure, ViewModel} from "./standard-layout";
-import {FlatSliceResult, FacetDataContext, FacetRendererContext, IColAutoSizeStrategyFixedWidth, BaseSliceResult} from "./types";
-import {GridDataViewModel} from "./grid-data-viewmodel";
-import {addOrReplaceChildren} from "./mixins";
+import StandardLayout, { CellRenderResult, ViewModel } from "./standard-layout";
+import { FlatSliceResult, FacetDataContext, FacetRendererContext, CellToMeasure, BaseSliceResult } from "./types";
+import { GridDataViewModel } from "./grid-data-viewmodel";
+import { addOrReplaceChildren } from "./mixins";
 
 export default class GroupedRowLayout extends StandardLayout {
   protected renderRowFacets(sliceData: BaseSliceResult, viewModel: ViewModel, ctx: { hintContentDirty: boolean | undefined }): CellRenderResult {

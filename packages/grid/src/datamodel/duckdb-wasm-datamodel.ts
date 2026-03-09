@@ -1,6 +1,6 @@
 import * as duckdb from "@duckdb/duckdb-wasm";
-import {SqlDataModel, schemaToSqlType, schemaToPlaceholder} from "./sql-datamodel";
-import {Schema} from "./types";
+import { SqlDataModel, schemaToSqlType, schemaToPlaceholder } from "./sql-datamodel";
+import { Schema } from "./types";
 
 export interface DuckDBWasmBundles {
   mvp: { mainModule: string; mainWorker: string };
@@ -35,8 +35,8 @@ export class DuckDBWasmDataModel extends SqlDataModel {
 
   static async create(schema: Schema[], table: string, bundles: DuckDBWasmBundles = DEFAULT_BUNDLES): Promise<DuckDBWasmDataModel> {
     const bundle = await duckdb.selectBundle({
-      mvp: {mainModule: bundles.mvp.mainModule, mainWorker: bundles.mvp.mainWorker},
-      eh: bundles.eh ? {mainModule: bundles.eh.mainModule, mainWorker: bundles.eh.mainWorker} : undefined,
+      mvp: { mainModule: bundles.mvp.mainModule, mainWorker: bundles.mvp.mainWorker },
+      eh: bundles.eh ? { mainModule: bundles.eh.mainModule, mainWorker: bundles.eh.mainWorker } : undefined,
     });
 
     // If the worker script is served from a cross-origin CDN, `new Worker(url)` will fail due to
@@ -64,7 +64,7 @@ export class DuckDBWasmDataModel extends SqlDataModel {
 
   protected static async createWasmResources(schema: Schema[], table: string, bundles: DuckDBWasmBundles = DEFAULT_BUNDLES): Promise<{db: duckdb.AsyncDuckDB; conn: duckdb.AsyncDuckDBConnection}> {
     const instance = await DuckDBWasmDataModel.create(schema, table, bundles);
-    return {db: instance.wasmDb, conn: instance.wasmConn};
+    return { db: instance.wasmDb, conn: instance.wasmConn };
   }
 
   protected runSQL(sql: string): Promise<Record<string, any>[]> {

@@ -1,5 +1,5 @@
-import {Theme} from "./types";
-import {registerTheme} from "./registry";
+import { Theme } from "./types";
+import { registerTheme } from "./registry";
 
 export const lightTheme: Theme = {
   cellPaddingY: 6,

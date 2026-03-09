@@ -1,4 +1,4 @@
-import {VTrackDef} from "../renderer/types";
+import { VTrackDef } from "../renderer/types";
 
 // TODO [Later] remember there might be custom aggregate function as well
 //   (those functions will be registered separately and the name will be used here)

@@ -1,7 +1,7 @@
-import {GridDataViewModel} from "./grid-data-viewmodel";
+import { GridDataViewModel } from "./grid-data-viewmodel";
 import { GridConfig, defaultConfig } from "./grid-config";
 import CellManager from "./cell-manager";
-import {addToRegistry} from "./registry";
+import { addToRegistry } from "./registry";
 import { Constructor } from "./types";
 import "./themes";
 import StandardLayout, { LayoutEvents } from "./standard-layout";
@@ -226,7 +226,7 @@ export default class Grid extends GridWithEvents {
     if (!this.#data) throw new Error("Data is not set!");
 
     const viewModel = this.#layout.calculateViewModel();
-    this.#layout.render(viewModel, {t1: startTime});
+    this.#layout.render(viewModel, { t1: startTime });
   }
 
   #makeSelectionId(fromRow: number, fromCol: number, toRow: number, toCol: number): string {
