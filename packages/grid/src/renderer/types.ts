@@ -21,7 +21,6 @@ export interface FlatRowMeta {
   depth: number;
   isLeaf: boolean;
   isExpanded: boolean;
-  isAncestor?: boolean;
 }
 
 export interface BaseSliceResult {
@@ -40,8 +39,6 @@ export interface PivotSliceResult extends BaseSliceResult {
 export interface FlatSliceResult extends BaseSliceResult {
   rowFacets: (string | null)[];
   rowMeta: FlatRowMeta[];
-  numAncestors: number;
-  maxDepth: number;
 }
 
 export interface IColAutoSize {

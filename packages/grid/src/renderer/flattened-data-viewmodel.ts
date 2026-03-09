@@ -73,12 +73,12 @@ export class FlattenedDataViewModel extends GridDataViewModel {
   }
 
   getSlice(x0: number, y0: number, x1: number, y1: number): FlatSliceResult {
-    const result = { ...this.sliceBase(x0, y0, x1, y1), rowFacets: [] as (string | null)[], rowMeta: [] as FlatRowMeta[], numAncestors: 0 };
+    const result = { ...this.sliceBase(x0, y0, x1, y1), rowFacets: [] as (string | null)[], rowMeta: [] as FlatRowMeta[] };
     if (x0 === x1 && y0 === y1) {
-      return { ...result, maxDepth: 0 };
+      return result;
     }
     if (!result.data) {
-      return { ...result, maxDepth: 0 };
+      return result;
     }
     if (this.#rowFacet) {
       for (let y = y0; y < y1; y++) {
@@ -86,43 +86,12 @@ export class FlattenedDataViewModel extends GridDataViewModel {
       }
     }
 
-    let maxDepth = 0;
     if (this.#rowMeta) {
       for (let y = y0; y < y1; y++) {
-        const meta = this.unpackMeta(this.#rowMeta[y]);
-        result.rowMeta.push(meta);
-        maxDepth = Math.max(maxDepth, meta.depth);
-      }
-
-      if (this.#rowFacet && y0 > 0) {
-        const targetDepth = getDepth(this.#rowMeta[y0]);
-        if (targetDepth > 0) {
-          const ancestorIndices: number[] = [];
-          let currentDepth = targetDepth;
-          for (let i = y0 - 1; i >= 0; i--) {
-            const d = getDepth(this.#rowMeta[i]);
-            if (d < currentDepth) {
-              ancestorIndices.push(i);
-              currentDepth = d;
-              if (d === 0) break;
-            }
-          }
-
-          for (let a = 0; a < ancestorIndices.length; a++) {
-            const idx = ancestorIndices[a];
-            result.rowFacets.unshift(this.#rowFacet[idx]);
-            result.rowMeta.unshift({ ...this.unpackMeta(this.#rowMeta[idx]), isAncestor: true });
-            for (let col = 0; col < result.data.length; col++) {
-              result.data[col].unshift(this.data[x0 + col][idx]);
-            }
-          }
-
-          result.numAncestors = ancestorIndices.length;
-          result.sliceNumRows = result.rowFacets.length;
-        }
+        result.rowMeta.push(this.unpackMeta(this.#rowMeta[y]));
       }
     }
 
-    return { ...result, maxDepth };
+    return result;
   }
 }
