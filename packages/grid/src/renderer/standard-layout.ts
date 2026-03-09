@@ -790,10 +790,12 @@ export default class StandardLayout extends StandardLayoutBase {
       }
     }
 
+    // Render row facets
     const rowFacetResult = this.renderRowFacets(sliceData, viewModel, { hintContentDirty });
     this.#addCellRenderResult(rowFacetResult);
     nodeAppendList.push(...rowFacetResult.nodesToAppend);
 
+    // Render data region
     const dataResult = this.renderDataCells(sliceData, viewModel, { hintContentDirty });
     this.#addCellRenderResult(dataResult);
     nodeAppendList.push(...dataResult.nodesToAppend);
@@ -1088,12 +1090,13 @@ export default class StandardLayout extends StandardLayoutBase {
       }
 
       const boundaryCellCls = `${isLeaf ? "r-edge" : ""} ${merge.level === 0 ? "l-edge" : ""}`;
+      const startEndCellCls = `${merge.start === numDataRowsVisible - 1 ? "last" : ""} ${merge.start === 0 ? "first" : ""}`;
       const [cell, needAppend, contentDirty] = this.placeCellInDom({
         key,
         gridRow: this.data!.numColFacetLevels + merge.start + 1,
         gridCol: merge.level + 1,
         hintContentDirty,
-        cls: `row-facet facet ${isLeaf ? " facet-r-edge" : " non-leaf"} ${boundaryCellCls}`,
+        cls: `row-facet facet ${isLeaf ? " facet-r-edge" : " non-leaf"} ${boundaryCellCls} ${startEndCellCls}`,
         extraStyles: {
           rowspan: merge.spanPrimary,
           left: viewModel.rowFacetsLeftPositions[merge.level],
@@ -1141,13 +1144,14 @@ export default class StandardLayout extends StandardLayoutBase {
         const absoluteRowIndex = this.data!.numColFacetLevels + viewModel.y0 + j;
         const key = `data-${absoluteColIndex}-${absoluteRowIndex}`;
         const value = colData[j];
-        let boundaryCellCls = i === 0 ? "l-edge" : (i === numDataColsVisible - 1 ? "r-edge" : "");
+        const boundaryCellCls = i === 0 ? "l-edge" : (i === numDataColsVisible - 1 ? "r-edge" : "");
+        const startEndCellCls = `${j === numDataRowsVisible - 1 ? "last" : ""} ${j === 0 ? "first" : ""}`;
         const [cell, needAppend, contentDirty] = this.placeCellInDom({
           key,
           gridRow: this.data!.numColFacetLevels + j + 1,
           gridCol,
           hintContentDirty,
-          cls: `data ${boundaryCellCls} ${colDef.isCustom ? " custom-rendered" : ""}`,
+          cls: `data ${boundaryCellCls} ${colDef.isCustom ? " custom-rendered" : ""} ${startEndCellCls}`,
           extraStyles: {},
         });
 

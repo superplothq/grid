@@ -31,6 +31,8 @@ export default class GroupedRowLayout extends StandardLayout {
         left,
       };
       let cls = "row-facet facet facet-r-edge l-edge grouped-row";
+      if (j === 0) cls += " first";
+      if (j === flatSlice.rowFacets.length - 1) cls += " last";
 
       const [cell, needAppend, contentDirty] = this.placeCellInDom({
         key,

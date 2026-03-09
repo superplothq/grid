@@ -94,7 +94,15 @@
     position: sticky;
     z-index: 15;
     color: var(--column-facet-text-color);
-    border-bottom: calc(var(--horizontal-border-width) * 1px) solid var(--horizontal-border-color);
+    border-top: calc(var(--horizontal-border-width) * 1px) solid var(--horizontal-border-color);
+
+    &.first {
+      border-top: none !important;
+    }
+
+    &.last {
+      border-bottom: calc(var(--horizontal-border-width) * 1px) solid var(--horizontal-border-color);
+    }
 
     > .content {
       overflow: hidden;
@@ -127,7 +135,7 @@
     justify-content: end;
     background: var(--value-background-color);
     color: var(--value-text-color);
-    border-bottom: calc(var(--horizontal-border-width) * 1px) solid var(--horizontal-border-color);
+    border-top: calc(var(--horizontal-border-width) * 1px) solid var(--horizontal-border-color);
 
     &.custom-rendered {
       justify-content: center;
@@ -137,6 +145,14 @@
     &.sticky-row {
       position: sticky;
       z-index: 18;
+    }
+
+    &.first {
+      border-top: none !important;
+    }
+
+    &.last {
+      border-bottom: calc(var(--horizontal-border-width) * 1px) solid var(--horizontal-border-color);
     }
   }
 
