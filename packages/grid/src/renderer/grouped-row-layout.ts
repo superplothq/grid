@@ -29,6 +29,8 @@ export default class GroupedRowLayout extends StandardLayout {
         : numColFacetLevels + viewModel.y0 + (j - numAncestors);
       const key = `row-h-0-${absoluteRowIndex}`;
 
+      // the margin-left on cell in css file acompanies this calculation; otherwise with scroll left of css grid layout
+      // margin is not respected by browser
       let left = viewModel.rowFacetsLeftPositions[0] + meta.depth * 16;
       const extraStyles: Record<string, number | string> = {
         left,
@@ -50,6 +52,7 @@ export default class GroupedRowLayout extends StandardLayout {
       });
 
       cell.style.setProperty("--depth", String(meta.depth));
+      // Without this there is white space between the indented row and grid
       cell.style.boxShadow = `${-left}px 0px 0px 0px var(--row-facet-background-color)`;
 
       if (contentDirty) {

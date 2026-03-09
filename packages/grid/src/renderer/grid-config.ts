@@ -4,6 +4,7 @@ export interface GridConfig {
   overscan: number;
   enableResizeUI: boolean;
   theme: string;
+  stickyRowGroup: boolean;
 }
 
 export const defaultConfig: GridConfig = {
@@ -11,5 +12,6 @@ export const defaultConfig: GridConfig = {
   defaultCellWidth: 50,
   overscan: 2,
   enableResizeUI: true,
+  stickyRowGroup: true,
   theme: "light",
 };
