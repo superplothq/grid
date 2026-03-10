@@ -1,5 +1,5 @@
 import CellManager from "./cell-manager";
-import { BaseHFixtureViewModel, BaseVFixtureViewModel, PHorizontalFixture, PVerticalFixture } from "./fixture-proto";
+import { BaseFixtureViewModel, PHorizontalFixture, PVerticalFixture } from "./fixture-proto";
 import { GridConfig } from "./grid-config";
 import { GridDataViewModel } from "./grid-data-viewmodel";
 import PLayout, { BaseViewModel, RenderCtx } from "./layout-proto";
@@ -35,14 +35,12 @@ export type LayoutEvents = {
   };
 };
 
-
 export interface LayoutFixtures {
-  top: Array<{ inst: PHorizontalFixture; vm: BaseHFixtureViewModel }>;
-  left: Array<{ inst: PVerticalFixture; vm: BaseVFixtureViewModel }>;
-  bottom: Array<{ inst: PHorizontalFixture; vm: BaseHFixtureViewModel }>;
-  right: Array<{ inst: PVerticalFixture; vm: BaseVFixtureViewModel }>;
+  top: Array<PHorizontalFixture>;
+  left: Array<PVerticalFixture>;
+  bottom: Array<PHorizontalFixture>;
+  right: Array<PVerticalFixture>;
 }
-
 
 type SelectionProposal = [startRow: number, startCol: number, endRow: number, endCol: number][];
 
@@ -202,14 +200,14 @@ export default class StandardLayout extends StandardLayoutBase {
           if (!(inst instanceof PVerticalFixture)) {
             throw new Error(`${type} fixture ${inst.constructor.name} must implement ${PVerticalFixture.name}`);
           }
-          fixtures[type].push({ inst, vm: {} as BaseVFixtureViewModel });
+          fixtures[type].push(inst);
           break;
         case "top":
         case "bottom":
           if (!(inst instanceof PHorizontalFixture)) {
             throw new Error(`${type} fixture ${inst.constructor.name} must implement ${PHorizontalFixture.name}`);
           }
-          fixtures[type].push({ inst, vm: {} as BaseHFixtureViewModel });
+          fixtures[type].push(inst);
           break;
         }
       }
@@ -219,6 +217,7 @@ export default class StandardLayout extends StandardLayoutBase {
   }
 
   // calculate both facet and data row heights
+  // TODO if fixtures are added get height of a row with fixtures as they might increase the size
   #measureRowHeight(): void {
     const facetSample = document.createElement("div");
     facetSample.className = "cell col-facet facet";
@@ -280,8 +279,6 @@ export default class StandardLayout extends StandardLayoutBase {
       this.#con.removeChild(cell);
     }
     this.#con.style.gridTemplateColumns = prevTemplate;
-
-    console.log(`>>> Measured data row height: ${this.rowHeightByType.data}px facet row height: ${this.rowHeightByType.facet}px`);
   }
 
   protected buildCommonCell(result: FacetCellContent | string | HTMLElement | HTMLElement[]): HTMLElement {
@@ -356,10 +353,9 @@ export default class StandardLayout extends StandardLayoutBase {
     return this.rowHeightByType[type] || this.config.defaultCellHeight;
   }
 
-  getColumnWidth(index: number, defaultValue?: number) {
+  getColumnWidth(index: number) {
     return this.colsWidth.override[index]
       ?? this.colsWidth.indices[index]
-      ?? defaultValue
       ?? this.config.defaultCellWidth;
   }
 
@@ -371,12 +367,12 @@ export default class StandardLayout extends StandardLayoutBase {
     return rowFacetsWidth;
   }
 
-  calcNumVisibleColumns(startCol: number, viewWidth: number, rowHeaderCount: number) {
+  calcNumVisibleColumns(startCol: number, viewWidth: number, fixedTrackCount: number) {
     let width = 0;
     let count = 0;
 
     while (width < viewWidth && startCol + count < this.data!.numCols) {
-      width += this.getColumnWidth(rowHeaderCount + startCol + count);
+      width += this.getColumnWidth(fixedTrackCount + startCol + count);
       count++;
     }
 
@@ -386,7 +382,7 @@ export default class StandardLayout extends StandardLayoutBase {
   setData(data: GridDataViewModel): void {
     super.setData(data);
     for (const side of ["top", "left", "bottom", "right"] as const) {
-      for (const { inst } of this.#fixtures[side]) {
+      for (const inst of this.#fixtures[side]) {
         inst.setData(data);
       }
     }
@@ -404,9 +400,9 @@ export default class StandardLayout extends StandardLayoutBase {
     const scrollTop = this.mountPoint.scrollTop;
     const viewHeight = this.mountPoint.clientHeight;
 
-    [...this.#fixtures.top, ...this.#fixtures.bottom].forEach(f => f.vm = f.inst.viewModel());
-    const fixtureHeightTop = this.#fixtures.top.reduce((sum, f) => sum + f.vm.height, 0);
-    const fixtureHeightBottom = this.#fixtures.bottom.reduce((sum, f) => sum + f.vm.height, 0);
+    // [...this.#fixtures.top, ...this.#fixtures.bottom].forEach(f => f.vm = f.inst.viewModel());
+    // const fixtureHeightTop = this.#fixtures.top.reduce((sum, f) => sum + f.vm.height, 0);
+    // const fixtureHeightBottom = this.#fixtures.bottom.reduce((sum, f) => sum + f.vm.height, 0);
 
     // if there are 3 header facets then there would be 3 rows created for it
     // hence that's the total height of header
@@ -415,14 +411,14 @@ export default class StandardLayout extends StandardLayoutBase {
     const dataHeight = this.data!.numRows * this.rowHeightByType.data;
     // total width of the grid if it was rendered fully
     // this value will be used to calculate scroll position there by setting dimension of virtual-panel
-    const totalHeight = colFacetsHeight + dataHeight + fixtureHeightTop + fixtureHeightBottom;
+    const totalHeight = colFacetsHeight + dataHeight /*+ fixtureHeightTop + fixtureHeightBottom */;
 
     // Row range calculation
     // totalHeight <- full data height if it was rendered
     // viewHeight <- viewport height i.e. grid-content container height
     const scrollableHeight = Math.max(1, totalHeight - viewHeight);
     const scrollPercent = Math.min(1, scrollTop / scrollableHeight);
-    const visibleDataHeight = viewHeight - colFacetsHeight - fixtureHeightTop - fixtureHeightBottom;
+    const visibleDataHeight = viewHeight - colFacetsHeight /*- fixtureHeightTop - fixtureHeightBottom*/;
 
     // scrollableRows is the maximum possible starting row.
     // Imagine the viewport scrolls from 0th row to xth row. Here we are trying to find x.
@@ -466,10 +462,7 @@ export default class StandardLayout extends StandardLayoutBase {
     const scrollLeft = this.mountPoint.scrollLeft;
     const viewWidth = this.mountPoint.clientWidth;
 
-    [...this.#fixtures.left, ...this.#fixtures.right].forEach(f => f.vm = f.inst.viewModel());
-    const fixtureWidthLeft = this.#fixtures.left.reduce((sum, f) => sum + f.vm.width, 0);
-    const fixtureWidthRight = this.#fixtures.right.reduce((sum, f) => sum + f.vm.width, 0);
-
+    const leftFixtureWidth = this.getColWidthTillIdx(this.#fixtures.left.length);
     // TODO[improvment]
     //   rf11 rf12 rf13 ... ...
     //   ____ ____ rf23 ... ...
@@ -478,8 +471,8 @@ export default class StandardLayout extends StandardLayoutBase {
     //   1. For config like this if rf12 is overflowing it can wrap it's content
     //   2. Individual row facet might have it's own maxWidth
     const rowFacetsWidth = this.getColWidthTillIdx(this.#fixtures.left.length + this.data!.numRowFacetLevels) - 
-      this.getColWidthTillIdx(this.#fixtures.left.length);
-    const totalWidth = this.getColWidthTillIdx(this.#fixtures.left.length + this.data!.numRowFacetLevels + this.data!.numCols) + fixtureWidthLeft + fixtureWidthRight;
+      leftFixtureWidth;
+    const totalWidth = this.getColWidthTillIdx(this.#fixtures.left.length + this.data!.numRowFacetLevels + this.data!.numCols);
     const scrollableWidth = Math.max(1, totalWidth - viewWidth);
     const scrollPercentX = Math.min(1, scrollLeft / scrollableWidth);
     /*
@@ -507,7 +500,7 @@ export default class StandardLayout extends StandardLayoutBase {
      * the last column's right edge touches viewport.
      * Convert it to fraction and add it to previous column
      */
-    const visibleDataWidth = viewWidth - rowFacetsWidth - fixtureWidthLeft - fixtureWidthRight;
+    const visibleDataWidth = viewWidth - rowFacetsWidth - leftFixtureWidth;
     let maxScrollWidth = 0;
     let maxScrollCol = this.data!.numCols;
     let lastColWidth = -1;
@@ -530,9 +523,8 @@ export default class StandardLayout extends StandardLayoutBase {
     const fixedVTrackLeftPositions = [0];
     let k = 0;
     for (; k < this.#fixtures.left.length; k++) {
-      const f = this.#fixtures.left[k];
       fixedVTrackLeftPositions.push(
-        fixedVTrackLeftPositions[fixedVTrackLeftPositions.length - 1] + this.getColumnWidth(k, f.vm.width));
+        fixedVTrackLeftPositions[fixedVTrackLeftPositions.length - 1] + this.getColumnWidth(k));
     }
     for (let i = 0; i < this.data!.numRowFacetLevels - 1; i++) {
       fixedVTrackLeftPositions.push(
@@ -691,6 +683,8 @@ export default class StandardLayout extends StandardLayoutBase {
     this.#renderCount++;
     const hintContentDirty = ctx.hintContentDirty;
 
+    console.log(">>>", viewModel.fixedVTrackLeftPositions.join(","));
+
     // TODO the same information is returned via sliceData.sliceNumCols. Remove this.
     const numDataColsVisible = viewModel.x1 - viewModel.x0;
 
@@ -699,8 +693,6 @@ export default class StandardLayout extends StandardLayoutBase {
 
     const { fixtures } = viewModel;
     const gridRowOffset = fixtures.top.length;
-    // const numLeftVFixtureTrack = fixtures.left.length;
-    // const numRowFacetLevels = this.data!.numRowFacetLevels;
     const numColFacetLevels = this.data!.numColFacetLevels;
     const numLeftVFixedTrack = this.data!.numRowFacetLevels + fixtures.left.length;
 
@@ -726,7 +718,7 @@ export default class StandardLayout extends StandardLayoutBase {
     const axis = this.data!.facetDefs.axis;
     const rowFacetDefs = this.data!.facetDefs.row.filter(d => !d.pseudo);
     const colFacetDefs = this.data!.facetDefs.col.filter(d => !d.pseudo);
-    const allDefs: Array<PVerticalFixture | FacetDef> = [...fixtures.left.map(f => f.inst), ...rowFacetDefs];
+    const allDefs: Array<PVerticalFixture | FacetDef> = [...fixtures.left, ...rowFacetDefs];
 
     for (let hRow = 0; hRow < numColFacetLevels; hRow++) { // each row of header cells
       for (let hCol = 0; hCol < numLeftVFixedTrack; hCol++) { // each cell in a row
@@ -908,11 +900,12 @@ export default class StandardLayout extends StandardLayoutBase {
     // render fixtures
     for (const side of ["top", "left", "bottom", "right"] as const) {
       for (let fi = 0; fi < fixtures[side].length; fi++) {
-        const { inst, vm } = fixtures[side][fi];
+        const inst = fixtures[side][fi];
         const offset = side === "left" ? viewModel.fixedVTrackLeftPositions[fi] : 0;
-        const fixtureResult = inst.getCellsToRender({ ...viewModel, offset }, vm, sliceData);
+        // TODO for fixtures with side other than left, calculate the offset properly
+        const fixtureResult = inst.getCellsToRender(viewModel, { offset, track: fi + 1 }, sliceData);
         nodeAppendList.push(...fixtureResult.nodesToAppend);
-        if (side !== "left") this.#cellsToMeasure.push(...fixtureResult.cellsToMeasure);
+        if (side === "left") this.#postRenderAdjustCellsPerLevel[fi].push(...fixtureResult.nodesToAppend);
       }
     }
 
@@ -1204,10 +1197,10 @@ export default class StandardLayout extends StandardLayoutBase {
         labelOffset = Math.max(-maxOffset, Math.min(maxOffset, rawOffset));
       }
 
-      const boundaryCellCls = `${isLeaf ? "r-edge" : ""} ${merge.level === 0 ? "l-edge" : ""}`;
-      const startEndCellCls = `${merge.start === numDataRowsVisible - 1 ? "last" : ""} ${merge.start === 0 ? "first" : ""}`;
       const gridRowOffset = viewModel.fixtures.top.length;
       const gridColOffset = viewModel.fixtures.left.length;
+      const boundaryCellCls = `${isLeaf ? "r-edge" : ""} ${merge.level + gridColOffset === 0 ? "l-edge" : ""}`;
+      const startEndCellCls = `${merge.start === numDataRowsVisible - 1 ? "last" : ""} ${merge.start === 0 ? "first" : ""}`;
       const [cell, needAppend, contentDirty] = this.placeCellInDom({
         key,
         gridRow: gridRowOffset + this.data!.numColFacetLevels + merge.start + 1,

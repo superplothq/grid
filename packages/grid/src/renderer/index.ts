@@ -39,10 +39,10 @@ export { registerTheme } from "./registry";
 export { GridDataViewModel, MetaState } from "./grid-data-viewmodel";
 export { PivotDataViewModel } from "./pivot-data-viewmodel";
 export { FlattenedDataViewModel, createRowMeta } from "./flattened-data-viewmodel";
-export type { BaseViewModel as BaseViewState } from "./layout-proto";
+export type { BaseViewModel } from "./layout-proto";
 export type { LayoutEvents } from "./standard-layout";
 export { PVerticalFixture, PHorizontalFixture } from "./fixture-proto";
-export type { BaseVFixtureViewModel, BaseHFixtureViewModel, LayoutViewModelForFixture } from "./fixture-proto";
+export type { BaseFixtureViewModel } from "./fixture-proto";
 export type { EventEmitter };
 export {
   textRenderer,
