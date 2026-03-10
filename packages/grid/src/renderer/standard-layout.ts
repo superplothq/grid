@@ -62,7 +62,8 @@ export interface ViewModel extends BaseViewModel {
   totalWidth: number;
   rowFacetsWidth: number;
   colFacetsHeight: number;
-  fixedVTrackLeftPositions: number[];
+  fixedLeftVTrackPositions: number[];
+  fixedRightVTrackPositions: number[];
   colFacetsTopPositions: number[];
   selections: SelectionState[];
   fixtures: LayoutFixtures;
@@ -105,7 +106,8 @@ export default class StandardLayout extends StandardLayoutBase {
   #renderCount = 0;
   #layoutBootstrapped = false;
   #cellsToMeasure: CellToMeasure[] = [];
-  #postRenderAdjustCellsPerLevel: HTMLElement[][] = [];
+  #postRenderAdjustLeftCellsPerLevel: HTMLElement[][] = [];
+  #postRenderAdjustRightCellsPerLevel: HTMLElement[][] = [];
   #proposal: ViewModelProposal = {};
   #fixtures: LayoutFixtures;
 
@@ -470,9 +472,14 @@ export default class StandardLayout extends StandardLayoutBase {
     //   ____ ____ rf43 ... ...
     //   1. For config like this if rf12 is overflowing it can wrap it's content
     //   2. Individual row facet might have it's own maxWidth
-    const rowFacetsWidth = this.getColWidthTillIdx(this.#fixtures.left.length + this.data!.numRowFacetLevels) - 
+    const rowFacetsWidth = this.getColWidthTillIdx(this.#fixtures.left.length + this.data!.numRowFacetLevels) -
       leftFixtureWidth;
-    const totalWidth = this.getColWidthTillIdx(this.#fixtures.left.length + this.data!.numRowFacetLevels + this.data!.numCols);
+    const rightFixtureStartIdx = this.#fixtures.left.length + this.data!.numRowFacetLevels + this.data!.numCols;
+    let rightFixtureWidth = 0;
+    for (let i = 0; i < this.#fixtures.right.length; i++) {
+      rightFixtureWidth += this.getColumnWidth(rightFixtureStartIdx + i);
+    }
+    const totalWidth = this.getColWidthTillIdx(rightFixtureStartIdx + this.#fixtures.right.length);
     const scrollableWidth = Math.max(1, totalWidth - viewWidth);
     const scrollPercentX = Math.min(1, scrollLeft / scrollableWidth);
     /*
@@ -500,7 +507,7 @@ export default class StandardLayout extends StandardLayoutBase {
      * the last column's right edge touches viewport.
      * Convert it to fraction and add it to previous column
      */
-    const visibleDataWidth = viewWidth - rowFacetsWidth - leftFixtureWidth;
+    const visibleDataWidth = viewWidth - rowFacetsWidth - leftFixtureWidth - rightFixtureWidth;
     let maxScrollWidth = 0;
     let maxScrollCol = this.data!.numCols;
     let lastColWidth = -1;
@@ -531,6 +538,13 @@ export default class StandardLayout extends StandardLayoutBase {
         fixedVTrackLeftPositions[fixedVTrackLeftPositions.length - 1] + this.getColumnWidth(k + i));
     }
 
+    const fixedVTrackRightPositions: number[] = [];
+    let accRightWidth = 0;
+    for (let i = this.#fixtures.right.length - 1; i >= 0; i--) {
+      fixedVTrackRightPositions[i] = accRightWidth;
+      accRightWidth += this.getColumnWidth(rightFixtureStartIdx + i);
+    }
+
     return {
       startColFloat,
       startCol,
@@ -539,6 +553,7 @@ export default class StandardLayout extends StandardLayoutBase {
       rowFacetsWidth,
       offsetX,
       fixedVTrackLeftPositions,
+      fixedVTrackRightPositions,
     };
   }
 
@@ -571,7 +586,8 @@ export default class StandardLayout extends StandardLayoutBase {
       totalWidth: vsHorizontal.totalWidth,
       rowFacetsWidth: vsHorizontal.rowFacetsWidth,
       colFacetsHeight: vsVertical.colFacetsHeight,
-      fixedVTrackLeftPositions: vsHorizontal.fixedVTrackLeftPositions,
+      fixedLeftVTrackPositions: vsHorizontal.fixedVTrackLeftPositions,
+      fixedRightVTrackPositions: vsHorizontal.fixedVTrackRightPositions,
       colFacetsTopPositions: vsVertical.colFacetsTopPositions,
       selections,
       fixtures: this.#fixtures,
@@ -628,7 +644,7 @@ export default class StandardLayout extends StandardLayoutBase {
         indices[sizeKey] = width;
       }
 
-      if (cell.classList.contains("corner")) {
+      if (cell.classList.contains("corner") && !cell.classList.contains("right-fixture-header")) {
         let cellsInIndex = cornerCells[sizeKey];
         if (!cellsInIndex)  cellsInIndex = cornerCells[sizeKey] = [];
         cellsInIndex.push(cell);
@@ -660,11 +676,17 @@ export default class StandardLayout extends StandardLayoutBase {
   #onLayoutBootstrap(viewModel: ViewModel): void {
     this.#updateVirtualPanel(viewModel);
 
-    for (let i = 0; i < this.#postRenderAdjustCellsPerLevel.length; i++) {
-      const cells = this.#postRenderAdjustCellsPerLevel[i];
+    for (let i = 0; i < this.#postRenderAdjustLeftCellsPerLevel.length; i++) {
+      const cells = this.#postRenderAdjustLeftCellsPerLevel[i];
       for (let j = 0; j < cells.length; j++) {
-        const cell = cells[j];
-        cell.style.left = `${viewModel.fixedVTrackLeftPositions[i]}px`;
+        cells[j].style.left = `${viewModel.fixedLeftVTrackPositions[i]}px`;
+      }
+    }
+
+    for (let i = 0; i < this.#postRenderAdjustRightCellsPerLevel.length; i++) {
+      const cells = this.#postRenderAdjustRightCellsPerLevel[i];
+      for (let j = 0; j < cells.length; j++) {
+        cells[j].style.right = `${viewModel.fixedRightVTrackPositions[i]}px`;
       }
     }
   }
@@ -707,7 +729,7 @@ export default class StandardLayout extends StandardLayoutBase {
     this.cellManager.beginFrame();
     this.#cellsToMeasure = [];
     for (let i = 0; i < numLeftVFixedTrack; i++) {
-      this.#postRenderAdjustCellsPerLevel.push([]);
+      this.#postRenderAdjustLeftCellsPerLevel.push([]);
     }
 
     // render corner cells which results from intersection of row and column facets
@@ -778,7 +800,7 @@ export default class StandardLayout extends StandardLayoutBase {
 
         const extraStyles: Record<string, any> = {
           top: viewModel.colFacetsTopPositions[hRow],
-          left: viewModel.fixedVTrackLeftPositions[hCol],
+          left: viewModel.fixedLeftVTrackPositions[hCol],
         };
 
         if (shouldSpan) {
@@ -815,9 +837,39 @@ export default class StandardLayout extends StandardLayoutBase {
         if (!hasHorizontalSpan) {
           // only push cells that are not merged horizontally otherwise incorrect cell size will be reported
           this.#cellsToMeasure.push({ cell, sizeKey: hCol });
-          this.#postRenderAdjustCellsPerLevel[hCol].push(cell);
+          this.#postRenderAdjustLeftCellsPerLevel[hCol].push(cell);
         }
       }
+    }
+
+    // render right fixture header cells
+    for (let fi = 0; fi < fixtures.right.length; fi++) {
+      const def = fixtures.right[fi];
+      const key = `right-fixture-header-${fi}`;
+      const gridCol = numLeftVFixedTrack + numDataColsVisible + fi + 1;
+      const ctx: HeaderCellContext = { viewModel: this.data!, axis: "col", level: 0 };
+      const headerContent = def.headerCells(ctx);
+      const rightFixtureColIdx = this.#fixtures.left.length + this.data!.numRowFacetLevels + this.data!.numCols + fi;
+
+      const [cell, needAppend, contentDirty] = this.placeCellInDom({
+        key,
+        gridRow: 1,
+        gridCol,
+        hintContentDirty,
+        cls: "corner header right-fixture-header b-edge header-b-edge",
+        extraStyles: {
+          ...(numColFacetLevels > 1 && { rowspan: numColFacetLevels }),
+          top: viewModel.colFacetsTopPositions[0],
+          right: viewModel.fixedRightVTrackPositions[fi],
+        },
+      });
+      if (contentDirty) {
+        cell.replaceChildren(this.buildCommonCell(headerContent ?? ""));
+      }
+      needAppend && nodeAppendList.push(cell);
+      this.#cellsToMeasure.push({ cell, sizeKey: rightFixtureColIdx });
+      if (!this.#postRenderAdjustRightCellsPerLevel[fi]) this.#postRenderAdjustRightCellsPerLevel[fi] = [];
+      this.#postRenderAdjustRightCellsPerLevel[fi].push(cell);
     }
 
     // render column facets
@@ -899,11 +951,29 @@ export default class StandardLayout extends StandardLayoutBase {
     for (const side of ["top", "left", "bottom", "right"] as const) {
       for (let fi = 0; fi < fixtures[side].length; fi++) {
         const inst = fixtures[side][fi];
-        const offset = side === "left" ? viewModel.fixedVTrackLeftPositions[fi] : 0;
-        // TODO for fixtures with side other than left, calculate the offset properly
-        const fixtureResult = inst.getCellsToRender(viewModel, { offset, track: fi + 1 }, sliceData);
+        let offset: number;
+        let track: number;
+        if (side === "left") {
+          offset = viewModel.fixedLeftVTrackPositions[fi];
+          track = fi + 1;
+        } else if (side === "right") {
+          offset = viewModel.fixedRightVTrackPositions[fi];
+          track = numLeftVFixedTrack + numDataColsVisible + fi + 1;
+        } else {
+          offset = 0;
+          track = fi + 1;
+        }
+        const fixtureResult = inst.getCellsToRender(viewModel, { offset, track }, sliceData);
         nodeAppendList.push(...fixtureResult.nodesToAppend);
-        if (side === "left") this.#postRenderAdjustCellsPerLevel[fi].push(...fixtureResult.nodesToAppend);
+        if (side === "left") this.#postRenderAdjustLeftCellsPerLevel[fi].push(...fixtureResult.nodesToAppend);
+        if (side === "right") {
+          for (const node of fixtureResult.nodesToAppend) {
+            node.style.right = `${viewModel.fixedRightVTrackPositions[fi]}px`;
+            node.style.left = "";
+          }
+          if (!this.#postRenderAdjustRightCellsPerLevel[fi]) this.#postRenderAdjustRightCellsPerLevel[fi] = [];
+          this.#postRenderAdjustRightCellsPerLevel[fi].push(...fixtureResult.nodesToAppend);
+        }
       }
     }
 
@@ -987,13 +1057,14 @@ export default class StandardLayout extends StandardLayoutBase {
       this.#raiseRenderCompleteEvent(viewModel, ctx, { nodeAppendList, cellsToRemove, contentCellRerenderCount });
     }
 
-    this.#postRenderAdjustCellsPerLevel.length = 0;
+    this.#postRenderAdjustLeftCellsPerLevel.length = 0;
+    this.#postRenderAdjustRightCellsPerLevel.length = 0;
   }
 
   #addCellRenderResult(result: CellRenderResult): void {
     this.#cellsToMeasure.push(...result.cellsToMeasure);
     for (const { cell, level } of result.adjustCells) {
-      this.#postRenderAdjustCellsPerLevel[level].push(cell);
+      this.#postRenderAdjustLeftCellsPerLevel[level].push(cell);
     }
   }
 
@@ -1207,7 +1278,7 @@ export default class StandardLayout extends StandardLayoutBase {
         cls: `row-facet facet ${isLeaf ? " facet-r-edge" : " non-leaf"} ${boundaryCellCls} ${startEndCellCls}`,
         extraStyles: {
           rowspan: merge.spanPrimary,
-          left: viewModel.fixedVTrackLeftPositions[merge.level + gridColOffset],
+          left: viewModel.fixedLeftVTrackPositions[merge.level + gridColOffset],
           ...(merge.spanSecondary > 1 && { colspan: merge.spanSecondary }),
           transform: "",
         },

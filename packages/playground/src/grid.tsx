@@ -211,7 +211,7 @@ const NullFacetDemo: React.FC = () => {
       data.push(colData);
     }
 
-    const grid = new Grid({ fixtures: { top: [], left: [/*CheckboxFixture, LineNumberFixture*/], bottom: [], right: [] } }, ref.current);
+    const grid = new Grid({ fixtures: { top: [], left: [/*CheckboxFixture, LineNumberFixture*/], bottom: [], right: [CheckboxFixture, LineNumberFixture] } }, ref.current);
     grid.data = new PivotDataViewModel(
       data,
       [colFacetLevel0, colFacetLevel1, colFacetLevel2],
@@ -600,7 +600,7 @@ const GridPlayground: React.FC = () => {
     // Create or update grid
     if (!gridRef.current) {
       const LayoutClass = layoutMode === "grouped" ? GroupedRowLayout : StandardLayout;
-      gridRef.current = new Grid({ fixtures: { top: [], left: [/*CheckboxFixture, LineNumberFixture*/], bottom: [], right: [] } }, gridConRef.current, LayoutClass);
+      gridRef.current = new Grid({ fixtures: { top: [], left: [LineNumberFixture/*CheckboxFixture, LineNumberFixture*/], bottom: [], right: [CheckboxFixture] } }, gridConRef.current, LayoutClass);
       gridLayoutModeRef.current = layoutMode;
       for (const e of ['renderComplete', 'selectionAdded', 'selectionRemoved']) {
         gridRef.current.on(e as any, (payload) => {

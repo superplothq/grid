@@ -21,6 +21,7 @@ export interface PlaceCellOpts {
     rowspan?: number;
     top?: number;
     left?: number;
+    right?: number;
     transform?: string;
     width?: number;
     minWidth?: number;
@@ -64,6 +65,9 @@ export function WithCellPlacement<TBase extends Constructor<HasCellManager>>(Bas
       }
       if (opts.extraStyles.left !== undefined) {
         cell.style.left = `${opts.extraStyles.left}px`;
+      }
+      if (opts.extraStyles.right !== undefined) {
+        cell.style.right = `${opts.extraStyles.right}px`;
       }
       if (opts.extraStyles.transform !== undefined && cell.style.transform !== opts.extraStyles.transform) {
         cell.style.transform = opts.extraStyles.transform;

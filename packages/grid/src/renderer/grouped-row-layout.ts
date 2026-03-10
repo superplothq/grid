@@ -28,7 +28,7 @@ export default class GroupedRowLayout extends StandardLayout {
 
       // the margin-left on cell in css file acompanies this calculation; otherwise with scroll left of css grid layout
       // margin is not respected by browser
-      let left = viewModel.fixedVTrackLeftPositions[viewModel.fixedVTrackLeftPositions.length - 1] + meta.depth * 16;
+      let left = viewModel.fixedLeftVTrackPositions[viewModel.fixedLeftVTrackPositions.length - 1] + meta.depth * 16;
       const extraStyles: Record<string, number | string> = {
         left,
       };
