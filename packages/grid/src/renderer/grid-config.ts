@@ -1,8 +1,11 @@
+import { LayoutFixtureClasses } from "./types";
+
 export interface GridConfig {
   defaultCellHeight: number;
   defaultCellWidth: number;
   overscan: number;
   enableResizeUI: boolean;
+  fixtures: LayoutFixtureClasses;
   theme: string;
 }
 
@@ -12,4 +15,10 @@ export const defaultConfig: GridConfig = {
   overscan: 2,
   enableResizeUI: true,
   theme: "light",
+  fixtures: {
+    top: [],
+    left: [],
+    bottom: [],
+    right: [],
+  },
 };

@@ -1,6 +1,9 @@
 import { CellRenderer } from "./cell-renderers";
 import { ProjectionState } from "../datamodel/types";
 import { GridDataViewModel } from "./grid-data-viewmodel";
+import { GridConfig } from "./grid-config";
+import CellManager from "./cell-manager";
+import PFixture from "./fixture-proto";
 
 export type Constructor<T> = new (...args: any[]) => T;
 
@@ -138,3 +141,10 @@ export interface CellToMeasure {
   sizeKey: number;
 }
 
+export type PFixtureCls = new (config: GridConfig, con: HTMLElement, cellManager: CellManager) => PFixture;
+export interface LayoutFixtureClasses {
+  top: PFixtureCls[];
+  left: PFixtureCls[];
+  bottom: PFixtureCls[];
+  right: PFixtureCls[];
+}
