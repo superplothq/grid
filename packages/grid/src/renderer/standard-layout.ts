@@ -691,8 +691,6 @@ export default class StandardLayout extends StandardLayoutBase {
     this.#renderCount++;
     const hintContentDirty = ctx.hintContentDirty;
 
-    console.log(">>>", viewModel.fixedVTrackLeftPositions.join(","));
-
     // TODO the same information is returned via sliceData.sliceNumCols. Remove this.
     const numDataColsVisible = viewModel.x1 - viewModel.x0;
 

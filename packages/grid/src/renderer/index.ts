@@ -31,7 +31,7 @@ export type {
   FacetDef,
   FacetMeta,
   FacetHeaderRenderer,
-  FacetHeaderContext,
+  HeaderCellContext as FacetHeaderContext,
   FacetData,
   FlatRowMeta,
 } from "./types";
