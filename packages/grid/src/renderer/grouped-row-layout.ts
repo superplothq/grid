@@ -13,6 +13,8 @@ export default class GroupedRowLayout extends StandardLayout {
 
     const numColFacetLevels = this.data!.numColFacetLevels;
     const hintContentDirty = ctx.hintContentDirty;
+    const gridRowOffset = viewModel.fixtures.top.length;
+    const gridColOffset = viewModel.fixtures.left.length;
 
     const rowFacetDefs = this.data!.facetDefs.row;
     const rendererCtx: FacetRendererContext = {
@@ -26,7 +28,7 @@ export default class GroupedRowLayout extends StandardLayout {
 
       // the margin-left on cell in css file acompanies this calculation; otherwise with scroll left of css grid layout
       // margin is not respected by browser
-      let left = viewModel.rowFacetsLeftPositions[0] + meta.depth * 16;
+      let left = viewModel.fixedVTrackLeftPositions[viewModel.fixedVTrackLeftPositions.length - 1] + meta.depth * 16;
       const extraStyles: Record<string, number | string> = {
         left,
       };
@@ -36,8 +38,8 @@ export default class GroupedRowLayout extends StandardLayout {
 
       const [cell, needAppend, contentDirty] = this.placeCellInDom({
         key,
-        gridRow: numColFacetLevels + j + 1,
-        gridCol: 1,
+        gridRow: gridRowOffset + numColFacetLevels + j + 1,
+        gridCol: gridColOffset + 1,
         hintContentDirty,
         cls,
         extraStyles,
@@ -45,7 +47,7 @@ export default class GroupedRowLayout extends StandardLayout {
 
       cell.style.setProperty("--depth", String(meta.depth));
       // Without this there is white space between the indented row and grid
-      cell.style.boxShadow = `${-left}px 0px 0px 0px var(--row-facet-background-color)`;
+      cell.style.boxShadow = `${-meta.depth * 16}px 0px 0px 0px var(--row-facet-background-color)`;
 
       if (contentDirty) {
         const label = flatSlice.rowFacets[j];
@@ -64,8 +66,8 @@ export default class GroupedRowLayout extends StandardLayout {
 
       cell.dataset.cellType = "row-facet";
       needAppend && nodesToAppend.push(cell);
-      cellsToMeasure.push({ cell, sizeKey: 0 });
-      adjustCells.push({ cell, level: 0 });
+      cellsToMeasure.push({ cell, sizeKey: gridColOffset });
+      adjustCells.push({ cell, level: gridColOffset });
     }
     return { cellsToMeasure, adjustCells, nodesToAppend };
   }

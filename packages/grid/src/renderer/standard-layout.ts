@@ -10,7 +10,7 @@ import {
   FacetCellContent,
   FacetDataContext,
   FacetDef,
-  FacetHeaderContext,
+  HeaderCellContext,
   FacetRendererContext,
   IColAutoSizeStrategyFixedWidth,
   PivotSliceResult
@@ -64,7 +64,7 @@ export interface ViewModel extends BaseViewModel {
   totalWidth: number;
   rowFacetsWidth: number;
   colFacetsHeight: number;
-  rowFacetsLeftPositions: number[];
+  fixedVTrackLeftPositions: number[];
   colFacetsTopPositions: number[];
   selections: SelectionState[];
   fixtures: LayoutFixtures;
@@ -356,8 +356,11 @@ export default class StandardLayout extends StandardLayoutBase {
     return this.rowHeightByType[type] || this.config.defaultCellHeight;
   }
 
-  getColumnWidth(index: number) {
-    return this.colsWidth.override[index] ?? this.colsWidth.indices[index] ?? this.config.defaultCellWidth;
+  getColumnWidth(index: number, defaultValue?: number) {
+    return this.colsWidth.override[index]
+      ?? this.colsWidth.indices[index]
+      ?? defaultValue
+      ?? this.config.defaultCellWidth;
   }
 
   getColWidthTillIdx(idx: number): number {
@@ -474,8 +477,9 @@ export default class StandardLayout extends StandardLayoutBase {
     //   ____ ____ rf43 ... ...
     //   1. For config like this if rf12 is overflowing it can wrap it's content
     //   2. Individual row facet might have it's own maxWidth
-    const rowFacetsWidth = this.getColWidthTillIdx(this.data!.numRowFacetLevels);
-    const totalWidth = this.getColWidthTillIdx(this.data!.numRowFacetLevels + this.data!.numCols) + fixtureWidthLeft + fixtureWidthRight;
+    const rowFacetsWidth = this.getColWidthTillIdx(this.#fixtures.left.length + this.data!.numRowFacetLevels) - 
+      this.getColWidthTillIdx(this.#fixtures.left.length);
+    const totalWidth = this.getColWidthTillIdx(this.#fixtures.left.length + this.data!.numRowFacetLevels + this.data!.numCols) + fixtureWidthLeft + fixtureWidthRight;
     const scrollableWidth = Math.max(1, totalWidth - viewWidth);
     const scrollPercentX = Math.min(1, scrollLeft / scrollableWidth);
     /*
@@ -509,24 +513,30 @@ export default class StandardLayout extends StandardLayoutBase {
     let lastColWidth = -1;
     while (maxScrollWidth < visibleDataWidth && maxScrollCol > 0) {
       maxScrollCol--;
-      lastColWidth =  this.getColumnWidth(this.data!.numRowFacetLevels + maxScrollCol);
+      lastColWidth =  this.getColumnWidth(this.#fixtures.left.length + this.data!.numRowFacetLevels + maxScrollCol);
       maxScrollWidth += lastColWidth;
     }
     maxScrollCol = Math.min(this.data!.numCols - 1, maxScrollCol + ((maxScrollWidth - visibleDataWidth)) / lastColWidth);
 
     const startColFloat = maxScrollCol * scrollPercentX;
     const startCol = Math.floor(startColFloat);
-    const visibleCols = this.calcNumVisibleColumns(startCol, visibleDataWidth, this.data!.numRowFacetLevels);
+    const visibleCols = this.calcNumVisibleColumns(startCol, visibleDataWidth, this.data!.numRowFacetLevels + this.#fixtures.left.length);
     const endCol = Math.min(this.data!.numCols, startCol + visibleCols);
 
-    const startColWidth = this.getColumnWidth(this.data!.numRowFacetLevels + startCol);
+    const startColWidth = this.getColumnWidth(this.#fixtures.left.length + this.data!.numRowFacetLevels + startCol);
     const offsetX = (startColFloat - startCol) * startColWidth;
 
-    const rowFacetsLeftPositions = [0];
+    
+    const fixedVTrackLeftPositions = [0];
+    let k = 0;
+    for (; k < this.#fixtures.left.length; k++) {
+      const f = this.#fixtures.left[k];
+      fixedVTrackLeftPositions.push(
+        fixedVTrackLeftPositions[fixedVTrackLeftPositions.length - 1] + this.getColumnWidth(k, f.vm.width));
+    }
     for (let i = 0; i < this.data!.numRowFacetLevels - 1; i++) {
-      rowFacetsLeftPositions.push(
-        rowFacetsLeftPositions[i] + this.getColumnWidth(i)
-      );
+      fixedVTrackLeftPositions.push(
+        fixedVTrackLeftPositions[fixedVTrackLeftPositions.length - 1] + this.getColumnWidth(k + i));
     }
 
     return {
@@ -536,7 +546,7 @@ export default class StandardLayout extends StandardLayoutBase {
       totalWidth,
       rowFacetsWidth,
       offsetX,
-      rowFacetsLeftPositions
+      fixedVTrackLeftPositions,
     };
   }
 
@@ -569,7 +579,7 @@ export default class StandardLayout extends StandardLayoutBase {
       totalWidth: vsHorizontal.totalWidth,
       rowFacetsWidth: vsHorizontal.rowFacetsWidth,
       colFacetsHeight: vsVertical.colFacetsHeight,
-      rowFacetsLeftPositions: vsHorizontal.rowFacetsLeftPositions,
+      fixedVTrackLeftPositions: vsHorizontal.fixedVTrackLeftPositions,
       colFacetsTopPositions: vsVertical.colFacetsTopPositions,
       selections,
       fixtures: this.#fixtures,
@@ -662,7 +672,7 @@ export default class StandardLayout extends StandardLayoutBase {
       const cells = this.#postRenderAdjustCellsPerLevel[i];
       for (let j = 0; j < cells.length; j++) {
         const cell = cells[j];
-        cell.style.left = `${viewModel.rowFacetsLeftPositions[i]}px`;
+        cell.style.left = `${viewModel.fixedVTrackLeftPositions[i]}px`;
       }
     }
   }
@@ -681,6 +691,9 @@ export default class StandardLayout extends StandardLayoutBase {
     this.#renderCount++;
     const hintContentDirty = ctx.hintContentDirty;
 
+    console.log(">>>", viewModel.fixedVTrackLeftPositions.join(","));
+
+    // TODO the same information is returned via sliceData.sliceNumCols. Remove this.
     const numDataColsVisible = viewModel.x1 - viewModel.x0;
 
     this.#updateVirtualPanel(viewModel);
@@ -688,7 +701,10 @@ export default class StandardLayout extends StandardLayoutBase {
 
     const { fixtures } = viewModel;
     const gridRowOffset = fixtures.top.length;
-    const gridColOffset = fixtures.left.length;
+    // const numLeftVFixtureTrack = fixtures.left.length;
+    // const numRowFacetLevels = this.data!.numRowFacetLevels;
+    const numColFacetLevels = this.data!.numColFacetLevels;
+    const numLeftVFixedTrack = this.data!.numRowFacetLevels + fixtures.left.length;
 
     const template = this.getGridTemplate(
       this.data!.numRowFacetLevels,
@@ -702,7 +718,7 @@ export default class StandardLayout extends StandardLayoutBase {
 
     this.cellManager.beginFrame();
     this.#cellsToMeasure = [];
-    for (let i = 0; i < this.data!.numRowFacetLevels; i++) {
+    for (let i = 0; i < numLeftVFixedTrack; i++) {
       this.#postRenderAdjustCellsPerLevel.push([]);
     }
 
@@ -712,11 +728,10 @@ export default class StandardLayout extends StandardLayoutBase {
     const axis = this.data!.facetDefs.axis;
     const rowFacetDefs = this.data!.facetDefs.row.filter(d => !d.pseudo);
     const colFacetDefs = this.data!.facetDefs.col.filter(d => !d.pseudo);
-    const numRowFacetLevels = this.data!.numRowFacetLevels;
-    const numColFacetLevels = this.data!.numColFacetLevels;
+    const allDefs: Array<PVerticalFixture | FacetDef> = [...fixtures.left.map(f => f.inst), ...rowFacetDefs];
 
     for (let hRow = 0; hRow < numColFacetLevels; hRow++) { // each row of header cells
-      for (let hCol = 0; hCol < numRowFacetLevels; hCol++) { // each cell in a row
+      for (let hCol = 0; hCol < numLeftVFixedTrack; hCol++) { // each cell in a row
         const key = `corner-${hRow}-${hCol}`;
 
         let shouldSpan = false;
@@ -729,27 +744,35 @@ export default class StandardLayout extends StandardLayoutBase {
               shouldSpan = true;
               const def = colFacetDefs[hRow];
               if (def && !def.pseudo) {
-                const ctx: FacetHeaderContext = { viewModel: this.data!, axis: "col", level: hRow };
+                const ctx: HeaderCellContext = { viewModel: this.data!, axis: "col", level: hRow };
                 headerContent = def.headerRenderer(def.text, ctx);
               }
             } else { // the rest of the cells in the horizontal track are merged via colspan
               isSpanned = true;
             }
           } else { // last row would hold all the row facet headers
-            const def = rowFacetDefs[hCol];
-            if (def && !def.pseudo) {
-              const ctx: FacetHeaderContext = { viewModel: this.data!, axis: "row", level: hCol };
-              headerContent = def.headerRenderer(def.text, ctx);
+            const def = allDefs[hCol];
+            if (def) {
+              const ctx: HeaderCellContext = { viewModel: this.data!, axis: "col", level: hRow };
+              if (def instanceof PVerticalFixture) {
+                headerContent = def.headerCells(ctx);
+              } else if (!def.pseudo) {
+                headerContent = def.headerRenderer(def.text, ctx);
+              }
             }
           }
         } else {
-          if (hCol < numRowFacetLevels - 1) { // row facet header spanned vertically
+          if (hCol < numLeftVFixedTrack) { // row facet header spanned vertically
             if (hRow === 0) {
               shouldSpan = true;
-              const def = rowFacetDefs[hCol];
-              if (def && !def.pseudo) {
-                const ctx: FacetHeaderContext = { viewModel: this.data!, axis: "row", level: hCol };
-                headerContent = def.headerRenderer(def.text, ctx);
+              const def = allDefs[hCol];
+              if (def) {
+                const ctx: HeaderCellContext = { viewModel: this.data!, axis: "col", level: hRow };
+                if (def instanceof PVerticalFixture) {
+                  headerContent = def.headerCells(ctx);
+                } else if (!def.pseudo) {
+                  headerContent = def.headerRenderer(def.text, ctx);
+                }
               }
             } else { // merged via rowspan
               isSpanned = true;
@@ -757,7 +780,7 @@ export default class StandardLayout extends StandardLayoutBase {
           } else { // the last column holds all the column facet headers
             const def = colFacetDefs[hRow];
             if (def && !def.pseudo) {
-              const ctx: FacetHeaderContext = { viewModel: this.data!, axis: "col", level: hRow };
+              const ctx: HeaderCellContext = { viewModel: this.data!, axis: "col", level: hRow };
               headerContent = def.headerRenderer(def.text, ctx);
             }
           }
@@ -767,12 +790,12 @@ export default class StandardLayout extends StandardLayoutBase {
 
         const extraStyles: Record<string, any> = {
           top: viewModel.colFacetsTopPositions[hRow],
-          left: viewModel.rowFacetsLeftPositions[hCol],
+          left: viewModel.fixedVTrackLeftPositions[hCol],
         };
 
         if (shouldSpan) {
           if (axis === "col") {
-            extraStyles.colspan = numRowFacetLevels;
+            extraStyles.colspan = numLeftVFixedTrack;
           } else {
             extraStyles.rowspan = numColFacetLevels;
           }
@@ -785,13 +808,13 @@ export default class StandardLayout extends StandardLayoutBase {
           if (hRow === numColFacetLevels - 1 || (shouldSpan && axis === "row")) cornerCls += " b-edge";
           if (hRow === numColFacetLevels - 1) cornerCls += " nl-edge";
         }
-        if (hCol === numRowFacetLevels - 1 || (shouldSpan && axis === "col")) cornerCls += " r-edge header-r-edge";
+        if (hCol === numLeftVFixedTrack - 1 || (shouldSpan && axis === "col")) cornerCls += " r-edge header-r-edge";
         if (hRow === numColFacetLevels - 1) cornerCls += " header-b-edge";
 
         const [cell, needAppend, contentDirty] = this.placeCellInDom({
           key,
-          gridRow: gridRowOffset + hRow + 1,
-          gridCol: gridColOffset + hCol + 1,
+          gridRow: hRow + 1,
+          gridCol: hCol + 1,
           hintContentDirty,
           cls: cornerCls,
           extraStyles,
@@ -821,7 +844,7 @@ export default class StandardLayout extends StandardLayoutBase {
       // TODO[1]
       const colDef = colDefs[colIndex];
       const skipSizeClass = colDef.colSize.excludeColumnFacets ? " skp-sz" : "";
-      const absoluteColIndex = this.data!.numRowFacetLevels + colIndex;
+      const absoluteColIndex = numLeftVFixedTrack + colIndex;
       const key = `col-h-${merge.level}-${absoluteColIndex}`;
       const colspan = merge.spanPrimary;
 
@@ -833,7 +856,7 @@ export default class StandardLayout extends StandardLayoutBase {
       const [cell, needAppend, contentDirty] = this.placeCellInDom({
         key,
         gridRow: gridRowOffset + merge.level + 1,
-        gridCol: gridColOffset + this.data!.numRowFacetLevels + merge.start + 1,
+        gridCol: numLeftVFixedTrack + merge.start + 1,
         hintContentDirty,
         cls: `col-facet facet ${skipSizeClass}${!isLeafLevel ? " non-leaf" : " facet-b-edge"} ${boundaryCellCls}`,
         extraStyles: {
@@ -884,6 +907,17 @@ export default class StandardLayout extends StandardLayoutBase {
     nodeAppendList.push(...dataResult.nodesToAppend);
     const contentCellRerenderCount = dataResult.contentCellRerenderCount;
 
+    // render fixtures
+    for (const side of ["top", "left", "bottom", "right"] as const) {
+      for (let fi = 0; fi < fixtures[side].length; fi++) {
+        const { inst, vm } = fixtures[side][fi];
+        const offset = side === "left" ? viewModel.fixedVTrackLeftPositions[fi] : 0;
+        const fixtureResult = inst.getCellsToRender({ ...viewModel, offset }, vm, sliceData);
+        nodeAppendList.push(...fixtureResult.nodesToAppend);
+        if (side !== "left") this.#cellsToMeasure.push(...fixtureResult.cellsToMeasure);
+      }
+    }
+
     // draw selections if present
     for (const sel of viewModel.selections) {
       const visFromRow = Math.max(sel.fromRow, viewModel.y0);
@@ -898,7 +932,7 @@ export default class StandardLayout extends StandardLayoutBase {
         hintContentDirty,
         cls: "selection-overlay",
         gridRow: gridRowOffset + this.data!.numColFacetLevels + (visFromRow - viewModel.y0) + 1,
-        gridCol: gridColOffset + this.data!.numRowFacetLevels + (visFromCol - viewModel.x0) + 1,
+        gridCol: numLeftVFixedTrack + (visFromCol - viewModel.x0) + 1,
         extraStyles: {
           rowspan: visToRow - visFromRow + 1,
           colspan: visToCol - visFromCol + 1,
@@ -909,15 +943,6 @@ export default class StandardLayout extends StandardLayoutBase {
       }
 
       needAppend && nodeAppendList.push(el);
-    }
-
-    // render fixtures
-    for (const side of ["top", "left", "bottom", "right"] as const) {
-      for (const { inst, vm } of fixtures[side]) {
-        const fixtureResult = inst.getCellsToRender(viewModel, vm, sliceData);
-        nodeAppendList.push(...fixtureResult.nodesToAppend);
-        this.#cellsToMeasure.push(...fixtureResult.cellsToMeasure);
-      }
     }
 
     // append all cells to the DOM in one go
@@ -939,13 +964,13 @@ export default class StandardLayout extends StandardLayoutBase {
       let accWidth = -viewModel.offsetX;
       for (let i = 0; i < numDataColsVisible; i++) {
         colLeftPositions[i] = accWidth;
-        accWidth += this.getColumnWidth(this.data!.numRowFacetLevels + viewModel.x0 + i);
+        accWidth += this.getColumnWidth(numLeftVFixedTrack + viewModel.x0 + i);
       }
 
       for (const { cell, mergeStart, mergeSpan } of nonLeafColFacets) {
         let cellWidth = 0;
         for (let i = 0; i < mergeSpan; i++) {
-          cellWidth += this.getColumnWidth(this.data!.numRowFacetLevels + viewModel.x0 + mergeStart + i);
+          cellWidth += this.getColumnWidth(numLeftVFixedTrack + viewModel.x0 + mergeStart + i);
         }
         const cellLeftInDataArea = colLeftPositions[mergeStart];
         const cellRightInDataArea = cellLeftInDataArea + cellWidth;
@@ -954,7 +979,7 @@ export default class StandardLayout extends StandardLayoutBase {
         const clippedRight = Math.max(0, cellRightInDataArea - visibleDataWidth);
 
         const rawOffset = (clippedLeft - clippedRight) / 2;
-        const firstColWidth = this.getColumnWidth(this.data!.numRowFacetLevels + viewModel.x0 + mergeStart);
+        const firstColWidth = this.getColumnWidth(numLeftVFixedTrack + viewModel.x0 + mergeStart);
         const maxOffset = Math.max(0, (cellWidth - firstColWidth) / 2);
         const labelOffset = Math.max(-maxOffset, Math.min(maxOffset, rawOffset));
 
@@ -1193,7 +1218,7 @@ export default class StandardLayout extends StandardLayoutBase {
         cls: `row-facet facet ${isLeaf ? " facet-r-edge" : " non-leaf"} ${boundaryCellCls} ${startEndCellCls}`,
         extraStyles: {
           rowspan: merge.spanPrimary,
-          left: viewModel.rowFacetsLeftPositions[merge.level],
+          left: viewModel.fixedVTrackLeftPositions[merge.level + gridColOffset],
           ...(merge.spanSecondary > 1 && { colspan: merge.spanSecondary }),
           transform: "",
         },
@@ -1213,7 +1238,7 @@ export default class StandardLayout extends StandardLayoutBase {
       // itself. This is important as row cells might have span that would would divide the track to equal parts in case
       // secondary span is present. However since corner cells are never merged, they'd provide correct track
       // mesasurement.
-      adjustCells.push({ cell, level: merge.level });
+      adjustCells.push({ cell, level: merge.level + gridColOffset });
     }
     return { cellsToMeasure: [], adjustCells, nodesToAppend };
   }
@@ -1270,7 +1295,7 @@ export default class StandardLayout extends StandardLayoutBase {
 
         needAppend && nodesToAppend.push(cell);
         if (!colDef.isCustom) {
-          cellsToMeasure.push({ cell, sizeKey: absoluteColIndex });
+          cellsToMeasure.push({ cell, sizeKey: absoluteColIndex + gridColOffset });
         }
       }
     }

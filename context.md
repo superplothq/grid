@@ -1,88 +1,72 @@
-# Sorting Feature
+# Fixtures — Dynamic Content Areas on Grid
 
 ## What We're Building
 
-Row sorting for the pivot grid. Users specify `sort` on `PivotConfig` to reorder rows without affecting column order. Two sort modes:
+Fixtures are peripheral UI elements that can be placed on any of the four sides of the grid (top, bottom, left, right). They allow rendering dynamic content alongside the grid data area — e.g. summary rows, toolbars, row indicators, etc.
 
-- **Alphabetical** — sort by dimension value: `{ field: "region", direction: "asc" }`
-- **By measure** — sort by aggregated measure: `{ field: "region", direction: "desc", by: "revenue" }` (uses the measure's configured aggregate function, e.g. SUM)
+A fixture is defined by extending `PFixture` (or its typed subclasses `PVerticalFixture` / `PHorizontalFixture`), and is registered via `GridConfig.fixtures` as constructor classes. The layout instantiates them, computes their viewmodels, and incorporates their dimensions into the grid template and viewport calculations.
 
-Both can be mixed in the same sort list.
+### Grid template with fixtures
 
-## Key Design Decisions
+```
+         left fixtures + row facets     data cols     right fixtures
+        ┌──────────────────────────┬───────────────┬───────────────┐
+ header │       header cells       │  col          │               │
+        │                          │  facets       │               │
+        ├──────────────────────────┼───────────────┼───────────────┤
+ top    │                          │               │               │
+fixtures│                          │               │               │
+        ├──────────────────────────┼───────────────┼───────────────┤
+ data   │  left fix  │  row        │  data         │               │
+ rows   │  tures     │  facets     │  cells        │               │
+        ├──────────────────────────┼───────────────┼───────────────┤
+ bottom │                          │               │               │
+fixtures│                          │               │               │
+        └──────────────────────────┴───────────────┴───────────────┘
+```
 
-### Column facet space is always derived independently
+Header cells span across left fixtures + row facets. Top fixtures sit below the header row.
 
-Column facet order must never change due to row sorting. `getViewModelData` calls `getData` separately with just the column dimSpec (no measures, no sort) to get column facets in natural CTE order. Row facet space is still extracted from the main query's iteration order (which reflects sort).
+### Key design decisions
 
-### Sort is resolved at `getIR` level
-
-`getIR()` takes the user's `config.sort` (which may only mention some row dims) and produces a fully resolved list — one entry per row dim field. Unsorted dims are padded with `direction: "noop"`. This means `getData` receives a complete ordered list and just maps entries to SQL without needing row/col awareness.
-
-### `"noop"` direction
-
-Internal-only sort direction meaning "keep natural insertion order." Uses a window function `MIN(MIN(__ord__)) OVER (PARTITION BY <dims up to this level>)` to group at the correct level. The window is necessary because hierarchy nodes share a single `__ord__` column across all their fields — a plain `MIN(__ord__)` would sort at the finest granularity instead of the intended level.
-
-### sql-datamodel has no row/col concept
-
-`SqlDataModel.getData` only knows about dimensions, measures, and sort entries. It generates SQL from the resolved sort list. The row/col split is entirely handled by `GridDataModel.getViewModelData`.
-
-### `fieldToOrdCol` on CTEResult
-
-Maps each dimension field to its `__ord__` column name. Needed because the mapping isn't 1:1 — a hierarchy shares one `__ord__` across all its fields. Used by `findOrdColForField` (noop sort) to look up the correct ordering column.
-
-## Sort SQL Generation
-
-For each resolved sort entry:
-
-- **`"noop"`** — `MIN(MIN(gridCte."__ord__X")) OVER (PARTITION BY <dims accumulated so far>)`
-- **`"asc"/"desc"` without `by`** (alphabetical) — `gridCte."field" ASC/DESC`
-- **`"asc"/"desc"` with `by`** (measure sort) — `SUM(AGG(T."measure")) OVER (PARTITION BY <dims accumulated so far>) ASC/DESC`
-
-Column dim ordering is not included in the sort ORDER BY since column facets are computed separately.
+- Fixture dimensions (width/height) **reduce the viewport** available for the data area — they are not overlays
+- Fixture viewmodels are **computed during layout calculation** — top/bottom in `calculateVerticalViewModel`, left/right in `calculateHorizontalViewModel`
+- Sizes come from `viewModel()` return values — layout trusts the fixture's declared dimensions
+- Grid template tracks for fixtures use `max-content`
+- Per-fixture viewmodel is stored alongside the instance as `{ inst, vm }` pairs in `LayoutFixtures`
+- `vm` is initially empty (data not available at construction time) and populated during viewmodel calculation
 
 ## Files Changed
 
-### `packages/grid/src/types.ts`
-- Added `SortDirection` (`"asc" | "desc" | "noop"`), `SortEntry` (`field`, `direction`, `by?`)
-- Added `sort?: SortEntry[]` to `PivotConfig` and `IR`
+### `packages/grid/src/renderer/fixture-proto.ts`
+- Defines the abstract fixture protocol: `PFixture`, `PVerticalFixture`, `PHorizontalFixture`
+- Viewmodel interfaces: `BaseFixtureViewModel`, `BaseVFixtureViewModel` (has `width`), `BaseHFixtureViewModel` (has `height`)
+- `getCellsToRender(viewModel, fixtureViewModel, sliceData)` — receives both the layout viewmodel and the fixture's own viewmodel
 
-### `packages/grid/src/grid-datamodel.ts`
-- `getIR()`: resolves `config.sort` into fully resolved list with noop padding
-- `getViewModelData()`: calls `getData` separately for column facet space; row facets still via `extractFacetSpace`
+### `packages/grid/src/renderer/types.ts`
+- Added `PFixtureCls` constructor type and `LayoutFixtureClasses` interface (arrays of constructor classes per side)
 
-### `packages/grid/src/sql-datamodel.ts`
-- `getData()`: delegates to `buildSortOrderParts` when sort is present
-- `buildSortOrderParts()`: maps resolved sort entries to SQL ORDER BY expressions
-- `findOrdColForField()`: looks up `__ord__` column via `fieldToOrdCol`
-- `fieldToOrdCol` added to `CTEResult`, populated in all `generateCTEs` cases
+### `packages/grid/src/renderer/grid-config.ts`
+- `GridConfig.fixtures` uses `LayoutFixtureClasses` — user provides fixture constructor classes
 
-### `packages/grid/src/datamodel.data.test.ts`
-- `sqlStr()` returns `sqls[0]` (main query) since column facet query is now a second call
+### `packages/grid/src/renderer/standard-layout.ts`
 
-### `packages/grid/src/datamodel.table-algebra.test.ts`
-- 7 new tests: alphabetical asc/desc, measure sort asc/desc, hierarchy with noop + measure sort, mixed alphabetical + measure multi-level sort, cross row dims with sort
+**Types:**
+- `LayoutFixtures` — stores `{ inst, vm }` pairs per side with proper typing (e.g. left/right use `PVerticalFixture` + `BaseVFixtureViewModel`)
+- `ViewModel.fixtures` — exposes computed fixtures to the render pass
 
-## Example
+**Initialization:**
+- `#validateFixtures()` — instantiates fixture classes, validates correct type per side (left/right must be `PVerticalFixture`, top/bottom must be `PHorizontalFixture`), stores with empty `vm`
+- `setData()` — propagates data to all fixture instances via `inst.setData(data)`
 
-```typescript
-const config: PivotConfig = {
-  rows: hierarchy("region", "country"),
-  columns: cross("department", "revenue"),
-  sort: [
-    { field: "region", direction: "asc" },                     // alphabetical
-    { field: "country", direction: "desc", by: "revenue" },    // by SUM(revenue)
-  ],
-};
-```
+**Viewport calculation:**
+- `calculateVerticalViewModel()` — calls `viewModel()` on top/bottom fixtures, subtracts their heights from `visibleDataHeight`, adds to `totalHeight`
+- `calculateHorizontalViewModel()` — calls `viewModel()` on left/right fixtures, subtracts their widths from `visibleDataWidth`, adds to `totalWidth`
+- `calculateViewModel()` — passes `this.#fixtures` (now populated with viewmodels) into the returned `ViewModel`
 
-Resolved sort: `[{ field: "region", direction: "asc" }, { field: "country", direction: "desc", by: "revenue" }]`
+**Grid template:**
+- `getGridTemplate()` — adds `max-content` tracks for fixture columns (before row facets / after data cols) and fixture rows (before col facets / after data rows)
 
-SQL ORDER BY:
-```sql
-ORDER BY
-  gridCte."region" ASC,
-  SUM(SUM(T."revenue")) OVER (PARTITION BY gridCte."region", gridCte."country") DESC
-```
-
-Result: regions in alphabetical order, within each region countries sorted by total revenue descending.
+**Rendering:**
+- All `gridRow` / `gridCol` placements offset by `fixtures.top.length` / `fixtures.left.length` (corner cells, column facets, row facets, data cells, selections)
+- After data cells and selections, iterates all fixtures and calls `getCellsToRender(viewModel, vm, sliceData)`, appending their nodes and measurement cells

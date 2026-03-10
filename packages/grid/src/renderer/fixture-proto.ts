@@ -2,7 +2,8 @@ import { GridConfig } from "./grid-config";
 import { GridDataViewModel } from "./grid-data-viewmodel";
 import CellManager from "./cell-manager";
 import { BaseViewModel } from "./layout-proto";
-import { BaseSliceResult, CellToMeasure } from "./types";
+import { WithCellPlacement } from "./mixins";
+import { BaseSliceResult, CellToMeasure, HeaderCellContext } from "./types";
 
 export interface BaseFixtureViewModel {
 }
@@ -17,6 +18,8 @@ export interface BaseVFixtureViewModel extends BaseFixtureViewModel {
 export interface BaseHFixtureViewModel extends BaseFixtureViewModel {
   height: number;
 }
+
+export type LayoutViewModelForFixture = BaseViewModel & { offset: number };
 
 export default abstract class PFixture {
   data: GridDataViewModel | undefined;
@@ -36,7 +39,7 @@ export default abstract class PFixture {
 
   abstract viewModelKey(): string;
 
-  abstract getCellsToRender(viewModel: BaseViewModel, fixtureViewModel: BaseFixtureViewModel, sliceData: BaseSliceResult): {
+  abstract getCellsToRender(viewModel: LayoutViewModelForFixture, fixtureViewModel: BaseFixtureViewModel, sliceData: BaseSliceResult): {
     nodesToAppend: HTMLElement[];
     cellsToMeasure: CellToMeasure[];
   };
@@ -44,8 +47,10 @@ export default abstract class PFixture {
   abstract viewModel(): BaseFixtureViewModel;
 }
 
-export abstract class PVerticalFixture extends PFixture {
+export abstract class PVerticalFixture extends WithCellPlacement(PFixture) {
   abstract viewModel(): BaseVFixtureViewModel;
+
+  abstract headerCells(ctx: HeaderCellContext): HTMLElement | HTMLElement[] | string | null;
 }
 
 export abstract class PHorizontalFixture extends PFixture {

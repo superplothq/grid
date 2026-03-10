@@ -97,7 +97,7 @@ export type FacetCellRenderer<T = string> = (
   ctx: FacetRendererContext
 ) => FacetCellContent | El;
 
-export interface FacetHeaderContext {
+export interface HeaderCellContext {
   viewModel: GridDataViewModel;
   axis: "row" | "col";
   level: number;
@@ -105,7 +105,7 @@ export interface FacetHeaderContext {
 
 export type FacetHeaderRenderer = (
   text: string,
-  ctx: FacetHeaderContext
+  ctx: HeaderCellContext
 ) => FacetCellContent | string | HTMLElement | HTMLElement[];
 
 export interface FacetMeta {

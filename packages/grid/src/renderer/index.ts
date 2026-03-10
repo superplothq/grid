@@ -41,6 +41,8 @@ export { PivotDataViewModel } from "./pivot-data-viewmodel";
 export { FlattenedDataViewModel, createRowMeta } from "./flattened-data-viewmodel";
 export type { BaseViewModel as BaseViewState } from "./layout-proto";
 export type { LayoutEvents } from "./standard-layout";
+export { PVerticalFixture, PHorizontalFixture } from "./fixture-proto";
+export type { BaseVFixtureViewModel, BaseHFixtureViewModel, LayoutViewModelForFixture } from "./fixture-proto";
 export type { EventEmitter };
 export {
   textRenderer,
