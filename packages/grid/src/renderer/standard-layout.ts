@@ -683,8 +683,6 @@ export default class StandardLayout extends StandardLayoutBase {
     this.#renderCount++;
     const hintContentDirty = ctx.hintContentDirty;
 
-    console.log(">>>", viewModel.fixedVTrackLeftPositions.join(","));
-
     // TODO the same information is returned via sliceData.sliceNumCols. Remove this.
     const numDataColsVisible = viewModel.x1 - viewModel.x0;
 
@@ -1235,7 +1233,6 @@ export default class StandardLayout extends StandardLayoutBase {
   }
 
   protected renderDataCells(sliceData: PivotSliceResult, viewModel: ViewModel, ctx: { hintContentDirty: boolean | undefined }): CellRenderResult & { contentCellRerenderCount: number } {
-    const cellsToMeasure: CellToMeasure[] = [];
     const nodesToAppend: HTMLElement[] = [];
     const hintContentDirty = ctx.hintContentDirty;
     const numDataColsVisible = sliceData.sliceNumCols;
@@ -1285,12 +1282,9 @@ export default class StandardLayout extends StandardLayoutBase {
         }
 
         needAppend && nodesToAppend.push(cell);
-        if (!colDef.isCustom) {
-          cellsToMeasure.push({ cell, sizeKey: absoluteColIndex + gridColOffset });
-        }
       }
     }
-    return { cellsToMeasure, adjustCells: [], nodesToAppend, contentCellRerenderCount };
+    return { cellsToMeasure: [], adjustCells: [], nodesToAppend, contentCellRerenderCount };
   }
 
   #raiseRenderCompleteEvent(viewModel: ViewModel, ctx: RenderCtx, additionalMetrics: {
