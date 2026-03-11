@@ -996,7 +996,11 @@ export default class StandardLayout extends StandardLayoutBase {
           if (!this.#postRenderAdjustRightCellsPerLevel[fi]) this.#postRenderAdjustRightCellsPerLevel[fi] = [];
           this.#postRenderAdjustRightCellsPerLevel[fi].push(...fixtureResult.nodesToAppend);
         } else if (side === "top") {
-          const hStickyNodes = fixtureResult.nodesToAppend.filter(e => e.dataset.topFixtureNodeType === "h-sticky");
+          const hStickyNodes = fixtureResult.nodesToAppend.filter(e => { 
+            const type = e.dataset.topFixtureNodeType;
+            delete e.dataset.topFixtureNodeType;
+            return type === "h-sticky";
+          });
           this.#postRenderAdjustLeftCellsPerLevel[fi].push(...hStickyNodes);
 
           for (let lfi = 0; lfi < fixtures.left.length; lfi++) {
