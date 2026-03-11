@@ -65,6 +65,7 @@ export interface ViewModel extends BaseViewModel {
   fixedLeftVTrackPositions: number[];
   fixedRightVTrackPositions: number[];
   fixedTopHTrackPositions: number[];
+  fixedBottomHTrackPositions: number[];
   colFacetsTopPositions: number[];
   selections: SelectionState[];
   fixtures: LayoutFixtures;
@@ -111,8 +112,7 @@ export default class StandardLayout extends StandardLayoutBase {
   #postRenderAdjustRightCellsPerLevel: HTMLElement[][] = [];
   #proposal: ViewModelProposal = {};
   #fixtures: LayoutFixtures;
-  #fixtureHeights: number[] = [];
-  #fixtureHeightTop = 0;
+  #fixtureMeasurements = { top: [] as number[], topTotal: 0, bottom: [] as number[], bottomTotal: 0 };
 
   
   constructor(config: GridConfig, mountPoint: HTMLElement, cellManager: CellManager) {
@@ -285,12 +285,13 @@ export default class StandardLayout extends StandardLayoutBase {
     }
     this.#con.style.gridTemplateColumns = prevTemplate;
 
-    this.#fixtureHeights = [];
-    this.#fixtureHeightTop = 0;
-    for (const fixture of this.#fixtures.top) {
-      const h = fixture.getHeight();
-      this.#fixtureHeights.push(h);
-      this.#fixtureHeightTop += h;
+    this.#fixtureMeasurements = { top: [], topTotal: 0, bottom: [], bottomTotal: 0 };
+    for (const side of ["top", "bottom"] as const) {
+      for (const fixture of this.#fixtures[side]) {
+        const h = fixture.getHeight();
+        this.#fixtureMeasurements[side].push(h);
+        this.#fixtureMeasurements[`${side}Total`] += h;
+      }
     }
   }
 
@@ -413,7 +414,8 @@ export default class StandardLayout extends StandardLayoutBase {
     const scrollTop = this.mountPoint.scrollTop;
     const viewHeight = this.mountPoint.clientHeight;
 
-    const fixtureHeightTop = this.#fixtureHeightTop;
+    const fixtureHeightTop = this.#fixtureMeasurements.topTotal;
+    const fixtureHeightBottom = this.#fixtureMeasurements.bottomTotal;
 
     // if there are 3 header facets then there would be 3 rows created for it
     // hence that's the total height of header
@@ -422,14 +424,14 @@ export default class StandardLayout extends StandardLayoutBase {
     const dataHeight = this.data!.numRows * this.rowHeightByType.data;
     // total width of the grid if it was rendered fully
     // this value will be used to calculate scroll position there by setting dimension of virtual-panel
-    const totalHeight = colFacetsHeight + dataHeight + fixtureHeightTop;
+    const totalHeight = colFacetsHeight + dataHeight + fixtureHeightTop + fixtureHeightBottom;
 
     // Row range calculation
     // totalHeight <- full data height if it was rendered
     // viewHeight <- viewport height i.e. grid-content container height
     const scrollableHeight = Math.max(1, totalHeight - viewHeight);
     const scrollPercent = Math.min(1, scrollTop / scrollableHeight);
-    const visibleDataHeight = viewHeight - colFacetsHeight - fixtureHeightTop;
+    const visibleDataHeight = viewHeight - colFacetsHeight - fixtureHeightTop - fixtureHeightBottom;
 
     // scrollableRows is the maximum possible starting row.
     // Imagine the viewport scrolls from 0th row to xth row. Here we are trying to find x.
@@ -460,9 +462,16 @@ export default class StandardLayout extends StandardLayoutBase {
 
     const fixedTopHTrackPositions: number[] = [];
     let accFixtureTop = colFacetsHeight;
-    for (const h of this.#fixtureHeights) {
+    for (const h of this.#fixtureMeasurements.top) {
       fixedTopHTrackPositions.push(accFixtureTop);
       accFixtureTop += h;
+    }
+
+    const fixedBottomHTrackPositions: number[] = [];
+    let accFixtureBottom = 0;
+    for (let i = this.#fixtureMeasurements.bottom.length - 1; i >= 0; i--) {
+      fixedBottomHTrackPositions[i] = accFixtureBottom;
+      accFixtureBottom += this.#fixtureMeasurements.bottom[i];
     }
 
     return {
@@ -474,6 +483,7 @@ export default class StandardLayout extends StandardLayoutBase {
       offsetY,
       colFacetsTopPositions,
       fixedTopHTrackPositions,
+      fixedBottomHTrackPositions,
     };
   }
 
@@ -606,6 +616,7 @@ export default class StandardLayout extends StandardLayoutBase {
       fixedLeftVTrackPositions: vsHorizontal.fixedVTrackLeftPositions,
       fixedRightVTrackPositions: vsHorizontal.fixedVTrackRightPositions,
       fixedTopHTrackPositions: vsVertical.fixedTopHTrackPositions,
+      fixedBottomHTrackPositions: vsVertical.fixedBottomHTrackPositions,
       colFacetsTopPositions: vsVertical.colFacetsTopPositions,
       selections,
       fixtures: this.#fixtures,
@@ -621,16 +632,16 @@ export default class StandardLayout extends StandardLayoutBase {
   ): { columns: string; rows: string } {
     const numLeftFixtures = fixtures.left.length;
     const numRightFixtures = fixtures.right.length;
-    const numBottomFixtures = fixtures.bottom.length;
 
     const coreCols = `repeat(${numRowFacets + numDataCols}, max-content)`;
     const topFixtureRows = fixtures.top.map(f => f.getHeight() + "px").join(" ");
+    const bottomFixtureRows = fixtures.bottom.map(f => f.getHeight() + "px").join(" ");
     const coreRows = `repeat(${numColFacets}, ${this.rowHeightByType.facet}px)`;
     const dataRows = `repeat(${numDataRows}, ${this.rowHeightByType.data}px)`;
 
     return {
       columns: [numLeftFixtures && `repeat(${numLeftFixtures}, max-content)`, coreCols, numRightFixtures && `repeat(${numRightFixtures}, max-content)`].filter(Boolean).join(" "),
-      rows: [coreRows, topFixtureRows, dataRows, numBottomFixtures && `repeat(${numBottomFixtures}, max-content)`].filter(Boolean).join(" "),
+      rows: [coreRows, topFixtureRows, dataRows, bottomFixtureRows].filter(Boolean).join(" "),
     };
   }
 
@@ -982,8 +993,8 @@ export default class StandardLayout extends StandardLayoutBase {
           offset = viewModel.fixedTopHTrackPositions[fi];
           track = numColFacetLevels + fi + 1;
         } else {
-          offset = 0;
-          track = fi + 1;
+          offset = viewModel.fixedBottomHTrackPositions[fi];
+          track = numColFacetLevels + fixtures.top.length + sliceData.sliceNumRows + fi + 1;
         }
         const fixtureResult = inst.getCellsToRender(viewModel, { offset, track }, sliceData);
         nodeAppendList.push(...fixtureResult.nodesToAppend);
@@ -995,39 +1006,40 @@ export default class StandardLayout extends StandardLayoutBase {
           }
           if (!this.#postRenderAdjustRightCellsPerLevel[fi]) this.#postRenderAdjustRightCellsPerLevel[fi] = [];
           this.#postRenderAdjustRightCellsPerLevel[fi].push(...fixtureResult.nodesToAppend);
-        } else if (side === "top") {
-          const hStickyNodes = fixtureResult.nodesToAppend.filter(e => { 
-            const type = e.dataset.topFixtureNodeType;
-            delete e.dataset.topFixtureNodeType;
+        } else if (side === "top" || side === "bottom") {
+          const datasetKey = side === "top" ? "topFixtureNodeType" : "bottomFixtureNodeType";
+          const hStickyNodes = fixtureResult.nodesToAppend.filter(e => {
+            const type = e.dataset[datasetKey];
+            delete e.dataset[datasetKey];
             return type === "h-sticky";
           });
           this.#postRenderAdjustLeftCellsPerLevel[fi].push(...hStickyNodes);
 
           for (let lfi = 0; lfi < fixtures.left.length; lfi++) {
-            const key = `top-fixture-left-empty-${fi}-${lfi}`;
+            const key = `${side}-fixture-left-empty-${fi}-${lfi}`;
             const [cell, needAppend] = this.placeCellInDom({
               key,
-              gridRow: numColFacetLevels + fi + 1,
+              gridRow: track,
               gridCol: lfi + 1,
               hintContentDirty,
               cls: "cell col-facet fixture h-fixture fixture-empty",
               extraStyles: {
-                top: viewModel.fixedTopHTrackPositions[fi],
+                [side]: offset,
                 left: viewModel.fixedLeftVTrackPositions[lfi],
               },
             });
             needAppend && nodeAppendList.push(cell);
           }
           for (let rfi = 0; rfi < fixtures.right.length; rfi++) {
-            const key = `top-fixture-right-empty-${fi}-${rfi}`;
+            const key = `${side}-fixture-right-empty-${fi}-${rfi}`;
             const [cell, needAppend] = this.placeCellInDom({
               key,
-              gridRow: numColFacetLevels + fi + 1,
+              gridRow: track,
               gridCol: numLeftVFixedTrack + numDataColsVisible + rfi + 1,
               hintContentDirty,
               cls: "cell col-facet fixture h-fixture fixture-empty",
               extraStyles: {
-                top: viewModel.fixedTopHTrackPositions[fi],
+                [side]: offset,
                 right: viewModel.fixedRightVTrackPositions[rfi],
               },
             });
@@ -1135,7 +1147,7 @@ export default class StandardLayout extends StandardLayoutBase {
     const numDataRowsVisible = sliceData.sliceNumRows;
     let merges = computeMerges(this.data!.numRowFacetLevels, numDataRowsVisible, sliceData.rowFacets!);
     const rowHeight = this.rowHeightByType.data;
-    const visibleDataHeight = this.mountPoint.clientHeight - viewModel.colFacetsHeight - this.#fixtureHeightTop;
+    const visibleDataHeight = this.mountPoint.clientHeight - viewModel.colFacetsHeight - this.#fixtureMeasurements.topTotal - this.#fixtureMeasurements.bottomTotal;
 
     for (const merge of merges) {
       const isLeaf = merge.level + merge.spanSecondary - 1 === sliceData.rowFacets![0].length - 1;
@@ -1442,6 +1454,7 @@ export default class StandardLayout extends StandardLayoutBase {
   }
 
   // colIdx is the absolute column index including row facets
+  // TODO if left fixture is present, this value might not be correct as call site does not know about it
   changeLeafColWidth(colIdx: number): {
     byDelta: (dw: number) => number;
     byAbsValue: (width: number) => number;

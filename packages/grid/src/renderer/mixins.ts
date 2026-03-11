@@ -20,6 +20,7 @@ export interface PlaceCellOpts {
     colspan?: number;
     rowspan?: number;
     top?: number;
+    bottom?: number;
     left?: number;
     right?: number;
     transform?: string;
@@ -65,6 +66,9 @@ export function WithCellPlacement<TBase extends Constructor<HasCellManager>>(Bas
       }
       if (opts.extraStyles.left !== undefined) {
         cell.style.left = `${opts.extraStyles.left}px`;
+      }
+      if (opts.extraStyles.bottom !== undefined) {
+        cell.style.bottom = `${opts.extraStyles.bottom}px`;
       }
       if (opts.extraStyles.right !== undefined) {
         cell.style.right = `${opts.extraStyles.right}px`;
