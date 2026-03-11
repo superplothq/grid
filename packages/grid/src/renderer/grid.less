@@ -31,6 +31,10 @@
   display: flex;
   align-items: center;
 
+  &.fixture-empty {
+    z-index: 30 !important;
+  }
+
   &.l-edge, &.nl-edge {
     border-left: none;
   }
@@ -165,8 +169,20 @@
 
   &.fixture {
     position: sticky;
+  }
+
+  &.h-fixture {
+    z-index: 20;
+    border-bottom: 1px solid var(--horizontal-border-color);
+  }
+
+  &.v-fixture {
     z-index: 15;
     border-top: none;
+  }
+
+  &.h-fixed.h-fixture {
+    z-index: 30;
   }
 
   &.corner {

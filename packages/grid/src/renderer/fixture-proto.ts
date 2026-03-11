@@ -3,7 +3,7 @@ import { GridDataViewModel } from "./grid-data-viewmodel";
 import CellManager from "./cell-manager";
 import { BaseViewModel } from "./layout-proto";
 import { WithCellPlacement } from "./mixins";
-import { BaseSliceResult, CellToMeasure, HeaderCellContext } from "./types";
+import { BaseSliceResult, HeaderCellContext } from "./types";
 
 export interface BaseFixtureViewModel {
   offset: number;
@@ -41,6 +41,6 @@ export abstract class PVerticalFixture extends WithCellPlacement(PFixture) {
   abstract headerCells(ctx: HeaderCellContext): HTMLElement | HTMLElement[] | string | null;
 }
 
-export abstract class PHorizontalFixture extends PFixture {
-  abstract headerCells(ctx: HeaderCellContext): HTMLElement | HTMLElement[] | string | null;
+export abstract class PHorizontalFixture extends WithCellPlacement(PFixture) {
+  abstract getHeight(): number;
 }

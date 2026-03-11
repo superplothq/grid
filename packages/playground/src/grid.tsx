@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import "grid/dist/grid.css";
-import Grid, { PivotDataViewModel, FlattenedDataViewModel, createRowMeta, GroupedRowLayout, StandardLayout, LayoutEvents, SelectionPayload, VTrackDef, ColAutoSizeConfig, createChartRenderer, CellRenderer, FacetCellRenderer, PVerticalFixture, BaseFixtureViewModel, BaseViewModel, BaseSliceResult } from "grid/dist/renderer";
+import Grid, { PivotDataViewModel, FlattenedDataViewModel, createRowMeta, GroupedRowLayout, StandardLayout, LayoutEvents, SelectionPayload, VTrackDef, ColAutoSizeConfig, createChartRenderer, CellRenderer, FacetCellRenderer, PVerticalFixture, PHorizontalFixture, BaseFixtureViewModel, BaseViewModel, BaseSliceResult } from "grid/dist/renderer";
 import feather from "feather-icons";
 import {CellToMeasure} from "grid/dist/renderer/types";
 
@@ -93,7 +93,7 @@ class LineNumberFixture extends PVerticalFixture {
         key,
         gridRow: fixturesTopLen + numColFacetLevels + j + 1,
         gridCol: fixtureViewModel.track,
-        cls: `data ${startEndCellCls} fixture`,
+        cls: `data ${startEndCellCls} fixture v-fixture`,
         extraStyles: {
           left: fixtureViewModel.offset,
         },
@@ -141,7 +141,7 @@ class CheckboxFixture extends PVerticalFixture {
         key,
         gridRow: fixturesTopLen + numColFacetLevels + j + 1,
         gridCol: fixtureViewModel.track,
-        cls: `data ${startEndCellCls} fixture`,
+        cls: `data ${startEndCellCls} fixture v-fixture`,
         extraStyles: {
           left: fixtureViewModel.offset,
         },
@@ -154,6 +154,77 @@ class CheckboxFixture extends PVerticalFixture {
       }
 
       if (needAppend) nodesToAppend.push(cell);
+    }
+
+    return { nodesToAppend };
+  }
+}
+
+class FilterFixture extends PHorizontalFixture {
+  viewModelKey(): string {
+    return "filter";
+  }
+
+  getHeight(): number {
+    return 28;
+  }
+
+  getCellsToRender(viewModel: BaseViewModel, fixtureViewModel: BaseFixtureViewModel, sliceData: BaseSliceResult): {
+    nodesToAppend: HTMLElement[];
+  } {
+    const nodesToAppend: HTMLElement[] = [];
+    const vm = viewModel as any;
+    const numRowFacetLevels = this.data!.numRowFacetLevels;
+    const fixedLeftPositions: number[] = vm.fixedLeftVTrackPositions ?? [];
+    const leftFixtureCount = vm.fixtures?.left?.length ?? 0;
+
+    for (let rf = 0; rf < numRowFacetLevels; rf++) {
+      const key = `filter-rf-${rf}`;
+      const gridCol = leftFixtureCount + rf + 1;
+      const [cell, needAppend, contentDirty] = this.placeCellInDom({
+        key,
+        gridRow: fixtureViewModel.track,
+        gridCol,
+        cls: "cell header fixture h-fixture h-fixed",
+        extraStyles: {
+          top: fixtureViewModel.offset,
+          left: fixedLeftPositions[leftFixtureCount + rf] ?? 0,
+        },
+      });
+      if (contentDirty) {
+        const input = document.createElement("input");
+        input.type = "text";
+        input.placeholder = "Filter...";
+        input.style.cssText = "width:48px;height:100%;border:none;outline:none;font-size:11px;padding:2px 4px;box-sizing:border-box;background:transparent;";
+        cell.replaceChildren(input);
+      }
+      if(needAppend) {
+        cell.dataset.topFixtureNodeType = "h-sticky";
+        nodesToAppend.push(cell);
+      }
+    }
+
+    for (let i = 0; i < sliceData.sliceNumCols; i++) {
+      const colIndex = viewModel.x0 + i;
+      const key = `filter-col-${colIndex}`;
+      const gridCol = leftFixtureCount + numRowFacetLevels + i + 1;
+      const [cell, needAppend, contentDirty] = this.placeCellInDom({
+        key,
+        gridRow: fixtureViewModel.track,
+        gridCol,
+        cls: "cell header fixture h-fixture",
+        extraStyles: {
+          top: fixtureViewModel.offset,
+        },
+      });
+      if (contentDirty) {
+        const input = document.createElement("input");
+        input.type = "text";
+        input.placeholder = "Filter...";
+        input.style.cssText = "width:100%;height:100%;border:none;outline:none;font-size:11px;padding:2px 4px;box-sizing:border-box;background:transparent;";
+        cell.replaceChildren(input);
+      }
+      needAppend && nodesToAppend.push(cell);
     }
 
     return { nodesToAppend };
@@ -211,7 +282,7 @@ const NullFacetDemo: React.FC = () => {
       data.push(colData);
     }
 
-    const grid = new Grid({ fixtures: { top: [], left: [/*CheckboxFixture, LineNumberFixture*/], bottom: [], right: [CheckboxFixture, LineNumberFixture] } }, ref.current);
+    const grid = new Grid({ fixtures: { top: [FilterFixture], left: [/*CheckboxFixture, LineNumberFixture*/], bottom: [], right: [CheckboxFixture, LineNumberFixture] } }, ref.current);
     grid.data = new PivotDataViewModel(
       data,
       [colFacetLevel0, colFacetLevel1, colFacetLevel2],
@@ -600,7 +671,7 @@ const GridPlayground: React.FC = () => {
     // Create or update grid
     if (!gridRef.current) {
       const LayoutClass = layoutMode === "grouped" ? GroupedRowLayout : StandardLayout;
-      gridRef.current = new Grid({ fixtures: { top: [], left: [LineNumberFixture/*CheckboxFixture, LineNumberFixture*/], bottom: [], right: [CheckboxFixture] } }, gridConRef.current, LayoutClass);
+      gridRef.current = new Grid({ fixtures: { top: [FilterFixture], left: [LineNumberFixture/*CheckboxFixture, LineNumberFixture*/], bottom: [], right: [CheckboxFixture] } }, gridConRef.current, LayoutClass);
       gridLayoutModeRef.current = layoutMode;
       for (const e of ['renderComplete', 'selectionAdded', 'selectionRemoved']) {
         gridRef.current.on(e as any, (payload) => {
