@@ -566,6 +566,8 @@ function buildInvertedIndex(facetSpace: (string | null)[][]): Map<string, number
  * }
  * ```
  */
+
+// TODO rename to GridPivotDataModel as this is datamodel for pivoting
 export abstract class GridDataModel {
   static readonly SRC_COL_PREFIX = "__src__";
 
