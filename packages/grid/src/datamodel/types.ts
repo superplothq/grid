@@ -145,3 +145,38 @@ export interface ColDefsForFacet {
   projectionState: ProjectionState;
   projectedValues: Set<string>;
 }
+
+export interface FlatTableConfig {
+  schema: (Schema | MeasureSchema)[];
+  pageSize?: number;
+  // TODO[review] rename numMaxPageSize
+  maxCacheSize?: number;
+}
+
+export interface GetRowsIR {
+  startRow: number;
+  endRow: number;
+  select: string[];
+  groupBy: string[];
+  project: string[];
+  sort: SortEntry[];
+  filter: ScalarFilter[];
+}
+
+export interface GetRowsResponse {
+  rowData: any[][];
+  totalRowCount: number;
+}
+
+export interface PageNode {
+  data: any[][] | null;
+  physicalStart: number;
+  rowCount: number;
+  expandedRows: Map<number, ExpandedGroup>;
+}
+
+export interface ExpandedGroup {
+  expanded: boolean;
+  totalRowCount: number;
+  pages: PageNode[];
+}
