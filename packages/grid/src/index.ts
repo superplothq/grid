@@ -1,8 +1,12 @@
-export { BrowserInMemoryPivotDataModel } from "./datamodel/browser-in-memory-pivot-datamodel";
-export type { DuckDBWasmBundles } from "./datamodel/duckdb-wasm-pivot-datamodel";
+export type { DataSource } from "./datamodel/datasource";
+export type { SqlColumnType } from "./datamodel/datasource";
+export { SqlDataSource } from "./datamodel/sql-datasource";
+export { DuckDBWasmDataSource } from "./datamodel/duckdb-wasm-datasource";
+export type { DuckDBWasmBundles } from "./datamodel/duckdb-wasm-datasource";
+export { SqlPivotDataModel } from "./datamodel/sql-pivot-datamodel";
+export { SqlFlatTableDataModel } from "./datamodel/sql-flat-table-datamodel";
 export { cross, hierarchy, concat } from "./datamodel/grid-pivot-datamodel";
 export type { GridData, Schema, MeasureSchema, PivotConfig, AxisExpr, AxisConfig, DimensionalProjectionPath, SortEntry, SortDirection, Filter, ScalarFilter, TupleFilter, FacetQuery } from "./datamodel/types";
 export { ProjectionState } from "./datamodel/types";
 export { FlatTableDataModel } from "./datamodel/flat-table-datamodel";
-export { DuckDBWasmFlatTableDataModel } from "./datamodel/duckdb-wasm-flat-table-datamodel";
 export type { FlatTableConfig, GetRowsIR, GetRowsResponse, PageNode, ExpandedGroup, FlatTableViewModelArgs } from "./datamodel/types";

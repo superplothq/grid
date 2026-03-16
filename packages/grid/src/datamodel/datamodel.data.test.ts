@@ -1,6 +1,8 @@
 import { expect } from "chai";
-import { InMemoryPivotDataModel } from "./in-memory-pivot-datamodel";
-import { GridData, MeasureSchema, Schema } from "./types";
+import { DuckDBDataSource } from "./duckdb-datasource";
+import { SqlPivotDataModel } from "./sql-pivot-datamodel";
+import { SqlColumnType } from "./datasource";
+import { MeasureSchema, Schema } from "./types";
 
 // 24 rows, 8 dimensions + 4 measures (column-major format)
 //
@@ -54,17 +56,39 @@ const returns    = [1,2,3,1,2,1,4,2,1,2,1,3,1,3,2,4,1,2,1,3,3,2,1,1];
 
 const data = [region, country, city, department, product, channel, quarter, segment, revenue, cost, units_sold, returns];
 
+function resolveSchema(columns: (string | Schema)[]): Schema[] {
+  return columns.map((col) => {
+    if (typeof col === "string") {
+      return { name: col, displayName: col, type: "dimension" as const };
+    }
+    return col;
+  });
+}
+
+function schemaToSqlColumnType(s: Schema): SqlColumnType {
+  if (s.type === "measure") return "DOUBLE";
+  if (s.subtype === "temporal") return "TIMESTAMP";
+  return "VARCHAR";
+}
+
 export async function makeModel() {
-  return InMemoryPivotDataModel.create({ columns: schemaColumns, data });
+  const schema = resolveSchema(schemaColumns);
+  const columns = new Map<string, SqlColumnType>(
+    schema.map((s) => [s.name, schemaToSqlColumnType(s)])
+  );
+  const ds = DuckDBDataSource.create();
+  await ds.loadData({ table: "data", columns, data });
+  return new SqlPivotDataModel(schema, ds);
 }
 
 export async function makePatchedModel() {
   const model = await makeModel();
   const sqls: string[] = [];
-  const origRunSQL = (model as any).runSQL.bind(model);
-  (model as any).runSQL = async (sql: string) => {
+  const ds = (model as any).dataSource;
+  const origExecute = ds.execute.bind(ds);
+  ds.execute = async (sql: string) => {
     sqls.push(sql);
-    return origRunSQL(sql);
+    return origExecute(sql);
   };
   return Object.assign(model, {
     sqlStr: () => sqls[0],
@@ -79,71 +103,86 @@ describe("GridPivotDataModel", () => {
     expect(schema.filter((s: Schema) => s.type === "dimension")).to.have.length(8);
     expect(schema.filter((s: Schema) => s.type === "measure")).to.have.length(4);
 
-    const rows = await (model as any).runSQL("SELECT COUNT(*) as cnt FROM data");
+    const rows = await (model as any).dataSource.execute("SELECT COUNT(*) as cnt FROM data");
     expect(Number(rows[0].cnt)).to.equal(24);
   });
 });
 
 describe("Schema extensions", () => {
-  it("should parse temporal columns with datetimeFormat", async () => {
-    const gridData: GridData = {
-      columns: [
-        { name: "order_date", displayName: "Order Date", type: "dimension", subtype: "temporal", datetimeFormat: "%m/%d/%Y" } as Schema,
-        { name: "revenue", displayName: "Revenue", type: "measure", aggregateFn: "sum" } as MeasureSchema,
-      ],
+  it("should store temporal columns as TIMESTAMP", async () => {
+    const schema: Schema[] = [
+      { name: "order_date", displayName: "Order Date", type: "dimension", subtype: "temporal", datetimeFormat: "%m/%d/%Y" },
+      { name: "revenue", displayName: "Revenue", type: "measure", aggregateFn: "sum" } as MeasureSchema,
+    ];
+    const columns = new Map<string, SqlColumnType>([
+      ["order_date", "TIMESTAMP"],
+      ["revenue", "DOUBLE"],
+    ]);
+    const ds = DuckDBDataSource.create();
+    await ds.loadData({
+      table: "data",
+      columns,
       data: [
-        ["03/15/2024", "12/25/2023", "01/01/2025"],
+        [new Date("2024-03-15").toISOString(), new Date("2023-12-25").toISOString(), new Date("2025-01-01").toISOString()],
         [100, 200, 300],
       ],
-    };
+    });
+    const model = new SqlPivotDataModel(schema, ds);
 
-    const model = await InMemoryPivotDataModel.create(gridData);
-    const rows = await (model as any).runSQL("SELECT order_date, revenue FROM data ORDER BY order_date");
+    const rows = await (model as any).dataSource.execute("SELECT order_date, revenue FROM data ORDER BY order_date");
     expect(rows).to.have.length(3);
     expect(new Date(rows[0].order_date).getFullYear()).to.equal(2023);
     expect(new Date(rows[1].order_date).getFullYear()).to.equal(2024);
     expect(new Date(rows[2].order_date).getFullYear()).to.equal(2025);
   });
 
-  it("should apply replace transformations during load", async () => {
-    const gridData: GridData = {
-      columns: [
-        "category",
-        { name: "amount", displayName: "Amount", type: "measure", aggregateFn: "sum" } as MeasureSchema,
-      ],
+  it("should load pre-transformed numeric data", async () => {
+    const schema: Schema[] = [
+      { name: "category", displayName: "category", type: "dimension" },
+      { name: "amount", displayName: "Amount", type: "measure", aggregateFn: "sum" } as MeasureSchema,
+    ];
+    const columns = new Map<string, SqlColumnType>([
+      ["category", "VARCHAR"],
+      ["amount", "DOUBLE"],
+    ]);
+    const ds = DuckDBDataSource.create();
+    await ds.loadData({
+      table: "data",
+      columns,
       data: [
         ["Electronics", "Apparel"],
-        ["$1,200", "$950"],
+        [1200, 950],
       ],
-      replace: new Map([
-        ["amount", new Map([["$", ""], [",", ""]])],
-      ]),
-    };
+    });
+    const model = new SqlPivotDataModel(schema, ds);
 
-    const model = await InMemoryPivotDataModel.create(gridData);
-    const rows = await (model as any).runSQL("SELECT category, amount FROM data ORDER BY amount");
+    const rows = await (model as any).dataSource.execute("SELECT category, amount FROM data ORDER BY amount");
     expect(rows).to.have.length(2);
     expect(Number(rows[0].amount)).to.equal(950);
     expect(Number(rows[1].amount)).to.equal(1200);
   });
 
-  it("should apply replace and temporal parsing together", async () => {
-    const gridData: GridData = {
-      columns: [
-        { name: "sale_date", displayName: "Sale Date", type: "dimension", subtype: "temporal", datetimeFormat: "%d-%m-%Y" } as Schema,
-        { name: "price", displayName: "Price", type: "measure", aggregateFn: "sum" } as MeasureSchema,
-      ],
+  it("should handle temporal and numeric columns together", async () => {
+    const schema: Schema[] = [
+      { name: "sale_date", displayName: "Sale Date", type: "dimension", subtype: "temporal", datetimeFormat: "%d-%m-%Y" },
+      { name: "price", displayName: "Price", type: "measure", aggregateFn: "sum" } as MeasureSchema,
+    ];
+    const columns = new Map<string, SqlColumnType>([
+      ["sale_date", "TIMESTAMP"],
+      ["price", "DOUBLE"],
+    ]);
+    const ds = DuckDBDataSource.create();
+    await ds.loadData({
+      table: "data",
+      columns,
       data: [
-        ["15-03-2024", "25-12-2023"],
-        ["$500", "$750"],
+        [new Date("2024-03-15").toISOString(), new Date("2023-12-25").toISOString()],
+        [500, 750],
       ],
-      replace: new Map([
-        ["price", new Map([["$", ""]])],
-      ]),
-    };
+    });
+    const model = new SqlPivotDataModel(schema, ds);
 
-    const model = await InMemoryPivotDataModel.create(gridData);
-    const rows = await (model as any).runSQL("SELECT sale_date, price FROM data ORDER BY sale_date");
+    const rows = await (model as any).dataSource.execute("SELECT sale_date, price FROM data ORDER BY sale_date");
     expect(rows).to.have.length(2);
     expect(new Date(rows[0].sale_date).getFullYear()).to.equal(2023);
     expect(Number(rows[0].price)).to.equal(750);

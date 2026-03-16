@@ -1,6 +1,8 @@
 import { expect } from "chai";
 import { getUnfetchedPagesByLogicalBoundary } from "./flat-table-datamodel";
-import { InMemoryFlatTableDataModel } from "./in-memory-flat-table-datamodel";
+import { DuckDBDataSource } from "./duckdb-datasource";
+import { SqlFlatTableDataModel } from "./sql-flat-table-datamodel";
+import { SqlColumnType } from "./datasource";
 import { FlatTableConfig, GetRowsIR, GetRowsResponse, GridData, MeasureSchema, Schema, PageNode, ExpandedGroup } from "./types";
 
 // 24 rows, 8 dimensions + 4 measures — same dataset as datamodel.data.test.ts
@@ -72,7 +74,18 @@ async function makeModel(configOverrides: Partial<FlatTableConfig> = {}) {
 }
 
 async function makePatchedModel(configOverrides: Partial<FlatTableConfig> = {}) {
-  const model = await InMemoryFlatTableDataModel.create(makeConfig(configOverrides), gridData);
+  const dataSchema: Schema[] = gridData.columns.map((col) => {
+    if (typeof col === "string") {
+      return { name: col, displayName: col, type: "dimension" as const };
+    }
+    return col;
+  });
+  const columns = new Map<string, SqlColumnType>(
+    dataSchema.map((s) => [s.name, (s.type === "measure" ? "DOUBLE" : "VARCHAR") as SqlColumnType])
+  );
+  const ds = DuckDBDataSource.create();
+  await ds.loadData({ table: "data", columns, data: gridData.data });
+  const model = new SqlFlatTableDataModel(makeConfig(configOverrides), dataSchema, ds);
   let getDataCallCount = 0;
   const origGetData = model.getData.bind(model);
   model.getData = async (ir: GetRowsIR): Promise<GetRowsResponse> => {

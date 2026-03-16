@@ -1,4 +1,5 @@
 import { GridPivotDataModel } from "./grid-pivot-datamodel";
+import { SqlDataSource } from "./sql-datasource";
 import {
   CrossSegment,
   DimSpec,
@@ -104,13 +105,13 @@ export function schemaToPlaceholder(s: Schema, replacements: Map<string, string>
   return expr;
 }
 
-export abstract class SqlPivotDataModel extends GridPivotDataModel {
-  protected constructor(schema: Schema[], table: string) {
-    super(schema, table);
-  }
+export class SqlPivotDataModel extends GridPivotDataModel {
+  protected dataSource: SqlDataSource;
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  protected abstract runSQL(sql: string): Promise<Record<string, any>[]>;
+  constructor(schema: Schema[], dataSource: SqlDataSource) {
+    super(schema, dataSource.table);
+    this.dataSource = dataSource;
+  }
 
   private buildTupleFilterClause(tf: TupleFilter): string {
     const cols = `(${tf.fields.map(f => `"${f}"`).join(", ")})`;
@@ -185,7 +186,7 @@ export abstract class SqlPivotDataModel extends GridPivotDataModel {
       const result: string[][] = [];
       for (const field of query.fields) {
         const sql = `SELECT "${field}" FROM "${this.table}"${where} GROUP BY "${field}" ORDER BY MIN(rowid)`;
-        const rows = await this.runSQL(sql);
+        const rows = await this.dataSource.execute(sql);
         result.push(rows.map(r => String(r[field])));
       }
       return result;
@@ -194,7 +195,7 @@ export abstract class SqlPivotDataModel extends GridPivotDataModel {
     // mode === "group"
     const fieldList = query.fields.map(f => `"${f}"`).join(", ");
     const sql = `SELECT ${fieldList} FROM "${this.table}"${where} GROUP BY ${fieldList} ORDER BY MIN(rowid)`;
-    const rows = await this.runSQL(sql);
+    const rows = await this.dataSource.execute(sql);
     return query.fields.map(f => rows.map(r => String(r[f])));
   }
 
@@ -214,7 +215,7 @@ export abstract class SqlPivotDataModel extends GridPivotDataModel {
         const mWhere = this.buildWhereClause(allFilters);
         sql = `WITH __result__ AS (${sql})\nSELECT * FROM __result__${mWhere}`;
       }
-      const rows = await this.runSQL(sql);
+      const rows = await this.dataSource.execute(sql);
       const columns = measures.map(m => m.field);
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const data: any[][] = columns.map(col => rows.map(r => r[col]));
@@ -275,7 +276,7 @@ export abstract class SqlPivotDataModel extends GridPivotDataModel {
       const mWhere = this.buildWhereClause(allMFilters);
       sql = `WITH ${allCTEs.join(",\n     ")},\n     __result__ AS (SELECT ${selectClause}\nFROM ${gridCte}\nLEFT JOIN "${this.table}" T${joinClause}${groupByClause}${orderByClause})\nSELECT * FROM __result__${mWhere}`;
     }
-    const rows = await this.runSQL(sql);
+    const rows = await this.dataSource.execute(sql);
     const columns = [...dimFields, ...measures.map(m => m.field)];
     if (srcColumns.length > 0) {
       columns.push(...srcColumns);

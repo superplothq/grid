@@ -1,7 +1,7 @@
 import React, {useEffect, useRef, useState} from "react";
 import "grid/dist/grid.css";
 import Grid, {FlattenedDataViewModel, GroupedRowLayout, FacetCellRenderer, FacetDataContext, FacetRendererContext, GridDataViewModelOptions} from "grid/dist/renderer";
-import {DuckDBWasmFlatTableDataModel, GridData, MeasureSchema, FlatTableConfig, GetRowsIR, FlatTableViewModelArgs} from "grid/dist/index";
+import {DuckDBWasmDataSource, SqlFlatTableDataModel, GridData, MeasureSchema, FlatTableConfig, GetRowsIR, FlatTableViewModelArgs, SqlColumnType, Schema} from "grid/dist/index";
 import feather from "feather-icons";
 
 const NUM_GROUPS = 1000;
@@ -57,7 +57,7 @@ const spinnerIcon = (size = 12): HTMLElement => {
 };
 
 function makeFacetRenderer(
-  modelRef: React.MutableRefObject<DuckDBWasmFlatTableDataModel | null>,
+  modelRef: React.MutableRefObject<SqlFlatTableDataModel | null>,
   viewModelRef: React.MutableRefObject<FlattenedDataViewModel | null>,
   gridRef: React.MutableRefObject<Grid | null>,
   lastIRRef: React.MutableRefObject<GetRowsIR | null>,
@@ -119,7 +119,7 @@ const DELAY_MS = 200;
 const FlatTablePlayground: React.FC = () => {
   const gridConRef = useRef<HTMLDivElement>(null);
   const gridRef = useRef<Grid | null>(null);
-  const modelRef = useRef<DuckDBWasmFlatTableDataModel | null>(null);
+  const modelRef = useRef<SqlFlatTableDataModel | null>(null);
   const viewModelRef = useRef<FlattenedDataViewModel | null>(null);
   const lastIRRef = useRef<GetRowsIR | null>(null);
 
@@ -162,7 +162,18 @@ const FlatTablePlayground: React.FC = () => {
         maxCacheSize: mcs,
       };
 
-      const model = await DuckDBWasmFlatTableDataModel.create(config, gridData);
+      const dataSchema: Schema[] = gridData.columns.map((col) => {
+        if (typeof col === "string") {
+          return { name: col, displayName: col, type: "dimension" as const };
+        }
+        return col;
+      });
+      const columns = new Map<string, SqlColumnType>(
+        dataSchema.map((s) => [s.name, s.type === "measure" ? "DOUBLE" as const : "VARCHAR" as const])
+      );
+      const ds = await DuckDBWasmDataSource.create();
+      await ds.loadData({ columns, data: gridData.data });
+      const model = new SqlFlatTableDataModel(config, dataSchema, ds);
 
       // Wrap getData with artificial delay
       const origGetData = model.getData.bind(model);

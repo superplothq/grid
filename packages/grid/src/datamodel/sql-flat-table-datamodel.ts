@@ -1,22 +1,22 @@
 import { FlatTableDataModel } from "./flat-table-datamodel";
+import { SqlDataSource } from "./sql-datasource";
 import { FlatTableConfig, GetRowsIR, GetRowsResponse, MeasureSchema, Schema, SortEntry } from "./types";
 
-export abstract class SqlFlatTableDataModel extends FlatTableDataModel {
+export class SqlFlatTableDataModel extends FlatTableDataModel {
   protected table: string;
   protected dataSchema: Schema[];
+  protected dataSource: SqlDataSource;
 
-  protected constructor(config: FlatTableConfig, dataSchema: Schema[], table: string) {
+  constructor(config: FlatTableConfig, dataSchema: Schema[], dataSource: SqlDataSource) {
     super(config);
     this.dataSchema = dataSchema;
-    this.table = table;
+    this.dataSource = dataSource;
+    this.table = dataSource.table;
   }
-
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  protected abstract runSQL(sql: string): Promise<Record<string, any>[]>;
 
   async getData(ir: GetRowsIR): Promise<GetRowsResponse> {
     const sql = this.buildSQL(ir);
-    const rows = await this.runSQL(sql);
+    const rows = await this.dataSource.execute(sql);
 
     if (rows.length === 0) {
       return { rowData: ir.project.map(() => []), totalRowCount: 0 };
