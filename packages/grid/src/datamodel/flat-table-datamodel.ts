@@ -13,7 +13,7 @@ import { GridDataViewModelOptions } from "../renderer/types";
 const DEFAULT_PAGE_SIZE = 10000;
 const DEFAULT_MAX_CACHE_SIZE = 20;
 
-export function resolveLogicalRange(
+export function getUnfetchedPagesByLogicalBoundary(
   pages: PageNode[],
   logicalStart: number,
   logicalEnd: number,
@@ -113,7 +113,7 @@ export abstract class FlatTableDataModel {
       this.pages[0].data = response.rowData;
     }
 
-    const pagesToFetch = resolveLogicalRange(this.pages, ir.startRow, ir.endRow);
+    const pagesToFetch = getUnfetchedPagesByLogicalBoundary(this.pages, ir.startRow, ir.endRow);
 
     await Promise.all(pagesToFetch.map(async (req) => {
       const fetchIR: GetRowsIR = {
@@ -130,6 +130,11 @@ export abstract class FlatTableDataModel {
     return this.flatten();
   }
 
+  // TODO when expand happens the IR is not updated, hence the IR does not know the upto date startRow
+  //      Example: scroll down to load more page, scroll back up and then expand, IR would have the
+  //      startRow from last page load when it was at the very bottom of the page (no idea about scroll back up)
+  //      Pass the startRow as parameter
+  //      this might have an error for page eviction
   async expand(select: string[]): Promise<FlattenedDataViewModel> {
     const result = this.findGroupRow(select);
     if (!result) {
@@ -139,6 +144,8 @@ export abstract class FlatTableDataModel {
     const { page, localRowIndex } = result;
     const existing = page.expandedRows.get(localRowIndex);
 
+    // collapse() only sets expanded=false, pages/data are retained in cache.
+    // Re-expanding is a cache hit — no getData call needed.
     if (existing && !existing.expanded) {
       existing.expanded = true;
       return this.flatten();
@@ -436,8 +443,8 @@ export abstract class FlatTableDataModel {
             farthest = page;
           }
         }
-        for (const [, expanded] of page.expandedRows) {
-          walk(expanded.pages, baseOffset + pages.length);
+        for (const [idx, expanded] of page.expandedRows) {
+          walk(expanded.pages, baseOffset + page.physicalStart + idx);
         }
       }
     };
