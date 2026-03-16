@@ -6,11 +6,12 @@ module.exports = {
   output: {
     path: path.resolve(__dirname, "dist"),
     filename: "bundle.js",
+    publicPath: "/",
     clean: true,
   },
   devtool: "source-map",
   resolve: {
-    extensions: [".tsx", ".ts", ".js"],
+    extensions: [".tsx", ".ts", ".js", ".mdx"],
     fallback: {
       "fs": false,
       "path": false,
@@ -28,6 +29,13 @@ module.exports = {
         test: /\.tsx?$/,
         use: "ts-loader",
         exclude: /node_modules/,
+      },
+      {
+        test: /\.mdx$/,
+        use: [
+          { loader: "ts-loader", options: { transpileOnly: true, compilerOptions: { jsx: "react-jsx", allowJs: true } } },
+          { loader: "@mdx-js/loader" },
+        ],
       },
       {
         test: /\.css$/i,
