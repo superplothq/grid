@@ -1,4 +1,5 @@
 import { VTrackDef } from "../renderer/types";
+import { FlattenedDataViewModel } from "../renderer/flattened-data-viewmodel";
 
 // TODO [Later] remember there might be custom aggregate function as well
 //   (those functions will be registered separately and the name will be used here)
@@ -180,3 +181,12 @@ export interface ExpandedGroup {
   totalRowCount: number;
   pages: PageNode[];
 }
+
+type FlattenedDataViewModelParams = ConstructorParameters<typeof FlattenedDataViewModel>;
+export type FlatTableViewModelArgs = {
+  data: FlattenedDataViewModelParams[0];
+  columnFacets: FlattenedDataViewModelParams[1];
+  rowFacet: FlattenedDataViewModelParams[2];
+  rowMeta: FlattenedDataViewModelParams[3];
+  options: FlattenedDataViewModelParams[4];
+};

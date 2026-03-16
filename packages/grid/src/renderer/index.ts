@@ -100,7 +100,7 @@ export default class Grid extends GridWithEvents {
     this.#layout = new (LayoutClass ?? StandardLayout)(this.#config, mountPoint, this.#cellManager);
 
     // Forward layout events to Grid
-    this.forwardFrom(this.#layout as unknown as EventEmitter<LayoutEvents>, ["renderComplete", "debug_perf:metrics"]);
+    this.forwardFrom(this.#layout as unknown as EventEmitter<LayoutEvents>, ["renderComplete", "debug_perf:metrics", "viewDataEmpty"]);
 
     this.#setupResizeHandler();
   }

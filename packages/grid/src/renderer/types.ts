@@ -128,6 +128,8 @@ export interface GridDataViewModelOptions {
     col: Partial<FacetDef>[];
     axis: "row" | "col";
   };
+  totalRows?: number;
+  offsetTop?: number;
 }
 
 export interface ResolvedVTrackDef extends VTrackDef {

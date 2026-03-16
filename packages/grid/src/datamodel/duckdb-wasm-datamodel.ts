@@ -1,4 +1,5 @@
 import * as duckdb from "@duckdb/duckdb-wasm";
+import * as arrow from "apache-arrow";
 import { SqlDataModel, schemaToSqlType, schemaToPlaceholder } from "./sql-datamodel";
 import { Schema } from "./types";
 
@@ -76,21 +77,41 @@ export class DuckDBWasmDataModel extends SqlDataModel {
     const numRows = data[0]?.length ?? 0;
     if (numRows === 0) return;
 
-    const placeholders = this.schema.map((s) =>
-      schemaToPlaceholder(s, replace.get(s.name) ?? new Map())
-    ).join(", ");
-    const sql = `INSERT INTO "${this.table}" VALUES (${placeholders})`;
-    const stmt = await this.wasmConn.prepare(sql);
+    const hasReplace = this.schema.some((s) => {
+      const m = replace.get(s.name);
+      return m && m.size > 0;
+    });
+    const hasTemporal = this.schema.some((s) => s.subtype === "temporal" && s.datetimeFormat);
 
-    for (let r = 0; r < numRows; r++) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const row: any[] = [];
-      for (let c = 0; c < numCols; c++) {
-        row.push(data[c][r]);
+    if (hasReplace || hasTemporal) {
+      const placeholders = this.schema.map((s) =>
+        schemaToPlaceholder(s, replace.get(s.name) ?? new Map())
+      ).join(", ");
+      const sql = `INSERT INTO "${this.table}" VALUES (${placeholders})`;
+      const stmt = await this.wasmConn.prepare(sql);
+      for (let r = 0; r < numRows; r++) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const row: any[] = [];
+        for (let c = 0; c < numCols; c++) {
+          row.push(data[c][r]);
+        }
+        await stmt.query(...row);
       }
-      await stmt.query(...row);
+      await stmt.close();
+      return;
     }
 
-    await stmt.close();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const columns: Record<string, any> = {};
+    for (let c = 0; c < numCols; c++) {
+      const s = this.schema[c];
+      if (s.type === "measure") {
+        columns[s.name] = new Float64Array(data[c]);
+      } else {
+        columns[s.name] = data[c];
+      }
+    }
+    const table = arrow.tableFromArrays(columns);
+    await this.wasmConn.insertArrowTable(table, { name: this.table, create: false });
   }
 }

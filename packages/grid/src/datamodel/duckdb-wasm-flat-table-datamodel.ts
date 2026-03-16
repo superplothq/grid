@@ -1,7 +1,8 @@
 import * as duckdb from "@duckdb/duckdb-wasm";
+import * as arrow from "apache-arrow";
 import { SqlFlatTableDataModel } from "./sql-flat-table-datamodel";
 import { FlatTableConfig, GridData, Schema } from "./types";
-import { schemaToSqlType, schemaToPlaceholder } from "./sql-datamodel";
+import { schemaToSqlType } from "./sql-datamodel";
 import { DuckDBWasmBundles } from "./duckdb-wasm-datamodel";
 
 const DEFAULT_BUNDLES: DuckDBWasmBundles = {
@@ -62,32 +63,29 @@ export class DuckDBWasmFlatTableDataModel extends SqlFlatTableDataModel {
     await conn.query(ddl);
 
     const instance = new DuckDBWasmFlatTableDataModel(config, dataSchema, tableName, db, conn);
-    await instance.loadData(gridData.data, gridData.replace);
+    await instance.loadData(gridData.data);
 
     return instance;
   }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  private async loadData(data: any[][], replace: Map<string, Map<string, string>> = new Map()): Promise<void> {
-    const numCols = this.dataSchema.length;
+  private async loadData(data: any[][]): Promise<void> {
     const numRows = data[0]?.length ?? 0;
     if (numRows === 0) return;
 
-    const placeholders = this.dataSchema.map((s) =>
-      schemaToPlaceholder(s, replace.get(s.name) ?? new Map())
-    ).join(", ");
-    const sql = `INSERT INTO "${this.table}" VALUES (${placeholders})`;
-    const stmt = await this.wasmConn.prepare(sql);
-
-    for (let r = 0; r < numRows; r++) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const row: any[] = [];
-      for (let c = 0; c < numCols; c++) {
-        row.push(data[c][r]);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const columns: Record<string, any> = {};
+    for (let c = 0; c < this.dataSchema.length; c++) {
+      const s = this.dataSchema[c];
+      if (s.type === "measure") {
+        columns[s.name] = new Float64Array(data[c]);
+      } else {
+        columns[s.name] = data[c];
       }
-      await stmt.query(...row);
     }
-    await stmt.close();
+
+    const table = arrow.tableFromArrays(columns);
+    await this.wasmConn.insertArrowTable(table, { name: this.table, create: false });
   }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any

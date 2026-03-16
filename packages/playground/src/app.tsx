@@ -3,6 +3,7 @@ import { Routes, Route, Link } from "react-router-dom";
 // import { loadDataToLocalStorage, DataSource } from "datamodel";
 import GridPlayground from "./grid";
 import PivotGridPlayground from "./pivot-grid";
+import FlatTablePlayground from "./flat-table";
 
 const Home: React.FC = () => {
   // const loadData = async () => {
@@ -34,6 +35,7 @@ const App: React.FC = () => {
         <Link to="/" style={{ marginRight: "20px", textDecoration: "none" }}>Home</Link>
         <Link to="/grid" style={{ textDecoration: "none" }}>Grid</Link>
         <Link to="/pivot" style={{ marginLeft: "20px", textDecoration: "none" }}>Pivot</Link>
+        <Link to="/flat-table" style={{ marginLeft: "20px", textDecoration: "none" }}>Flat Table</Link>
       </nav>
 
       <div style={{ padding: "10px 20px" }}>
@@ -41,6 +43,7 @@ const App: React.FC = () => {
           <Route path="/" element={<Home />} />
           <Route path="/grid" element={<GridPlayground />} />
           <Route path="/pivot" element={<PivotGridPlayground />} />
+          <Route path="/flat-table" element={<FlatTablePlayground />} />
         </Routes>
       </div>
     </div>

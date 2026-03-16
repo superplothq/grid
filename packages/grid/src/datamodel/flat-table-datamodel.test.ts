@@ -87,7 +87,7 @@ async function makePatchedModel(configOverrides: Partial<FlatTableConfig> = {}) 
 describe("FlatTableDataModel (real DuckDB)", () => {
   it("should produce correct viewmodel for top-level groups", async () => {
     const model = await makeModel();
-    const vm = await model.getViewModelData(makeIR());
+    const vm = await model.getViewModel(makeIR());
 
     // groupBy region → 2 groups: Europe, North America (sorted alphabetically)
     expect(vm.numRows).to.equal(2);
@@ -104,7 +104,7 @@ describe("FlatTableDataModel (real DuckDB)", () => {
 
   it("should expand a group and show child facets", async () => {
     const model = await makeModel();
-    await model.getViewModelData(makeIR());
+    await model.getViewModel(makeIR());
 
     const vm = await model.expand(["Europe"]);
 
@@ -167,7 +167,7 @@ describe("FlatTableDataModel (real DuckDB)", () => {
   it("should handle nested expand with outsideFacetDims", async () => {
     const model = await makeModel();
     const ir = makeIR({ project: ["product", "revenue", "cost", "units_sold", "returns"] });
-    await model.getViewModelData(ir);
+    await model.getViewModel(ir);
 
     await model.expand(["Europe"]);
     const vm = await model.expand(["Europe", "Germany"]);
@@ -199,7 +199,7 @@ describe("FlatTableDataModel (real DuckDB)", () => {
 
   it("should compute totalLogicalRows correctly on expand/collapse", async () => {
     const model = await makeModel();
-    await model.getViewModelData(makeIR());
+    await model.getViewModel(makeIR());
 
     expect(model.computeTotalLogicalRows()).to.equal(2);
 
@@ -223,7 +223,7 @@ describe("FlatTableDataModel (real DuckDB)", () => {
       const model = await makeModel({ pageSize: 2 });
       const ir = makeIR({ startRow: 0, endRow: 2, groupBy: ["country"] });
 
-      const vm1 = await model.getViewModelData(ir);
+      const vm1 = await model.getViewModel(ir);
 
       expect(model.pages).to.have.length(2);
       expect(model.pages[0].data).to.not.be.null;
@@ -240,7 +240,7 @@ describe("FlatTableDataModel (real DuckDB)", () => {
         { depth: 0, isLeaf: true, isExpanded: false },
       ]);
 
-      const vm2 = await model.getViewModelData(makeIR({ startRow: 2, endRow: 4, groupBy: ["country"] }));
+      const vm2 = await model.getViewModel(makeIR({ startRow: 2, endRow: 4, groupBy: ["country"] }));
 
       expect(model.pages[0].data).to.not.be.null;
       expect(model.pages[1].data).to.not.be.null;
@@ -269,7 +269,7 @@ describe("FlatTableDataModel (real DuckDB)", () => {
     {
       const model = await makeModel({ pageSize: 1 });
 
-      const vm1 = await model.getViewModelData(makeIR({ startRow: 0, endRow: 1 }));
+      const vm1 = await model.getViewModel(makeIR({ startRow: 0, endRow: 1 }));
 
       expect(model.pages).to.have.length(2);
       expect(model.pages[0].data).to.not.be.null;
@@ -286,7 +286,7 @@ describe("FlatTableDataModel (real DuckDB)", () => {
       ]);
 
       // Fetch page 1 (North America)
-      const vm2 = await model.getViewModelData(makeIR({ startRow: 1, endRow: 2 }));
+      const vm2 = await model.getViewModel(makeIR({ startRow: 1, endRow: 2 }));
 
       expect(model.pages[1].data).to.not.be.null;
       expect(model.getDataCallCount()).to.equal(2);
@@ -310,24 +310,25 @@ describe("FlatTableDataModel (real DuckDB)", () => {
       expect(europeGroup.pages[1].data).to.be.null;
       expect(model.getDataCallCount()).to.equal(3);
 
-      expect(vm3.numRows).to.equal(3);
+      // Only Europe + Germany are output; UK child page is unloaded so walk stops
+      // (North America excluded to keep output contiguous for pagination)
+      expect(vm3.numRows).to.equal(2);
       expect(vm3.numCols).to.equal(4);
-      const slice3 = vm3.getSlice(0, 0, 4, 3);
-      expect(slice3.rowFacets).to.deep.equal(["Europe", "Germany", "North America"]);
+      const slice3 = vm3.getSlice(0, 0, 4, 2);
+      expect(slice3.rowFacets).to.deep.equal(["Europe", "Germany"]);
       expect(slice3.data).to.deep.equal([
-        [7380, 4030, 9820],
-        [4585, 2565, 6160],
-        [171, 76, 236],
-        [20, 8, 27],
+        [7380, 4030],
+        [4585, 2565],
+        [171, 76],
+        [20, 8],
       ]);
       expect(slice3.rowMeta).to.deep.equal([
         { depth: 0, isLeaf: false, isExpanded: true },
         { depth: 1, isLeaf: true, isExpanded: false },
-        { depth: 0, isLeaf: false, isExpanded: false },
       ]);
 
       // Incrementally load UK child page
-      const vm4 = await model.getViewModelData(makeIR({ startRow: 0, endRow: 4 }));
+      const vm4 = await model.getViewModel(makeIR({ startRow: 0, endRow: 4 }));
 
       expect(europeGroup.pages[1].data).to.not.be.null;
       expect(model.getDataCallCount()).to.equal(4);
@@ -355,18 +356,18 @@ describe("FlatTableDataModel (real DuckDB)", () => {
     // pageSize=1, maxCacheSize=2 → each group row is its own page
     const model = await makeModel({ pageSize: 1, maxCacheSize: 2 });
 
-    await model.getViewModelData(makeIR({ startRow: 0, endRow: 1 }));
+    await model.getViewModel(makeIR({ startRow: 0, endRow: 1 }));
     expect(model.pages).to.have.length(2);
     expect(model.pages[0].data).to.not.be.null;
     expect(model.pages[1].data).to.be.null;
 
     // Fetch second page — now at capacity (2 fetched)
-    await model.getViewModelData(makeIR({ startRow: 1, endRow: 2 }));
+    await model.getViewModel(makeIR({ startRow: 1, endRow: 2 }));
     expect(model.pages[0].data).to.not.be.null;
     expect(model.pages[1].data).to.not.be.null;
 
     // Scroll back to startRow=0 before expanding
-    await model.getViewModelData(makeIR({ startRow: 0, endRow: 1 }));
+    await model.getViewModel(makeIR({ startRow: 0, endRow: 1 }));
 
     // Expand Europe → fetches Germany child (3 fetched > maxCacheSize=2)
     // Viewport at startRow=0 (near Europe). NA (farthest) should be evicted.
@@ -381,11 +382,11 @@ describe("FlatTableDataModel (real DuckDB)", () => {
 
   it("should clear tree when groupBy changes", async () => {
     const model = await makeModel();
-    await model.getViewModelData(makeIR());
+    await model.getViewModel(makeIR());
     expect(model.pages).to.have.length(1);
 
     // Change groupBy to just country
-    const vm = await model.getViewModelData(makeIR({ groupBy: ["country"] }));
+    const vm = await model.getViewModel(makeIR({ groupBy: ["country"] }));
 
     // 4 countries: Canada, Germany, UK, USA
     expect(vm.numRows).to.equal(4);
@@ -396,7 +397,7 @@ describe("FlatTableDataModel (real DuckDB)", () => {
   it("should show isLeaf=true at deepest facet level when no outside facet dims", async () => {
     const model = await makeModel();
     // project has only measures → no outsideFacetDims → deepest facet level is leaf
-    await model.getViewModelData(makeIR());
+    await model.getViewModel(makeIR());
     const vm = await model.expand(["Europe"]);
 
     // groupBy=["region","country"], project=["revenue","cost","units_sold","returns"]
@@ -414,7 +415,7 @@ describe("FlatTableDataModel (real DuckDB)", () => {
       groupBy: ["region"],
       project: ["country", "revenue", "cost"],
     });
-    await model.getViewModelData(ir);
+    await model.getViewModel(ir);
 
     // Expand Europe — should show individual rows with country, revenue, cost
     const vm = await model.expand(["Europe"]);
@@ -442,7 +443,7 @@ describe("FlatTableDataModel (real DuckDB)", () => {
       groupBy: ["country"],
       project: ["product", "revenue"],
     });
-    await model.getViewModelData(ir);
+    await model.getViewModel(ir);
 
     // 4 countries in 2 pages (pageSize=3 → page0: [3 countries], page1: [1 country])
     expect(model.pages).to.have.length(2);
@@ -459,7 +460,7 @@ describe("FlatTableDataModel (real DuckDB)", () => {
   it("should correctly aggregate measures at each group level", async () => {
     const model = await makeModel();
     const ir = makeIR({ groupBy: ["region", "country"] });
-    await model.getViewModelData(ir);
+    await model.getViewModel(ir);
 
     const vm = await model.expand(["Europe"]);
     const slice = vm.getSlice(0, 0, 4, 4);
@@ -479,7 +480,7 @@ describe("FlatTableDataModel (real DuckDB)", () => {
       groupBy: ["country"],
       filter: [{ type: "scalar" as const, field: "region", op: "eq" as const, value: "Europe" }],
     });
-    const vm = await model.getViewModelData(ir);
+    const vm = await model.getViewModel(ir);
 
     // Only European countries
     expect(vm.numRows).to.equal(2);
@@ -490,13 +491,13 @@ describe("FlatTableDataModel (real DuckDB)", () => {
   it("should invalidate cache when filter changes", async () => {
     const model = await makeModel();
     const ir1 = makeIR({ groupBy: ["country"] });
-    await model.getViewModelData(ir1);
+    await model.getViewModel(ir1);
 
     const ir2 = makeIR({
       groupBy: ["country"],
       filter: [{ type: "scalar" as const, field: "region", op: "eq" as const, value: "Europe" }],
     });
-    const vm = await model.getViewModelData(ir2);
+    const vm = await model.getViewModel(ir2);
 
     expect(vm.numRows).to.equal(2);
     const slice = vm.getSlice(0, 0, 4, 2);

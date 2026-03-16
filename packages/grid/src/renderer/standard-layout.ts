@@ -24,6 +24,10 @@ export type LayoutEvents = {
     x1: number;
     y1: number;
   };
+  viewDataEmpty: {
+    startRow: number;
+    endRow: number;
+  };
   "debug_perf:metrics": {
     timeToRender: number;
     renderCount: number;
@@ -69,6 +73,8 @@ export interface ViewModel extends BaseViewModel {
   colFacetsTopPositions: number[];
   selections: SelectionState[];
   fixtures: LayoutFixtures;
+  logicalStartRow: number;
+  logicalEndRow: number;
 }
 
 export interface CellRenderResult {
@@ -421,7 +427,7 @@ export default class StandardLayout extends StandardLayoutBase {
     // hence that's the total height of header
     const heightPerFacetRow = this.rowHeightByType.facet;
     const colFacetsHeight = this.data!.numColFacetLevels * heightPerFacetRow;
-    const dataHeight = this.data!.numRows * this.rowHeightByType.data;
+    const dataHeight = this.data!.totalRows * this.rowHeightByType.data;
     // total width of the grid if it was rendered fully
     // this value will be used to calculate scroll position there by setting dimension of virtual-panel
     const totalHeight = colFacetsHeight + dataHeight + fixtureHeightTop + fixtureHeightBottom;
@@ -446,13 +452,17 @@ export default class StandardLayout extends StandardLayoutBase {
     // 0.5 (middle)    90 × 0.5 = 45   45–54
     // 1 (bottom)      90 × 1 = 90     90–99
     // It's mapping the scroll percentage (0–1) to the valid range of starting rows (0–90).
-    const scrollableRows  = Math.max(0, this.data!.numRows - Math.floor(visibleDataHeight / this.rowHeightByType.data));
+    const scrollableRows  = Math.max(0, this.data!.totalRows - Math.floor(visibleDataHeight / this.rowHeightByType.data));
 
     const startRowFloat = scrollableRows * scrollPercent;
-    const startRow = Math.floor(startRowFloat);
+    const logicalStartRow = Math.floor(startRowFloat);
     const visibleRows = Math.ceil(visibleDataHeight / this.rowHeightByType.data) + this.config.overscan;
-    const endRow = Math.min(this.data!.numRows, startRow + visibleRows);
-    const offsetY = (startRowFloat - startRow) * this.rowHeightByType.data;
+    const logicalEndRow = Math.min(this.data!.totalRows, logicalStartRow + visibleRows);
+    const offsetY = (startRowFloat - logicalStartRow) * this.rowHeightByType.data;
+
+    const dataOffsetTop = this.data!.offsetTop;
+    const startRow = Math.max(0, Math.min(this.data!.numRows, logicalStartRow - dataOffsetTop));
+    const endRow = Math.max(0, Math.min(this.data!.numRows, logicalEndRow - dataOffsetTop));
 
     const colFacetsTopPositions: number[] = [];
     const facetRowHeight = this.getRowHeight("facet");
@@ -484,6 +494,8 @@ export default class StandardLayout extends StandardLayoutBase {
       colFacetsTopPositions,
       fixedTopHTrackPositions,
       fixedBottomHTrackPositions,
+      logicalStartRow,
+      logicalEndRow,
     };
   }
 
@@ -620,6 +632,8 @@ export default class StandardLayout extends StandardLayoutBase {
       colFacetsTopPositions: vsVertical.colFacetsTopPositions,
       selections,
       fixtures: this.#fixtures,
+      logicalStartRow: vsVertical.logicalStartRow,
+      logicalEndRow: vsVertical.logicalEndRow,
     };
   }
 
@@ -1441,6 +1455,14 @@ export default class StandardLayout extends StandardLayoutBase {
       x1: viewModel.x1,
       y1: viewModel.y1,
     });
+
+    const logicalY0 = viewModel.logicalStartRow;
+    const logicalY1 = viewModel.logicalEndRow;
+    const dataOffsetTop = this.data!.offsetTop;
+    const loadedEnd = dataOffsetTop + this.data!.numRows;
+    if (logicalY0 < dataOffsetTop || logicalY1 > loadedEnd) {
+      this.emit("viewDataEmpty", { startRow: logicalY0, endRow: logicalY1 });
+    }
 
     this.emit("debug_perf:metrics", {
       timeToRender: +(performance.now() - ctx.t1).toFixed(2),

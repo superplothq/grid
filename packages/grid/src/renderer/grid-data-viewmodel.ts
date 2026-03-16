@@ -38,6 +38,8 @@ export abstract class GridDataViewModel {
   protected data: any[][];
   #resolvedVTrackDefs!: ResolvedVTrackDef[];
   #facetDefs!: { row: FacetDef[]; col: FacetDef[]; axis: "row" | "col" };
+  #totalRows: number | undefined;
+  #offsetTop: number | undefined;
   readonly metaState: MetaState = new MetaState();
 
   constructor(data: any[][], columnFacets: FacetData) {
@@ -62,6 +64,8 @@ export abstract class GridDataViewModel {
       col: base.colFacetDefs,
       axis: options?.facetDefs?.axis ?? "col",
     };
+    this.#totalRows = options?.totalRows;
+    this.#offsetTop = options?.offsetTop;
   }
 
   private normalizeRowFacetDefs(options: GridDataViewModelOptions | undefined): FacetDef[] {
@@ -146,6 +150,14 @@ export abstract class GridDataViewModel {
 
   get numCols() {
     return this.#numCols;
+  }
+
+  get totalRows(): number {
+    return this.#totalRows ?? this.#numRows;
+  }
+
+  get offsetTop(): number {
+    return this.#offsetTop ?? 0;
   }
 
   getColFacetValue(level: number, colIndex: number): string | null | undefined {

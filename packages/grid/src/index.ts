@@ -5,4 +5,4 @@ export type { GridData, Schema, MeasureSchema, PivotConfig, AxisExpr, AxisConfig
 export { ProjectionState } from "./datamodel/types";
 export { FlatTableDataModel } from "./datamodel/flat-table-datamodel";
 export { DuckDBWasmFlatTableDataModel } from "./datamodel/duckdb-wasm-flat-table-datamodel";
-export type { FlatTableConfig, GetRowsIR, GetRowsResponse, PageNode, ExpandedGroup } from "./datamodel/types";
+export type { FlatTableConfig, GetRowsIR, GetRowsResponse, PageNode, ExpandedGroup, FlatTableViewModelArgs } from "./datamodel/types";

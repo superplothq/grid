@@ -1,5 +1,6 @@
 import {
   FlatTableConfig,
+  FlatTableViewModelArgs,
   GetRowsIR,
   GetRowsResponse,
   MeasureSchema,
@@ -83,7 +84,7 @@ export abstract class FlatTableDataModel {
     this.topLevelRowCount = 0;
   }
 
-  async getViewModelData(ir: GetRowsIR): Promise<FlattenedDataViewModel> {
+  async getViewModelData(ir: GetRowsIR): Promise<FlatTableViewModelArgs> {
     if (this.lastIR) {
       // TODO[review] is object equality check enough. this seems heavy
       const groupByChanged = this.lastIR.groupBy.join(",") !== ir.groupBy.join(",");
@@ -130,12 +131,17 @@ export abstract class FlatTableDataModel {
     return this.flatten();
   }
 
+  async getViewModel(ir: GetRowsIR): Promise<FlattenedDataViewModel> {
+    const args = await this.getViewModelData(ir);
+    return new FlattenedDataViewModel(args.data, args.columnFacets, args.rowFacet, args.rowMeta, args.options);
+  }
+
   // TODO when expand happens the IR is not updated, hence the IR does not know the upto date startRow
   //      Example: scroll down to load more page, scroll back up and then expand, IR would have the
   //      startRow from last page load when it was at the very bottom of the page (no idea about scroll back up)
   //      Pass the startRow as parameter
   //      this might have an error for page eviction
-  async expand(select: string[]): Promise<FlattenedDataViewModel> {
+  async expandData(select: string[]): Promise<FlatTableViewModelArgs> {
     const result = this.findGroupRow(select);
     if (!result) {
       throw new Error(`Group row not found for select: ${select.join(", ")}`);
@@ -185,7 +191,12 @@ export abstract class FlatTableDataModel {
     return this.flatten();
   }
 
-  async collapse(select: string[]): Promise<FlattenedDataViewModel> {
+  async expand(select: string[]): Promise<FlattenedDataViewModel> {
+    const args = await this.expandData(select);
+    return new FlattenedDataViewModel(args.data, args.columnFacets, args.rowFacet, args.rowMeta, args.options);
+  }
+
+  async collapseData(select: string[]): Promise<FlatTableViewModelArgs> {
     const result = this.findGroupRow(select);
     if (!result) {
       throw new Error(`Group row not found for select: ${select.join(", ")}`);
@@ -198,6 +209,11 @@ export abstract class FlatTableDataModel {
     }
 
     return this.flatten();
+  }
+
+  async collapse(select: string[]): Promise<FlattenedDataViewModel> {
+    const args = await this.collapseData(select);
+    return new FlattenedDataViewModel(args.data, args.columnFacets, args.rowFacet, args.rowMeta, args.options);
   }
 
   private hasOutsideFacetDims(): boolean {
@@ -255,14 +271,13 @@ export abstract class FlatTableDataModel {
     return null;
   }
 
-  private flatten(): FlattenedDataViewModel {
+  private flatten(): FlatTableViewModelArgs {
     const ir = this.lastIR!;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const data: any[][] = ir.project.map(() => []);
     const rowFacet: (string | null)[] = [];
     const rowMetaBytes: number[] = [];
-    // offsetTop tracks logical rows before the contiguous block (for future viewmodel support)
-    let offsetTop = 0; // eslint-disable-line @typescript-eslint/no-unused-vars, no-unused-vars
+    let offsetTop = 0;
     const hasOutsideFacetDims = this.hasOutsideFacetDims();
 
     const columnDefs = ir.project.map((col) => this.schemaMap.get(col)!);
@@ -285,14 +300,16 @@ export abstract class FlatTableDataModel {
       return { blockStart, blockEnd };
     };
 
-    const walkPages = (pages: PageNode[], depth: number, targetSlotIndex: number): void => {
-      if (pages.length === 0) return;
+    // Returns true if the walk completed without hitting a gap (all data contiguous).
+    // Returns false if it hit unloaded child pages — caller must stop walking too.
+    const walkPages = (pages: PageNode[], depth: number, targetSlotIndex: number): boolean => {
+      if (pages.length === 0) return true;
 
       const isFacetLevel = depth < ir.groupBy.length;
       const groupFieldProject = isFacetLevel ? this.buildProjectForDepth(depth) : null;
 
       const { blockStart, blockEnd } = findContiguousBlock(pages, targetSlotIndex);
-      if (blockEnd < blockStart) return;
+      if (blockEnd < blockStart) return true;
 
       for (let i = 0; i < blockStart; i++) {
         let pageLogicalRows = pages[i].rowCount;
@@ -349,7 +366,8 @@ export abstract class FlatTableDataModel {
             }
 
             if (isExpanded && expanded) {
-              walkPages(expanded.pages, depth + 1, 0);
+              const childComplete = walkPages(expanded.pages, depth + 1, 0);
+              if (!childComplete) return false;
             }
           } else {
             rowFacet.push(null);
@@ -361,12 +379,15 @@ export abstract class FlatTableDataModel {
           }
         }
       }
+
+      // If we didn't walk all pages, there's a gap after blockEnd
+      return blockEnd === pages.length - 1;
     };
 
     const targetSlotIndex = this.findTargetSlotForLogicalStart(ir.startRow);
     walkPages(this.pages, 0, targetSlotIndex);
 
-    this.computeTotalLogicalRows();
+    const totalRows = this.computeTotalLogicalRows();
     const rowMeta = new Uint8Array(rowMetaBytes);
 
     const columnFacets: (string | null)[][] = [ir.project.map((col) => {
@@ -374,7 +395,13 @@ export abstract class FlatTableDataModel {
       return def?.displayName ?? col;
     })];
 
-    return new FlattenedDataViewModel(data, columnFacets, rowFacet, rowMeta, this.viewModelOptions);
+    const options: GridDataViewModelOptions = {
+      ...this.viewModelOptions,
+      totalRows,
+      offsetTop,
+    };
+
+    return { data, columnFacets, rowFacet, rowMeta, options };
   }
 
   private buildProjectForDepth(depth: number): string[] {
