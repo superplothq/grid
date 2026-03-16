@@ -1,8 +1,8 @@
 /* eslint-disable quotes */
 import { expect } from "chai";
-import { concat, cross, hierarchy } from "./grid-datamodel";
+import { concat, cross, hierarchy } from "./grid-pivot-datamodel";
 import { makeModel, makePatchedModel } from "./datamodel.data.test";
-import { InMemoryDataModel } from "./in-memory-datamodel";
+import { InMemoryPivotDataModel } from "./in-memory-pivot-datamodel";
 import { AxisConfig, PivotConfig, ProjectionState, Schema } from "./types";
 import { GridDataViewModel } from "../renderer/grid-data-viewmodel";
 
@@ -3112,7 +3112,7 @@ describe("Dimensional Projections", () => {
       const product    = ["Widget", "Gadget", "Gadget", "Widget", "Widget", "Gadget"];
       const revenue    = [100, 200, 300, 400, 500, 600];
       const data = [employee, department, product, revenue];
-      return InMemoryDataModel.create({ columns: cols, data });
+      return InMemoryPivotDataModel.create({ columns: cols, data });
     }
 
     it("selective open Sales+Engineering groups children under parent", async () => {

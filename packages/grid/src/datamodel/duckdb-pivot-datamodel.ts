@@ -1,10 +1,10 @@
 import duckdb from "duckdb";
-import { SqlDataModel, schemaToSqlType, schemaToPlaceholder } from "./sql-datamodel";
+import { SqlPivotDataModel, schemaToSqlType, schemaToPlaceholder } from "./sql-pivot-datamodel";
 import {
   Schema,
 } from "./types";
 
-export class DuckDBDataModel extends SqlDataModel {
+export class DuckDBPivotDataModel extends SqlPivotDataModel {
   protected db: duckdb.Database;
   protected conn: duckdb.Connection;
 
@@ -18,7 +18,7 @@ export class DuckDBDataModel extends SqlDataModel {
   //      CREATE OR REPLACE TABLE
   //      CREATE TABLE IF NOT EXISTS
   //      or current behavior
-  static async create(schema: Schema[], table: string): Promise<DuckDBDataModel> {
+  static async create(schema: Schema[], table: string): Promise<DuckDBPivotDataModel> {
     const db = new duckdb.Database(":memory:");
     const conn = new duckdb.Connection(db);
 
@@ -33,7 +33,7 @@ export class DuckDBDataModel extends SqlDataModel {
       });
     });
 
-    return new DuckDBDataModel(schema, table, db, conn);
+    return new DuckDBPivotDataModel(schema, table, db, conn);
   }
 
   async loadData(data: any[][], replace: Map<string, Map<string, string>> = new Map()): Promise<void> {

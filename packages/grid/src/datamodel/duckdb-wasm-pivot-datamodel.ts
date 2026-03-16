@@ -1,6 +1,6 @@
 import * as duckdb from "@duckdb/duckdb-wasm";
 import * as arrow from "apache-arrow";
-import { SqlDataModel, schemaToSqlType, schemaToPlaceholder } from "./sql-datamodel";
+import { SqlPivotDataModel, schemaToSqlType, schemaToPlaceholder } from "./sql-pivot-datamodel";
 import { Schema } from "./types";
 
 export interface DuckDBWasmBundles {
@@ -19,7 +19,7 @@ const DEFAULT_BUNDLES: DuckDBWasmBundles = {
   },
 };
 
-export class DuckDBWasmDataModel extends SqlDataModel {
+export class DuckDBWasmPivotDataModel extends SqlPivotDataModel {
   protected wasmDb: duckdb.AsyncDuckDB;
   protected wasmConn: duckdb.AsyncDuckDBConnection;
 
@@ -34,7 +34,7 @@ export class DuckDBWasmDataModel extends SqlDataModel {
     this.wasmConn = wasmConn;
   }
 
-  static async create(schema: Schema[], table: string, bundles: DuckDBWasmBundles = DEFAULT_BUNDLES): Promise<DuckDBWasmDataModel> {
+  static async create(schema: Schema[], table: string, bundles: DuckDBWasmBundles = DEFAULT_BUNDLES): Promise<DuckDBWasmPivotDataModel> {
     const bundle = await duckdb.selectBundle({
       mvp: { mainModule: bundles.mvp.mainModule, mainWorker: bundles.mvp.mainWorker },
       eh: bundles.eh ? { mainModule: bundles.eh.mainModule, mainWorker: bundles.eh.mainWorker } : undefined,
@@ -60,11 +60,11 @@ export class DuckDBWasmDataModel extends SqlDataModel {
     const ddl = `CREATE TABLE "${table}" (${colDefs.join(", ")})`;
     await conn.query(ddl);
 
-    return new DuckDBWasmDataModel(schema, table, db, conn);
+    return new DuckDBWasmPivotDataModel(schema, table, db, conn);
   }
 
   protected static async createWasmResources(schema: Schema[], table: string, bundles: DuckDBWasmBundles = DEFAULT_BUNDLES): Promise<{db: duckdb.AsyncDuckDB; conn: duckdb.AsyncDuckDBConnection}> {
-    const instance = await DuckDBWasmDataModel.create(schema, table, bundles);
+    const instance = await DuckDBWasmPivotDataModel.create(schema, table, bundles);
     return { db: instance.wasmDb, conn: instance.wasmConn };
   }
 

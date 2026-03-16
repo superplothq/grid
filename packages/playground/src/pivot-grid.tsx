@@ -1,7 +1,7 @@
 import React, {useEffect, useRef, useState} from "react";
 import "grid/dist/grid.css";
 import Grid, {PivotDataViewModel, FacetCellRenderer, FacetDataContext, FacetRendererContext, FacetHeaderRenderer, FacetHeaderContext, GridDataViewModelOptions} from "grid/dist/renderer";
-import {BrowserInMemoryDataModel, cross, hierarchy, GridData, MeasureSchema, ProjectionState, AxisConfig, DimensionalProjectionPath, SortEntry, Filter, ScalarFilter} from "grid/dist/index";
+import {BrowserInMemoryPivotDataModel, cross, hierarchy, GridData, MeasureSchema, ProjectionState, AxisConfig, DimensionalProjectionPath, SortEntry, Filter, ScalarFilter} from "grid/dist/index";
 import feather from "feather-icons";
 import SortDropdown, {SortEntryConfig} from "./sort-dropdown";
 import FilterDropdown from "./filter-dropdown";
@@ -183,7 +183,7 @@ function makeFacetRenderer(
   axis: "row" | "col",
   hierarchyDepth: number,
   projectionTreeRef: React.MutableRefObject<ProjectionTree>,
-  modelRef: React.MutableRefObject<BrowserInMemoryDataModel | null>,
+  modelRef: React.MutableRefObject<BrowserInMemoryPivotDataModel | null>,
   viewModelRef: React.MutableRefObject<PivotDataViewModel | null>,
   buildConfig: () => { rows: AxisConfig; columns: AxisConfig; sort?: SortEntry[]; filter?: Filter[] },
 ): FacetCellRenderer {
@@ -250,7 +250,7 @@ function makeFacetRenderer(
 const PivotGridPlayground: React.FC = () => {
   const gridConRef = useRef<HTMLDivElement>(null);
   const gridRef = useRef<Grid | null>(null);
-  const modelRef = useRef<BrowserInMemoryDataModel | null>(null);
+  const modelRef = useRef<BrowserInMemoryPivotDataModel | null>(null);
   const viewModelRef = useRef<PivotDataViewModel | null>(null);
   const rowProjectionRef = useRef<ProjectionTree>({});
   const colProjectionRef = useRef<ProjectionTree>({});
@@ -367,7 +367,7 @@ const PivotGridPlayground: React.FC = () => {
     let cancelled = false;
 
     const init = async () => {
-      const model = await BrowserInMemoryDataModel.create(gridData);
+      const model = await BrowserInMemoryPivotDataModel.create(gridData);
       modelRef.current = model;
 
       const config = buildConfig();

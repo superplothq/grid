@@ -1,4 +1,4 @@
-import { GridDataModel } from "./grid-datamodel";
+import { GridPivotDataModel } from "./grid-pivot-datamodel";
 import {
   CrossSegment,
   DimSpec,
@@ -104,7 +104,7 @@ export function schemaToPlaceholder(s: Schema, replacements: Map<string, string>
   return expr;
 }
 
-export abstract class SqlDataModel extends GridDataModel {
+export abstract class SqlPivotDataModel extends GridPivotDataModel {
   protected constructor(schema: Schema[], table: string) {
     super(schema, table);
   }

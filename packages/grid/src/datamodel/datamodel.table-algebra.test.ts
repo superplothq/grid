@@ -1,6 +1,6 @@
 /* eslint-disable quotes */
 import { expect } from "chai";
-import { concat, cross, hierarchy } from "./grid-datamodel";
+import { concat, cross, hierarchy } from "./grid-pivot-datamodel";
 import { makeModel, makePatchedModel } from "./datamodel.data.test";
 import { AxisExpr, PivotConfig, ProjectionState } from "./types";
 import { GridDataViewModel } from "../renderer/grid-data-viewmodel";

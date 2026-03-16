@@ -1,5 +1,5 @@
 import { expect } from "chai";
-import { InMemoryDataModel } from "./in-memory-datamodel";
+import { InMemoryPivotDataModel } from "./in-memory-pivot-datamodel";
 import { GridData, MeasureSchema, Schema } from "./types";
 
 // 24 rows, 8 dimensions + 4 measures (column-major format)
@@ -55,7 +55,7 @@ const returns    = [1,2,3,1,2,1,4,2,1,2,1,3,1,3,2,4,1,2,1,3,3,2,1,1];
 const data = [region, country, city, department, product, channel, quarter, segment, revenue, cost, units_sold, returns];
 
 export async function makeModel() {
-  return InMemoryDataModel.create({ columns: schemaColumns, data });
+  return InMemoryPivotDataModel.create({ columns: schemaColumns, data });
 }
 
 export async function makePatchedModel() {
@@ -71,7 +71,7 @@ export async function makePatchedModel() {
   });
 }
 
-describe("GridDataModel", () => {
+describe("GridPivotDataModel", () => {
   it("should have correct number of rows and columns", async () => {
     const model = await makeModel();
     const schema = (model as any).schema;
@@ -97,7 +97,7 @@ describe("Schema extensions", () => {
       ],
     };
 
-    const model = await InMemoryDataModel.create(gridData);
+    const model = await InMemoryPivotDataModel.create(gridData);
     const rows = await (model as any).runSQL("SELECT order_date, revenue FROM data ORDER BY order_date");
     expect(rows).to.have.length(3);
     expect(new Date(rows[0].order_date).getFullYear()).to.equal(2023);
@@ -120,7 +120,7 @@ describe("Schema extensions", () => {
       ]),
     };
 
-    const model = await InMemoryDataModel.create(gridData);
+    const model = await InMemoryPivotDataModel.create(gridData);
     const rows = await (model as any).runSQL("SELECT category, amount FROM data ORDER BY amount");
     expect(rows).to.have.length(2);
     expect(Number(rows[0].amount)).to.equal(950);
@@ -142,7 +142,7 @@ describe("Schema extensions", () => {
       ]),
     };
 
-    const model = await InMemoryDataModel.create(gridData);
+    const model = await InMemoryPivotDataModel.create(gridData);
     const rows = await (model as any).runSQL("SELECT sale_date, price FROM data ORDER BY sale_date");
     expect(rows).to.have.length(2);
     expect(new Date(rows[0].sale_date).getFullYear()).to.equal(2023);

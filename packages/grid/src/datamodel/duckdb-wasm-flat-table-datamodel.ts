@@ -2,8 +2,8 @@ import * as duckdb from "@duckdb/duckdb-wasm";
 import * as arrow from "apache-arrow";
 import { SqlFlatTableDataModel } from "./sql-flat-table-datamodel";
 import { FlatTableConfig, GridData, Schema } from "./types";
-import { schemaToSqlType } from "./sql-datamodel";
-import { DuckDBWasmBundles } from "./duckdb-wasm-datamodel";
+import { schemaToSqlType } from "./sql-pivot-datamodel";
+import { DuckDBWasmBundles } from "./duckdb-wasm-pivot-datamodel";
 
 const DEFAULT_BUNDLES: DuckDBWasmBundles = {
   mvp: {

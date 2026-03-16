@@ -567,8 +567,7 @@ function buildInvertedIndex(facetSpace: (string | null)[][]): Map<string, number
  * ```
  */
 
-// TODO rename to GridPivotDataModel as this is datamodel for pivoting
-export abstract class GridDataModel {
+export abstract class GridPivotDataModel {
   static readonly SRC_COL_PREFIX = "__src__";
 
   protected schema: Schema[];
@@ -601,11 +600,11 @@ export abstract class GridDataModel {
   // __src__0 disambiguates rows so that values from different branches are not mixed up
   // during facet extraction. Override in subclasses to customize the naming.
   protected srcColName(n: number): string {
-    return `${GridDataModel.SRC_COL_PREFIX}${n}`;
+    return `${GridPivotDataModel.SRC_COL_PREFIX}${n}`;
   }
 
   protected isSrcCol(name: string): boolean {
-    return name.startsWith(GridDataModel.SRC_COL_PREFIX);
+    return name.startsWith(GridPivotDataModel.SRC_COL_PREFIX);
   }
 
   private extractFacetSpace(

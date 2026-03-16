@@ -1,7 +1,7 @@
 import duckdb from "duckdb";
 import { SqlFlatTableDataModel } from "./sql-flat-table-datamodel";
 import { FlatTableConfig, Schema } from "./types";
-import { schemaToSqlType, schemaToPlaceholder } from "./sql-datamodel";
+import { schemaToSqlType, schemaToPlaceholder } from "./sql-pivot-datamodel";
 
 export class DuckDBFlatTableDataModel extends SqlFlatTableDataModel {
   private db: duckdb.Database;
