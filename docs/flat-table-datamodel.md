@@ -17,20 +17,32 @@
 ## Class Hierarchy
 
 ```
+DataSource<T> (interface)         — generic: execute, addRef, release
+└── SqlDataSource (abstract)      — implements DataSource<string>, adds loadData + table
+    ├── DuckDBDataSource          — Node.js duckdb
+    └── DuckDBWasmDataSource      — Browser WASM duckdb
+
 FlatTableDataModel (abstract)
-└── ServersideFlatTableDataModel (paginated getRows contract — server API)
-    └── DuckDBWasmFlatTableDataModel (same paginated contract, backed by local DuckDB WASM)
+└── SqlFlatTableDataModel (concrete, takes SqlDataSource)
 ```
 
-**FlatTableDataModel** — abstract base. Owns the tree structure, cache management, flattening into `FlattenedDataViewModel`. Subclasses implement data fetching.
+**DataSource / SqlDataSource** — owns the database engine, connection lifecycle, and data loading. Multiple grids can share one datasource via `addRef()`/`release()` ref counting. See `docs/data-pipeline.md` for the full datasource documentation.
 
-**ServersideFlatTableDataModel** — implements fetching via a server API. The server receives `getRows` requests with select, sort, filter, pagination params and returns a page of rows + total count.
+**FlatTableDataModel** — abstract base. Owns the tree structure, cache management, flattening into `FlattenedDataViewModel`.
 
-**DuckDBWasmFlatTableDataModel** — implements the same paginated contract but queries a local DuckDB WASM instance. Same chunking, same cache behavior, just a different backing store. This lets you load CSV/JSON directly in the browser and get the full paginated experience without a server.
+**SqlFlatTableDataModel** — concrete class that takes a `SqlDataSource` as a constructor dependency. It generates SQL queries via `dataSource.execute(sql)` and references `dataSource.table` for the source table name.
 
-### Why not a SimpleInMemoryDataModel?
+### Usage
 
-A plain JS in-memory model (no DuckDB) has a niche for small datasets where you don't want the DuckDB WASM dependency (~4MB). But it would require reimplementing sort, filter, and groupBy in plain JS, which is significant work. DuckDBWasmFlatTableDataModel already covers local data with full SQL capabilities. A pure-JS model can be added later behind the same `FlatTableDataModel` interface if the need arises.
+```typescript
+const ds = await DuckDBWasmDataSource.create();
+const columns = new Map([["country", "VARCHAR"], ["year", "VARCHAR"], ["gold", "DOUBLE"]]);
+await ds.loadData({ columns, data: [countryArray, yearArray, goldArray] });
+
+const model = new SqlFlatTableDataModel(config, schema, ds);
+```
+
+The datasource is decoupled from the datamodel — the same `DuckDBWasmDataSource` (or `DuckDBDataSource` for Node.js) can back both pivot and flat table grids simultaneously.
 
 ---
 

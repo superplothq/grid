@@ -9,7 +9,7 @@ DataModel  ──→  FlattenedDataViewModel  ──→  GroupedRowLayout
 (your code)     (renderer contract)          (draws cells)
 ```
 
-**DataModel** is responsible for loading, storing, and flattening data into arrays that the viewmodel can render. Today there is no built-in datamodel class for this path — the playground constructs `FlattenedDataViewModel` directly. A proper `TableDataModel` (analogous to `GridDataModel` for pivot) would own data loading, chunking, tree flattening, and produce the viewmodel.
+**DataModel** is responsible for loading, storing, and flattening data into arrays that the viewmodel can render. `SqlFlatTableDataModel` is the built-in implementation — it takes a `SqlDataSource` dependency (e.g., `DuckDBWasmDataSource` for browser, `DuckDBDataSource` for Node.js) and generates SQL for grouped/paginated data fetching. The datasource is shared across grids via ref counting.
 
 **FlattenedDataViewModel** is the bridge contract between data and renderer. It holds a column-major data array, a single-level row facet array, and a packed metadata byte array encoding each row's depth, leaf status, and expansion state.
 
@@ -26,7 +26,7 @@ DataModel  ──→  FlattenedDataViewModel  ──→  GroupedRowLayout
 | Data cells | Aggregated (SUM, COUNT, etc.) | Individual row values |
 | Layout | `StandardLayout` with merged cells | `GroupedRowLayout` with indentation |
 | ViewModel | `PivotDataViewModel` | `FlattenedDataViewModel` |
-| DataModel | `GridDataModel` subclasses produce it | Application constructs it directly |
+| DataModel | `SqlPivotDataModel` + `SqlDataSource` | `SqlFlatTableDataModel` + `SqlDataSource` |
 
 ---
 
@@ -236,14 +236,49 @@ The custom `trackRenderer` receives a context with `flatMeta: { depth, isLeaf, i
 
 ---
 
-## Future: Server-Side Data Loading
+## DataSource Layer
 
-The current pipeline assumes all data is in memory. For server-side loading with pagination, chunking and fetching belong in the **datamodel layer** — not the viewmodel. The viewmodel remains a thin renderer contract that receives ready-to-render data.
+`SqlFlatTableDataModel` delegates all SQL execution to a `SqlDataSource`. The datasource owns the database engine, connection, and data loading. Multiple grids (pivot and flat table) can share a single datasource via ref counting.
 
 ```
-TableDataModel (owns chunks, fetches, cache, eviction)
-  → produces FlattenedDataViewModel for visible window
-    → GroupedRowLayout renders it
+DataSource<T> (interface)         — generic: execute, addRef, release
+└── SqlDataSource (abstract)      — implements DataSource<string>, adds loadData + table
+    ├── DuckDBDataSource          — Node.js duckdb
+    └── DuckDBWasmDataSource      — Browser WASM duckdb
+```
+
+### Shared datasource across grids
+
+```typescript
+const ds = await DuckDBWasmDataSource.create();
+const columns = new Map([["department", "VARCHAR"], ["employee", "VARCHAR"], ["salary", "DOUBLE"]]);
+await ds.loadData({ columns, data: [deptArray, empArray, salaryArray] });
+
+// Same datasource backs both grids
+const pivotGrid = new SqlPivotDataModel(pivotSchema, ds);
+ds.addRef();
+const flatGrid = new SqlFlatTableDataModel(flatConfig, flatSchema, ds);
+
+// Release when done — engine disposed at refCount 0
+await pivotGrid.release();  // or ds.release()
+await flatGrid.release();
+```
+
+See `docs/data-pipeline.md` for the full datasource documentation including `SqlColumnType`, `loadData` API, and Arrow/TIMESTAMP handling.
+
+---
+
+## Future: Server-Side Data Loading
+
+For server-side loading with pagination, chunking and fetching belong in the **datamodel layer** — not the viewmodel. The viewmodel remains a thin renderer contract that receives ready-to-render data.
+
+A server-backed flat table datamodel would implement `DataSource<T>` with a custom request type (not SQL strings), delegating to a server API. The same ref counting and lifecycle contract applies.
+
+```
+ServerDataSource (implements DataSource<GetRowsRequest>)
+  → SqlFlatTableDataModel or a new ServerFlatTableDataModel
+    → produces FlattenedDataViewModel for visible window
+      → GroupedRowLayout renders it
 ```
 
 ### Chunk-based storage in the datamodel
@@ -266,45 +301,6 @@ When the layout requests a viewport range, the datamodel:
 2. Returns available data, marks missing ranges as loading
 3. Triggers async fetch for missing chunks
 4. On fetch completion, notifies the layout to re-render
-
-### Datasource interface
-
-The datamodel delegates fetching to a pluggable datasource:
-
-```typescript
-interface TableDatasource {
-  getRows(request: {
-    startRow: number;
-    endRow: number;
-    groupKeys: string[];       // path of expanded groups, e.g. ["Engineering", "Frontend"]
-    sortModel: SortItem[];
-    filterModel: FilterModel;
-  }): Promise<{
-    rowData: any[];
-    rowCount: number;          // total rows (for scrollbar height)
-  }>;
-}
-```
-
-`groupKeys` encodes the tree path — `[]` for top-level groups, `["Engineering"]` for its children, `["Engineering", "Frontend"]` for leaf rows within that group.
-
-### The datamodel produces the viewmodel
-
-```typescript
-class ServerTableDataModel {
-  private chunks: Map<number, Chunk>;
-  private datasource: TableDatasource;
-
-  getViewModelForRange(y0: number, y1: number): FlattenedDataViewModel {
-    // assemble dense arrays from chunks for [y0, y1)
-    // missing chunks → placeholder/null values
-    // trigger async fetch for missing chunks
-    return new FlattenedDataViewModel(data, columnFacets, rowFacet, rowMeta, options);
-  }
-}
-```
-
-The viewmodel receives a dense, complete slice — it has no concept of chunks, loading, or servers. It is always synchronous and ready to render.
 
 ### Render loop with async loading
 

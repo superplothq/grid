@@ -13,7 +13,7 @@ PivotConfig  ──→  IR  ──→  getData()  ──→  GridDataViewModel
 
 **IR** (Intermediate Representation) is a clean separation of concerns — dimensions are expressed as a `DimSpec` tree, and measures are a flat list. The IR is axis-agnostic; it has no concept of rows vs columns. It tells you "what data to fetch" without caring about presentation.
 
-**getData()** takes the IR and produces a flat table. The built-in implementation generates SQL, but you can implement your own data processing layer here.
+**getData()** takes the IR and produces a flat table. The built-in implementation generates SQL via a `SqlDataSource`, but you can implement your own data processing layer here.
 
 **GridDataViewModel** is the final 2D pivot grid — data is reshaped from the flat table into a matrix with row facets, column facets, and data cells.
 
@@ -171,6 +171,45 @@ segments: [
 ```
 
 This means: for Electronics, show 2 children (e.g. department + channel); for others, show only 1 child (just department). Invisible children get NULL columns.
+
+---
+
+## DataSource Layer
+
+The SQL pipeline is backed by a **DataSource** abstraction that decouples the database engine from the datamodel. This enables multiple grids to share a single data store.
+
+```
+DataSource<T> (interface)         — generic: execute, addRef, release
+└── SqlDataSource (abstract)      — implements DataSource<string>, adds loadData + table
+    ├── DuckDBDataSource          — Node.js duckdb
+    └── DuckDBWasmDataSource      — Browser WASM duckdb
+```
+
+**`DataSource<T>`** is the generic contract. `execute(req: T)` runs a query and returns rows. `addRef()`/`release()` manage a ref count so N grids can share one datasource — the engine is disposed only when the last consumer releases.
+
+**`SqlDataSource`** narrows to `DataSource<string>` (SQL strings). It provides a concrete `loadData()` method that takes a `Map<string, SqlColumnType>` and column-major data arrays, builds a `CREATE TABLE` DDL, converts data to an Arrow table, and inserts it via an engine-specific `insertArrowTable()`. Subclasses only implement `execute()`, `insertArrowTable()`, and `release()`.
+
+**`SqlColumnType`** = `"VARCHAR" | "INTEGER" | "DOUBLE" | "TIMESTAMP"`. Callers pass explicit SQL types — the datasource has no knowledge of `Schema`. For TIMESTAMP columns, callers should pass ISO 8601 strings (e.g., `new Date(...).toISOString()`); DuckDB handles the VARCHAR → TIMESTAMP cast implicitly.
+
+### Usage
+
+```typescript
+// Create a shared datasource
+const ds = await DuckDBWasmDataSource.create();
+const columns = new Map([["region", "VARCHAR"], ["revenue", "DOUBLE"]]);
+await ds.loadData({ columns, data: [regionArray, revenueArray] });
+
+// Create datamodels that share the datasource
+const pivotModel = new SqlPivotDataModel(schema, ds);
+ds.addRef();
+const flatModel = new SqlFlatTableDataModel(config, schema, ds);
+
+// Release when done — engine disposed at refCount 0
+await ds.release();
+await ds.release();
+```
+
+`SqlPivotDataModel` and `SqlFlatTableDataModel` are concrete classes that take a `SqlDataSource` as a constructor dependency. They reference `dataSource.table` for SQL generation and call `dataSource.execute(sql)` to run queries.
 
 ---
 
