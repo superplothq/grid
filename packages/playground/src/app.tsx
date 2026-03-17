@@ -4,7 +4,7 @@ import { Routes, Route, Link, Outlet, useMatch } from "react-router-dom";
 import GridPlayground from "./grid";
 import PivotGridPlayground from "./pivot-grid";
 import FlatTablePlayground from "./flat-table";
-import SamplesLayout from "./samples/SamplesLayout";
+import SamplesLayout from "./samples/components/SamplesLayout";
 import GettingStarted from "./samples/getting-started.mdx";
 import feather from "feather-icons";
 
