@@ -1,6 +1,8 @@
 export type { DataSource } from "./datamodel/datasource";
 export type { SqlColumnType } from "./datamodel/datasource";
 export { SqlDataSource } from "./datamodel/sql-datasource";
+export type { ColumnMetadata } from "./datamodel/sql-datasource";
+export { GridError, GridErrorCode } from "./errors";
 export { DuckDBWasmDataSource } from "./datamodel/duckdb-wasm-datasource";
 export type { DuckDBWasmBundles } from "./datamodel/duckdb-wasm-datasource";
 export { SqlPivotDataModel } from "./datamodel/sql-pivot-datamodel";
