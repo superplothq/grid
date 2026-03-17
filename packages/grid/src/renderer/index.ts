@@ -5,7 +5,10 @@ import { addToRegistry } from "./registry";
 import { Constructor } from "./types";
 import "./themes";
 import StandardLayout, { LayoutEvents } from "./standard-layout";
+import GroupedRowLayout from "./grouped-row-layout";
 import { WithEvents, EventEmitter } from "./mixins";
+
+export type LayoutType = "pivot" | "flat";
 
 // TODO this used to be the entry point, now it's not, so lot of this config
 // is not necessary
@@ -92,12 +95,13 @@ export default class Grid extends GridWithEvents {
   #renderCount = 0;
   #selections: Map<string, [fromRow: number, fromCol: number, toRow: number, toCol: number]> = new Map();
 
-  constructor(config: Partial<GridConfig>, mountPoint: HTMLElement, LayoutClass?: typeof StandardLayout) {
+  constructor(config: Partial<GridConfig>, mountPoint: HTMLElement, layoutType: LayoutType = "pivot") {
     super();
     this.#config = { ...defaultConfig, ...config };
 
     this.#cellManager = new CellManager();
-    this.#layout = new (LayoutClass ?? StandardLayout)(this.#config, mountPoint, this.#cellManager);
+    const LayoutClass = layoutType === "flat" ? GroupedRowLayout : StandardLayout;
+    this.#layout = new LayoutClass(this.#config, mountPoint, this.#cellManager);
 
     // Forward layout events to Grid
     this.forwardFrom(this.#layout as unknown as EventEmitter<LayoutEvents>, ["renderComplete", "debug_perf:metrics", "viewDataEmpty"]);

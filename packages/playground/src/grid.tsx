@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import "grid/dist/grid.css";
-import Grid, { PivotDataViewModel, FlattenedDataViewModel, createRowMeta, GroupedRowLayout, StandardLayout, LayoutEvents, SelectionPayload, VTrackDef, ColAutoSizeConfig, createChartRenderer, CellRenderer, FacetCellRenderer, PVerticalFixture, PHorizontalFixture, BaseFixtureViewModel, BaseViewModel, BaseSliceResult } from "grid/dist/renderer";
+import Grid, { PivotDataViewModel, FlattenedDataViewModel, createRowMeta, LayoutEvents, SelectionPayload, VTrackDef, ColAutoSizeConfig, createChartRenderer, CellRenderer, FacetCellRenderer, PVerticalFixture, PHorizontalFixture, BaseFixtureViewModel, BaseViewModel, BaseSliceResult } from "grid/dist/renderer";
 import feather from "feather-icons";
 import {CellToMeasure} from "grid/dist/renderer/types";
 
@@ -786,8 +786,8 @@ const GridPlayground: React.FC = () => {
 
     // Create or update grid
     if (!gridRef.current) {
-      const LayoutClass = layoutMode === "grouped" ? GroupedRowLayout : StandardLayout;
-      gridRef.current = new Grid({ fixtures: { top: [FilterFixture], left: [LineNumberFixture/*CheckboxFixture, LineNumberFixture*/], bottom: [AggregationFixture, BottomDetailFixture], right: [CheckboxFixture] } }, gridConRef.current, LayoutClass);
+      const layoutType = layoutMode === "grouped" ? "flat" : "pivot";
+      gridRef.current = new Grid({ fixtures: { top: [FilterFixture], left: [LineNumberFixture/*CheckboxFixture, LineNumberFixture*/], bottom: [AggregationFixture, BottomDetailFixture], right: [CheckboxFixture] } }, gridConRef.current, layoutType);
       gridLayoutModeRef.current = layoutMode;
       for (const e of ['renderComplete', 'selectionAdded', 'selectionRemoved']) {
         gridRef.current.on(e as any, (payload) => {

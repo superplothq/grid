@@ -1,6 +1,6 @@
 import React, {useEffect, useRef, useState} from "react";
 import "grid/dist/grid.css";
-import Grid, {FlattenedDataViewModel, GroupedRowLayout, FacetCellRenderer, FacetDataContext, FacetRendererContext, GridDataViewModelOptions} from "grid/dist/renderer";
+import Grid, {FlattenedDataViewModel, FacetCellRenderer, FacetDataContext, FacetRendererContext, GridDataViewModelOptions} from "grid/dist/renderer";
 import {DuckDBWasmDataSource, SqlFlatTableDataModel, GridData, MeasureSchema, FlatTableConfig, GetRowsIR, FlatTableViewModelArgs, SqlColumnType, Schema} from "grid/dist/index";
 import feather from "feather-icons";
 
@@ -114,7 +114,7 @@ function makeFacetRenderer(
   };
 }
 
-const DELAY_MS = 200;
+const DELAY_MS = 2000;
 
 const FlatTablePlayground: React.FC = () => {
   const gridConRef = useRef<HTMLDivElement>(null);
@@ -216,7 +216,7 @@ const FlatTablePlayground: React.FC = () => {
 
       if (!gridConRef.current) return;
 
-      const grid = new Grid({}, gridConRef.current, GroupedRowLayout);
+      const grid = new Grid({}, gridConRef.current, "flat");
       gridRef.current = grid;
       grid.data = viewModel;
       grid.draw();
