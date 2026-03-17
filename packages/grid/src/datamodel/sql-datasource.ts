@@ -1,5 +1,5 @@
 import * as arrow from "apache-arrow";
-import { csvParse } from "d3-dsv";
+import { csvParse, csvParseRows } from "d3-dsv";
 import { DataSource, SqlColumnType } from "./datasource";
 import { GridError, GridErrorCode } from "../errors";
 
@@ -123,15 +123,16 @@ export abstract class SqlDataSource implements DataSource<string> {
     }
 
     let parsed: any;
-    let csvColumns: string[] | undefined;
+    let csvHeaders: string[] | undefined;
+    let csvRows: string[][] | undefined;
     try {
       if (config.type === "json") {
         parsed = await response.json();
       } else {
         const text = await response.text();
-        const csvResult = csvParse(text);
-        csvColumns = csvResult.columns;
-        parsed = csvResult;
+        const rows = csvParseRows(text);
+        csvHeaders = rows[0];
+        csvRows = rows.slice(1);
       }
     } catch (e) {
       throw new GridError(GridErrorCode.PARSE_FAILED, "Failed to parse response", e as Error, {
@@ -139,47 +140,87 @@ export abstract class SqlDataSource implements DataSource<string> {
       });
     }
 
-    if (config.preprocess) {
-      parsed = config.preprocess(parsed);
-    }
+    if (config.type === "json") {
+      if (config.preprocess) {
+        const preprocessed = config.preprocess(parsed);
+        parsed = preprocessed ? preprocessed : parsed;
+      }
 
-    if (!Array.isArray(parsed) || parsed.length === 0) {
-      if (Array.isArray(parsed)) {
+      if (!Array.isArray(parsed) || parsed.length === 0) {
+        if (Array.isArray(parsed)) {
+          throw new GridError(GridErrorCode.EMPTY_DATA, "Parsed data is empty");
+        }
+        throw new GridError(GridErrorCode.INVALID_DATA, "Parsed data is not an array of objects");
+      }
+    } else {
+      if (config.preprocess) {
+        const preprocessed = config.preprocess(csvRows) as string[][];
+        csvRows = preprocessed ? preprocessed : csvRows;
+      }
+
+      if (!csvRows || csvRows.length === 0) {
         throw new GridError(GridErrorCode.EMPTY_DATA, "Parsed data is empty");
       }
-      throw new GridError(GridErrorCode.INVALID_DATA, "Parsed data is not an array of objects");
     }
 
     let columnOrder: string[];
+    const columns = new Map<string, SqlColumnType>();
+    const data: any[][] = [];
+
     if (config.type === "csv") {
-      columnOrder = config.columnOrder ?? csvColumns!;
+      columnOrder = config.columnOrder ?? csvHeaders!;
+      const colIndexMap = new Map<string, number>();
+      for (let i = 0; i < csvHeaders!.length; i++) {
+        colIndexMap.set(csvHeaders![i], i);
+      }
+
+      if (config.columns) {
+        for (const col of columnOrder) {
+          columns.set(col, config.columns.get(col) ?? "VARCHAR");
+        }
+      } else {
+        for (const col of columnOrder) {
+          const ci = colIndexMap.get(col)!;
+          const values = csvRows!.map((row) => row[ci]);
+          columns.set(col, inferColumnType(values));
+        }
+      }
+
+      for (const [col, type] of columns) {
+        const ci = colIndexMap.get(col)!;
+        const colValues = csvRows!.map((row) => {
+          const v = row[ci];
+          if (v === null || v === undefined || v === "") return null;
+          if (type === "INTEGER" || type === "DOUBLE") return Number(v);
+          return v;
+        });
+        data.push(colValues);
+      }
     } else {
       columnOrder = config.columnOrder ?? Object.keys(parsed[0]);
-    }
 
-    const columns = new Map<string, SqlColumnType>();
-    if (config.columns) {
-      for (const col of columnOrder) {
-        columns.set(col, config.columns.get(col) ?? "VARCHAR");
-      }
-    } else {
-      for (const col of columnOrder) {
-        const values = parsed.map((row: Record<string, unknown>) => row[col]);
-        columns.set(col, inferColumnType(values));
-      }
-    }
-
-    const data: any[][] = [];
-    for (const [col, type] of columns) {
-      const colValues = parsed.map((row: Record<string, unknown>) => {
-        const v = row[col];
-        if (v === null || v === undefined || v === "") return null;
-        if (type === "INTEGER" || type === "DOUBLE") {
-          return typeof v === "number" ? v : Number(v);
+      if (config.columns) {
+        for (const col of columnOrder) {
+          columns.set(col, config.columns.get(col) ?? "VARCHAR");
         }
-        return v;
-      });
-      data.push(colValues);
+      } else {
+        for (const col of columnOrder) {
+          const values = parsed.map((row: Record<string, unknown>) => row[col]);
+          columns.set(col, inferColumnType(values));
+        }
+      }
+
+      for (const [col, type] of columns) {
+        const colValues = parsed.map((row: Record<string, unknown>) => {
+          const v = row[col];
+          if (v === null || v === undefined || v === "") return null;
+          if (type === "INTEGER" || type === "DOUBLE") {
+            return typeof v === "number" ? v : Number(v);
+          }
+          return v;
+        });
+        data.push(colValues);
+      }
     }
 
     await this.loadData({ table: config.table, columns, data });

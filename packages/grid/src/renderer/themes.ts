@@ -15,7 +15,7 @@ export const lightTheme: Theme = {
   columnFacetTextColor: "#5c5f77",
   rowFacetBackgroundColor: "#eff1f5",
   valueTextColor: "#4c4f69",
-  valueBackgroundColor: "#eff1f5",
+  valueBackgroundColor: "#FAFAFA",
   facetHeaderBackgroundColor: "#e6e9ef",
   facetHeaderFontColor: "#5c5f77",
   facetHeaderFontSize: 12,

@@ -201,7 +201,7 @@
   font-family: var(--s-font-mono);
   font-size: 13px;
   line-height: 1.6;
-  background: var(--s-code-bg);
+  background: var(--s-code-bg) !important;
   border-radius: 8px;
   padding: 16px 20px;
   overflow-x: auto;

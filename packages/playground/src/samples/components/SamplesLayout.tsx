@@ -1,10 +1,11 @@
 import React, { useState } from "react";
 import { NavLink, Outlet } from "react-router-dom";
 import feather from "feather-icons";
+import { DataSourceProvider } from "./DataSourceContext";
 import "./samples.css";
 
 const pages = [
-  { path: "getting-started", label: "Getting Started" },
+  { path: "getting-started-flat-data", label: "Getting Started" },
 ];
 
 const SamplesLayout: React.FC = () => {
@@ -41,7 +42,9 @@ const SamplesLayout: React.FC = () => {
       </aside>
       <main className="samples-content">
         <div className="samples-content-inner">
-          <Outlet />
+          <DataSourceProvider>
+            <Outlet />
+          </DataSourceProvider>
         </div>
       </main>
     </div>

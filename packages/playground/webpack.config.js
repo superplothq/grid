@@ -1,5 +1,6 @@
 const path = require("path");
 const HtmlWebpackPlugin = require("html-webpack-plugin");
+const rehypePrettyCode = require("rehype-pretty-code").default;
 
 module.exports = {
   entry: "./src/index.tsx",
@@ -34,7 +35,7 @@ module.exports = {
         test: /\.mdx$/,
         use: [
           { loader: "ts-loader", options: { transpileOnly: true, compilerOptions: { jsx: "react-jsx", allowJs: true } } },
-          { loader: "@mdx-js/loader" },
+          { loader: "@mdx-js/loader", options: { rehypePlugins: [[rehypePrettyCode, { theme: "github-light" }]] } },
         ],
       },
       {

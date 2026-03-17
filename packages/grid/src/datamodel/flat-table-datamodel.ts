@@ -275,8 +275,9 @@ export abstract class FlatTableDataModel {
     const ir = this.lastIR!;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const data: any[][] = ir.project.map(() => []);
-    const rowFacet: (string | null)[] = [];
-    const rowMetaBytes: number[] = [];
+    const hasGroupBy = ir.groupBy.length > 0;
+    const rowFacet: (string | null)[] | undefined = hasGroupBy ? [] : undefined;
+    const rowMetaBytes: number[] | undefined = hasGroupBy ? [] : undefined;
     let offsetTop = 0;
     const hasOutsideFacetDims = this.hasOutsideFacetDims();
 
@@ -339,7 +340,7 @@ export abstract class FlatTableDataModel {
             //            → data[0] = ["USA","Canada"]
             //   depth 1: expandedRows[USA].pages → SELECT "year", SUM("gold")... WHERE country='USA' GROUP BY "year"
             //            → data[0] = ["2008","2012"]
-            rowFacet.push(page.data![0][rowIdx]);
+            rowFacet!.push(page.data![0][rowIdx]);
 
             // Deepest facet level is only leaf when there are no outsideFacetDim rows below it.
             // With outsideFacetDims, the facet row is expandable into individual data rows.
@@ -353,7 +354,7 @@ export abstract class FlatTableDataModel {
             //   country (depth 0, isLeaf=false)
             //     year (depth 1, isLeaf=true) ← nothing below
             const isLeaf = (depth === ir.groupBy.length - 1) && !hasOutsideFacetDims;
-            rowMetaBytes.push(createRowMeta(depth, isLeaf, isExpanded));
+            rowMetaBytes!.push(createRowMeta(depth, isLeaf, isExpanded));
 
             for (let colIdx = 0; colIdx < ir.project.length; colIdx++) {
               const colDef = columnDefs[colIdx];
@@ -370,8 +371,8 @@ export abstract class FlatTableDataModel {
               if (!childComplete) return false;
             }
           } else {
-            rowFacet.push(null);
-            rowMetaBytes.push(createRowMeta(depth, true, false));
+            if (rowFacet) rowFacet.push(null);
+            if (rowMetaBytes) rowMetaBytes.push(createRowMeta(depth, true, false));
 
             for (let colIdx = 0; colIdx < ir.project.length; colIdx++) {
               data[colIdx].push(page.data![colIdx][rowIdx]);
@@ -388,7 +389,7 @@ export abstract class FlatTableDataModel {
     walkPages(this.pages, 0, targetSlotIndex);
 
     const totalRows = this.computeTotalLogicalRows();
-    const rowMeta = new Uint8Array(rowMetaBytes);
+    const rowMeta = rowMetaBytes ? new Uint8Array(rowMetaBytes) : undefined;
 
     const columnFacets: (string | null)[][] = [ir.project.map((col) => {
       const def = this.schemaMap.get(col);
