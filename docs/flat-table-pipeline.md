@@ -264,7 +264,7 @@ await pivotGrid.release();  // or ds.release()
 await flatGrid.release();
 ```
 
-See `docs/data-pipeline.md` for the full datasource documentation including `SqlColumnType`, `loadData` API, and Arrow/TIMESTAMP handling.
+See `docs/pivot-data-pipeline.md` for the full datasource documentation including `SqlColumnType`, `loadData` API, and Arrow/TIMESTAMP handling.
 
 ---
 

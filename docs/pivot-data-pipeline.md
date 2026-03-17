@@ -1,8 +1,8 @@
-# Data Pipeline: Config → IR → SQL → GridDataViewModel
+# Pivot Data Pipeline: Config → IR → SQL → GridDataViewModel
 
 ## Overview
 
-The grid's data pipeline has four stages:
+The pivot grid's data pipeline has four stages:
 
 ```
 PivotConfig  ──→  IR  ──→  getData()  ──→  GridDataViewModel
