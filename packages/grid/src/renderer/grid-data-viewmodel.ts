@@ -118,7 +118,7 @@ export abstract class GridDataViewModel {
     return { vTrackDefs, colFacetDefs, rowFacetDefs };
   }
 
-  private normalizeFacetDefs(input: FacetDef[] | undefined, count: number): FacetDef[] {
+  private normalizeFacetDefs(input: Partial<FacetDef>[] | undefined, count: number): FacetDef[] {
     const defs: FacetDef[] = [];
     for (let i = 0; i < count; i++) {
       const d = input?.[i];
