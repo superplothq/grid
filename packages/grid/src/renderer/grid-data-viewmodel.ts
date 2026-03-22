@@ -31,6 +31,22 @@ export class MetaState {
   }
 }
 
+// Bridge between datamodel and renderer. Holds column-major data arrays and facet metadata.
+//
+// numRows / numCols — dimensions of the loaded data[][] arrays.
+//
+// totalRows — total number of rows in the dataset, not just the ones loaded in memory.
+//   With pagination, data is fetched in pages (e.g. 100 rows at a time). numRows reflects
+//   how many rows are currently loaded, while totalRows reflects the full dataset size
+//   reported by the server/datamodel. The renderer uses totalRows to compute scroll height
+//   (totalRows × rowHeight) so the scrollbar represents the entire dataset.
+//   For pivot tables where all data is fetched at once, totalRows = numRows.
+//
+// offsetTop — number of rows before the currently loaded page. With pagination, the loaded
+//   page may not start at row 0 (e.g. the user scrolled to page 3). The renderer uses
+//   offsetTop × rowHeight as top padding so the loaded rows are positioned correctly
+//   within the full scroll space.
+//   For pivot tables, offsetTop = 0.
 export abstract class GridDataViewModel {
   #numRows: number;
   #numCols: number;
@@ -57,44 +73,28 @@ export abstract class GridDataViewModel {
   }
 
   protected init(options: GridDataViewModelOptions | undefined): void {
-    const base = this.normalizeBaseOptions(options, this.#numCols, this.#colFacets.length);
-    this.#resolvedVTrackDefs = base.resolvedVTrackDefs;
+    const resolved = this.normalizeOptions(options);
+    this.#resolvedVTrackDefs = resolved.vTrackDefs;
     this.#facetDefs = {
-      row: this.normalizeRowFacetDefs(options),
-      col: base.colFacetDefs,
+      row: resolved.rowFacetDefs,
+      col: resolved.colFacetDefs,
       axis: options?.facetDefs?.axis ?? "col",
     };
     this.#totalRows = options?.totalRows;
     this.#offsetTop = options?.offsetTop;
   }
 
-  private normalizeRowFacetDefs(options: GridDataViewModelOptions | undefined): FacetDef[] {
-    const inputFacetDefs = options?.facetDefs;
-    const rowFacetDefs: FacetDef[] = [];
-    for (let i = 0; i < this.numRowFacetLevels; i++) {
-      const d = inputFacetDefs?.row[i];
-      rowFacetDefs.push({
-        text: d?.text ?? "",
-        trackRenderer: d?.trackRenderer ?? defaultFacetRenderer,
-        headerRenderer: d?.headerRenderer ?? defaultFacetHeaderRenderer,
-        ...(d?.meta !== undefined && { meta: d.meta }),
-        ...(d?.pseudo !== undefined && { pseudo: d.pseudo }),
-      });
-    }
-    return rowFacetDefs;
-  }
-
-  private normalizeBaseOptions(
-    options: GridDataViewModelOptions | undefined,
-    numCols: number,
-    numColFacetLevels: number,
-  ): { resolvedVTrackDefs: ResolvedVTrackDef[]; colFacetDefs: FacetDef[] } {
+  private normalizeOptions(options: GridDataViewModelOptions | undefined): {
+    vTrackDefs: ResolvedVTrackDef[];
+    colFacetDefs: FacetDef[];
+    rowFacetDefs: FacetDef[];
+  } {
     const inputVTrackDefs = options?.vTrackDefs;
-    const resolvedVTrackDefs: ResolvedVTrackDef[] = [];
-    for (let col = 0; col < numCols; col++) {
+    const vTrackDefs: ResolvedVTrackDef[] = [];
+    for (let col = 0; col < this.#numCols; col++) {
       const def = inputVTrackDefs?.[col];
       if (def?.renderer) {
-        resolvedVTrackDefs.push({
+        vTrackDefs.push({
           renderer: def.renderer,
           cellHeight: def.cellHeight,
           sampleData: def.sampleData,
@@ -102,7 +102,7 @@ export abstract class GridDataViewModel {
           colSize: def.colSize ?? defaultColAutoSize,
         });
       } else {
-        resolvedVTrackDefs.push({
+        vTrackDefs.push({
           renderer: textRenderer,
           isCustom: false,
           colSize: def?.colSize ?? defaultColAutoSize,
@@ -111,10 +111,18 @@ export abstract class GridDataViewModel {
     }
 
     const inputFacetDefs = options?.facetDefs;
-    const colFacetDefs: FacetDef[] = [];
-    for (let i = 0; i < numColFacetLevels; i++) {
-      const d = inputFacetDefs?.col[i];
-      colFacetDefs.push({
+
+    const colFacetDefs = this.normalizeFacetDefs(inputFacetDefs?.col, this.#colFacets.length);
+    const rowFacetDefs = this.normalizeFacetDefs(inputFacetDefs?.row, this.numRowFacetLevels);
+
+    return { vTrackDefs, colFacetDefs, rowFacetDefs };
+  }
+
+  private normalizeFacetDefs(input: FacetDef[] | undefined, count: number): FacetDef[] {
+    const defs: FacetDef[] = [];
+    for (let i = 0; i < count; i++) {
+      const d = input?.[i];
+      defs.push({
         text: d?.text ?? "",
         trackRenderer: d?.trackRenderer ?? defaultFacetRenderer,
         headerRenderer: d?.headerRenderer ?? defaultFacetHeaderRenderer,
@@ -122,8 +130,7 @@ export abstract class GridDataViewModel {
         ...(d?.pseudo !== undefined && { pseudo: d.pseudo }),
       });
     }
-
-    return { resolvedVTrackDefs, colFacetDefs };
+    return defs;
   }
 
   get vTrackDefs(): ResolvedVTrackDef[] {
