@@ -58,10 +58,11 @@ export default class GroupedRowLayout extends StandardLayout {
           index: j,
           ...(meta && { flatMeta: meta }),
         };
-        const renderer = rowFacetDefs[0].trackRenderer;
-        const result = renderer(label as string, dataCtx, rendererCtx);
+        const { trackRenderer: grpTrackRenderer, styleFns: grpStyleFns } = this.resolveFacetOverrides([label], rowFacetDefs);
+        const result = (grpTrackRenderer ?? rowFacetDefs[0].trackRenderer)(label as string, dataCtx, rendererCtx);
         const content = this.buildCommonCell(result);
         addOrReplaceChildren(cell, content);
+        for (const fn of grpStyleFns) fn(cell);
       }
 
       cell.dataset.cellType = "row-facet";

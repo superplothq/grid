@@ -4,6 +4,7 @@ import { Routes, Route, Link, Outlet, useMatch } from "react-router-dom";
 import GridPlayground from "./grid";
 import PivotGridPlayground from "./pivot-grid";
 import FlatTablePlayground from "./flat-table";
+import SelectionDemo from "./selection-demo";
 import SamplesLayout from "./samples/components/SamplesLayout";
 import GettingStartedFlatData from "./samples/getting-started-flat-data.mdx";
 import feather from "feather-icons";
@@ -39,6 +40,7 @@ const PlaygroundLayout: React.FC = () => {
         <Link to="/grid" style={{ textDecoration: "none" }}>Grid</Link>
         <Link to="/pivot" style={{ marginLeft: "20px", textDecoration: "none" }}>Pivot</Link>
         <Link to="/flat-table" style={{ marginLeft: "20px", textDecoration: "none" }}>Flat Table</Link>
+        <Link to="/selection" style={{ marginLeft: "20px", textDecoration: "none" }}>Selection</Link>
         <a
           href="/samples/getting-started-flat-data"
           target="_blank"
@@ -63,6 +65,7 @@ const App: React.FC = () => {
         <Route path="/grid" element={<GridPlayground />} />
         <Route path="/pivot" element={<PivotGridPlayground />} />
         <Route path="/flat-table" element={<FlatTablePlayground />} />
+        <Route path="/selection" element={<SelectionDemo />} />
       </Route>
       <Route path="/samples" element={<SamplesLayout />}>
         <Route path="getting-started-flat-data" element={<GettingStartedFlatData />} />

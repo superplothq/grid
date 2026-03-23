@@ -8,13 +8,16 @@ import { getTheme } from "./registry";
 import {
   CellToMeasure,
   FacetCellContent,
+  FacetCellRenderer,
   FacetDataContext,
   FacetDef,
   HeaderCellContext,
   FacetRendererContext,
   IColAutoSizeStrategyFixedWidth,
-  PivotSliceResult
+  PivotSliceResult,
+  SelectionRule,
 } from "./types";
+import { evaluateRulesForDataCell, evaluateRulesForFacetCell } from "./select-all";
 import { computeMerges, MergeState } from "./utils";
 
 export type LayoutEvents = {
@@ -119,6 +122,7 @@ export default class StandardLayout extends StandardLayoutBase {
   #proposal: ViewModelProposal = {};
   #fixtures: LayoutFixtures;
   #fixtureMeasurements = { top: [] as number[], topTotal: 0, bottom: [] as number[], bottomTotal: 0 };
+  #selectAllRules: readonly SelectionRule[] = [];
 
   
   constructor(config: GridConfig, mountPoint: HTMLElement, cellManager: CellManager) {
@@ -131,6 +135,20 @@ export default class StandardLayout extends StandardLayoutBase {
 
   viewModelProposal(proposal: ViewModelProposal): void {
     Object.assign(this.#proposal, proposal);
+  }
+
+  setSelectAllRules(rules: readonly SelectionRule[]): void {
+    this.#selectAllRules = rules;
+  }
+
+  protected get selectAllRules(): readonly SelectionRule[] {
+    return this.#selectAllRules;
+  }
+
+  protected resolveFacetOverrides(facetPath: (string | null)[], facetDefs: FacetDef[]): { trackRenderer: FacetCellRenderer | undefined; styleFns: ((el: HTMLElement) => void)[] } {
+    if (this.#selectAllRules.length === 0) return { trackRenderer: undefined, styleFns: [] };
+    const result = evaluateRulesForFacetCell(this.#selectAllRules, facetPath, facetDefs);
+    return { trackRenderer: result.effectiveTrackRenderer, styleFns: result.styleFns };
   }
 
   get gridContainer(): HTMLElement {
@@ -340,8 +358,8 @@ export default class StandardLayout extends StandardLayoutBase {
     return container;
   }
 
-  protected buildFacetCell(facetDefs: FacetDef[], merge: MergeState, facets: (string | null)[][]): HTMLElement {
-    const renderer = facetDefs[merge.level].trackRenderer;
+  protected buildFacetCell(facetDefs: FacetDef[], merge: MergeState, facets: (string | null)[][], rendererOverride?: FacetCellRenderer): HTMLElement {
+    const renderer = rendererOverride ?? facetDefs[merge.level].trackRenderer;
     const dataCtx: FacetDataContext = {
       viewModel: this.data!,
       path: facets[merge.start],
@@ -953,8 +971,10 @@ export default class StandardLayout extends StandardLayoutBase {
         },
       });
       if (contentDirty) {
-        const facetContent = this.buildFacetCell(this.data!.facetDefs.col, merge, sliceData.columnFacets!);
+        const { trackRenderer: colTrackRenderer, styleFns: colStyleFns } = this.resolveFacetOverrides([sliceData.columnFacets![merge.start][merge.level]], [this.data!.facetDefs.col[merge.level]]);
+        const facetContent = this.buildFacetCell(this.data!.facetDefs.col, merge, sliceData.columnFacets!, colTrackRenderer);
         addOrReplaceChildren(cell, facetContent);
+        for (const fn of colStyleFns) fn(cell);
       }
       if (!isLeafLevel) {
         nonLeafColFacets.push({ cell, mergeStart: merge.start, mergeSpan: merge.spanPrimary });
@@ -1370,8 +1390,10 @@ export default class StandardLayout extends StandardLayoutBase {
         },
       });
       if (contentDirty) {
-        const rowFacetContent = this.buildFacetCell(this.data!.facetDefs.row, merge, sliceData.rowFacets!);
+        const { trackRenderer: rowTrackRenderer, styleFns: rowStyleFns } = this.resolveFacetOverrides([sliceData.rowFacets![merge.start][merge.level]], [this.data!.facetDefs.row[merge.level]]);
+        const rowFacetContent = this.buildFacetCell(this.data!.facetDefs.row, merge, sliceData.rowFacets!, rowTrackRenderer);
         addOrReplaceChildren(cell, rowFacetContent);
+        for (const fn of rowStyleFns) fn(cell);
       }
       if (!isLeaf) {
         // TODO transform is applied to cell's content. Find a better way to do this as the content could be custom
@@ -1423,11 +1445,27 @@ export default class StandardLayout extends StandardLayoutBase {
 
         if (contentDirty) {
           contentCellRerenderCount++;
+
+          let renderer = colDef.renderer;
+          let dataStyleFns: ((el: HTMLElement) => void)[] = [];
+          if (this.selectAllRules.length > 0 && sliceData.rowFacets && sliceData.columnFacets) {
+            const rowPath = sliceData.rowFacets[j];
+            const colPath = sliceData.columnFacets[i];
+            const result = evaluateRulesForDataCell(
+              this.selectAllRules,
+              rowPath, colPath,
+              this.data!.facetDefs.row, this.data!.facetDefs.col,
+              value
+            );
+            if (result.effectiveRenderer) renderer = result.effectiveRenderer;
+            dataStyleFns = result.styleFns;
+          }
+
           const isNullish = value === null || value === undefined;
           if (isNullish) {
             cell.innerHTML = "";
           } else {
-            const content = colDef.renderer(value, {});
+            const content = renderer(value, {});
             addOrReplaceChildren(cell, content);
           }
           cell.dataset.cellType = "value";
@@ -1436,6 +1474,7 @@ export default class StandardLayout extends StandardLayoutBase {
           cell.style.width = fixedSize?.widthInPx !== undefined ? `${fixedSize.widthInPx}px` : "";
           cell.style.minWidth = fixedSize?.minWidthInPx !== undefined ? `${fixedSize.minWidthInPx}px` : "";
           cell.style.maxWidth = fixedSize?.maxWidthInPx !== undefined ? `${fixedSize.maxWidthInPx}px` : "";
+          for (const fn of dataStyleFns) fn(cell);
         }
 
         needAppend && nodesToAppend.push(cell);

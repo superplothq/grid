@@ -115,6 +115,7 @@ export interface FacetMeta {
 
 export interface FacetDef {
   text: string;
+  facetField?: string | null;
   headerRenderer: FacetHeaderRenderer;
   trackRenderer: FacetCellRenderer;
   meta?: FacetMeta;
@@ -149,4 +150,27 @@ export interface LayoutFixtureClasses {
   left: PFixtureCls[];
   bottom: PFixtureCls[];
   right: PFixtureCls[];
+}
+
+export type FacetPredicate = (dim: string, dimVal: string | null, path: [string, string | null][]) => boolean;
+export type CellPredicate = (value: any) => boolean;
+
+export interface SelectionProps {
+  cellRenderer?: CellRenderer<any>;
+  trackRenderer?: FacetCellRenderer;
+  colSize?: ColAutoSizeConfig;
+}
+
+export interface FacetPredicateNode { type: "facet"; predicate: FacetPredicate; }
+export interface CellPredicateNode { type: "cell"; predicate: CellPredicate; }
+export type PredicateNode = FacetPredicateNode | CellPredicateNode;
+
+export type TerminalOp =
+  | { type: "prop"; props: SelectionProps }
+  | { type: "style"; fn: (container: HTMLElement) => void };
+
+export interface SelectionRule {
+  id: number;
+  predicates: PredicateNode[];
+  terminal: TerminalOp;
 }

@@ -126,6 +126,7 @@ export abstract class GridDataViewModel {
         text: d?.text ?? "",
         trackRenderer: d?.trackRenderer ?? defaultFacetRenderer,
         headerRenderer: d?.headerRenderer ?? defaultFacetHeaderRenderer,
+        ...(d?.facetField !== undefined && { facetField: d.facetField }),
         ...(d?.meta !== undefined && { meta: d.meta }),
         ...(d?.pseudo !== undefined && { pseudo: d.pseudo }),
       });

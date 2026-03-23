@@ -2,11 +2,12 @@ import { GridDataViewModel } from "./grid-data-viewmodel";
 import { GridConfig, defaultConfig } from "./grid-config";
 import CellManager from "./cell-manager";
 import { addToRegistry } from "./registry";
-import { Constructor } from "./types";
+import { Constructor, FacetPredicate } from "./types";
 import "./themes";
 import StandardLayout, { LayoutEvents } from "./standard-layout";
 import GroupedRowLayout from "./grouped-row-layout";
 import { WithEvents, EventEmitter } from "./mixins";
+import { SelectionRuleStore, Selection } from "./select-all";
 
 export type LayoutType = "pivot" | "flat";
 
@@ -37,7 +38,11 @@ export type {
   HeaderCellContext as FacetHeaderContext,
   FacetData,
   FlatRowMeta,
+  FacetPredicate,
+  CellPredicate,
+  SelectionProps,
 } from "./types";
+export { Selection, CellSelection } from "./select-all";
 export { registerTheme } from "./registry";
 export { GridDataViewModel, MetaState } from "./grid-data-viewmodel";
 export { PivotDataViewModel } from "./pivot-data-viewmodel";
@@ -94,6 +99,7 @@ export default class Grid extends GridWithEvents {
   #layout: StandardLayout;
   #renderCount = 0;
   #selections: Map<string, [fromRow: number, fromCol: number, toRow: number, toCol: number]> = new Map();
+  #ruleStore: SelectionRuleStore;
 
   constructor(config: Partial<GridConfig>, mountPoint: HTMLElement, layoutType: LayoutType = "pivot") {
     super();
@@ -102,6 +108,8 @@ export default class Grid extends GridWithEvents {
     this.#cellManager = new CellManager();
     const LayoutClass = layoutType === "flat" ? GroupedRowLayout : StandardLayout;
     this.#layout = new LayoutClass(this.#config, mountPoint, this.#cellManager);
+
+    this.#ruleStore = new SelectionRuleStore(() => this.draw());
 
     // Forward layout events to Grid
     this.forwardFrom(this.#layout as unknown as EventEmitter<LayoutEvents>, ["renderComplete", "debug_perf:metrics", "viewDataEmpty"]);
@@ -225,12 +233,17 @@ export default class Grid extends GridWithEvents {
     return this.#data;
   }
 
+  selectAll(predicate: FacetPredicate): Selection {
+    return new Selection(this.#ruleStore, [{ type: "facet", predicate }]);
+  }
+
   draw(): void {
     const startTime = performance.now();
     this.#renderCount++;
 
     if (!this.#data) throw new Error("Data is not set!");
 
+    this.#layout.setSelectAllRules(this.#ruleStore.rules);
     const viewModel = this.#layout.calculateViewModel();
     this.#layout.render(viewModel, { t1: startTime });
   }
