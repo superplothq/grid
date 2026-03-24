@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { NavLink, Outlet } from "react-router-dom";
 import feather from "feather-icons";
 import { DataSourceProvider } from "./DataSourceContext";
+import { ThemeProvider } from "./ThemeContext";
 import "./samples.css";
 
 const pages = [
@@ -9,10 +10,14 @@ const pages = [
 ];
 
 const SamplesLayout: React.FC = () => {
-  const [theme, setTheme] = useState<"light" | "dark">("light");
+  const [theme, setTheme] = useState<"light" | "dark">(() => (localStorage.getItem("samples-theme") as "light" | "dark") || "light");
 
   const toggleTheme = () => {
-    setTheme((t) => (t === "light" ? "dark" : "light"));
+    setTheme((t) => {
+      const next = t === "light" ? "dark" : "light";
+      localStorage.setItem("samples-theme", next);
+      return next;
+    });
   };
 
   const icon = theme === "light"
@@ -42,9 +47,11 @@ const SamplesLayout: React.FC = () => {
       </aside>
       <main className="samples-content">
         <div className="samples-content-inner">
-          <DataSourceProvider>
-            <Outlet />
-          </DataSourceProvider>
+          <ThemeProvider value={theme}>
+            <DataSourceProvider>
+              <Outlet />
+            </DataSourceProvider>
+          </ThemeProvider>
         </div>
       </main>
     </div>

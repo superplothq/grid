@@ -3,6 +3,7 @@ import "grid/dist/grid.css";
 import Grid, {FlattenedDataViewModel, GridDataViewModelOptions} from "grid/dist/renderer";
 import {SqlFlatTableDataModel, FlatTableConfig, GetRowsIR, ColumnMetadata, Schema} from "grid/dist/index";
 import {useDataSource} from "./DataSourceContext";
+import {useTheme} from "./ThemeContext";
 
 function buildSchema(columns: ColumnMetadata[]): Schema[] {
   return columns.map((col) => ({
@@ -18,6 +19,7 @@ interface SimpleTableProps {
 
 const SimpleTable: React.FC<SimpleTableProps> = ({height = "500px"}) => {
   const dsState = useDataSource();
+  const theme = useTheme();
   const containerRef = useRef<HTMLDivElement>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -63,7 +65,7 @@ const SimpleTable: React.FC<SimpleTableProps> = ({height = "500px"}) => {
       );
 
       if (!containerRef.current) return;
-      const grid = new Grid({}, containerRef.current, "flat");
+      const grid = new Grid({theme}, containerRef.current, "flat");
       grid.data = viewModel;
       grid.draw();
       setLoading(false);
@@ -76,7 +78,7 @@ const SimpleTable: React.FC<SimpleTableProps> = ({height = "500px"}) => {
     });
 
     return () => { cancelled = true; };
-  }, [dsState]);
+  }, [dsState, theme]);
 
   if (dsState.status === "loading") return <p>Initializing datasource...</p>;
   if (dsState.status === "error") return <p style={{color: "red"}}>Datasource error: {dsState.error}</p>;

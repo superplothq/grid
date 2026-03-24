@@ -28,7 +28,15 @@ export const DataSourceProvider: React.FC<{children: React.ReactNode}> = ({child
       const columns = await ds.loadDataFromURL({
         url: DATA_URL,
         type: "csv",
-        preprocess: (data) => (data as unknown[]).slice(0, 50),
+        preprocess: (data) => {
+          const slicedData: any[] = [];
+          let i = 0;
+          while (i < 50) {
+            slicedData.push((data as unknown[])[i*500]);
+            i++;
+          }
+          return slicedData;
+        },
       });
       if (!cancelled) setState({status: "ready", ds, columns});
     })().catch((err) => {

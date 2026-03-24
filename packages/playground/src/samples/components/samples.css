@@ -151,6 +151,26 @@
   padding: 48px 40px 80px;
 }
 
+/* ── Anchor links ── */
+.samples-content-inner .anchor-link {
+  text-decoration: none;
+  color: var(--s-text-secondary);
+  opacity: 0;
+  margin-left: -1.2em;
+  padding-right: 0.4em;
+  font-weight: 400;
+}
+
+.samples-content-inner .anchor-link::after {
+  content: "#";
+}
+
+.samples-content-inner h1:hover .anchor-link,
+.samples-content-inner h2:hover .anchor-link,
+.samples-content-inner h3:hover .anchor-link {
+  opacity: 1;
+}
+
 /* ── MDX typography ── */
 .samples-content-inner h1 {
   font-family: var(--s-font-mono);
@@ -195,6 +215,11 @@
   color: var(--s-code-text);
   padding: 2px 6px;
   border-radius: 4px;
+}
+
+.samples-root[data-theme="dark"] .samples-content-inner code span {
+  color: var(--shiki-dark) !important;
+  background-color: var(--shiki-dark-bg) !important;
 }
 
 .samples-content-inner pre {
