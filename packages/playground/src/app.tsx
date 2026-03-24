@@ -7,6 +7,7 @@ import FlatTablePlayground from "./flat-table";
 import SelectionDemo from "./selection-demo";
 import SamplesLayout from "./samples/components/SamplesLayout";
 import GettingStartedFlatData from "./samples/getting-started-flat-data.mdx";
+import CleanAndTransformData from "./samples/clean-and-transform-data.mdx";
 import feather from "feather-icons";
 
 const Home: React.FC = () => {
@@ -69,6 +70,7 @@ const App: React.FC = () => {
       </Route>
       <Route path="/samples" element={<SamplesLayout />}>
         <Route path="getting-started-flat-data" element={<GettingStartedFlatData />} />
+        <Route path="clean-and-transform-data" element={<CleanAndTransformData />} />
       </Route>
     </Routes>
   );

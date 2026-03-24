@@ -1,0 +1,52 @@
+import SimpleTable from "./components/SimpleTable";
+
+# Clean and Transform Data
+
+[We have created our first table](/samples/getting-started-flat-data#loading-data-as-is-in-a-simple-table). When grid renders data, it tires is best to infer the data type by sampling.
+
+But as you can see, often the data requires cleaning for grid to render it correctly. And it's better if we explicitly push more information to grid about the type of the data.
+
+By default grid inferred the following type for the data, which you can see is clearly wrong:
+
+
+```ts
+{
+  "Agency Name": "string",                 // correct
+  "Last Name": "string",                   // correct
+  "First Name": "string",                  // correct
+  "Agency Start Date": "string",           // date
+  "Work Location Borough": "string",       // fix: string
+  "Title Description": "string",           // fix: string
+  "Leave Status as of June 30": "string",  // fix: string
+  "Base Salary": "string",                 // fix: number
+  "Pay Basis": "string",                   // fix: string
+  "Regular Hours": "string",               // fix: number
+  "Regular Gross Paid": "string",          // fix: number
+  "OT Hours": "string",                    // fix: number
+  "Total OT Paid": "string",               // fix: number
+  "Total Other Pay": "string",             // fix: number
+  "Payroll Number": "number",              // correct
+}
+```
+
+<SimpleTable height="150px" />
+
+## Preprocessing on Load
+
+Pass a `preprocess` function to `loadDataFromURL` to filter, slice, or transform rows before they enter the query engine:
+
+```ts
+const columns = await ds.loadDataFromURL({
+  url: "http://localhost:8912/data.csv",
+  type: "csv",
+  preprocess: (data) => {
+    return (data as unknown[]).filter((row: any) => row.salary > 0);
+  },
+});
+```
+
+## Common Transformations
+
+- **Slice**: `(data) => (data as unknown[]).slice(0, 100)` — take first 100 rows
+- **Filter**: `(data) => (data as unknown[]).filter(r => r.active)` — remove inactive rows
+- **Sample**: `(data) => (data as unknown[]).filter((_, i) => i % 10 === 0)` — every 10th row

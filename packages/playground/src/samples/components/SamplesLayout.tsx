@@ -1,12 +1,24 @@
 import React, { useState } from "react";
-import { NavLink, Outlet } from "react-router-dom";
+import { NavLink, Outlet, Link } from "react-router-dom";
+import { MDXProvider } from "@mdx-js/react";
 import feather from "feather-icons";
 import { DataSourceProvider } from "./DataSourceContext";
 import { ThemeProvider } from "./ThemeContext";
 import "./samples.css";
 
+const mdxComponents = {
+  a: (props: React.AnchorHTMLAttributes<HTMLAnchorElement>) => {
+    const { href, ...rest } = props;
+    if (href && href.startsWith("/")) {
+      return <Link to={href} {...rest} />;
+    }
+    return <a href={href} {...rest} />;
+  },
+};
+
 const pages = [
   { path: "getting-started-flat-data", label: "Getting Started" },
+  { path: "clean-and-transform-data", label: "Clean & Transform Data" },
 ];
 
 const SamplesLayout: React.FC = () => {
@@ -49,7 +61,9 @@ const SamplesLayout: React.FC = () => {
         <div className="samples-content-inner">
           <ThemeProvider value={theme}>
             <DataSourceProvider>
-              <Outlet />
+              <MDXProvider components={mdxComponents}>
+                <Outlet />
+              </MDXProvider>
             </DataSourceProvider>
           </ThemeProvider>
         </div>

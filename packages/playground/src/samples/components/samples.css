@@ -208,6 +208,16 @@
   color: var(--s-text-secondary);
 }
 
+.samples-content-inner a {
+  color: var(--s-accent);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.samples-content-inner a:hover {
+  opacity: 0.85;
+}
+
 .samples-content-inner code {
   font-family: var(--s-font-mono);
   font-size: 13px;

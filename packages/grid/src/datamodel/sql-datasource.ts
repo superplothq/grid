@@ -186,6 +186,9 @@ export abstract class SqlDataSource implements DataSource<string> {
         }
       }
 
+      // TODO: this should only be there in dev mode
+      console.log("Schema inference:", Object.fromEntries(columns));
+
       for (const [col, type] of columns) {
         const ci = colIndexMap.get(col)!;
         const colValues = csvRows!.map((row) => {
@@ -209,6 +212,9 @@ export abstract class SqlDataSource implements DataSource<string> {
           columns.set(col, inferColumnType(values));
         }
       }
+
+      // TODO: this should only be there in dev mode
+      console.log("Schema inference:", Object.fromEntries(columns));
 
       for (const [col, type] of columns) {
         const colValues = parsed.map((row: Record<string, unknown>) => {

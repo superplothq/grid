@@ -37,7 +37,7 @@ module.exports = {
         test: /\.mdx$/,
         use: [
           { loader: "ts-loader", options: { transpileOnly: true, compilerOptions: { jsx: "react-jsx", allowJs: true } } },
-          { loader: "@mdx-js/loader", options: { rehypePlugins: [rehypeSlug, [rehypeAutolinkHeadings, { behavior: "prepend", properties: { className: ["anchor-link"] } }], [rehypePrettyCode, { theme: { light: "github-light", dark: "github-dark" }, defaultColor: "light" }]] } },
+          { loader: "@mdx-js/loader", options: { providerImportSource: "@mdx-js/react", rehypePlugins: [rehypeSlug, [rehypeAutolinkHeadings, { behavior: "prepend", properties: { className: ["anchor-link"] } }], [rehypePrettyCode, { theme: { light: "github-light", dark: "github-dark" }, defaultColor: "light" }]] } },
         ],
       },
       {
