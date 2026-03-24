@@ -102,7 +102,7 @@ function makeFacetRenderer(
         ...result.options,
         facetDefs: viewModel.facetDefs,
       };
-      viewModel.updateData(result.data, result.columnFacets, result.rowFacet, result.rowMeta, updatedOptions);
+      viewModel.updateData({ data: result.data, columnFacets: result.columnFacets, rowFacet: result.rowFacet, rowMeta: result.rowMeta, options: updatedOptions });
       dataCtx.viewModel.metaState.clear(ns);
       grid.draw();
     });
@@ -206,9 +206,9 @@ const FlatTablePlayground: React.FC = () => {
         },
       };
 
-      const viewModel = new FlattenedDataViewModel(
-        result.data, result.columnFacets, result.rowFacet, result.rowMeta, options,
-      );
+      const viewModel = new FlattenedDataViewModel({
+        data: result.data, columnFacets: result.columnFacets, rowFacet: result.rowFacet, rowMeta: result.rowMeta, options,
+      });
       viewModelRef.current = viewModel;
 
       if (!gridConRef.current) return;
@@ -250,9 +250,9 @@ const FlatTablePlayground: React.FC = () => {
             },
           };
 
-          viewModel.updateData(
-            fetchResult.data, fetchResult.columnFacets, fetchResult.rowFacet, fetchResult.rowMeta, updatedOptions,
-          );
+          viewModel.updateData({
+            data: fetchResult.data, columnFacets: fetchResult.columnFacets, rowFacet: fetchResult.rowFacet, rowMeta: fetchResult.rowMeta, options: updatedOptions,
+          });
           grid.draw();
           setFetchingPage(false);
         }, 150);

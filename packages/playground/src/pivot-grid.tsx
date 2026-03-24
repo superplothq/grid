@@ -234,7 +234,7 @@ function makeFacetRenderer(
       const config = buildConfig();
       const result = await model.getViewModelData(config);
 
-      viewModel.updateData(result.data, result.columnFacets, result.rowFacets, mergeRenderers(result.options, viewModel));
+      viewModel.updateData({ data: result.data, columnFacets: result.columnFacets, rowFacets: result.rowFacets, options: mergeRenderers(result.options, viewModel) });
 
       dataCtx.viewModel.metaState.clear(ns);
       rCtx.render(viewModel);
@@ -387,10 +387,10 @@ const PivotGridPlayground: React.FC = () => {
       const rowRenderer = makeFacetRenderer("row", ROW_HIERARCHY_DEPTH, rowProjectionRef, modelRef, viewModelRef, buildConfig);
       const colRenderer = makeFacetRenderer("col", COL_HIERARCHY_DEPTH, colProjectionRef, modelRef, viewModelRef, buildConfig);
 
-      const viewModel = new PivotDataViewModel(
-        result.data, result.columnFacets, result.rowFacets,
-        buildFacetDefs(result.options, rowRenderer, colRenderer, ROW_HIERARCHY_FIELDS, COL_HIERARCHY_FIELDS, rowHeaderRenderer, colHeaderRenderer),
-      );
+      const viewModel = new PivotDataViewModel({
+        data: result.data, columnFacets: result.columnFacets, rowFacets: result.rowFacets,
+        options: buildFacetDefs(result.options, rowRenderer, colRenderer, ROW_HIERARCHY_FIELDS, COL_HIERARCHY_FIELDS, rowHeaderRenderer, colHeaderRenderer),
+      });
       viewModelRef.current = viewModel;
 
       if (!gridRef.current) {
@@ -431,10 +431,10 @@ const PivotGridPlayground: React.FC = () => {
     const rowRenderer = makeFacetRenderer("row", ROW_HIERARCHY_DEPTH, rowProjectionRef, modelRef, viewModelRef, buildConfig);
     const colRenderer = makeFacetRenderer("col", COL_HIERARCHY_DEPTH, colProjectionRef, modelRef, viewModelRef, buildConfig);
 
-    viewModel.updateData(
-      result.data, result.columnFacets, result.rowFacets,
-      buildFacetDefs(result.options, rowRenderer, colRenderer, ROW_HIERARCHY_FIELDS, COL_HIERARCHY_FIELDS, rowHeaderRenderer, colHeaderRenderer),
-    );
+    viewModel.updateData({
+      data: result.data, columnFacets: result.columnFacets, rowFacets: result.rowFacets,
+      options: buildFacetDefs(result.options, rowRenderer, colRenderer, ROW_HIERARCHY_FIELDS, COL_HIERARCHY_FIELDS, rowHeaderRenderer, colHeaderRenderer),
+    });
 
     grid.draw();
   };
@@ -462,10 +462,10 @@ const PivotGridPlayground: React.FC = () => {
     const rowRenderer = makeFacetRenderer("row", ROW_HIERARCHY_DEPTH, rowProjectionRef, modelRef, viewModelRef, buildConfig);
     const colRenderer = makeFacetRenderer("col", COL_HIERARCHY_DEPTH, colProjectionRef, modelRef, viewModelRef, buildConfig);
 
-    viewModel.updateData(
-      result.data, result.columnFacets, result.rowFacets,
-      buildFacetDefs(result.options, rowRenderer, colRenderer, ROW_HIERARCHY_FIELDS, COL_HIERARCHY_FIELDS, rowHeaderRenderer, colHeaderRenderer),
-    );
+    viewModel.updateData({
+      data: result.data, columnFacets: result.columnFacets, rowFacets: result.rowFacets,
+      options: buildFacetDefs(result.options, rowRenderer, colRenderer, ROW_HIERARCHY_FIELDS, COL_HIERARCHY_FIELDS, rowHeaderRenderer, colHeaderRenderer),
+    });
     grid.draw();
 
     setSortDropdownState(null);
@@ -485,10 +485,10 @@ const PivotGridPlayground: React.FC = () => {
     const rowRenderer = makeFacetRenderer("row", ROW_HIERARCHY_DEPTH, rowProjectionRef, modelRef, viewModelRef, buildConfig);
     const colRenderer = makeFacetRenderer("col", COL_HIERARCHY_DEPTH, colProjectionRef, modelRef, viewModelRef, buildConfig);
 
-    viewModel.updateData(
-      result.data, result.columnFacets, result.rowFacets,
-      buildFacetDefs(result.options, rowRenderer, colRenderer, ROW_HIERARCHY_FIELDS, COL_HIERARCHY_FIELDS, rowHeaderRenderer, colHeaderRenderer),
-    );
+    viewModel.updateData({
+      data: result.data, columnFacets: result.columnFacets, rowFacets: result.rowFacets,
+      options: buildFacetDefs(result.options, rowRenderer, colRenderer, ROW_HIERARCHY_FIELDS, COL_HIERARCHY_FIELDS, rowHeaderRenderer, colHeaderRenderer),
+    });
     grid.draw();
 
     setFilterDropdownState(null);
@@ -508,10 +508,10 @@ const PivotGridPlayground: React.FC = () => {
     const rowRenderer = makeFacetRenderer("row", ROW_HIERARCHY_DEPTH, rowProjectionRef, modelRef, viewModelRef, buildConfig);
     const colRenderer = makeFacetRenderer("col", COL_HIERARCHY_DEPTH, colProjectionRef, modelRef, viewModelRef, buildConfig);
 
-    viewModel.updateData(
-      result.data, result.columnFacets, result.rowFacets,
-      buildFacetDefs(result.options, rowRenderer, colRenderer, ROW_HIERARCHY_FIELDS, COL_HIERARCHY_FIELDS, rowHeaderRenderer, colHeaderRenderer),
-    );
+    viewModel.updateData({
+      data: result.data, columnFacets: result.columnFacets, rowFacets: result.rowFacets,
+      options: buildFacetDefs(result.options, rowRenderer, colRenderer, ROW_HIERARCHY_FIELDS, COL_HIERARCHY_FIELDS, rowHeaderRenderer, colHeaderRenderer),
+    });
     grid.draw();
 
     setFilterDropdownState(null);

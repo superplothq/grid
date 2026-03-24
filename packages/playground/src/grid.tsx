@@ -399,12 +399,12 @@ const NullFacetDemo: React.FC = () => {
     }
 
     const grid = new Grid({ fixtures: { top: [/* FilterFixture */], left: [/*CheckboxFixture, LineNumberFixture*/], bottom: [AggregationFixture, BottomDetailFixture], right: [CheckboxFixture, LineNumberFixture] } }, ref.current);
-    grid.data = new PivotDataViewModel(
+    grid.data = new PivotDataViewModel({
       data,
-      [colFacetLevel0, colFacetLevel1, colFacetLevel2],
-      [rowFacetLevel0, rowFacetLevel1, rowFacetLevel2],
-      { facetDefs: { row: [{ trackRenderer: rowFacetRenderer }], col: [{ trackRenderer: colFacetRenderer }], axis: 'col' } }
-    );
+      columnFacets: [colFacetLevel0, colFacetLevel1, colFacetLevel2],
+      rowFacets: [rowFacetLevel0, rowFacetLevel1, rowFacetLevel2],
+      options: { facetDefs: { row: [{ trackRenderer: rowFacetRenderer }], col: [{ trackRenderer: colFacetRenderer }], axis: 'col' } },
+    });
     grid.draw();
   }, []);
 
@@ -865,21 +865,27 @@ const GridPlayground: React.FC = () => {
       emitTree(0);
 
       const flatRowMeta = new Uint8Array(flatRowMetaBytes);
-      gridRef.current.data = new FlattenedDataViewModel(flatData, colFacetLevelMajor, flatRowFacet, flatRowMeta, {
-        vTrackDefs,
-        facetDefs: {
-          row: [{ trackRenderer: rowFacetRenderer, ...(showHeadersRef.current && { text: "Row" }) }],
-          col: colFacets.map((_, i) => ({ trackRenderer: colFacetRenderer, ...(showHeadersRef.current && { text: `Col ${i}` }) })),
-          axis: 'col',
+      gridRef.current.data = new FlattenedDataViewModel({
+        data: flatData, columnFacets: colFacetLevelMajor, rowFacet: flatRowFacet, rowMeta: flatRowMeta,
+        options: {
+          vTrackDefs,
+          facetDefs: {
+            row: [{ trackRenderer: rowFacetRenderer, ...(showHeadersRef.current && { text: "Row" }) }],
+            col: colFacets.map((_, i) => ({ trackRenderer: colFacetRenderer, ...(showHeadersRef.current && { text: `Col ${i}` }) })),
+            axis: 'col',
+          },
         },
       });
     } else {
-      gridRef.current.data = new PivotDataViewModel(data, colFacetLevelMajor, rowFacetLevelMajor, {
-        vTrackDefs,
-        facetDefs: {
-          row: rowFacets.map((_, i) => ({ trackRenderer: rowFacetRenderer, ...(showHeadersRef.current && { text: `Row ${i}` }) })),
-          col: colFacets.map((_, i) => ({ trackRenderer: colFacetRenderer, ...(showHeadersRef.current && { text: `Col ${i}` }) })),
-          axis: 'col',
+      gridRef.current.data = new PivotDataViewModel({
+        data, columnFacets: colFacetLevelMajor, rowFacets: rowFacetLevelMajor,
+        options: {
+          vTrackDefs,
+          facetDefs: {
+            row: rowFacets.map((_, i) => ({ trackRenderer: rowFacetRenderer, ...(showHeadersRef.current && { text: `Row ${i}` }) })),
+            col: colFacets.map((_, i) => ({ trackRenderer: colFacetRenderer, ...(showHeadersRef.current && { text: `Col ${i}` }) })),
+            axis: 'col',
+          },
         },
       });
     }

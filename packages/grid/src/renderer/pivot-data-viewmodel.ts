@@ -1,13 +1,24 @@
 import { PivotSliceResult, GridDataViewModelOptions, FacetData } from "./types";
 import { GridDataViewModel } from "./grid-data-viewmodel";
+import { DataSchema } from "../datamodel/types";
+
+export interface PivotDataViewModelParams {
+  data: any[][];
+  columnFacets: FacetData;
+  rowFacets?: FacetData;
+  options?: GridDataViewModelOptions;
+  schema?: DataSchema[];
+}
 
 export class PivotDataViewModel extends GridDataViewModel {
   #rowFacets?: FacetData;
+  schema?: DataSchema[];
 
-  constructor(data: any[][], columnFacets: FacetData, rowFacets?: FacetData, options?: GridDataViewModelOptions) {
-    super(data, columnFacets);
-    this.#rowFacets = rowFacets;
-    this.init(options);
+  constructor(params: PivotDataViewModelParams) {
+    super(params.data, params.columnFacets);
+    this.#rowFacets = params.rowFacets;
+    this.schema = params.schema;
+    this.init(params.options);
   }
 
   get numRowFacetLevels() {
@@ -18,15 +29,11 @@ export class PivotDataViewModel extends GridDataViewModel {
     return this.#rowFacets || [];
   }
 
-  updateData(
-    data: any[][],
-    columnFacets: (string | null)[][],
-    rowFacets?: (string | null)[][],
-    options?: GridDataViewModelOptions
-  ): void {
-    this.updateBase(data, columnFacets);
-    this.#rowFacets = rowFacets;
-    this.init(options);
+  updateData(params: PivotDataViewModelParams): void {
+    this.updateBase(params.data, params.columnFacets);
+    this.#rowFacets = params.rowFacets;
+    if (params.schema !== undefined) this.schema = params.schema;
+    this.init(params.options);
   }
 
   getSlice(x0: number, y0: number, x1: number, y1: number): PivotSliceResult {

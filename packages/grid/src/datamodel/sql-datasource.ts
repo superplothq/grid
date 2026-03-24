@@ -207,9 +207,6 @@ export abstract class SqlDataSource implements DataSource<string> {
         inferredTypes.set(col, inferColumnType(values));
       }
 
-      // TODO: this should only be there in dev mode
-      console.log("Schema inference:", Object.fromEntries(inferredTypes));
-
       for (const col of columnOrder) {
         const ci = colIndexMap.get(col)!;
         const colValues = csvRows!.map((row) => {
@@ -227,8 +224,6 @@ export abstract class SqlDataSource implements DataSource<string> {
         inferredTypes.set(col, inferColumnType(values));
       }
 
-      // TODO: this should only be there in dev mode
-      console.log("Schema inference:", Object.fromEntries(inferredTypes));
 
       for (const col of columnOrder) {
         const colValues = parsed.map((row: Record<string, unknown>) => {
@@ -262,6 +257,9 @@ export abstract class SqlDataSource implements DataSource<string> {
         }
         return { name: col, type: "dimension" as const };
       });
+
+    // TODO: this should only be there in dev mode
+    console.log("Schema inference:", schema);
 
     await this.loadData({ table: config.table, schema, data, replace: config.replace });
 

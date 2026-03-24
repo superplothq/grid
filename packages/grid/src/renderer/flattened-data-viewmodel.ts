@@ -1,5 +1,6 @@
 import { FlatSliceResult, GridDataViewModelOptions, FacetData, FlatRowMeta } from "./types";
 import { GridDataViewModel } from "./grid-data-viewmodel";
+import { DataSchema } from "../datamodel/types";
 
 const DEPTH_SHIFT = 4;
 const DEPTH_MASK  = 0xF0;
@@ -14,21 +15,26 @@ export function createRowMeta(depth: number, isLeaf: boolean, isExpanded: boolea
   return ((depth << DEPTH_SHIFT) & DEPTH_MASK) | (isLeaf ? LEAF_MASK : 0) | (isExpanded ? EXPAND_MASK : 0);
 }
 
+export interface FlattenedDataViewModelParams {
+  data: any[][];
+  columnFacets: FacetData;
+  rowFacet?: (string | null)[];
+  rowMeta?: Uint8Array;
+  options?: GridDataViewModelOptions;
+  schema?: DataSchema[];
+}
+
 export class FlattenedDataViewModel extends GridDataViewModel {
   #rowFacet?: (string | null)[];
   #rowMeta?: Uint8Array;
+  schema?: DataSchema[];
 
-  constructor(
-    data: any[][],
-    columnFacets: FacetData,
-    rowFacet?: (string | null)[],
-    rowMeta?: Uint8Array,
-    options?: GridDataViewModelOptions
-  ) {
-    super(data, columnFacets);
-    this.#rowFacet = rowFacet;
-    this.#rowMeta = rowMeta;
-    this.init(options);
+  constructor(params: FlattenedDataViewModelParams) {
+    super(params.data, params.columnFacets);
+    this.#rowFacet = params.rowFacet;
+    this.#rowMeta = params.rowMeta;
+    this.schema = params.schema;
+    this.init(params.options);
   }
 
   get numRowFacetLevels(): number {
@@ -51,17 +57,12 @@ export class FlattenedDataViewModel extends GridDataViewModel {
     this.#rowMeta![rowIndex] = this.#rowMeta![rowIndex] ^ EXPAND_MASK;
   }
 
-  updateData(
-    data: any[][],
-    columnFacets: FacetData,
-    rowFacet?: (string | null)[],
-    rowMeta?: Uint8Array,
-    options?: GridDataViewModelOptions
-  ): void {
-    this.updateBase(data, columnFacets);
-    this.#rowFacet = rowFacet;
-    this.#rowMeta = rowMeta;
-    this.init(options);
+  updateData(params: FlattenedDataViewModelParams): void {
+    this.updateBase(params.data, params.columnFacets);
+    this.#rowFacet = params.rowFacet;
+    this.#rowMeta = params.rowMeta;
+    if (params.schema !== undefined) this.schema = params.schema;
+    this.init(params.options);
   }
 
   private unpackMeta(bits: number): FlatRowMeta {

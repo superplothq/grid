@@ -132,7 +132,7 @@ export abstract class FlatTableDataModel {
 
   async getViewModel(ir: GetRowsIR): Promise<FlattenedDataViewModel> {
     const args = await this.getViewModelData(ir);
-    return new FlattenedDataViewModel(args.data, args.columnFacets, args.rowFacet, args.rowMeta, args.options);
+    return new FlattenedDataViewModel(args);
   }
 
   // TODO when expand happens the IR is not updated, hence the IR does not know the upto date startRow
@@ -192,7 +192,7 @@ export abstract class FlatTableDataModel {
 
   async expand(select: string[]): Promise<FlattenedDataViewModel> {
     const args = await this.expandData(select);
-    return new FlattenedDataViewModel(args.data, args.columnFacets, args.rowFacet, args.rowMeta, args.options);
+    return new FlattenedDataViewModel(args);
   }
 
   async collapseData(select: string[]): Promise<FlatTableViewModelArgs> {
@@ -212,7 +212,7 @@ export abstract class FlatTableDataModel {
 
   async collapse(select: string[]): Promise<FlattenedDataViewModel> {
     const args = await this.collapseData(select);
-    return new FlattenedDataViewModel(args.data, args.columnFacets, args.rowFacet, args.rowMeta, args.options);
+    return new FlattenedDataViewModel(args);
   }
 
   private hasOutsideFacetDims(): boolean {

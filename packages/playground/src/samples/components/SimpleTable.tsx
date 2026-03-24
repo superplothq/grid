@@ -36,16 +36,13 @@ const SimpleTable: React.FC<SimpleTableProps> = ({height = "500px"}) => {
       const config: FlatTableConfig = {schema, pageSize: 100};
       const model = new SqlFlatTableDataModel(config, schema, ds);
 
-      const dimensions = schema.filter((s) => s.type === "dimension").map((s) => s.name);
-      const measures = schema.filter((s) => s.type === "measure").map((s) => s.name);
-
       const ir: GetRowsIR = {
         startRow: 0,
         endRow: 100,
         select: [],
         // groupBy: dimensions,
         groupBy: [],
-        project: [...dimensions, ...measures],
+        project: schema.map((s) => s.name),
         sort: [],
         filter: [],
       };
@@ -62,9 +59,9 @@ const SimpleTable: React.FC<SimpleTableProps> = ({height = "500px"}) => {
         },
       };
 
-      const viewModel = new FlattenedDataViewModel(
-        result.data, result.columnFacets, result.rowFacet, result.rowMeta, options,
-      );
+      const viewModel = new FlattenedDataViewModel({
+        data: result.data, columnFacets: result.columnFacets, rowFacet: result.rowFacet, rowMeta: result.rowMeta, options,
+      });
 
       if (!containerRef.current) return;
       const grid = new Grid({theme}, containerRef.current, "flat");

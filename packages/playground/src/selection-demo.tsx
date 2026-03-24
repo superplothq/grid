@@ -90,27 +90,27 @@ const SelectionDemo: React.FC = () => {
 
     const colFacetDefs = [{ text: "Department", facetField: "department" }, { text: "Measure", facetField: null }];
     if (mode === "flat") {
-      grid.data = new FlattenedDataViewModel(
-        FLAT_DATA, COL_FACETS, FLAT_ROW_FACET, FLAT_ROW_META,
-        {
+      grid.data = new FlattenedDataViewModel({
+        data: FLAT_DATA, columnFacets: COL_FACETS, rowFacet: FLAT_ROW_FACET, rowMeta: FLAT_ROW_META,
+        options: {
           facetDefs: {
             row: [{ text: "Region", facetField: "region" }],
             col: colFacetDefs,
             axis: "col",
           },
         },
-      );
+      });
     } else {
-      grid.data = new PivotDataViewModel(
-        DATA, COL_FACETS, ROW_FACETS,
-        {
+      grid.data = new PivotDataViewModel({
+        data: DATA, columnFacets: COL_FACETS, rowFacets: ROW_FACETS,
+        options: {
           facetDefs: {
             row: [{ text: "Region", facetField: "region" }, { text: "City", facetField: "city" }],
             col: colFacetDefs,
             axis: "col",
           },
         },
-      );
+      });
     }
 
     grid.draw();

@@ -77,7 +77,7 @@ describe("MetaState", () => {
   });
 
   it("should be available on GridDataViewModel", () => {
-    const vm = new PivotDataViewModel(data4x5, colFacets1Level);
+    const vm = new PivotDataViewModel({ data: data4x5, columnFacets: colFacets1Level });
     vm.metaState.set("test", "loading", true);
     expect(vm.metaState.get("test")).to.deep.equal({ loading: true });
   });
@@ -88,7 +88,7 @@ describe("GridDataViewModel.getSlice", () => {
     let vm: PivotDataViewModel;
 
     beforeEach(() => {
-      vm = new PivotDataViewModel(data4x5, colFacets1Level);
+      vm = new PivotDataViewModel({ data: data4x5, columnFacets: colFacets1Level });
     });
 
     it("should slice full data range", () => {
@@ -189,7 +189,7 @@ describe("GridDataViewModel.getSlice", () => {
     let vm: PivotDataViewModel;
 
     beforeEach(() => {
-      vm = new PivotDataViewModel(data6x8, colFacets2Levels, rowFacets3Levels);
+      vm = new PivotDataViewModel({ data: data6x8, columnFacets: colFacets2Levels, rowFacets: rowFacets3Levels });
     });
 
     it("should slice full data range with all facets", () => {
