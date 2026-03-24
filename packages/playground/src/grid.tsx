@@ -398,7 +398,7 @@ const NullFacetDemo: React.FC = () => {
       data.push(colData);
     }
 
-    const grid = new Grid({ fixtures: { top: [FilterFixture], left: [/*CheckboxFixture, LineNumberFixture*/], bottom: [AggregationFixture, BottomDetailFixture], right: [CheckboxFixture, LineNumberFixture] } }, ref.current);
+    const grid = new Grid({ fixtures: { top: [/* FilterFixture */], left: [/*CheckboxFixture, LineNumberFixture*/], bottom: [AggregationFixture, BottomDetailFixture], right: [CheckboxFixture, LineNumberFixture] } }, ref.current);
     grid.data = new PivotDataViewModel(
       data,
       [colFacetLevel0, colFacetLevel1, colFacetLevel2],
@@ -462,6 +462,9 @@ const GridPlayground: React.FC = () => {
   const [colSelection, setColSelection] = useState("");
   const [rowSelection, setRowSelection] = useState("");
   const [activeSelections, setActiveSelections] = useState<Map<string, { label: string; unsub: () => void }>>(new Map());
+
+  // ScrollTo state
+  const [scrollToIndex, setScrollToIndex] = useState("");
 
   const handleRowFacetChange = (value: string) => {
     setRowFacetConfig(value);
@@ -545,6 +548,20 @@ const GridPlayground: React.FC = () => {
     const rowIndex = parseInt(rowSelection.trim(), 10);
     if (isNaN(rowIndex)) return;
     handleSelect(gridRef.current.selectRowByDataIndex(rowIndex));
+  };
+
+  const handleScrollToRow = () => {
+    if (!gridRef.current || !scrollToIndex.trim()) return;
+    const idx = parseInt(scrollToIndex.trim(), 10);
+    if (isNaN(idx)) return;
+    gridRef.current.scrollTo("row", idx);
+  };
+
+  const handleScrollToCol = () => {
+    if (!gridRef.current || !scrollToIndex.trim()) return;
+    const idx = parseInt(scrollToIndex.trim(), 10);
+    if (isNaN(idx)) return;
+    gridRef.current.scrollTo("column", idx);
   };
 
   const generateRandomNumber = (minDigits: number, maxDigits: number): string => {
@@ -787,7 +804,7 @@ const GridPlayground: React.FC = () => {
     // Create or update grid
     if (!gridRef.current) {
       const layoutType = layoutMode === "grouped" ? "flat" : "pivot";
-      gridRef.current = new Grid({ fixtures: { top: [FilterFixture], left: [LineNumberFixture/*CheckboxFixture, LineNumberFixture*/], bottom: [AggregationFixture, BottomDetailFixture], right: [CheckboxFixture] } }, gridConRef.current, layoutType);
+      gridRef.current = new Grid({ fixtures: { top: [/* FilterFixture */], left: [LineNumberFixture/*CheckboxFixture, LineNumberFixture*/], bottom: [AggregationFixture, BottomDetailFixture], right: [CheckboxFixture] } }, gridConRef.current, layoutType);
       gridLayoutModeRef.current = layoutMode;
       for (const e of ['renderComplete', 'selectionAdded', 'selectionRemoved']) {
         gridRef.current.on(e as any, (payload) => {
@@ -1002,6 +1019,19 @@ const GridPlayground: React.FC = () => {
           ))}
         </div>
       )}
+      <div style={{ marginTop: "4px" }}>
+        <label>
+          Scroll To Index:
+          <input
+            type="text"
+            value={scrollToIndex}
+            onChange={(e) => setScrollToIndex(e.target.value)}
+            placeholder="0"
+          />
+        </label>
+        <button onClick={handleScrollToRow}>Scroll to Row</button>
+        <button onClick={handleScrollToCol}>Scroll to Column</button>
+      </div>
       <hr/>
       <div key={layoutMode} style={{
         position: "relative",

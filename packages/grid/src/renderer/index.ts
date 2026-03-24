@@ -388,6 +388,15 @@ export default class Grid extends GridWithEvents {
     }];
   }
 
+  scrollTo(axis: "row" | "column", absoluteIndex: number): void {
+    if (!this.#data) throw new Error("Data is not set!");
+    if (axis === "row") {
+      this.#layout.scrollToRow(absoluteIndex);
+    } else {
+      this.#layout.scrollToCol(absoluteIndex);
+    }
+  }
+
   clearAllSelections(): void {
     this.#selections.clear();
     this.#syncSelectionsToLayout();

@@ -655,6 +655,68 @@ export default class StandardLayout extends StandardLayoutBase {
     };
   }
 
+  scrollToRow(targetRow: number): void {
+    const viewHeight = this.mountPoint.clientHeight;
+    const fixtureHeightTop = this.#fixtureMeasurements.topTotal;
+    const fixtureHeightBottom = this.#fixtureMeasurements.bottomTotal;
+    const colFacetsHeight = this.data!.numColFacetLevels * this.rowHeightByType.facet;
+    const dataHeight = this.data!.totalRows * this.rowHeightByType.data;
+    const totalHeight = colFacetsHeight + dataHeight + fixtureHeightTop + fixtureHeightBottom;
+    const scrollableHeight = Math.max(1, totalHeight - viewHeight);
+    const visibleDataHeight = viewHeight - colFacetsHeight - fixtureHeightTop - fixtureHeightBottom;
+    const scrollableRows = Math.max(0, this.data!.totalRows - Math.floor(visibleDataHeight / this.rowHeightByType.data));
+
+    const clampedRow = Math.max(0, Math.min(scrollableRows, targetRow));
+    const scrollPercent = scrollableRows > 0 ? clampedRow / scrollableRows : 0;
+    this.mountPoint.scrollTop = scrollPercent * scrollableHeight;
+  }
+
+  scrollToCol(targetCol: number, onDone?: () => void): void {
+    const MAX_ATTEMPTS = 5;
+    const clampedCol = Math.max(0, Math.min(this.data!.numCols - 1, targetCol));
+
+    const attempt = (remaining: number) => {
+      const viewWidth = this.mountPoint.clientWidth;
+      const leftFixtureWidth = this.getColWidthTillIdx(this.#fixtures.left.length);
+      const rowFacetsWidth = this.getColWidthTillIdx(this.#fixtures.left.length + this.data!.numRowFacetLevels) - leftFixtureWidth;
+      const rightFixtureStartIdx = this.#fixtures.left.length + this.data!.numRowFacetLevels + this.data!.numCols;
+      let rightFixtureWidth = 0;
+      for (let i = 0; i < this.#fixtures.right.length; i++) {
+        rightFixtureWidth += this.getColumnWidth(rightFixtureStartIdx + i);
+      }
+      const totalWidth = this.getColWidthTillIdx(rightFixtureStartIdx + this.#fixtures.right.length);
+      const scrollableWidth = Math.max(1, totalWidth - viewWidth);
+      const visibleDataWidth = viewWidth - rowFacetsWidth - leftFixtureWidth - rightFixtureWidth;
+
+      let maxScrollWidth = 0;
+      let maxScrollCol = this.data!.numCols;
+      let lastColWidth = -1;
+      while (maxScrollWidth < visibleDataWidth && maxScrollCol > 0) {
+        maxScrollCol--;
+        lastColWidth = this.getColumnWidth(this.#fixtures.left.length + this.data!.numRowFacetLevels + maxScrollCol);
+        maxScrollWidth += lastColWidth;
+      }
+      maxScrollCol = Math.min(this.data!.numCols - 1, maxScrollCol + (maxScrollWidth - visibleDataWidth) / lastColWidth);
+
+      const clampedToMax = Math.min(clampedCol, maxScrollCol);
+      const scrollPercentX = maxScrollCol > 0 ? clampedToMax / maxScrollCol : 0;
+      this.mountPoint.scrollLeft = scrollPercentX * scrollableWidth;
+
+      if (remaining <= 0) { onDone?.(); return; }
+
+      const unsub = this.on("renderComplete", (payload) => {
+        unsub();
+        if (clampedCol >= payload.x0 && clampedCol < payload.x1) {
+          onDone?.();
+        } else {
+          attempt(remaining - 1);
+        }
+      });
+    };
+
+    attempt(MAX_ATTEMPTS);
+  }
+
   getGridTemplate(
     numRowFacets: number,
     numColFacets: number,
