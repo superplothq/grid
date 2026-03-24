@@ -1,12 +1,13 @@
 import * as arrow from "apache-arrow";
-import { csvParse, csvParseRows } from "d3-dsv";
+import { csvParseRows } from "d3-dsv";
 import { DataSource, SqlColumnType } from "./datasource";
+import { DataSchema } from "./types";
+import { schemaToSqlType } from "./sql-pivot-datamodel";
 import { GridError, GridErrorCode } from "../errors";
 
-export type ColumnMetadata = {
+export type ColumnMetadata = DataSchema & {
   normColName: string;
   originalColName: string;
-  type: SqlColumnType;
 };
 
 const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}(T|\s)/;
@@ -72,12 +73,16 @@ export abstract class SqlDataSource implements DataSource<string> {
 
   async loadData(opts: {
     table?: string;
-    columns: Map<string, SqlColumnType>;
+    schema: DataSchema[];
     data: any[][];
+    replace?: Map<string, Map<string, string>>;
   }): Promise<void> {
     this.table = opts.table ?? generateTableName();
 
-    const ddl = buildCreateTableDDL(this.table, opts.columns);
+    const varcharColumns = new Map<string, SqlColumnType>(
+      opts.schema.map(s => [s.name, "VARCHAR"])
+    );
+    const ddl = buildCreateTableDDL(this.table, varcharColumns);
     await this.execute(ddl);
 
     const numRows = opts.data[0]?.length ?? 0;
@@ -85,26 +90,42 @@ export abstract class SqlDataSource implements DataSource<string> {
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const columns: Record<string, any> = {};
-    let colIdx = 0;
-    for (const [name, type] of opts.columns) {
-      if (type === "DOUBLE") {
-        columns[name] = new Float64Array(opts.data[colIdx]);
-      } else {
-        columns[name] = opts.data[colIdx];
-      }
-      colIdx++;
+    for (let i = 0; i < opts.schema.length; i++) {
+      const colData = opts.data[i];
+      columns[opts.schema[i].name] = colData.map((v: unknown) =>
+        v === null || v === undefined ? null : String(v)
+      );
     }
 
     const arrowTable = arrow.tableFromArrays(columns);
     await this.insertArrowTable(arrowTable, this.table);
+
+    for (const s of opts.schema) {
+      const colReplacements = opts.replace?.get(s.name);
+      const targetType = schemaToSqlType(s);
+
+      let expr = `"${s.name}"`;
+      if (colReplacements) {
+        for (const [search, rep] of colReplacements) {
+          expr = `REPLACE(${expr}, '${search}', '${rep}')`;
+        }
+      }
+      if (s.subtype === "temporal" && s.datetimeFormat) {
+        expr = `strptime(${expr}, '${s.datetimeFormat}')`;
+      }
+
+      await this.execute(
+        `ALTER TABLE "${this.table}" ALTER COLUMN "${s.name}" SET DATA TYPE ${targetType} USING ${expr}`
+      );
+    }
   }
 
   async loadDataFromURL(config: {
     url: string;
     type: "json" | "csv";
     preprocess?: (data: unknown) => unknown;
-    columns?: Map<string, SqlColumnType>;
-    columnOrder?: string[];
+    schema?: DataSchema[];
+    replace?: Map<string, Map<string, string>>;
     table?: string;
   }): Promise<ColumnMetadata[]> {
     let response: Response;
@@ -122,6 +143,7 @@ export abstract class SqlDataSource implements DataSource<string> {
       });
     }
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let parsed: any;
     let csvHeaders: string[] | undefined;
     let csvRows: string[][] | undefined;
@@ -164,76 +186,88 @@ export abstract class SqlDataSource implements DataSource<string> {
     }
 
     let columnOrder: string[];
-    const columns = new Map<string, SqlColumnType>();
+    const inferredTypes = new Map<string, SqlColumnType>();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const data: any[][] = [];
 
     if (config.type === "csv") {
-      columnOrder = config.columnOrder ?? csvHeaders!;
+      columnOrder = csvHeaders!;
       const colIndexMap = new Map<string, number>();
       for (let i = 0; i < csvHeaders!.length; i++) {
         colIndexMap.set(csvHeaders![i], i);
       }
 
-      if (config.columns) {
-        for (const col of columnOrder) {
-          columns.set(col, config.columns.get(col) ?? "VARCHAR");
-        }
-      } else {
-        for (const col of columnOrder) {
-          const ci = colIndexMap.get(col)!;
-          const values = csvRows!.map((row) => row[ci]);
-          columns.set(col, inferColumnType(values));
-        }
+      if (config.schema) {
+        columnOrder = config.schema.map(s => s.name);
+      }
+
+      for (const col of columnOrder) {
+        const ci = colIndexMap.get(col)!;
+        const values = csvRows!.map((row) => row[ci]);
+        inferredTypes.set(col, inferColumnType(values));
       }
 
       // TODO: this should only be there in dev mode
-      console.log("Schema inference:", Object.fromEntries(columns));
+      console.log("Schema inference:", Object.fromEntries(inferredTypes));
 
-      for (const [col, type] of columns) {
+      for (const col of columnOrder) {
         const ci = colIndexMap.get(col)!;
         const colValues = csvRows!.map((row) => {
           const v = row[ci];
           if (v === null || v === undefined || v === "") return null;
-          if (type === "INTEGER" || type === "DOUBLE") return Number(v);
           return v;
         });
         data.push(colValues);
       }
     } else {
-      columnOrder = config.columnOrder ?? Object.keys(parsed[0]);
+      columnOrder = config.schema ? config.schema.map(s => s.name) : Object.keys(parsed[0]);
 
-      if (config.columns) {
-        for (const col of columnOrder) {
-          columns.set(col, config.columns.get(col) ?? "VARCHAR");
-        }
-      } else {
-        for (const col of columnOrder) {
-          const values = parsed.map((row: Record<string, unknown>) => row[col]);
-          columns.set(col, inferColumnType(values));
-        }
+      for (const col of columnOrder) {
+        const values = parsed.map((row: Record<string, unknown>) => row[col]);
+        inferredTypes.set(col, inferColumnType(values));
       }
 
       // TODO: this should only be there in dev mode
-      console.log("Schema inference:", Object.fromEntries(columns));
+      console.log("Schema inference:", Object.fromEntries(inferredTypes));
 
-      for (const [col, type] of columns) {
+      for (const col of columnOrder) {
         const colValues = parsed.map((row: Record<string, unknown>) => {
           const v = row[col];
           if (v === null || v === undefined || v === "") return null;
-          if (type === "INTEGER" || type === "DOUBLE") {
-            return typeof v === "number" ? v : Number(v);
-          }
           return v;
         });
         data.push(colValues);
       }
     }
 
-    await this.loadData({ table: config.table, columns, data });
+    const schema: DataSchema[] = config.schema
+      ? config.schema.map(s => {
+        if (s.type === "measure" && !s.subtype) {
+          const inferred = inferredTypes.get(s.name);
+          return { ...s, subtype: (inferred === "INTEGER" ? "integer" : "decimal") as DataSchema["subtype"] };
+        }
+        return s;
+      })
+      : columnOrder.map(col => {
+        const inferred = inferredTypes.get(col)!;
+        if (inferred === "INTEGER" || inferred === "DOUBLE") {
+          return {
+            name: col,
+            type: "measure" as const,
+            subtype: (inferred === "INTEGER" ? "integer" : "decimal") as DataSchema["subtype"],
+          };
+        }
+        if (inferred === "TIMESTAMP") {
+          return { name: col, type: "dimension" as const, subtype: "temporal" as const };
+        }
+        return { name: col, type: "dimension" as const };
+      });
+
+    await this.loadData({ table: config.table, schema, data, replace: config.replace });
 
     const result: ColumnMetadata[] = [];
-    for (const [col, type] of columns) {
-      result.push({ normColName: col, originalColName: col, type });
+    for (const s of schema) {
+      result.push({ ...s, normColName: s.name, originalColName: s.name });
     }
     return result;
   }

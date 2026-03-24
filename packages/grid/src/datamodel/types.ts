@@ -13,23 +13,22 @@ export interface SortEntry {
   by?: string;
 }
 
-export type SchemaSubtype = "quantitative" | "temporal" | "nominal";
+export type SchemaSubtype = "quantitative" | "temporal" | "nominal" | "integer" | "decimal";
 
 export interface Schema {
-  name: string;
-  displayName?: string;
   type: "measure" | "dimension";
   subtype?: SchemaSubtype;
   datetimeFormat?: string;
+  aggregateFn?: AggregateFn;
 }
 
-export interface MeasureSchema extends Schema {
-  type: "measure";
-  aggregateFn?: AggregateFn;   // default "sum"
+export interface DataSchema extends Schema {
+  name: string;
+  displayName?: string;
 }
 
 export interface GridData {
-  columns: (string | Schema)[];
+  columns: (string | DataSchema)[];
   data: any[][];
   replace?: Map<string, Map<string, string>>;
 }
@@ -148,7 +147,7 @@ export interface ColDefsForFacet {
 }
 
 export interface FlatTableConfig {
-  schema: (Schema | MeasureSchema)[];
+  schema: DataSchema[];
   pageSize?: number;
   // TODO[review] rename numMaxPageSize
   maxCacheSize?: number;

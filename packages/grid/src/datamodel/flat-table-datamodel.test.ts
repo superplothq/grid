@@ -2,16 +2,15 @@ import { expect } from "chai";
 import { getUnfetchedPagesByLogicalBoundary } from "./flat-table-datamodel";
 import { DuckDBDataSource } from "./duckdb-datasource";
 import { SqlFlatTableDataModel } from "./sql-flat-table-datamodel";
-import { SqlColumnType } from "./datasource";
-import { FlatTableConfig, GetRowsIR, GetRowsResponse, GridData, MeasureSchema, Schema, PageNode, ExpandedGroup } from "./types";
+import { DataSchema, FlatTableConfig, GetRowsIR, GetRowsResponse, GridData, PageNode, ExpandedGroup } from "./types";
 
 // 24 rows, 8 dimensions + 4 measures — same dataset as datamodel.data.test.ts
-const schemaColumns: (string | Schema)[] = [
+const schemaColumns: (string | DataSchema)[] = [
   "region", "country", "city", "department", "product", "channel", "quarter", "segment",
-  { name: "revenue", displayName: "Revenue", type: "measure", aggregateFn: "sum" } as Schema,
-  { name: "cost", displayName: "Cost", type: "measure", aggregateFn: "sum" } as Schema,
-  { name: "units_sold", displayName: "Units Sold", type: "measure", aggregateFn: "sum" } as Schema,
-  { name: "returns", displayName: "Returns", type: "measure", aggregateFn: "sum" } as Schema,
+  { name: "revenue", displayName: "Revenue", type: "measure", aggregateFn: "sum" },
+  { name: "cost", displayName: "Cost", type: "measure", aggregateFn: "sum" },
+  { name: "units_sold", displayName: "Units Sold", type: "measure", aggregateFn: "sum" },
+  { name: "returns", displayName: "Returns", type: "measure", aggregateFn: "sum" },
 ];
 
 const region     = ["North America","North America","North America","North America","North America","North America","North America","North America","North America","North America","North America","North America","Europe","Europe","Europe","Europe","Europe","Europe","Europe","Europe","North America","Europe","North America","Europe"];
@@ -32,7 +31,7 @@ const gridData: GridData = {
   data: [region, country, city, department, product, channel, quarter, segment, revenue, cost, units_sold, returns],
 };
 
-const flatSchema: (Schema | MeasureSchema)[] = [
+const flatSchema: DataSchema[] = [
   { name: "region", type: "dimension" },
   { name: "country", type: "dimension" },
   { name: "city", type: "dimension" },
@@ -74,17 +73,14 @@ async function makeModel(configOverrides: Partial<FlatTableConfig> = {}) {
 }
 
 async function makePatchedModel(configOverrides: Partial<FlatTableConfig> = {}) {
-  const dataSchema: Schema[] = gridData.columns.map((col) => {
+  const dataSchema: DataSchema[] = gridData.columns.map((col) => {
     if (typeof col === "string") {
       return { name: col, displayName: col, type: "dimension" as const };
     }
     return col;
   });
-  const columns = new Map<string, SqlColumnType>(
-    dataSchema.map((s) => [s.name, (s.type === "measure" ? "DOUBLE" : "VARCHAR") as SqlColumnType])
-  );
   const ds = DuckDBDataSource.create();
-  await ds.loadData({ table: "data", columns, data: gridData.data });
+  await ds.loadData({ table: "data", schema: dataSchema, data: gridData.data });
   const model = new SqlFlatTableDataModel(makeConfig(configOverrides), dataSchema, ds);
   let getDataCallCount = 0;
   const origGetData = model.getData.bind(model);

@@ -1,7 +1,7 @@
 import React, {useEffect, useRef, useState} from "react";
 import "grid/dist/grid.css";
 import Grid, {PivotDataViewModel, FacetCellRenderer, FacetDataContext, FacetRendererContext, FacetHeaderRenderer, FacetHeaderContext, GridDataViewModelOptions} from "grid/dist/renderer";
-import {DuckDBWasmDataSource, SqlPivotDataModel, cross, hierarchy, GridData, MeasureSchema, ProjectionState, AxisConfig, DimensionalProjectionPath, SortEntry, Filter, ScalarFilter, SqlColumnType, Schema} from "grid/dist/index";
+import {DuckDBWasmDataSource, SqlPivotDataModel, cross, hierarchy, GridData, DataSchema, ProjectionState, AxisConfig, DimensionalProjectionPath, SortEntry, Filter, ScalarFilter} from "grid/dist/index";
 import feather from "feather-icons";
 import SortDropdown, {SortEntryConfig} from "./sort-dropdown";
 import FilterDropdown from "./filter-dropdown";
@@ -16,10 +16,10 @@ const gridData: GridData = {
     "channel",
     "quarter",
     "segment",
-    {name: "revenue", displayName: "Revenue", type: "measure", aggregateFn: "sum"} as MeasureSchema,
-    {name: "cost", displayName: "Cost", type: "measure", aggregateFn: "sum"} as MeasureSchema,
-    {name: "units_sold", displayName: "Units Sold", type: "measure", aggregateFn: "sum"} as MeasureSchema,
-    {name: "returns", displayName: "Returns", type: "measure", aggregateFn: "sum"} as MeasureSchema,
+    {name: "revenue", displayName: "Revenue", type: "measure", aggregateFn: "sum"},
+    {name: "cost", displayName: "Cost", type: "measure", aggregateFn: "sum"},
+    {name: "units_sold", displayName: "Units Sold", type: "measure", aggregateFn: "sum"},
+    {name: "returns", displayName: "Returns", type: "measure", aggregateFn: "sum"},
   ],
   data: [
     // region
@@ -86,7 +86,7 @@ function buildFacetDefs(
   };
 }
 
-const MEASURE_NAMES = (gridData.columns.filter(c => typeof c === "object" && (c as MeasureSchema).type === "measure") as MeasureSchema[]).map(m => m.name);
+const MEASURE_NAMES = (gridData.columns.filter(c => typeof c === "object" && (c as DataSchema).type === "measure") as DataSchema[]).map(m => m.name);
 
 const ROW_HIERARCHY_FIELDS = ["region", "country", "city"];
 const COL_HIERARCHY_FIELDS = ["department", "product"];
@@ -291,8 +291,8 @@ const PivotGridPlayground: React.FC = () => {
   openFilterDropdownRef.current = openFilterDropdown;
 
   const getFieldType = (fieldName: string): "dimension" | "measure" => {
-    const col = gridData.columns.find(c => (typeof c === "object" ? (c as MeasureSchema).name : c) === fieldName);
-    return (typeof col === "object" && (col as MeasureSchema).type === "measure") ? "measure" : "dimension";
+    const col = gridData.columns.find(c => (typeof c === "object" ? (c as DataSchema).name : c) === fieldName);
+    return (typeof col === "object" && (col as DataSchema).type === "measure") ? "measure" : "dimension";
   };
 
   const buildConfig = (): { rows: AxisConfig; columns: AxisConfig; sort?: SortEntry[]; filter?: Filter[] } => {
@@ -367,17 +367,14 @@ const PivotGridPlayground: React.FC = () => {
     let cancelled = false;
 
     const init = async () => {
-      const schema: Schema[] = gridData.columns.map((col) => {
+      const schema: DataSchema[] = gridData.columns.map((col) => {
         if (typeof col === "string") {
           return { name: col, displayName: col, type: "dimension" as const };
         }
         return col;
       });
-      const columns = new Map<string, SqlColumnType>(
-        schema.map((s) => [s.name, s.type === "measure" ? "DOUBLE" as const : "VARCHAR" as const])
-      );
       const ds = await DuckDBWasmDataSource.create();
-      await ds.loadData({ columns, data: gridData.data });
+      await ds.loadData({ schema, data: gridData.data });
       const model = new SqlPivotDataModel(schema, ds);
       modelRef.current = model;
 

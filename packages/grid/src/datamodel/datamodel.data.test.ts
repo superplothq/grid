@@ -1,8 +1,7 @@
 import { expect } from "chai";
 import { DuckDBDataSource } from "./duckdb-datasource";
 import { SqlPivotDataModel } from "./sql-pivot-datamodel";
-import { SqlColumnType } from "./datasource";
-import { MeasureSchema, Schema } from "./types";
+import { DataSchema } from "./types";
 
 // 24 rows, 8 dimensions + 4 measures (column-major format)
 //
@@ -33,12 +32,12 @@ import { MeasureSchema, Schema } from "./types";
 // |22 | North America  | USA     | Chicago  | Apparel     | Jacket  | Wholesale | Q3      | Business | 290     | 145  | 13         | 1       |
 // |23 | Europe         | Germany | Berlin   | Electronics | Laptop  | Retail    | Q3      | Consumer | 1350    | 900  | 11         | 1       |
 
-const schemaColumns: (string | Schema)[] = [
+const schemaColumns: (string | DataSchema)[] = [
   "region", "country", "city", "department", "product", "channel", "quarter", "segment",
-  { name: "revenue", displayName: "Revenue", type: "measure", aggregateFn: "sum" } as Schema,
-  { name: "cost", displayName: "Cost", type: "measure", aggregateFn: "sum" } as Schema,
-  { name: "units_sold", displayName: "Units Sold", type: "measure", aggregateFn: "sum" } as Schema,
-  { name: "returns", displayName: "Returns", type: "measure", aggregateFn: "sum" } as Schema,
+  { name: "revenue", displayName: "Revenue", type: "measure", aggregateFn: "sum" },
+  { name: "cost", displayName: "Cost", type: "measure", aggregateFn: "sum" },
+  { name: "units_sold", displayName: "Units Sold", type: "measure", aggregateFn: "sum" },
+  { name: "returns", displayName: "Returns", type: "measure", aggregateFn: "sum" },
 ];
 
 const region     = ["North America","North America","North America","North America","North America","North America","North America","North America","North America","North America","North America","North America","Europe","Europe","Europe","Europe","Europe","Europe","Europe","Europe","North America","Europe","North America","Europe"];
@@ -56,7 +55,7 @@ const returns    = [1,2,3,1,2,1,4,2,1,2,1,3,1,3,2,4,1,2,1,3,3,2,1,1];
 
 const data = [region, country, city, department, product, channel, quarter, segment, revenue, cost, units_sold, returns];
 
-function resolveSchema(columns: (string | Schema)[]): Schema[] {
+function resolveSchema(columns: (string | DataSchema)[]): DataSchema[] {
   return columns.map((col) => {
     if (typeof col === "string") {
       return { name: col, displayName: col, type: "dimension" as const };
@@ -65,19 +64,10 @@ function resolveSchema(columns: (string | Schema)[]): Schema[] {
   });
 }
 
-function schemaToSqlColumnType(s: Schema): SqlColumnType {
-  if (s.type === "measure") return "DOUBLE";
-  if (s.subtype === "temporal") return "TIMESTAMP";
-  return "VARCHAR";
-}
-
 export async function makeModel() {
   const schema = resolveSchema(schemaColumns);
-  const columns = new Map<string, SqlColumnType>(
-    schema.map((s) => [s.name, schemaToSqlColumnType(s)])
-  );
   const ds = DuckDBDataSource.create();
-  await ds.loadData({ table: "data", columns, data });
+  await ds.loadData({ table: "data", schema, data });
   return new SqlPivotDataModel(schema, ds);
 }
 
@@ -100,8 +90,8 @@ describe("GridPivotDataModel", () => {
     const model = await makeModel();
     const schema = (model as any).schema;
     expect(schema).to.have.length(12);
-    expect(schema.filter((s: Schema) => s.type === "dimension")).to.have.length(8);
-    expect(schema.filter((s: Schema) => s.type === "measure")).to.have.length(4);
+    expect(schema.filter((s: DataSchema) => s.type === "dimension")).to.have.length(8);
+    expect(schema.filter((s: DataSchema) => s.type === "measure")).to.have.length(4);
 
     const rows = await (model as any).dataSource.execute("SELECT COUNT(*) as cnt FROM data");
     expect(Number(rows[0].cnt)).to.equal(24);
@@ -110,18 +100,14 @@ describe("GridPivotDataModel", () => {
 
 describe("Schema extensions", () => {
   it("should store temporal columns as TIMESTAMP", async () => {
-    const schema: Schema[] = [
-      { name: "order_date", displayName: "Order Date", type: "dimension", subtype: "temporal", datetimeFormat: "%m/%d/%Y" },
-      { name: "revenue", displayName: "Revenue", type: "measure", aggregateFn: "sum" } as MeasureSchema,
+    const schema: DataSchema[] = [
+      { name: "order_date", displayName: "Order Date", type: "dimension", subtype: "temporal" },
+      { name: "revenue", displayName: "Revenue", type: "measure", aggregateFn: "sum" },
     ];
-    const columns = new Map<string, SqlColumnType>([
-      ["order_date", "TIMESTAMP"],
-      ["revenue", "DOUBLE"],
-    ]);
     const ds = DuckDBDataSource.create();
     await ds.loadData({
       table: "data",
-      columns,
+      schema,
       data: [
         [new Date("2024-03-15").toISOString(), new Date("2023-12-25").toISOString(), new Date("2025-01-01").toISOString()],
         [100, 200, 300],
@@ -137,18 +123,14 @@ describe("Schema extensions", () => {
   });
 
   it("should load pre-transformed numeric data", async () => {
-    const schema: Schema[] = [
+    const schema: DataSchema[] = [
       { name: "category", displayName: "category", type: "dimension" },
-      { name: "amount", displayName: "Amount", type: "measure", aggregateFn: "sum" } as MeasureSchema,
+      { name: "amount", displayName: "Amount", type: "measure", aggregateFn: "sum" },
     ];
-    const columns = new Map<string, SqlColumnType>([
-      ["category", "VARCHAR"],
-      ["amount", "DOUBLE"],
-    ]);
     const ds = DuckDBDataSource.create();
     await ds.loadData({
       table: "data",
-      columns,
+      schema,
       data: [
         ["Electronics", "Apparel"],
         [1200, 950],
@@ -163,18 +145,14 @@ describe("Schema extensions", () => {
   });
 
   it("should handle temporal and numeric columns together", async () => {
-    const schema: Schema[] = [
-      { name: "sale_date", displayName: "Sale Date", type: "dimension", subtype: "temporal", datetimeFormat: "%d-%m-%Y" },
-      { name: "price", displayName: "Price", type: "measure", aggregateFn: "sum" } as MeasureSchema,
+    const schema: DataSchema[] = [
+      { name: "sale_date", displayName: "Sale Date", type: "dimension", subtype: "temporal" },
+      { name: "price", displayName: "Price", type: "measure", aggregateFn: "sum" },
     ];
-    const columns = new Map<string, SqlColumnType>([
-      ["sale_date", "TIMESTAMP"],
-      ["price", "DOUBLE"],
-    ]);
     const ds = DuckDBDataSource.create();
     await ds.loadData({
       table: "data",
-      columns,
+      schema,
       data: [
         [new Date("2024-03-15").toISOString(), new Date("2023-12-25").toISOString()],
         [500, 750],
@@ -188,5 +166,51 @@ describe("Schema extensions", () => {
     expect(Number(rows[0].price)).to.equal(750);
     expect(new Date(rows[1].sale_date).getFullYear()).to.equal(2024);
     expect(Number(rows[1].price)).to.equal(500);
+  });
+
+  it("should clean dirty data via replace config", async () => {
+    const schema: DataSchema[] = [
+      { name: "product", type: "dimension" },
+      { name: "revenue", displayName: "Revenue", type: "measure", aggregateFn: "sum" },
+    ];
+    const ds = DuckDBDataSource.create();
+    await ds.loadData({
+      table: "data",
+      schema,
+      data: [
+        ["Widget", "Gadget"],
+        ["$1,234", "$5,678"],
+      ],
+      replace: new Map([["revenue", new Map([["$", ""], [",", ""]])]]),
+    });
+    const model = new SqlPivotDataModel(schema, ds);
+
+    const rows = await (model as any).dataSource.execute("SELECT product, revenue FROM data ORDER BY revenue");
+    expect(rows).to.have.length(2);
+    expect(Number(rows[0].revenue)).to.equal(1234);
+    expect(Number(rows[1].revenue)).to.equal(5678);
+  });
+
+  it("should parse dates via datetimeFormat", async () => {
+    const schema: DataSchema[] = [
+      { name: "date", type: "dimension", subtype: "temporal", datetimeFormat: "%m/%d/%Y" },
+      { name: "value", type: "measure", aggregateFn: "sum" },
+    ];
+    const ds = DuckDBDataSource.create();
+    await ds.loadData({
+      table: "data",
+      schema,
+      data: [
+        ["03/15/2024", "12/25/2023", "01/01/2025"],
+        [100, 200, 300],
+      ],
+    });
+    const model = new SqlPivotDataModel(schema, ds);
+
+    const rows = await (model as any).dataSource.execute("SELECT date, value FROM data ORDER BY date");
+    expect(rows).to.have.length(3);
+    expect(new Date(rows[0].date).getFullYear()).to.equal(2023);
+    expect(new Date(rows[1].date).getFullYear()).to.equal(2024);
+    expect(new Date(rows[2].date).getFullYear()).to.equal(2025);
   });
 });

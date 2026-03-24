@@ -2,6 +2,7 @@ import { expect } from "chai";
 import { DuckDBDataSource } from "./duckdb-datasource";
 import { GridError, GridErrorCode } from "../errors";
 import type { ColumnMetadata } from "./sql-datasource";
+import { DataSchema } from "./types";
 
 function stubFetch(handler: (url: string) => { status: number; body: string; ok?: boolean }) {
   const original = globalThis.fetch;
@@ -49,7 +50,11 @@ describe("SqlDataSource.loadDataFromURL", () => {
         const meta = await ds.loadDataFromURL({ url: "http://test.com/data.json", type: "json" });
         expect(meta).to.have.length(3);
         expect(meta.map((m: ColumnMetadata) => m.normColName)).to.deep.equal(["name", "age", "score"]);
-        expect(meta.map((m: ColumnMetadata) => m.type)).to.deep.equal(["VARCHAR", "INTEGER", "DOUBLE"]);
+        expect(meta[0].type).to.equal("dimension");
+        expect(meta[1].type).to.equal("measure");
+        expect(meta[1].subtype).to.equal("integer");
+        expect(meta[2].type).to.equal("measure");
+        expect(meta[2].subtype).to.equal("decimal");
 
         const rows = await ds.execute(`SELECT * FROM "${ds.table}" ORDER BY age`);
         expect(rows).to.have.length(3);
@@ -59,7 +64,7 @@ describe("SqlDataSource.loadDataFromURL", () => {
       }
     });
 
-    it("should respect columnOrder for JSON", async () => {
+    it("should respect schema order for JSON", async () => {
       const jsonData = [
         { name: "Alice", age: 30, score: 95.5 },
       ];
@@ -68,7 +73,10 @@ describe("SqlDataSource.loadDataFromURL", () => {
         const meta = await ds.loadDataFromURL({
           url: "http://test.com/data.json",
           type: "json",
-          columnOrder: ["score", "name"],
+          schema: [
+            { name: "score", type: "measure", subtype: "decimal" },
+            { name: "name", type: "dimension" },
+          ],
         });
         expect(meta.map((m: ColumnMetadata) => m.normColName)).to.deep.equal(["score", "name"]);
       } finally {
@@ -87,20 +95,26 @@ describe("SqlDataSource.loadDataFromURL", () => {
       }
     });
 
-    it("should respect explicit columns map", async () => {
+    it("should respect explicit schema", async () => {
       const jsonData = [
         { id: "1", value: "100" },
         { id: "2", value: "200" },
       ];
       const restore = stubFetch(() => ({ status: 200, body: JSON.stringify(jsonData) }));
       try {
-        const columns = new Map([["id", "INTEGER" as const], ["value", "DOUBLE" as const]]);
+        const schema: DataSchema[] = [
+          { name: "id", type: "measure", subtype: "integer" },
+          { name: "value", type: "measure", subtype: "decimal" },
+        ];
         const meta = await ds.loadDataFromURL({
           url: "http://test.com/data.json",
           type: "json",
-          columns,
+          schema,
         });
-        expect(meta.map((m: ColumnMetadata) => m.type)).to.deep.equal(["INTEGER", "DOUBLE"]);
+        expect(meta[0].type).to.equal("measure");
+        expect(meta[0].subtype).to.equal("integer");
+        expect(meta[1].type).to.equal("measure");
+        expect(meta[1].subtype).to.equal("decimal");
 
         const rows = await ds.execute(`SELECT * FROM "${ds.table}" ORDER BY id`);
         expect(rows[0].id).to.equal(1);
@@ -138,7 +152,11 @@ describe("SqlDataSource.loadDataFromURL", () => {
         const meta = await ds.loadDataFromURL({ url: "http://test.com/data.csv", type: "csv" });
         expect(meta).to.have.length(3);
         expect(meta.map((m: ColumnMetadata) => m.normColName)).to.deep.equal(["name", "age", "score"]);
-        expect(meta.map((m: ColumnMetadata) => m.type)).to.deep.equal(["VARCHAR", "INTEGER", "DOUBLE"]);
+        expect(meta[0].type).to.equal("dimension");
+        expect(meta[1].type).to.equal("measure");
+        expect(meta[1].subtype).to.equal("integer");
+        expect(meta[2].type).to.equal("measure");
+        expect(meta[2].subtype).to.equal("decimal");
 
         const rows = await ds.execute(`SELECT * FROM "${ds.table}" ORDER BY age`);
         expect(rows).to.have.length(3);
@@ -148,7 +166,7 @@ describe("SqlDataSource.loadDataFromURL", () => {
       }
     });
 
-    it("should use CSV header order when no columnOrder", async () => {
+    it("should use CSV header order when no schema", async () => {
       const csv = "z,a,m\n1,2,3";
       const restore = stubFetch(() => ({ status: 200, body: csv }));
       try {
@@ -159,14 +177,17 @@ describe("SqlDataSource.loadDataFromURL", () => {
       }
     });
 
-    it("should respect columnOrder for CSV", async () => {
+    it("should respect schema order for CSV", async () => {
       const csv = "name,age,score\nAlice,30,95.5";
       const restore = stubFetch(() => ({ status: 200, body: csv }));
       try {
         const meta = await ds.loadDataFromURL({
           url: "http://test.com/data.csv",
           type: "csv",
-          columnOrder: ["score", "name"],
+          schema: [
+            { name: "score", type: "measure", subtype: "decimal" },
+            { name: "name", type: "dimension" },
+          ],
         });
         expect(meta.map((m: ColumnMetadata) => m.normColName)).to.deep.equal(["score", "name"]);
       } finally {
@@ -176,62 +197,67 @@ describe("SqlDataSource.loadDataFromURL", () => {
   });
 
   describe("type inference", () => {
-    it("should infer INTEGER for whole numbers", async () => {
+    it("should infer integer measure for whole numbers", async () => {
       const jsonData = [{ val: 1 }, { val: 2 }, { val: 3 }];
       const restore = stubFetch(() => ({ status: 200, body: JSON.stringify(jsonData) }));
       try {
         const meta = await ds.loadDataFromURL({ url: "http://test.com/data.json", type: "json" });
-        expect(meta[0].type).to.equal("INTEGER");
+        expect(meta[0].type).to.equal("measure");
+        expect(meta[0].subtype).to.equal("integer");
       } finally {
         restore();
       }
     });
 
-    it("should infer DOUBLE for decimal numbers", async () => {
+    it("should infer decimal measure for decimal numbers", async () => {
       const jsonData = [{ val: 1.5 }, { val: 2.3 }, { val: 3.7 }];
       const restore = stubFetch(() => ({ status: 200, body: JSON.stringify(jsonData) }));
       try {
         const meta = await ds.loadDataFromURL({ url: "http://test.com/data.json", type: "json" });
-        expect(meta[0].type).to.equal("DOUBLE");
+        expect(meta[0].type).to.equal("measure");
+        expect(meta[0].subtype).to.equal("decimal");
       } finally {
         restore();
       }
     });
 
-    it("should infer DOUBLE when mix of integer and decimal numbers", async () => {
+    it("should infer decimal measure when mix of integer and decimal numbers", async () => {
       const jsonData = [{ val: 1 }, { val: 2.5 }, { val: 3 }];
       const restore = stubFetch(() => ({ status: 200, body: JSON.stringify(jsonData) }));
       try {
         const meta = await ds.loadDataFromURL({ url: "http://test.com/data.json", type: "json" });
-        expect(meta[0].type).to.equal("DOUBLE");
+        expect(meta[0].type).to.equal("measure");
+        expect(meta[0].subtype).to.equal("decimal");
       } finally {
         restore();
       }
     });
 
-    it("should infer INTEGER for numeric strings", async () => {
+    it("should infer integer measure for numeric strings", async () => {
       const csv = "val\n10\n20\n30";
       const restore = stubFetch(() => ({ status: 200, body: csv }));
       try {
         const meta = await ds.loadDataFromURL({ url: "http://test.com/data.csv", type: "csv" });
-        expect(meta[0].type).to.equal("INTEGER");
+        expect(meta[0].type).to.equal("measure");
+        expect(meta[0].subtype).to.equal("integer");
       } finally {
         restore();
       }
     });
 
-    it("should infer DOUBLE for decimal numeric strings", async () => {
+    it("should infer decimal measure for decimal numeric strings", async () => {
       const csv = "val\n10.5\n20.3\n30.1";
       const restore = stubFetch(() => ({ status: 200, body: csv }));
       try {
         const meta = await ds.loadDataFromURL({ url: "http://test.com/data.csv", type: "csv" });
-        expect(meta[0].type).to.equal("DOUBLE");
+        expect(meta[0].type).to.equal("measure");
+        expect(meta[0].subtype).to.equal("decimal");
       } finally {
         restore();
       }
     });
 
-    it("should infer TIMESTAMP for ISO date strings", async () => {
+    it("should infer temporal dimension for ISO date strings", async () => {
       const jsonData = [
         { ts: "2024-01-15T10:30:00" },
         { ts: "2024-02-20T14:00:00" },
@@ -239,13 +265,14 @@ describe("SqlDataSource.loadDataFromURL", () => {
       const restore = stubFetch(() => ({ status: 200, body: JSON.stringify(jsonData) }));
       try {
         const meta = await ds.loadDataFromURL({ url: "http://test.com/data.json", type: "json" });
-        expect(meta[0].type).to.equal("TIMESTAMP");
+        expect(meta[0].type).to.equal("dimension");
+        expect(meta[0].subtype).to.equal("temporal");
       } finally {
         restore();
       }
     });
 
-    it("should infer TIMESTAMP for ISO dates with space separator", async () => {
+    it("should infer temporal dimension for ISO dates with space separator", async () => {
       const jsonData = [
         { ts: "2024-01-15 10:30:00" },
         { ts: "2024-02-20 14:00:00" },
@@ -253,29 +280,30 @@ describe("SqlDataSource.loadDataFromURL", () => {
       const restore = stubFetch(() => ({ status: 200, body: JSON.stringify(jsonData) }));
       try {
         const meta = await ds.loadDataFromURL({ url: "http://test.com/data.json", type: "json" });
-        expect(meta[0].type).to.equal("TIMESTAMP");
+        expect(meta[0].type).to.equal("dimension");
+        expect(meta[0].subtype).to.equal("temporal");
       } finally {
         restore();
       }
     });
 
-    it("should infer VARCHAR for non-numeric strings", async () => {
+    it("should infer dimension for non-numeric strings", async () => {
       const jsonData = [{ val: "hello" }, { val: "world" }, { val: "foo" }];
       const restore = stubFetch(() => ({ status: 200, body: JSON.stringify(jsonData) }));
       try {
         const meta = await ds.loadDataFromURL({ url: "http://test.com/data.json", type: "json" });
-        expect(meta[0].type).to.equal("VARCHAR");
+        expect(meta[0].type).to.equal("dimension");
       } finally {
         restore();
       }
     });
 
-    it("should infer VARCHAR when all values are empty", async () => {
+    it("should infer dimension when all values are empty", async () => {
       const jsonData = [{ val: "" }, { val: null }, { val: "" }];
       const restore = stubFetch(() => ({ status: 200, body: JSON.stringify(jsonData) }));
       try {
         const meta = await ds.loadDataFromURL({ url: "http://test.com/data.json", type: "json" });
-        expect(meta[0].type).to.equal("VARCHAR");
+        expect(meta[0].type).to.equal("dimension");
       } finally {
         restore();
       }

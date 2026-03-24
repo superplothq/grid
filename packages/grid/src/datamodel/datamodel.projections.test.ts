@@ -4,8 +4,7 @@ import { concat, cross, hierarchy } from "./grid-pivot-datamodel";
 import { makeModel, makePatchedModel } from "./datamodel.data.test";
 import { DuckDBDataSource } from "./duckdb-datasource";
 import { SqlPivotDataModel } from "./sql-pivot-datamodel";
-import { SqlColumnType } from "./datasource";
-import { AxisConfig, PivotConfig, ProjectionState, Schema } from "./types";
+import { AxisConfig, DataSchema, PivotConfig, ProjectionState } from "./types";
 import { GridDataViewModel } from "../renderer/grid-data-viewmodel";
 
 const facetMeta = (vm: GridDataViewModel) => ({
@@ -3105,22 +3104,19 @@ describe("Dimensional Projections", () => {
 
   describe("hierarchy segment ordering — cycling data does not interleave", () => {
     async function makeCyclingModel() {
-      const schema: Schema[] = [
+      const schema: DataSchema[] = [
         { name: "employee", displayName: "employee", type: "dimension" },
         { name: "department", displayName: "department", type: "dimension" },
         { name: "product", displayName: "product", type: "dimension" },
-        { name: "revenue", displayName: "Revenue", type: "measure", aggregateFn: "sum" } as Schema,
+        { name: "revenue", displayName: "Revenue", type: "measure", aggregateFn: "sum" },
       ];
       const employee   = ["Alice", "Bob", "Carol", "Dave", "Eve", "Frank"];
       const department = ["Sales", "Engineering", "Sales", "Engineering", "Sales", "Engineering"];
       const product    = ["Widget", "Gadget", "Gadget", "Widget", "Widget", "Gadget"];
       const revenue    = [100, 200, 300, 400, 500, 600];
       const data = [employee, department, product, revenue];
-      const columns = new Map<string, SqlColumnType>([
-        ["employee", "VARCHAR"], ["department", "VARCHAR"], ["product", "VARCHAR"], ["revenue", "DOUBLE"],
-      ]);
       const ds = DuckDBDataSource.create();
-      await ds.loadData({ table: "data", columns, data });
+      await ds.loadData({ table: "data", schema, data });
       return new SqlPivotDataModel(schema, ds);
     }
 

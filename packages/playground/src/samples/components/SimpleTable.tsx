@@ -1,15 +1,17 @@
 import React, {useEffect, useRef, useState} from "react";
 import "grid/dist/grid.css";
 import Grid, {FlattenedDataViewModel, GridDataViewModelOptions} from "grid/dist/renderer";
-import {SqlFlatTableDataModel, FlatTableConfig, GetRowsIR, ColumnMetadata, Schema} from "grid/dist/index";
+import {SqlFlatTableDataModel, FlatTableConfig, GetRowsIR, ColumnMetadata, DataSchema} from "grid/dist/index";
 import {useDataSource} from "./DataSourceContext";
 import {useTheme} from "./ThemeContext";
 
-function buildSchema(columns: ColumnMetadata[]): Schema[] {
+function buildSchema(columns: ColumnMetadata[]): DataSchema[] {
   return columns.map((col) => ({
     name: col.normColName,
     displayName: col.originalColName,
-    type: (col.type === "INTEGER" || col.type === "DOUBLE" ? "measure" : "dimension") as Schema["type"],
+    type: col.type,
+    subtype: col.subtype,
+    aggregateFn: col.aggregateFn,
   }));
 }
 

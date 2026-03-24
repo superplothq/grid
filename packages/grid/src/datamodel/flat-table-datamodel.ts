@@ -1,10 +1,9 @@
 import {
+  DataSchema,
   FlatTableConfig,
   FlatTableViewModelArgs,
   GetRowsIR,
   GetRowsResponse,
-  MeasureSchema,
-  Schema,
   PageNode,
   ExpandedGroup,
 } from "./types";
@@ -55,7 +54,7 @@ export abstract class FlatTableDataModel {
   topLevelRowCount = 0;
   private lastIR: GetRowsIR | null = null;
   private viewModelOptions?: GridDataViewModelOptions;
-  private schemaMap: Map<string, Schema | MeasureSchema>;
+  private schemaMap: Map<string, DataSchema>;
 
   constructor(config: FlatTableConfig) {
     // TODO[review] merge with default config
@@ -410,7 +409,7 @@ export abstract class FlatTableDataModel {
     const groupField = ir.groupBy[depth];
     const measureCols: string[] = [];
     for (const [name, def] of this.schemaMap) {
-      if ((def as MeasureSchema).aggregateFn) measureCols.push(name);
+      if (def.aggregateFn) measureCols.push(name);
     }
     return [groupField, ...measureCols];
   }

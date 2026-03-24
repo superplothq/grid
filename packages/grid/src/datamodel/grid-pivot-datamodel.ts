@@ -3,6 +3,7 @@ import {
   AxisConfig,
   AxisExpr,
   CrossSegment,
+  DataSchema,
   DimSpec,
   DimensionalProjectionPath,
   FacetQuery,
@@ -10,11 +11,9 @@ import {
   HierarchySegment,
   IR,
   Measure,
-  MeasureSchema,
   PivotConfig,
   RawDataFromIR,
   ScalarFilter,
-  Schema,
   ColDefsForFacet,
   ProjectionState,
   SegmentFilter,
@@ -570,11 +569,11 @@ function buildInvertedIndex(facetSpace: (string | null)[][]): Map<string, number
 export abstract class GridPivotDataModel {
   static readonly SRC_COL_PREFIX = "__src__";
 
-  protected schema: Schema[];
+  protected schema: DataSchema[];
   protected table: string;
   private schemaIndex: Map<string, number>;
 
-  constructor(schema: Schema[], table: string) {
+  constructor(schema: DataSchema[], table: string) {
     this.schema = schema;
     this.table = table;
     this.schemaIndex = new Map(schema.map((s, i) => [s.name, i]));
@@ -684,7 +683,7 @@ export abstract class GridPivotDataModel {
         + `Fields in schemas are ${Array.from(this.schemaIndex.keys()).join(", ")}. This is likely a typo.`);
       if (col.type === "measure") {
         // TODO instead of adding default aggregation funciton here - merge with default config on top level of execution
-        const aggregation = (col as MeasureSchema).aggregateFn ?? "sum";
+        const aggregation = col.aggregateFn ?? "sum";
         return { dimSpec: { type: "none" }, measures: [{ field: expr, aggregation, filter: fieldFilterMap.get(expr) || [] }] };
       }
       return { dimSpec: { type: "simple", field: expr, filter: fieldFilterMap.get(expr) || [] }, measures: [] };

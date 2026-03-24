@@ -1,13 +1,13 @@
 import { FlatTableDataModel } from "./flat-table-datamodel";
 import { SqlDataSource } from "./sql-datasource";
-import { FlatTableConfig, GetRowsIR, GetRowsResponse, MeasureSchema, Schema, SortEntry } from "./types";
+import { DataSchema, FlatTableConfig, GetRowsIR, GetRowsResponse, SortEntry } from "./types";
 
 export class SqlFlatTableDataModel extends FlatTableDataModel {
   protected table: string;
-  protected dataSchema: Schema[];
+  protected dataSchema: DataSchema[];
   protected dataSource: SqlDataSource;
 
-  constructor(config: FlatTableConfig, dataSchema: Schema[], dataSource: SqlDataSource) {
+  constructor(config: FlatTableConfig, dataSchema: DataSchema[], dataSource: SqlDataSource) {
     super(config);
     this.dataSchema = dataSchema;
     this.dataSource = dataSource;
@@ -30,7 +30,7 @@ export class SqlFlatTableDataModel extends FlatTableDataModel {
     const measureCols = ir.project.filter((p) => {
       if (p === groupField) return false;
       const def = this.config.schema.find((d) => d.name === p);
-      return def && (def as MeasureSchema).aggregateFn;
+      return def && def.aggregateFn;
     });
     const outputColumns = isGroupLevel
       ? [groupField!, ...measureCols]
@@ -67,8 +67,8 @@ export class SqlFlatTableDataModel extends FlatTableDataModel {
       for (const field of ir.project) {
         if (field === groupField) continue;
         const def = this.config.schema.find((d) => d.name === field);
-        if (!def || !(def as MeasureSchema).aggregateFn) continue;
-        const agg = (def as MeasureSchema).aggregateFn!;
+        if (!def || !def.aggregateFn) continue;
+        const agg = def.aggregateFn!;
         measureExprs.push(`${agg.toUpperCase()}("${field}") AS "${field}"`);
       }
 
@@ -105,7 +105,7 @@ export class SqlFlatTableDataModel extends FlatTableDataModel {
       if (s.direction === "noop") continue;
       if (isGroupLevel && s.by) {
         const def = this.config.schema.find((d) => d.name === s.by);
-        const agg = (def as MeasureSchema)?.aggregateFn ?? "sum";
+        const agg = def?.aggregateFn ?? "sum";
         parts.push(`${agg.toUpperCase()}("${s.by}") ${s.direction.toUpperCase()}`);
       } else {
         parts.push(`"${s.field}" ${s.direction.toUpperCase()}`);

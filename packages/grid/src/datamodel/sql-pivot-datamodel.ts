@@ -2,11 +2,11 @@ import { GridPivotDataModel } from "./grid-pivot-datamodel";
 import { SqlDataSource } from "./sql-datasource";
 import {
   CrossSegment,
+  DataSchema,
   DimSpec,
   FacetQuery,
   Filter,
   IR,
-  MeasureSchema,
   RawDataFromIR,
   ScalarFilter,
   Schema,
@@ -89,26 +89,18 @@ function filterToWhereQualified(filter: SegmentFilter, fieldToCte: Map<string, s
 }
 
 export function schemaToSqlType(s: Schema): string {
-  if (s.type === "measure") return "DOUBLE";
+  if (s.type === "measure") {
+    if (s.subtype === "integer") return "INTEGER";
+    return "DOUBLE";
+  }
   if (s.subtype === "temporal") return "TIMESTAMP";
   return "VARCHAR";
-}
-
-export function schemaToPlaceholder(s: Schema, replacements: Map<string, string>): string {
-  let expr = "?";
-  for (const [search, replace] of replacements) {
-    expr = `REPLACE(${expr}, '${search}', '${replace}')`;
-  }
-  if (s.subtype === "temporal" && s.datetimeFormat) {
-    expr = `strptime(${expr}, '${s.datetimeFormat}')`;
-  }
-  return expr;
 }
 
 export class SqlPivotDataModel extends GridPivotDataModel {
   protected dataSource: SqlDataSource;
 
-  constructor(schema: Schema[], dataSource: SqlDataSource) {
+  constructor(schema: DataSchema[], dataSource: SqlDataSource) {
     super(schema, dataSource.table);
     this.dataSource = dataSource;
   }
@@ -843,7 +835,7 @@ export class SqlPivotDataModel extends GridPivotDataModel {
   protected getAggregation(fieldName: string): string {
     const col = this.schema.find((s) => s.name === fieldName);
     if (col && col.type === "measure") {
-      return (col as MeasureSchema).aggregateFn ?? "sum";
+      return col.aggregateFn ?? "sum";
     }
     return "sum";
   }

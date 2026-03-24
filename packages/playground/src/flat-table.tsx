@@ -1,7 +1,7 @@
 import React, {useEffect, useRef, useState} from "react";
 import "grid/dist/grid.css";
 import Grid, {FlattenedDataViewModel, FacetCellRenderer, FacetDataContext, FacetRendererContext, GridDataViewModelOptions} from "grid/dist/renderer";
-import {DuckDBWasmDataSource, SqlFlatTableDataModel, GridData, MeasureSchema, FlatTableConfig, GetRowsIR, FlatTableViewModelArgs, SqlColumnType, Schema} from "grid/dist/index";
+import {DuckDBWasmDataSource, SqlFlatTableDataModel, GridData, DataSchema, FlatTableConfig, GetRowsIR, FlatTableViewModelArgs} from "grid/dist/index";
 import feather from "feather-icons";
 
 const NUM_GROUPS = 1000;
@@ -24,13 +24,13 @@ function generateGridData(): GridData {
     columns: [
       "group",
       "item",
-      {name: "value", displayName: "Value", type: "measure", aggregateFn: "sum"} as MeasureSchema,
+      {name: "value", displayName: "Value", type: "measure", aggregateFn: "sum"} as DataSchema,
     ],
     data: [groups, items, values],
   };
 }
 
-const flatSchema: FlatTableConfig["schema"] = [
+const flatSchema: DataSchema[] = [
   {name: "group", type: "dimension"},
   {name: "item", type: "dimension"},
   {name: "value", displayName: "Value", type: "measure", aggregateFn: "sum"},
@@ -162,17 +162,14 @@ const FlatTablePlayground: React.FC = () => {
         maxCacheSize: mcs,
       };
 
-      const dataSchema: Schema[] = gridData.columns.map((col) => {
+      const dataSchema: DataSchema[] = gridData.columns.map((col) => {
         if (typeof col === "string") {
           return { name: col, displayName: col, type: "dimension" as const };
         }
         return col;
       });
-      const columns = new Map<string, SqlColumnType>(
-        dataSchema.map((s) => [s.name, s.type === "measure" ? "DOUBLE" as const : "VARCHAR" as const])
-      );
       const ds = await DuckDBWasmDataSource.create();
-      await ds.loadData({ columns, data: gridData.data });
+      await ds.loadData({ schema: dataSchema, data: gridData.data });
       const model = new SqlFlatTableDataModel(config, dataSchema, ds);
 
       // Wrap getData with artificial delay
