@@ -23,6 +23,7 @@ const pages = [
 
 const SamplesLayout: React.FC = () => {
   const [theme, setTheme] = useState<"light" | "dark">(() => (localStorage.getItem("samples-theme") as "light" | "dark") || "light");
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const toggleTheme = () => {
     setTheme((t) => {
@@ -36,8 +37,16 @@ const SamplesLayout: React.FC = () => {
     ? feather.icons["moon"].toSvg({ width: 16, height: 16 })
     : feather.icons["sun"].toSvg({ width: 16, height: 16 });
 
+  const menuIcon = feather.icons["menu"].toSvg({ width: 20, height: 20 });
+
   return (
-    <div className="samples-root" data-theme={theme}>
+    <div className={`samples-root${sidebarOpen ? " sidebar-open" : ""}`} data-theme={theme}>
+      <button
+        className="samples-hamburger"
+        onClick={() => setSidebarOpen((v) => !v)}
+        dangerouslySetInnerHTML={{ __html: menuIcon }}
+      />
+      {sidebarOpen && <div className="samples-sidebar-overlay" onClick={() => setSidebarOpen(false)} />}
       <aside className="samples-sidebar">
         <div className="samples-sidebar-header">
           <span className="samples-sidebar-title">Samples</span>
@@ -51,7 +60,7 @@ const SamplesLayout: React.FC = () => {
           <ul>
             {pages.map((p) => (
               <li key={p.path}>
-                <NavLink to={p.path}>{p.label}</NavLink>
+                <NavLink to={p.path} onClick={() => setSidebarOpen(false)}>{p.label}</NavLink>
               </li>
             ))}
           </ul>

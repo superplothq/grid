@@ -15,11 +15,18 @@ function buildSchema(columns: ColumnMetadata[]): DataSchema[] {
   }));
 }
 
-interface SimpleTableProps {
-  height?: string;
+export interface ColFacetLevel {
+  labels: string[];
+  facetField?: string;
 }
 
-const SimpleTable: React.FC<SimpleTableProps> = ({height = "500px"}) => {
+interface SimpleTableProps {
+  height?: string;
+  colFacetLevels?: (schema: DataSchema[]) => ColFacetLevel[];
+  onGridReady?: (grid: Grid, schema: DataSchema[], theme: string) => void;
+}
+
+const SimpleTable: React.FC<SimpleTableProps> = ({height = "500px", colFacetLevels, onGridReady}) => {
   const dsState = useDataSource();
   const theme = useTheme();
   const containerRef = useRef<HTMLDivElement>(null);
@@ -50,23 +57,34 @@ const SimpleTable: React.FC<SimpleTableProps> = ({height = "500px"}) => {
       const result = await model.getViewModelData(ir);
       if (cancelled) return;
 
+      const extraLevels = colFacetLevels ? colFacetLevels(schema) : [];
+      const columnFacets = [
+        ...extraLevels.map((l) => l.labels),
+        result.columnFacets[0],
+      ];
+      const colFacetDefs = [
+        ...extraLevels.map((l) => ({text: "", ...(l.facetField && {facetField: l.facetField})})),
+        {text: "", facetField: "colName"},
+      ];
+
       const options: GridDataViewModelOptions = {
         ...result.options,
         facetDefs: {
           row: [{text: ""}],
-          col: [{text: ""}],
+          col: colFacetDefs,
           axis: "col",
         },
       };
 
       const viewModel = new FlattenedDataViewModel({
-        data: result.data, columnFacets: result.columnFacets, rowFacet: result.rowFacet, rowMeta: result.rowMeta, options,
+        data: result.data, columnFacets, rowFacet: result.rowFacet, rowMeta: result.rowMeta, options, schema,
       });
 
       if (!containerRef.current) return;
       const grid = new Grid({theme}, containerRef.current, "flat");
       grid.data = viewModel;
       grid.draw();
+      if (onGridReady) onGridReady(grid, schema, theme);
       setLoading(false);
     })().catch((err) => {
       if (!cancelled) {

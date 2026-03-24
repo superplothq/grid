@@ -12,7 +12,7 @@ export class GridError extends Error {
     sourceErr?: Error,
     public readonly properties?: Record<string, unknown>,
   ) {
-    super(`[${code}]: ${message}${sourceErr ? " :: " + sourceErr.message : ""}`);
+    super(`[${code}] ${message}${sourceErr ? " :: " + sourceErr.message : ""}`);
     this.name = "GridError";
   }
 }
