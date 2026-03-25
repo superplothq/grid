@@ -3,7 +3,7 @@ import { GridDataViewModel } from "./grid-data-viewmodel";
 import CellManager from "./cell-manager";
 import { BaseViewModel } from "./layout-proto";
 import { WithCellPlacement } from "./mixins";
-import { BaseSliceResult, HeaderCellContext } from "./types";
+import { BaseSliceResult, ColAutoSizeConfig, HeaderCellContext } from "./types";
 
 export interface BaseFixtureViewModel {
   offset: number;
@@ -38,6 +38,7 @@ export default abstract class PFixture {
 }
 
 export abstract class PVerticalFixture extends WithCellPlacement(PFixture) {
+  get colSize(): ColAutoSizeConfig { return { strategy: "max-cell" }; }
   abstract headerCells(ctx: HeaderCellContext): HTMLElement | HTMLElement[] | string | null;
 }
 

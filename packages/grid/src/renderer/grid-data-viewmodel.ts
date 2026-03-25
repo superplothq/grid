@@ -1,7 +1,8 @@
-import { BaseSliceResult, GridDataViewModelOptions, ResolvedVTrackDef, ColAutoSizeConfig, FacetDef, FacetData } from "./types";
+import { BaseSliceResult, GridDataViewModelOptions, ResolvedVTrackDef, ColAutoSizeConfig, IColAutoSizeStrategyStatic, FacetDef, FacetData } from "./types";
 import { textRenderer, defaultFacetRenderer, defaultFacetHeaderRenderer } from "./cell-renderers";
 
 const defaultColAutoSize: ColAutoSizeConfig = { strategy: "max-cell" };
+const defaultStaticColSize: IColAutoSizeStrategyStatic = { strategy: "static", width: 1, unit: "fr" };
 
 export class MetaState {
   #store: Map<string, Record<string, any>> = new Map();
@@ -54,6 +55,7 @@ export abstract class GridDataViewModel {
   protected data: any[][];
   #resolvedVTrackDefs!: ResolvedVTrackDef[];
   #facetDefs!: { row: FacetDef[]; col: FacetDef[]; axis: "row" | "col" };
+  #staticStrategy!: boolean;
   #totalRows: number | undefined;
   #offsetTop: number | undefined;
   readonly metaState: MetaState = new MetaState();
@@ -80,6 +82,13 @@ export abstract class GridDataViewModel {
       col: resolved.colFacetDefs,
       axis: options?.facetDefs?.axis ?? "col",
     };
+    this.#staticStrategy = this.#resolvedVTrackDefs.some(d => d.colSize.strategy === "static") ||
+      this.#facetDefs.row.some(d => d.colSize?.strategy === "static");
+    if (this.#staticStrategy) {
+      for (const d of [...this.#resolvedVTrackDefs, ...this.#facetDefs.row]) {
+        if (d.colSize?.strategy !== "static") d.colSize = defaultStaticColSize;
+      }
+    }
     this.#totalRows = options?.totalRows;
     this.#offsetTop = options?.offsetTop;
   }
@@ -129,6 +138,7 @@ export abstract class GridDataViewModel {
         ...(d?.facetField !== undefined && { facetField: d.facetField }),
         ...(d?.meta !== undefined && { meta: d.meta }),
         ...(d?.pseudo !== undefined && { pseudo: d.pseudo }),
+        ...(d?.colSize !== undefined && { colSize: d.colSize }),
       });
     }
     return defs;
@@ -140,6 +150,10 @@ export abstract class GridDataViewModel {
 
   get facetDefs(): { row: FacetDef[]; col: FacetDef[]; axis: "row" | "col" } {
     return this.#facetDefs;
+  }
+
+  get hasStaticStrategy(): boolean {
+    return this.#staticStrategy;
   }
 
   setColSize(colIndex: number, colSize: ResolvedVTrackDef["colSize"]): void {

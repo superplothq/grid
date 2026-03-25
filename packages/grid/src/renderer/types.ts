@@ -45,12 +45,19 @@ export interface FlatSliceResult extends BaseSliceResult {
 }
 
 export interface IColAutoSize {
-  strategy: "max-cell" | "fixed-width";
+  strategy: "max-cell" | "fixed-width" | "static";
   excludeColumnFacets?: boolean;
 }
 
 export interface IColAutoSizeStrategyMaxCell extends IColAutoSize {
   strategy: "max-cell";
+}
+
+// Fits container
+export interface IColAutoSizeStrategyStatic extends IColAutoSize {
+  strategy: "static";
+  width: number;
+  unit: "%" | "fr" | "px";
 }
 
 export interface IColAutoSizeStrategyFixedWidth extends IColAutoSize {
@@ -62,9 +69,9 @@ export interface IColAutoSizeStrategyFixedWidth extends IColAutoSize {
 
 export type ColAutoSizeConfig =
   | IColAutoSizeStrategyMaxCell
-  | IColAutoSizeStrategyFixedWidth;
+  | IColAutoSizeStrategyFixedWidth
+  | IColAutoSizeStrategyStatic;
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export interface VTrackDef<T = any> {
   renderer?: CellRenderer<T>;
   cellHeight?: number;
@@ -120,6 +127,7 @@ export interface FacetDef {
   trackRenderer: FacetCellRenderer;
   meta?: FacetMeta;
   pseudo?: boolean;
+  colSize?: ColAutoSizeConfig;
 }
 
 export interface GridDataViewModelOptions {

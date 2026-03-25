@@ -13,7 +13,9 @@ import {
   FacetDef,
   HeaderCellContext,
   FacetRendererContext,
+  ColAutoSizeConfig,
   IColAutoSizeStrategyFixedWidth,
+  IColAutoSizeStrategyStatic,
   PivotSliceResult,
   SelectionRule,
 } from "./types";
@@ -86,6 +88,14 @@ export interface CellRenderResult {
   nodesToAppend: HTMLElement[];
 }
 
+function colSizeToCss(colSize: ColAutoSizeConfig | undefined): string {
+  if (colSize?.strategy === "static") {
+    const s = colSize as IColAutoSizeStrategyStatic;
+    return `${s.width}${s.unit}`;
+  }
+  return "1fr";
+}
+
 const StandardLayoutBase = WithEvents<LayoutEvents>()(WithCellPlacement(PLayout));
 
 interface ResizeState {
@@ -125,8 +135,8 @@ export default class StandardLayout extends StandardLayoutBase {
   #fixtures: LayoutFixtures;
   #fixtureMeasurements = { top: [] as number[], topTotal: 0, bottom: [] as number[], bottomTotal: 0 };
   #selectAllRules: readonly SelectionRule[] = [];
+  #isStaticStrategy = false;
 
-  
   constructor(config: GridConfig, mountPoint: HTMLElement, cellManager: CellManager) {
     super(config, mountPoint, cellManager);
 
@@ -451,6 +461,8 @@ export default class StandardLayout extends StandardLayoutBase {
         inst.setData(data);
       }
     }
+    this.#isStaticStrategy = data.hasStaticStrategy ||
+      [...this.#fixtures.left, ...this.#fixtures.right].some(f => f.colSize.strategy === "static");
     this.#measureRowHeight();
   }
 
@@ -541,6 +553,43 @@ export default class StandardLayout extends StandardLayoutBase {
       fixedBottomHTrackPositions,
       logicalStartRow,
       logicalEndRow,
+    };
+  }
+
+  calculateHorizontalViewModelForFitContainer() {
+    const viewWidth = this.mountPoint.clientWidth;
+
+    const fixedVTrackLeftPositions = [0];
+    let k = 0;
+    for (; k < this.#fixtures.left.length; k++) {
+      fixedVTrackLeftPositions.push(
+        fixedVTrackLeftPositions[fixedVTrackLeftPositions.length - 1] + this.getColumnWidth(k));
+    }
+    for (let i = 0; i < this.data!.numRowFacetLevels - 1; i++) {
+      fixedVTrackLeftPositions.push(
+        fixedVTrackLeftPositions[fixedVTrackLeftPositions.length - 1] + this.getColumnWidth(k + i));
+    }
+
+    const rightFixtureStartIdx = this.#fixtures.left.length + this.data!.numRowFacetLevels + this.data!.numCols;
+    const fixedVTrackRightPositions: number[] = [];
+    let accRightWidth = 0;
+    for (let i = this.#fixtures.right.length - 1; i >= 0; i--) {
+      fixedVTrackRightPositions[i] = accRightWidth;
+      accRightWidth += this.getColumnWidth(rightFixtureStartIdx + i);
+    }
+
+    const leftFixtureWidth = this.getColWidthTillIdx(this.#fixtures.left.length);
+    const rowFacetsWidth = this.getColWidthTillIdx(this.#fixtures.left.length + this.data!.numRowFacetLevels) - leftFixtureWidth;
+
+    return {
+      startColFloat: 0,
+      startCol: 0,
+      endCol: this.data!.numCols,
+      totalWidth: viewWidth,
+      rowFacetsWidth,
+      offsetX: 0,
+      fixedVTrackLeftPositions,
+      fixedVTrackRightPositions,
     };
   }
 
@@ -645,7 +694,9 @@ export default class StandardLayout extends StandardLayoutBase {
     if (!this.data) throw new Error("Data is not set!");
 
     const vsVertical = this.calculateVerticalViewModel();
-    const vsHorizontal = this.calculateHorizontalViewModel();
+    const vsHorizontal = this.#isStaticStrategy
+      ? this.calculateHorizontalViewModelForFitContainer()
+      : this.calculateHorizontalViewModel();
 
     // Resolve selections from proposal
     const selections: SelectionState[] = [];
@@ -754,14 +805,26 @@ export default class StandardLayout extends StandardLayoutBase {
     const numLeftFixtures = fixtures.left.length;
     const numRightFixtures = fixtures.right.length;
 
-    const coreCols = `repeat(${numRowFacets + numDataCols}, max-content)`;
     const topFixtureRows = fixtures.top.map(f => f.getHeight() + "px").join(" ");
     const bottomFixtureRows = fixtures.bottom.map(f => f.getHeight() + "px").join(" ");
     const coreRows = `repeat(${numColFacets}, ${this.rowHeightByType.facet}px)`;
     const dataRows = `repeat(${numDataRows}, ${this.rowHeightByType.data}px)`;
 
+    let columns: string;
+    if (this.#isStaticStrategy) {
+      const parts: string[] = [];
+      for (const f of fixtures.left) parts.push(colSizeToCss(f.colSize));
+      for (const d of this.data!.facetDefs.row) parts.push(colSizeToCss(d.colSize));
+      for (const d of this.data!.vTrackDefs) parts.push(colSizeToCss(d.colSize));
+      for (const f of fixtures.right) parts.push(colSizeToCss(f.colSize));
+      columns = parts.join(" ");
+    } else {
+      const coreCols = `repeat(${numRowFacets + numDataCols}, max-content)`;
+      columns = [numLeftFixtures && `repeat(${numLeftFixtures}, max-content)`, coreCols, numRightFixtures && `repeat(${numRightFixtures}, max-content)`].filter(Boolean).join(" ");
+    }
+
     return {
-      columns: [numLeftFixtures && `repeat(${numLeftFixtures}, max-content)`, coreCols, numRightFixtures && `repeat(${numRightFixtures}, max-content)`].filter(Boolean).join(" "),
+      columns,
       rows: [coreRows, topFixtureRows, dataRows, bottomFixtureRows].filter(Boolean).join(" "),
     };
   }
@@ -781,6 +844,7 @@ export default class StandardLayout extends StandardLayoutBase {
   // - header cells can't be merged
   // - header cells can't be (contain: inline-size;) to skip header size from calculation
   #autosizeCells(): void {
+    if (this.#isStaticStrategy) { this.#cellsToMeasure = []; return; }
     if (this.#cellsToMeasure.length === 0) return;
 
     const indices: number[] = [];
