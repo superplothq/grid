@@ -125,7 +125,6 @@ export default class StandardLayout extends StandardLayoutBase {
   #scrollRAF: number | null = null;
   #scrollListenerSet = false;
   #scrollAxisLock: "x" | "y" | null = null;
-  #scrollAxisLockTimer: ReturnType<typeof setTimeout> | null = null;
   #renderCount = 0;
   #layoutBootstrapped = false;
   #cellsToMeasure: CellToMeasure[] = [];
@@ -405,13 +404,7 @@ export default class StandardLayout extends StandardLayoutBase {
       const absDX = Math.abs(e.deltaX);
       const absDY = Math.abs(e.deltaY);
 
-      if (!this.#scrollAxisLock) {
-        this.#scrollAxisLock = absDX > absDY ? "x" : "y";
-      }
-
-      if (this.#scrollAxisLockTimer) clearTimeout(this.#scrollAxisLockTimer);
-      this.#scrollAxisLockTimer = setTimeout(() => { this.#scrollAxisLock = null; }, 80);
-
+      this.#scrollAxisLock = absDX > absDY ? "x" : "y";
       if (this.#scrollAxisLock === "x") {
         this.mountPoint.scrollLeft += e.deltaX;
       } else {
