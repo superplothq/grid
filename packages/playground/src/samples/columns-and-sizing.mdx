@@ -1,0 +1,25 @@
+import ColumnsAndSizingTable from "./components/ColumnsAndSizingTable";
+import { DataSourceProvider } from "./components/DataSourceContext";
+
+# Columns and Sizing
+
+Render only specific columns by passing `project` to `SimpleTable`, and control their width with `vTrackDefs`.
+
+## Static Sizing
+
+Each column below uses the `static` strategy with `fr` units. The grid fits within the container with no horizontal scrolling. `Regular Gross Paid` gets `2fr` — twice the width of the name columns:
+
+```tsx
+const PROJECT = ["First Name", "Last Name", "Regular Gross Paid"];
+const V_TRACK_DEFS = [
+  { colSize: { strategy: "static", width: 1, unit: "fr" } },
+  { colSize: { strategy: "static", width: 1, unit: "fr" } },
+  { colSize: { strategy: "static", width: 2, unit: "fr" } },
+];
+
+<SimpleTable project={PROJECT} vTrackDefs={V_TRACK_DEFS} />
+```
+
+<DataSourceProvider mode="clean">
+  <ColumnsAndSizingTable height="500px" />
+</DataSourceProvider>

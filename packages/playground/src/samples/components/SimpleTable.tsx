@@ -1,6 +1,6 @@
 import React, {useEffect, useRef, useState} from "react";
 import "grid/dist/grid.css";
-import Grid, {FlattenedDataViewModel, GridDataViewModelOptions} from "grid/dist/renderer";
+import Grid, {FlattenedDataViewModel, GridDataViewModelOptions, VTrackDef} from "grid/dist/renderer";
 import {SqlFlatTableDataModel, FlatTableConfig, GetRowsIR, ColumnMetadata, DataSchema} from "grid/dist/index";
 import {useDataSource} from "./DataSourceContext";
 import {useTheme} from "./ThemeContext";
@@ -22,11 +22,13 @@ export interface ColFacetLevel {
 
 interface SimpleTableProps {
   height?: string;
+  project?: string[];
+  vTrackDefs?: VTrackDef[];
   colFacetLevels?: (schema: DataSchema[]) => ColFacetLevel[];
   onGridReady?: (grid: Grid, schema: DataSchema[], theme: string) => void;
 }
 
-const SimpleTable: React.FC<SimpleTableProps> = ({height = "500px", colFacetLevels, onGridReady}) => {
+const SimpleTable: React.FC<SimpleTableProps> = ({height = "500px", project, vTrackDefs, colFacetLevels, onGridReady}) => {
   const dsState = useDataSource();
   const theme = useTheme();
   const containerRef = useRef<HTMLDivElement>(null);
@@ -43,13 +45,16 @@ const SimpleTable: React.FC<SimpleTableProps> = ({height = "500px", colFacetLeve
       const config: FlatTableConfig = {schema, pageSize: 100};
       const model = new SqlFlatTableDataModel(config, schema, ds);
 
+      const projectedSchema = project
+        ? schema.filter((s) => project.includes(s.displayName ?? s.name))
+        : schema;
+
       const ir: GetRowsIR = {
         startRow: 0,
         endRow: 100,
         select: [],
-        // groupBy: dimensions,
         groupBy: [],
-        project: schema.map((s) => s.name),
+        project: projectedSchema.map((s) => s.name),
         sort: [],
         filter: [],
       };
@@ -57,7 +62,7 @@ const SimpleTable: React.FC<SimpleTableProps> = ({height = "500px", colFacetLeve
       const result = await model.getViewModelData(ir);
       if (cancelled) return;
 
-      const extraLevels = colFacetLevels ? colFacetLevels(schema) : [];
+      const extraLevels = colFacetLevels ? colFacetLevels(projectedSchema) : [];
       const columnFacets = [
         ...extraLevels.map((l) => l.labels),
         result.columnFacets[0],
@@ -69,6 +74,7 @@ const SimpleTable: React.FC<SimpleTableProps> = ({height = "500px", colFacetLeve
 
       const options: GridDataViewModelOptions = {
         ...result.options,
+        ...(vTrackDefs && {vTrackDefs}),
         facetDefs: {
           row: [{text: ""}],
           col: colFacetDefs,
@@ -77,7 +83,7 @@ const SimpleTable: React.FC<SimpleTableProps> = ({height = "500px", colFacetLeve
       };
 
       const viewModel = new FlattenedDataViewModel({
-        data: result.data, columnFacets, rowFacet: result.rowFacet, rowMeta: result.rowMeta, options, schema,
+        data: result.data, columnFacets, rowFacet: result.rowFacet, rowMeta: result.rowMeta, options, schema: projectedSchema,
       });
 
       if (!containerRef.current) return;
