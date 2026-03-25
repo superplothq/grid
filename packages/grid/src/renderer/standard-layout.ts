@@ -114,6 +114,8 @@ export default class StandardLayout extends StandardLayoutBase {
   #gridClipEl: HTMLElement;
   #scrollRAF: number | null = null;
   #scrollListenerSet = false;
+  #scrollAxisLock: "x" | "y" | null = null;
+  #scrollAxisLockTimer: ReturnType<typeof setTimeout> | null = null;
   #renderCount = 0;
   #layoutBootstrapped = false;
   #cellsToMeasure: CellToMeasure[] = [];
@@ -372,19 +374,44 @@ export default class StandardLayout extends StandardLayoutBase {
     return this.buildCommonCell(renderer(merge.value, dataCtx, rendererCtx));
   }
 
+  // TODO smooth scrolling. scrolling behaves a litte weird across different devices.
   #setupScrollListener(): void {
     if (this.#scrollListenerSet) return;
     this.#scrollListenerSet = true;
-    this.mountPoint.addEventListener("scroll", () => {
-      if (this.#scrollRAF) return;
 
+    const scheduleRender = () => {
+      if (this.#scrollRAF) return;
       this.#scrollRAF = requestAnimationFrame(() => {
         this.#scrollRAF = null;
         const t1 = performance.now();
         const viewModel = this.calculateViewModel();
         this.render(viewModel, { t1, hintContentDirty: true });
       });
-    });
+    };
+
+    this.mountPoint.addEventListener("wheel", (e) => {
+      e.preventDefault();
+
+      const absDX = Math.abs(e.deltaX);
+      const absDY = Math.abs(e.deltaY);
+
+      if (!this.#scrollAxisLock) {
+        this.#scrollAxisLock = absDX > absDY ? "x" : "y";
+      }
+
+      if (this.#scrollAxisLockTimer) clearTimeout(this.#scrollAxisLockTimer);
+      this.#scrollAxisLockTimer = setTimeout(() => { this.#scrollAxisLock = null; }, 80);
+
+      if (this.#scrollAxisLock === "x") {
+        this.mountPoint.scrollLeft += e.deltaX;
+      } else {
+        this.mountPoint.scrollTop += e.deltaY;
+      }
+
+      scheduleRender();
+    }, { passive: false });
+
+    this.mountPoint.addEventListener("scroll", () => { scheduleRender(); });
   }
 
   getRowHeight(type: "facet" | "data") {
