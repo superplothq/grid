@@ -1675,6 +1675,40 @@ export default class StandardLayout extends StandardLayoutBase {
     });
   }
 
+  // For multiple level of column facets, the last level i.e. the leaf nodes are aligned with the cells of the column
+  // Meaning, for each vertical column these last level of column acts as a header. (we'll call these trackHeader)
+  // Meaning, the last level of column facet alongside the value cells form a standard table. You can think of the
+  // nested facets (level_n-1 where nth is leaf nodes) are nesting/hierarchy that aligns with the trackHeader cells.
+  // The sizing (width) always gets added to the last level of facets - the nested facets have colspan property set on
+  // them that css grid layout manages while creating the nesting/hierarchy.
+  #getLeafColCells(colIdx: number): { trackHeaderCell: HTMLElement | null; cells: HTMLElement[] } {
+    const leafLevel = this.data!.numColFacetLevels - 1;
+    const trackHeaderCell = this.#con.querySelector<HTMLElement>(`[data-hix="${colIdx}"][data-facet-level="${leafLevel}"]`);
+    const dataCells = Array.from(this.#con.querySelectorAll<HTMLElement>(`[data-cclix="${colIdx}"]`));
+    const cells: HTMLElement[] = trackHeaderCell ? [trackHeaderCell, ...dataCells] : dataCells;
+    if (cells.length === 0) {
+      throw new Error(`No cells found for column ${colIdx}`);
+    }
+    return { trackHeaderCell, cells };
+  }
+
+  autofitLeafColWidth(colIdx: number): void {
+    const { trackHeaderCell, cells } = this.#getLeafColCells(colIdx);
+    if (!trackHeaderCell) return;
+
+    for (const cell of [trackHeaderCell, ...cells]) {
+      cell.style.width = "";
+      cell.style.minWidth = "";
+      cell.style.maxWidth = "";
+    }
+
+    const contentWidth = trackHeaderCell.getBoundingClientRect().width;
+
+    const ctrl = this.changeLeafColWidth(colIdx);
+    ctrl.byAbsValue(contentWidth);
+    ctrl.commit();
+  }
+
   // colIdx is the absolute column index including row facets
   // TODO if left fixture is present, this value might not be correct as call site does not know about it
   changeLeafColWidth(colIdx: number): {
@@ -1699,20 +1733,7 @@ export default class StandardLayout extends StandardLayoutBase {
     }
     cleanup();
 
-    // For multiple level of column facets, the last level i.e. the leaf nodes are aligned with the cells of the column
-    // Meaning, for each vertical column these last level of column acts as a header. (we'll call these trackHeader)
-    // Meaning, the last level of column facet alongside the value cells form a standard table. You can think of the
-    // nested facets (level_n-1 where nth is leaf nodes) are nesting/hierarchy that aligns with the trackHeader cells.
-    // The sizing (width) always gets added to the last level of facets - the nested facets have colspan property set on
-    // them that css grid layout manages while creating the nesting/hierarchy.
-    const leafLevel = this.data!.numColFacetLevels - 1;
-    const trackHeaderCell = this.#con.querySelector<HTMLElement>(`[data-hix="${colIdx}"][data-facet-level="${leafLevel}"]`);
-    const dataCells = Array.from(this.#con.querySelectorAll<HTMLElement>(`[data-cclix="${colIdx}"]`));
-    const cells: HTMLElement[] = trackHeaderCell ? [trackHeaderCell, ...dataCells] : dataCells;
-
-    if (cells.length === 0) {
-      throw new Error(`No cells found for column ${colIdx}`);
-    }
+    const { cells } = this.#getLeafColCells(colIdx);
 
     const widthBeforeResize = cells[0].getBoundingClientRect().width;
 

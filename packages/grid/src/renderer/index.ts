@@ -200,7 +200,13 @@ export default class Grid extends GridWithEvents {
       }
 
 
+      // Without didDrag, mousedown commits + redraws on mouseup even for a simple click.
+      // That destroys the DOM element before the second click, preventing dblclick from firing
+      // on the resize handle. By tracking whether the mouse actually moved, we cancel instead
+      // of committing on a no-drag click, keeping the DOM intact for dblclick.
+      let didDrag = false;
       const onMouseMove = (moveEvent: MouseEvent) => {
+        didDrag = true;
         container.style.cursor = "col-resize";
         const deltaX = moveEvent.clientX - startX;
         const lastPerColDelta = deltaX / totalColCount;
@@ -212,14 +218,31 @@ export default class Grid extends GridWithEvents {
         document.removeEventListener("mouseup", onMouseUp);
         container.style.cursor = "";
 
-        resizeControllers.forEach(c => c.ctrl.commit());
-        this.draw();
+        if (didDrag) {
+          resizeControllers.forEach(c => c.ctrl.commit());
+          this.draw();
+        } else {
+          resizeControllers.forEach(c => c.ctrl.cancel());
+        }
       };
 
       document.addEventListener("mousemove", onMouseMove);
       document.addEventListener("mouseup", onMouseUp);
 
       e.preventDefault();
+    });
+
+    container.addEventListener("dblclick", (e: MouseEvent) => {
+      if (!isResizeHandle(e.target)) return;
+      const cell = getHeaderCell(e.target);
+      if (!cell) return;
+
+      const leafLevel = this.#layout.data!.numColFacetLevels - 1;
+      if (parseInt(cell.dataset.facetLevel!, 10) !== leafLevel) return;
+
+      const colIdx = parseInt(cell.dataset.hix!, 10);
+      this.#layout.autofitLeafColWidth(colIdx);
+      this.draw();
     });
   }
 
