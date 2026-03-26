@@ -865,7 +865,7 @@ export default class StandardLayout extends StandardLayoutBase {
       }
     }
 
-    const maxSeen = this.config.columnSizingStrategyOnScroll === "max-seen";
+    const maxSeen = this.config.columnAutosizingStrategyOnScroll === "max-seen";
     for (let i = 0; i < indices.length; i++) {
       if (indices[i] === undefined) continue;
       if (maxSeen && indices[i] <= (this.colsWidth.indices[i] || 0)) {
