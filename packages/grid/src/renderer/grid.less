@@ -66,6 +66,10 @@
     color: var(--column-facet-text-color);
     overflow: visible;
 
+    &.r-edge {
+      overflow: hidden;
+    }
+
     &.skp-sz {
       contain: inline-size;
     }
@@ -192,7 +196,7 @@
 
   &.corner {
     position: sticky;
-    z-index: 30;
+    z-index: 9999;
   }
 
   &.selection-overlay {
@@ -202,5 +206,9 @@
     z-index: 5;
     position: relative;
     box-sizing: border-box;
+  }
+
+  &.right-fixture-header {
+    z-index: 9999;
   }
 }

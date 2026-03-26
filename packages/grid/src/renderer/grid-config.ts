@@ -7,6 +7,7 @@ export interface GridConfig {
   enableResizeUI: boolean;
   fixtures: LayoutFixtureClasses;
   theme: string;
+  columnSizingStrategyOnScroll: "dynamic" | "max-seen";
 }
 
 export const defaultConfig: GridConfig = {
@@ -15,6 +16,7 @@ export const defaultConfig: GridConfig = {
   overscan: 2,
   enableResizeUI: true,
   theme: "light",
+  columnSizingStrategyOnScroll: "max-seen",
   fixtures: {
     top: [],
     left: [],

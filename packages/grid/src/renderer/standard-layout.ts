@@ -865,8 +865,15 @@ export default class StandardLayout extends StandardLayoutBase {
       }
     }
 
+    const maxSeen = this.config.columnSizingStrategyOnScroll === "max-seen";
     for (let i = 0; i < indices.length; i++) {
       if (indices[i] === undefined) continue;
+      if (maxSeen && indices[i] <= (this.colsWidth.indices[i] || 0)) {
+        for (const { cell, sizeKey } of this.#cellsToMeasure) {
+          if (sizeKey === i) cell.style.minWidth = `${this.colsWidth.indices[i]}px`;
+        }
+        continue;
+      }
       this.colsWidth.indices[i] = indices[i];
     }
 
@@ -1106,7 +1113,8 @@ export default class StandardLayout extends StandardLayoutBase {
       const shouldApplyWidth = isLeafLevel && colspan === 1 && !colDef.colSize.excludeColumnFacets && colDef.colSize.strategy === "fixed-width";
       const fixedSize = shouldApplyWidth ? colDef.colSize as IColAutoSizeStrategyFixedWidth : null;
 
-      let boundaryCellCls = merge.start === 0 ? "l-edge" : (merge.start + merge.spanPrimary === numDataColsVisible ? "r-edge" : "");
+      let boundaryCellCls = merge.start === 0 ? "l-edge " : "";
+      boundaryCellCls += (merge.start + merge.spanPrimary === numDataColsVisible ? "r-edge " : "");
       const [cell, needAppend, contentDirty] = this.placeCellInDom({
         key,
         gridRow: merge.level + 1,

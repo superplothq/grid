@@ -67,7 +67,6 @@ export default class GroupedRowLayout extends StandardLayout {
 
       cell.dataset.cellType = "row-facet";
       needAppend && nodesToAppend.push(cell);
-      cellsToMeasure.push({ cell, sizeKey: gridColOffset });
       adjustCells.push({ cell, level: gridColOffset });
     }
     return { cellsToMeasure, adjustCells, nodesToAppend };
