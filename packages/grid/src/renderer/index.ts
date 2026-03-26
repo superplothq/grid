@@ -121,11 +121,9 @@ export default class Grid extends GridWithEvents {
     if (!this.#config.enableResizeUI) return;
 
     const container = this.#layout.gridContainer;
-    const EDGE_THRESHOLD = 4;
-
-    const isNearRightEdge = (cell: HTMLElement, clientX: number): boolean => {
-      const rect = cell.getBoundingClientRect();
-      return clientX >= rect.right - EDGE_THRESHOLD;
+    const isResizeHandle = (target: EventTarget | null): boolean => {
+      if (!(target instanceof HTMLElement)) return false;
+      return target.classList.contains("resize-handle");
     };
 
     const getHeaderCell = (target: EventTarget | null): HTMLElement | null => {
@@ -163,8 +161,9 @@ export default class Grid extends GridWithEvents {
     };
 
     container.addEventListener("mousedown", (e: MouseEvent) => {
+      if (!isResizeHandle(e.target)) return;
       const cell = getHeaderCell(e.target);
-      if (!cell || !isNearRightEdge(cell, e.clientX)) return;
+      if (!cell) return;
 
       const level = parseInt(cell.dataset.facetLevel!, 10);
       // See the diagram in the comment on standard-layout.ts

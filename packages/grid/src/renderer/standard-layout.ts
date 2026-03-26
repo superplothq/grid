@@ -369,8 +369,8 @@ export default class StandardLayout extends StandardLayoutBase {
     return container;
   }
 
-  protected buildFacetCell(facetDefs: FacetDef[], merge: MergeState, facets: (string | null)[][], rendererOverride?: FacetCellRenderer): HTMLElement {
-    const renderer = rendererOverride ?? facetDefs[merge.level].trackRenderer;
+  protected buildFacetCell(facetDefs: FacetDef[], merge: MergeState, facets: (string | null)[][], opts?: { rendererOverride?: FacetCellRenderer; resizeHandle?: boolean }): HTMLElement | HTMLElement[] {
+    const renderer = opts?.rendererOverride ?? facetDefs[merge.level].trackRenderer;
     const dataCtx: FacetDataContext = {
       viewModel: this.data!,
       path: facets[merge.start],
@@ -380,7 +380,13 @@ export default class StandardLayout extends StandardLayoutBase {
     const rendererCtx: FacetRendererContext = {
       render: (vm: GridDataViewModel) => this.renderWithDataViewModel(vm),
     };
-    return this.buildCommonCell(renderer(merge.value, dataCtx, rendererCtx));
+    const el = this.buildCommonCell(renderer(merge.value, dataCtx, rendererCtx));
+    if (opts?.resizeHandle) {
+      const handle = document.createElement("span");
+      handle.className = "resize-handle";
+      return [el, handle];
+    }
+    return el;
   }
 
   // TODO smooth scrolling. scrolling behaves a litte weird across different devices.
@@ -1118,7 +1124,7 @@ export default class StandardLayout extends StandardLayoutBase {
       });
       if (contentDirty) {
         const { trackRenderer: colTrackRenderer, styleFns: colStyleFns } = this.resolveFacetOverrides([sliceData.columnFacets![merge.start][merge.level]], [this.data!.facetDefs.col[merge.level]]);
-        const facetContent = this.buildFacetCell(this.data!.facetDefs.col, merge, sliceData.columnFacets!, colTrackRenderer);
+        const facetContent = this.buildFacetCell(this.data!.facetDefs.col, merge, sliceData.columnFacets!, { rendererOverride: colTrackRenderer, resizeHandle: true });
         addOrReplaceChildren(cell, facetContent);
         for (const fn of colStyleFns) fn(cell);
       }
@@ -1140,6 +1146,7 @@ export default class StandardLayout extends StandardLayoutBase {
       //           1              3             5            7      <- level=1
       //                          3                          7      <- level=0
       cell.dataset.hix = String(absoluteColIndex + colspan - 1);
+      cell.style.zIndex = `${999 - merge.start}`;
       needAppend && nodeAppendList.push(cell);
       if (!(colspan && colspan > 1)) {
         this.#cellsToMeasure.push({ cell, sizeKey: absoluteColIndex });
@@ -1537,7 +1544,7 @@ export default class StandardLayout extends StandardLayoutBase {
       });
       if (contentDirty) {
         const { trackRenderer: rowTrackRenderer, styleFns: rowStyleFns } = this.resolveFacetOverrides([sliceData.rowFacets![merge.start][merge.level]], [this.data!.facetDefs.row[merge.level]]);
-        const rowFacetContent = this.buildFacetCell(this.data!.facetDefs.row, merge, sliceData.rowFacets!, rowTrackRenderer);
+        const rowFacetContent = this.buildFacetCell(this.data!.facetDefs.row, merge, sliceData.rowFacets!, { rendererOverride: rowTrackRenderer });
         addOrReplaceChildren(cell, rowFacetContent);
         for (const fn of rowStyleFns) fn(cell);
       }
