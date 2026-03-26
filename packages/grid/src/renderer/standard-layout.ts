@@ -870,7 +870,7 @@ export default class StandardLayout extends StandardLayoutBase {
       if (indices[i] === undefined) continue;
       if (maxSeen && indices[i] <= (this.colsWidth.indices[i] || 0)) {
         for (const { cell, sizeKey } of this.#cellsToMeasure) {
-          if (sizeKey === i) cell.style.minWidth = `${this.colsWidth.indices[i]}px`;
+          if (sizeKey === i) cell.style.minWidth = `${this.colsWidth.override[i] || this.colsWidth.indices[i]}px`;
         }
         continue;
       }
