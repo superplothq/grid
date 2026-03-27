@@ -1,7 +1,7 @@
 import React, {useEffect, useRef, useState} from "react";
 import "grid/dist/grid.css";
 import Grid, {FlattenedDataViewModel, FacetCellRenderer, FacetDataContext, FacetRendererContext, GridDataViewModelOptions} from "grid/dist/renderer";
-import {DuckDBWasmDataSource, SqlFlatTableDataModel, GridData, DataSchema, FlatTableConfig, GetRowsIR, FlatTableViewModelArgs} from "grid/dist/index";
+import {DuckDBWasmDataSource, SqlFlatTableDataModel, GridData, DataSchema, FlatTableConfig, GetRowsIR, FlattenedDataViewModelParams} from "grid/dist/index";
 import feather from "feather-icons";
 
 const NUM_GROUPS = 1000;
@@ -91,7 +91,7 @@ function makeFacetRenderer(
       rCtx.render(viewModel);
 
       const select = dataCtx.path.filter((v): v is string => v !== null);
-      let result: FlatTableViewModelArgs;
+      let result: FlattenedDataViewModelParams;
       if (flatMeta.isExpanded) {
         result = await model.collapseData(select);
       } else {

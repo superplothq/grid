@@ -829,7 +829,7 @@ export abstract class GridPivotDataModel {
     };
   }
 
-  async getViewModelData(config: PivotConfig): Promise<GridDataViewModelArgsObj> {
+  async getViewModelData(config: PivotConfig): Promise<PivotDataViewModelParams> {
     const ir = this.getIR(config);
     const [colDimCount, rowDimCount] = [ir.colIR, ir.rowIR].map(ir => dimSpecFields(ir.dimSpec).length);
     const totalDimCount = rowDimCount + colDimCount;
@@ -953,5 +953,3 @@ export abstract class GridPivotDataModel {
     return new PivotDataViewModel({ data, columnFacets, rowFacets, options });
   }
 }
-
-type GridDataViewModelArgsObj = PivotDataViewModelParams;

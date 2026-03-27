@@ -1,13 +1,12 @@
 import {
   DataSchema,
   FlatTableConfig,
-  FlatTableViewModelArgs,
   GetRowsIR,
   GetRowsResponse,
   PageNode,
   ExpandedGroup,
 } from "./types";
-import { FlattenedDataViewModel, createRowMeta } from "../renderer/flattened-data-viewmodel";
+import { FlattenedDataViewModel, FlattenedDataViewModelParams, createRowMeta } from "../renderer/flattened-data-viewmodel";
 import { GridDataViewModelOptions } from "../renderer/types";
 
 const DEFAULT_PAGE_SIZE = 10000;
@@ -83,7 +82,7 @@ export abstract class FlatTableDataModel {
     this.topLevelRowCount = 0;
   }
 
-  async getViewModelData(ir: GetRowsIR): Promise<FlatTableViewModelArgs> {
+  async getViewModelData(ir: GetRowsIR): Promise<FlattenedDataViewModelParams> {
     if (this.lastIR) {
       // TODO[review] is object equality check enough. this seems heavy
       const groupByChanged = this.lastIR.groupBy.join(",") !== ir.groupBy.join(",");
@@ -140,7 +139,7 @@ export abstract class FlatTableDataModel {
   //      startRow from last page load when it was at the very bottom of the page (no idea about scroll back up)
   //      Pass the startRow as parameter
   //      this might have an error for page eviction
-  async expandData(select: string[]): Promise<FlatTableViewModelArgs> {
+  async expandData(select: string[]): Promise<FlattenedDataViewModelParams> {
     const result = this.findGroupRow(select);
     if (!result) {
       throw new Error(`Group row not found for select: ${select.join(", ")}`);
@@ -195,7 +194,7 @@ export abstract class FlatTableDataModel {
     return new FlattenedDataViewModel(args);
   }
 
-  async collapseData(select: string[]): Promise<FlatTableViewModelArgs> {
+  async collapseData(select: string[]): Promise<FlattenedDataViewModelParams> {
     const result = this.findGroupRow(select);
     if (!result) {
       throw new Error(`Group row not found for select: ${select.join(", ")}`);
@@ -270,7 +269,7 @@ export abstract class FlatTableDataModel {
     return null;
   }
 
-  private flatten(): FlatTableViewModelArgs {
+  private flatten(): FlattenedDataViewModelParams {
     const ir = this.lastIR!;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const data: any[][] = ir.project.map(() => []);
