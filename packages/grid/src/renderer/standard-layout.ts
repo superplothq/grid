@@ -295,7 +295,7 @@ export default class StandardLayout extends StandardLayoutBase {
         cell.style.height = `${colDef.cellHeight}px`;
       } else {
         const sampleValue = colDef.sampleData ?? this.data!.getSlice(col, 0, col + 1, 1).data?.[0]?.[0];
-        const content = colDef.renderer(sampleValue, {});
+        const content = colDef.renderer(sampleValue, { container: cell });
         addOrReplaceChildren(cell, content);
       }
       measureCells.push(cell);
@@ -1622,13 +1622,8 @@ export default class StandardLayout extends StandardLayoutBase {
             dataStyleFns = result.styleFns;
           }
 
-          const isNullish = value === null || value === undefined;
-          if (isNullish) {
-            cell.innerHTML = "";
-          } else {
-            const content = renderer(value, {});
-            addOrReplaceChildren(cell, content);
-          }
+          const content = renderer(value, { container: cell });
+          addOrReplaceChildren(cell, content);
           cell.dataset.cellType = "value";
           cell.dataset.cclix = String(absoluteColIndex);
           cell.dataset.croix = String(absoluteRowIndex);

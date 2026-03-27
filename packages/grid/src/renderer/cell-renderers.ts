@@ -2,7 +2,9 @@ import { scaleLinear } from "d3-scale";
 import { line, curveCatmullRom } from "d3-shape";
 import { FacetCellRenderer, FacetHeaderRenderer } from "./types";
 
-export interface RendererContext {}
+export interface RendererContext {
+  container: HTMLElement;
+}
 
 export type CellRenderer<T> = (data: T, ctx: RendererContext) => string | HTMLElement | HTMLElement[];
 
@@ -14,7 +16,11 @@ export const defaultFacetHeaderRenderer: FacetHeaderRenderer = (text) => {
   return text ?? "";
 };
 
-export const textRenderer: CellRenderer<unknown> = (data) => {
+export const textRenderer: CellRenderer<unknown> = (data, ctx) => {
+  ctx.container.style.display = "inline-block";
+  ctx.container.style.overflow = "hidden";
+  ctx.container.style.textOverflow = "ellipsis";
+  ctx.container.style.whiteSpace = "nowrap";
   return data == null ? "" : String(data);
 };
 
