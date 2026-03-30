@@ -19,6 +19,7 @@
   --s-content-max-w: 720px;
   --s-toggle-bg: #f0f0f0;
   --s-toggle-hover: #e0e0e0;
+  --s-btn-text: #fff;
 }
 
 .samples-root[data-theme="dark"] {
@@ -37,6 +38,7 @@
   --s-sample-border: #38383d;
   --s-toggle-bg: #32323a;
   --s-toggle-hover: #42424a;
+  --s-btn-text: #1c1c1f;
 }
 
 /* ── Layout ── */
@@ -305,6 +307,23 @@
   .samples-content-inner {
     padding: 60px 16px 48px;
   }
+}
+
+/* ── Sample buttons ── */
+.sample-btn {
+  padding: 7px 16px;
+  border: none;
+  border-radius: 6px;
+  background: var(--s-accent);
+  color: var(--s-btn-text);
+  font-family: var(--s-font-sans);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+.sample-btn:hover {
+  opacity: 0.85;
 }
 
 /* ── GridSample container ── */
