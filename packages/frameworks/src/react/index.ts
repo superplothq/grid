@@ -1,5 +1,4 @@
 export { DataGrid } from "./DataGrid";
-export { Column } from "./Column";
 export type {
   CellProps,
   FacetCellProps,

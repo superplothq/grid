@@ -303,7 +303,7 @@ Developer API:
 
 - `cell` — React component called per visible row (vertical fixtures) or per visible column (horizontal fixtures). Participates in cell pooling via `createRoot` per key, same as data cell renderers.
 - `header` — React component for the fixture's header cell. Only applies to vertical (left/right) fixtures. Called once per render cycle.
-- The `<Fixture>` component is declarative config only (like `<Column>`). It doesn't render anything itself — `DataGrid` reads it and instantiates the appropriate `ReactVerticalFixture` or `ReactHorizontalFixture`.
+- The `<Fixture>` component is declarative config only. It doesn't render anything itself — `DataGrid` reads it and instantiates the appropriate `ReactVerticalFixture` or `ReactHorizontalFixture`.
 
 ### 3.3 Fixture ViewModel
 
@@ -578,7 +578,6 @@ gridRef.current.scrollTo("row", 500);
 packages/frameworks/src/react/
   index.ts              — public exports
   DataGrid.tsx          — main wrapper component
-  Column.tsx            — column definition (declarative, renders nothing)
   Fixture.tsx           — fixture definition (declarative, renders nothing)
   renderer-adapter.ts   — createRoot bridge for cell/facet renderers
   fixture-adapter.ts    — React fixture base classes
@@ -588,7 +587,7 @@ packages/frameworks/src/react/
 ### 6.2 Consumer API
 
 ```tsx
-import { DataGrid, Column, Fixture } from "frameworks/react";
+import { DataGrid, Fixture } from "frameworks/react";
 
 function App() {
   const gridRef = useRef<DataGridHandle>(null);
@@ -610,8 +609,6 @@ function App() {
         onSelectionChange={handleSelection}
         onViewDataEmpty={loadMore}
       >
-        <Column field="name" header="Name" />
-        <Column field="score" header="Score" renderer={ScoreCell} />
         <Fixture position="left" cell={RowNumbers} />
       </DataGrid>
     </div>
@@ -630,7 +627,7 @@ The design separates into three layers, where only the top two are framework-spe
 ```
 ┌─────────────────────────────────────────────────┐
 │  Layer 3: Framework wrapper  (~200 lines)       │
-│  <DataGrid>, <Column>, lifecycle hooks,         │
+│  <DataGrid>, lifecycle hooks,                    │
 │  event forwarding, imperative handle            │
 ├─────────────────────────────────────────────────┤
 │  Layer 2: Cell mount/unmount bridge (~50 lines) │
@@ -663,8 +660,7 @@ To add Vue support, you would:
 
 1. **Copy** `renderer-adapter.ts` → `renderer-adapter-vue.ts` (~50 lines) — swap `createRoot`/`root.render`/`root.unmount` for `createApp`/`app.mount`/`app.unmount`
 2. **Rewrite** `DataGrid.tsx` → `DataGrid.vue` (~200 lines) — same logic (mount Grid in `onMounted`, sync props, forward events), different lifecycle hooks
-3. **Rewrite** `Column.tsx` → declarative slot/prop equivalent
-4. **Zero changes** to Grid core, CellManager, StandardLayout, or any Layer 1 code
+3. **Zero changes** to Grid core, CellManager, StandardLayout, or any Layer 1 code
 
 File structure per framework:
 
@@ -920,9 +916,7 @@ function MyGrid() {
     <div>
       <Toolbar onConfigChange={setPivotConfig} />
       {loading && <Spinner />}
-      <DataGrid data={viewModel}>
-        <Column field="revenue" renderer={CurrencyCell} />
-      </DataGrid>
+      <DataGrid data={viewModel} />
     </div>
   );
 }
@@ -1006,7 +1000,6 @@ Compare with the current `flat-table.tsx` playground (~120 lines of manual wirin
 packages/frameworks/src/react/
   index.ts
   DataGrid.tsx
-  Column.tsx
   Fixture.tsx
   renderer-adapter.ts
   fixture-adapter.ts
