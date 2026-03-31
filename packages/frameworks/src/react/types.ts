@@ -12,8 +12,6 @@ export type { CellRenderer };
 
 export interface CellProps<T = any> {
   value: T;
-  rowIndex: number;
-  colIndex: number;
 }
 
 export interface FacetCellProps {

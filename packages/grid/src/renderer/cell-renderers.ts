@@ -7,7 +7,9 @@ export interface RendererContext {
   key: string;
 }
 
-export type CellRenderer<T> = (data: T, ctx: RendererContext) => string | HTMLElement | HTMLElement[];
+// when the renderer takes ownership of the container element (framework like react createRoot rendering)
+// it returns undefined (void) from the renderer
+export type CellRenderer<T> = (data: T, ctx: RendererContext) => string | HTMLElement | HTMLElement[] | void;
 
 export const defaultFacetRenderer: FacetCellRenderer = (data) => {
   return data == null ? "" : String(data);

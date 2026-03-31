@@ -82,6 +82,7 @@ type El = HTMLElement | HTMLElement[] | string;
 
 export interface FacetRendererContext {
   render: (viewModel: GridDataViewModel) => void;
+  container: HTMLElement;
 }
 
 export interface FacetDataContext {
@@ -99,23 +100,28 @@ export interface FacetCellContent {
   right?: El;
 }
 
+// when the renderer takes ownership of the container element (framework like react createRoot rendering)
+// it returns undefined (void) from the renderer
 export type FacetCellRenderer<T = string> = (
   data: T,
   dataCtx: FacetDataContext,
   ctx: FacetRendererContext
-) => FacetCellContent | El;
+) => FacetCellContent | El | void;
 
 export interface HeaderCellContext {
   viewModel: GridDataViewModel;
   axis: "row" | "col";
   level: number;
   key: string;
+  container: HTMLElement;
 }
 
+// when the renderer takes ownership of the container element (framework like react createRoot rendering)
+// it returns undefined (void) from the renderer
 export type FacetHeaderRenderer = (
   text: string,
   ctx: HeaderCellContext
-) => FacetCellContent | string | HTMLElement | HTMLElement[];
+) => FacetCellContent | string | HTMLElement | HTMLElement[] | void;
 
 export interface FacetMeta {
   projectionState: ProjectionState;

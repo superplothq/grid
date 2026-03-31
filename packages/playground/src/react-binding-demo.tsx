@@ -13,7 +13,21 @@ import {
 const CurrencyCell: React.FC<CellProps<number>> = ({value}) => {
   if (value == null) return <span>—</span>;
   const formatted = new Intl.NumberFormat("en-US", {style: "currency", currency: "USD"}).format(value);
-  return <span style={{fontVariantNumeric: "tabular-nums", textDecoration: "underline"}}>{formatted}</span>;
+  return (
+    <div style={{display: "flex", alignItems: "center", justifyContent: 'space-between', height: "calc(100% - 2px)", width: "100%"}}>
+      <span style={{
+        padding: "0 4px",
+        display: "flex",
+        height: "100%",
+        alignItems: "center",
+        background: "#2196F3",
+        color: "white",
+        margin: "1px"
+      }}>$</span>
+      <span style={{fontVariantNumeric: "tabular-nums", padding: "0 8px ", color:
+        value > 0 ? "#2196F3" : "#E91E63" }}>{value}</span>
+    </div>
+  );
 };
 
 const DATA_URL = "http://localhost:8912/Citywide_Payroll_Data_20260306_FY2025_no_fiscalyear_midinit.csv";

@@ -49,7 +49,7 @@ export function useFlatGrid(options: UseFlatGridOptions): UseFlatGridResult {
   if (!vTrackDefsRef.current && columns) {
     vTrackDefsRef.current = columns.map((col) => {
       const def: VTrackDef = {};
-      if (col.renderer) def.renderer = adapterRef.current!.createNativeRenderer(col.renderer);
+      if (col.renderer) def.renderer = adapterRef.current!.createNativeDataCellRenderer(col.renderer);
       if (col.cellHeight !== undefined) def.cellHeight = col.cellHeight;
       if (col.sampleData !== undefined) def.sampleData = col.sampleData;
       if (col.colSize !== undefined) def.colSize = col.colSize;

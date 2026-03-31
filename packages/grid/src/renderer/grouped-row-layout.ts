@@ -1,7 +1,7 @@
 import StandardLayout, { CellRenderResult, ViewModel } from "./standard-layout";
 import { FlatSliceResult, FacetDataContext, FacetRendererContext, CellToMeasure, BaseSliceResult } from "./types";
 import { GridDataViewModel } from "./grid-data-viewmodel";
-import { addOrReplaceChildren } from "./mixins";
+
 
 export default class GroupedRowLayout extends StandardLayout {
   protected renderRowFacets(sliceData: BaseSliceResult, viewModel: ViewModel, ctx: { hintContentDirty: boolean | undefined }): CellRenderResult {
@@ -17,9 +17,6 @@ export default class GroupedRowLayout extends StandardLayout {
     const gridColOffset = viewModel.fixtures.left.length;
 
     const rowFacetDefs = this.data!.facetDefs.row;
-    const rendererCtx: FacetRendererContext = {
-      render: (vm: GridDataViewModel) => this.renderWithDataViewModel(vm),
-    };
 
     for (let j = 0; j < flatSlice.rowFacets.length; j++) {
       const meta = flatSlice.rowMeta[j];
@@ -59,10 +56,14 @@ export default class GroupedRowLayout extends StandardLayout {
           key,
           ...(meta && { flatMeta: meta }),
         };
+        const facetContainer = this.createFacetContainer();
+        const rendererCtx: FacetRendererContext = {
+          render: (vm: GridDataViewModel) => this.renderWithDataViewModel(vm),
+          container: facetContainer,
+        };
         const { trackRenderer: grpTrackRenderer, styleFns: grpStyleFns } = this.resolveFacetOverrides([label], rowFacetDefs);
         const result = (grpTrackRenderer ?? rowFacetDefs[0].trackRenderer)(label as string, dataCtx, rendererCtx);
-        const content = this.buildCommonCell(result);
-        addOrReplaceChildren(cell, content);
+        this.populateFacetContainer(cell, facetContainer, result);
         for (const fn of grpStyleFns) fn(cell);
       }
 

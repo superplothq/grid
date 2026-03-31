@@ -1,3 +1,11 @@
+// Renderer return type convention:
+// - CellRenderer, FacetCellRenderer, FacetHeaderRenderer can all return `void`.
+// - When a renderer returns `void`, it signals that the renderer has taken ownership of the
+//   container element (e.g. React's createRoot renders directly into it). In that case the
+//   layout must NOT replace or append children — the container already holds the rendered content.
+// - When a renderer returns content (string, HTMLElement, HTMLElement[], FacetCellContent),
+//   the layout is responsible for placing that content into the DOM via getCommonCellForContainer.
+
 import CellManager from "./cell-manager";
 import { PHorizontalFixture, PVerticalFixture } from "./fixture-proto";
 import { GridConfig } from "./grid-config";
@@ -262,10 +270,10 @@ export default class StandardLayout extends StandardLayoutBase {
     const facetSample = document.createElement("div");
     facetSample.className = "cell col-facet facet";
     facetSample.style.visibility = "hidden";
+    // TODO[now] implement custom renderers and includeing renderder void (renderer from framework)
     const sampleMerge: MergeState = { value: "Mgy$123,456", path: "Mgy$123,456", level: 0, start: 0, spanPrimary: 1, spanSecondary: 1 };
     const colFacetDefs = this.data!.facetDefs.col;
-    const colContent = this.buildFacetCell(colFacetDefs, sampleMerge, [["Mgy$123,456"]], "__measure");
-    addOrReplaceChildren(facetSample, colContent);
+    this.buildAndPlaceFacetCell(facetSample, colFacetDefs, sampleMerge, [["Mgy$123,456"]], "test-measurement-track");
     this.#con.appendChild(facetSample);
     let facetHeight = facetSample.getBoundingClientRect().height;
     this.#con.removeChild(facetSample);
@@ -273,8 +281,9 @@ export default class StandardLayout extends StandardLayoutBase {
     const headerSample = document.createElement("div");
     headerSample.className = "cell col-header header";
     headerSample.style.visibility = "hidden";
-    const headerContent = colFacetDefs[0].headerRenderer("Mgy$123,456", { viewModel: this.data!, axis: "col", level: 0, key: "__measure" });
-    headerSample.replaceChildren(this.buildCommonCell(headerContent));
+    const headerContainer = this.createFacetContainer();
+    const headerContent = colFacetDefs[0].headerRenderer("Mgy$123,456", { viewModel: this.data!, axis: "col", level: 0, key: "__measure", container: headerContainer });
+    this.populateFacetContainer(headerSample, headerContainer, headerContent);
     this.#con.appendChild(headerSample);
     facetHeight = Math.max(facetHeight, headerSample.getBoundingClientRect().height);
     this.#con.removeChild(headerSample);
@@ -295,8 +304,8 @@ export default class StandardLayout extends StandardLayoutBase {
         cell.style.height = `${colDef.cellHeight}px`;
       } else {
         const sampleValue = colDef.sampleData ?? this.data!.getSlice(col, 0, col + 1, 1).data?.[0]?.[0];
-        const content = colDef.renderer(sampleValue, { container: cell, key: "__measure" });
-        addOrReplaceChildren(cell, content);
+        const content = colDef.renderer(sampleValue, { container: cell, key: `test-measurement-${col}` });
+        if (content !== undefined) addOrReplaceChildren(cell, content);
       }
       measureCells.push(cell);
     }
@@ -330,20 +339,31 @@ export default class StandardLayout extends StandardLayoutBase {
     }
   }
 
-  protected buildCommonCell(result: FacetCellContent | string | HTMLElement | HTMLElement[]): HTMLElement {
+  protected createFacetContainer(): HTMLElement {
+    const container = document.createElement("div");
+    container.className = "f-cell-con";
+    return container;
+  }
+
+  protected populateFacetContainer(cell: HTMLElement, container: HTMLElement, result: FacetCellContent | string | HTMLElement | HTMLElement[] | void | null): void {
+    if (result !== undefined && result !== null) {
+      const children = this.getCommonCellForContainer(result);
+      container.append(...children);
+    }
+    addOrReplaceChildren(cell, container);
+  }
+
+  private getCommonCellForContainer(result: FacetCellContent | string | HTMLElement | HTMLElement[]): HTMLElement[] {
     const isFacetCellContent = typeof result === "object" && !(result instanceof HTMLElement) && !Array.isArray(result) && "content" in result;
 
     if (!isFacetCellContent) {
       const span = document.createElement("span");
       span.className = "content";
       addOrReplaceChildren(span, result as string | HTMLElement | HTMLElement[]);
-      return span;
+      return [span];
     }
 
     const { left, content: center, right } = result as FacetCellContent;
-    const container = document.createElement("div");
-    container.className = "f-cell-con";
-
     const children: HTMLElement[] = [];
 
     if (left !== undefined) {
@@ -365,12 +385,12 @@ export default class StandardLayout extends StandardLayoutBase {
       children.push(rightDiv);
     }
 
-    container.append(...children);
-    return container;
+    return children;
   }
 
-  protected buildFacetCell(facetDefs: FacetDef[], merge: MergeState, facets: (string | null)[][], key: string, opts?: { rendererOverride?: FacetCellRenderer; resizeHandle?: boolean }): HTMLElement | HTMLElement[] {
+  protected buildAndPlaceFacetCell(cell: HTMLElement, facetDefs: FacetDef[], merge: MergeState, facets: (string | null)[][], key: string, opts?: { rendererOverride?: FacetCellRenderer; resizeHandle?: boolean }): void {
     const renderer = opts?.rendererOverride ?? facetDefs[merge.level].trackRenderer;
+    const container = this.createFacetContainer();
     const dataCtx: FacetDataContext = {
       viewModel: this.data!,
       path: facets[merge.start],
@@ -380,14 +400,15 @@ export default class StandardLayout extends StandardLayoutBase {
     };
     const rendererCtx: FacetRendererContext = {
       render: (vm: GridDataViewModel) => this.renderWithDataViewModel(vm),
+      container,
     };
-    const el = this.buildCommonCell(renderer(merge.value, dataCtx, rendererCtx));
+    const result = renderer(merge.value, dataCtx, rendererCtx);
+    this.populateFacetContainer(cell, container, result);
     if (opts?.resizeHandle) {
       const handle = document.createElement("span");
       handle.className = "resize-handle";
-      return [el, handle];
+      cell.appendChild(handle);
     }
-    return el;
   }
 
   // TODO smooth scrolling. scrolling behaves a litte weird across different devices.
@@ -968,29 +989,24 @@ export default class StandardLayout extends StandardLayoutBase {
 
         let shouldSpan = false;
         let isSpanned = false;
-        let headerContent: FacetCellContent | string | HTMLElement | HTMLElement[] | null = null;
+        let hasRenderer = false;
+        let headerDef: FacetDef | null = null;
+        let fixtureDef: PVerticalFixture | null = null;
 
         if (axis === "col") {
           if (hRow < numColFacetLevels - 1) { // column facet header spanned horizontally
             if (hCol === 0) {
               shouldSpan = true;
               const def = colFacetDefs[hRow];
-              if (def && !def.pseudo) {
-                const ctx: HeaderCellContext = { viewModel: this.data!, axis: "col", level: hRow, key };
-                headerContent = def.headerRenderer(def.text, ctx);
-              }
+              if (def && !def.pseudo) { headerDef = def; hasRenderer = true; }
             } else { // the rest of the cells in the horizontal track are merged via colspan
               isSpanned = true;
             }
           } else { // last row would hold all the row facet headers
             const def = allDefs[hCol];
             if (def) {
-              const ctx: HeaderCellContext = { viewModel: this.data!, axis: "col", level: hRow, key };
-              if (def instanceof PVerticalFixture) {
-                headerContent = def.headerCells(ctx);
-              } else if (!def.pseudo) {
-                headerContent = def.headerRenderer(def.text, ctx);
-              }
+              if (def instanceof PVerticalFixture) { fixtureDef = def; hasRenderer = true; }
+              else if (!def.pseudo) { headerDef = def; hasRenderer = true; }
             }
           }
         } else {
@@ -999,22 +1015,15 @@ export default class StandardLayout extends StandardLayoutBase {
               shouldSpan = true;
               const def = allDefs[hCol];
               if (def) {
-                const ctx: HeaderCellContext = { viewModel: this.data!, axis: "col", level: hRow, key };
-                if (def instanceof PVerticalFixture) {
-                  headerContent = def.headerCells(ctx);
-                } else if (!def.pseudo) {
-                  headerContent = def.headerRenderer(def.text, ctx);
-                }
+                if (def instanceof PVerticalFixture) { fixtureDef = def; hasRenderer = true; }
+                else if (!def.pseudo) { headerDef = def; hasRenderer = true; }
               }
             } else { // merged via rowspan
               isSpanned = true;
             }
           } else { // the last column holds all the column facet headers
             const def = colFacetDefs[hRow];
-            if (def && !def.pseudo) {
-              const ctx: HeaderCellContext = { viewModel: this.data!, axis: "col", level: hRow, key };
-              headerContent = def.headerRenderer(def.text, ctx);
-            }
+            if (def && !def.pseudo) { headerDef = def; hasRenderer = true; }
           }
         }
 
@@ -1034,7 +1043,7 @@ export default class StandardLayout extends StandardLayoutBase {
         }
 
         let cornerCls = `corner level-${hRow} header`;
-        if (headerContent) {
+        if (hasRenderer) {
           cornerCls += " b-edge";
         } else {
           if (hRow === numColFacetLevels - 1 || (shouldSpan && axis === "row")) cornerCls += " b-edge";
@@ -1052,7 +1061,12 @@ export default class StandardLayout extends StandardLayoutBase {
           extraStyles,
         });
         if (contentDirty) {
-          cell.replaceChildren(this.buildCommonCell(headerContent ?? ""));
+          const headerContainer = this.createFacetContainer();
+          const ctx: HeaderCellContext = { viewModel: this.data!, axis: "col", level: hRow, key, container: headerContainer };
+          let headerContent: FacetCellContent | string | HTMLElement | HTMLElement[] | void | null = null;
+          if (fixtureDef) headerContent = fixtureDef.headerCells(ctx);
+          else if (headerDef) headerContent = headerDef.headerRenderer(headerDef.text, ctx);
+          this.populateFacetContainer(cell, headerContainer, headerContent);
         }
         needAppend && nodeAppendList.push(cell);
         const hasHorizontalSpan = shouldSpan && axis === "col";
@@ -1069,8 +1083,6 @@ export default class StandardLayout extends StandardLayoutBase {
       const def = fixtures.right[fi];
       const key = `right-fixture-header-${fi}`;
       const gridCol = numLeftVFixedTrack + numDataColsVisible + fi + 1;
-      const ctx: HeaderCellContext = { viewModel: this.data!, axis: "col", level: 0, key };
-      const headerContent = def.headerCells(ctx);
       const rightFixtureColIdx = this.#fixtures.left.length + this.data!.numRowFacetLevels + this.data!.numCols + fi;
 
       const [cell, needAppend, contentDirty] = this.placeCellInDom({
@@ -1086,7 +1098,10 @@ export default class StandardLayout extends StandardLayoutBase {
         },
       });
       if (contentDirty) {
-        cell.replaceChildren(this.buildCommonCell(headerContent ?? ""));
+        const headerContainer = this.createFacetContainer();
+        const ctx: HeaderCellContext = { viewModel: this.data!, axis: "col", level: 0, key, container: headerContainer };
+        const headerContent = def.headerCells(ctx);
+        this.populateFacetContainer(cell, headerContainer, headerContent);
       }
       needAppend && nodeAppendList.push(cell);
       this.#cellsToMeasure.push({ cell, sizeKey: rightFixtureColIdx });
@@ -1133,8 +1148,7 @@ export default class StandardLayout extends StandardLayoutBase {
       });
       if (contentDirty) {
         const { trackRenderer: colTrackRenderer, styleFns: colStyleFns } = this.resolveFacetOverrides([sliceData.columnFacets![merge.start][merge.level]], [this.data!.facetDefs.col[merge.level]]);
-        const facetContent = this.buildFacetCell(this.data!.facetDefs.col, merge, sliceData.columnFacets!, key, { rendererOverride: colTrackRenderer, resizeHandle: true });
-        addOrReplaceChildren(cell, facetContent);
+        this.buildAndPlaceFacetCell(cell, this.data!.facetDefs.col, merge, sliceData.columnFacets!, key, { rendererOverride: colTrackRenderer, resizeHandle: true });
         for (const fn of colStyleFns) fn(cell);
       }
       if (!isLeafLevel) {
@@ -1553,8 +1567,7 @@ export default class StandardLayout extends StandardLayoutBase {
       });
       if (contentDirty) {
         const { trackRenderer: rowTrackRenderer, styleFns: rowStyleFns } = this.resolveFacetOverrides([sliceData.rowFacets![merge.start][merge.level]], [this.data!.facetDefs.row[merge.level]]);
-        const rowFacetContent = this.buildFacetCell(this.data!.facetDefs.row, merge, sliceData.rowFacets!, key, { rendererOverride: rowTrackRenderer });
-        addOrReplaceChildren(cell, rowFacetContent);
+        this.buildAndPlaceFacetCell(cell, this.data!.facetDefs.row, merge, sliceData.rowFacets!, key, { rendererOverride: rowTrackRenderer });
         for (const fn of rowStyleFns) fn(cell);
       }
       if (!isLeaf) {
@@ -1624,7 +1637,7 @@ export default class StandardLayout extends StandardLayoutBase {
           }
 
           const content = renderer(value, { container: cell, key });
-          addOrReplaceChildren(cell, content);
+          if (content !== undefined) addOrReplaceChildren(cell, content);
           cell.dataset.cellType = "value";
           cell.dataset.cclix = String(absoluteColIndex);
           cell.dataset.croix = String(absoluteRowIndex);
