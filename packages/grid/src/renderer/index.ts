@@ -101,11 +101,14 @@ export default class Grid extends GridWithEvents {
   #selections: Map<string, [fromRow: number, fromCol: number, toRow: number, toCol: number]> = new Map();
   #ruleStore: SelectionRuleStore;
 
-  constructor(config: Partial<GridConfig>, mountPoint: HTMLElement, layoutType: LayoutType = "pivot") {
+  constructor(config: Partial<GridConfig>, mountPoint: HTMLElement, layoutType: LayoutType = "pivot", opts?: {
+    onCellRelease?: (key: string, cell: HTMLElement) => void;
+  }) {
     super();
     this.#config = { ...defaultConfig, ...config };
 
     this.#cellManager = new CellManager();
+    if (opts?.onCellRelease) this.#cellManager.onRelease = opts.onCellRelease;
     const LayoutClass = layoutType === "flat" ? GroupedRowLayout : StandardLayout;
     this.#layout = new LayoutClass(this.#config, mountPoint, this.#cellManager);
 
@@ -246,6 +249,8 @@ export default class Grid extends GridWithEvents {
     });
   }
 
+  #scheduleDrawPending = false;
+
   set data(value: GridDataViewModel) {
     this.#data = value;
     this.#layout.setData(value);
@@ -253,6 +258,15 @@ export default class Grid extends GridWithEvents {
 
   get data(): GridDataViewModel | undefined {
     return this.#data;
+  }
+
+  scheduleDraw(): void {
+    if (this.#scheduleDrawPending) return;
+    this.#scheduleDrawPending = true;
+    queueMicrotask(() => {
+      this.#scheduleDrawPending = false;
+      this.draw();
+    });
   }
 
   selectAll(predicate: FacetPredicate): Selection {

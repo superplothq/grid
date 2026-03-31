@@ -2,6 +2,7 @@ export default class CellManager {
   #pool: HTMLElement[] = [];
   #activeCells: Map<string, HTMLElement> = new Map();
   #usedKeys: Set<string> = new Set();
+  onRelease: ((key: string, cell: HTMLElement) => void) | null = null;
 
   beginFrame(): void {
     this.#usedKeys.clear();
@@ -29,6 +30,7 @@ export default class CellManager {
     for (const [key, cell] of this.#activeCells) {
       if (!this.#usedKeys.has(key)) {
         toRemove.push(cell);
+        this.onRelease?.(key, cell);
         this.#release(cell);
         this.#activeCells.delete(key);
       }

@@ -4,6 +4,7 @@ import { FacetCellRenderer, FacetHeaderRenderer } from "./types";
 
 export interface RendererContext {
   container: HTMLElement;
+  key: string;
 }
 
 export type CellRenderer<T> = (data: T, ctx: RendererContext) => string | HTMLElement | HTMLElement[];

@@ -90,6 +90,7 @@ export interface FacetDataContext {
   level: number;
   index: number;
   flatMeta?: FlatRowMeta;
+  key: string;
 }
 
 export interface FacetCellContent {
@@ -108,6 +109,7 @@ export interface HeaderCellContext {
   viewModel: GridDataViewModel;
   axis: "row" | "col";
   level: number;
+  key: string;
 }
 
 export type FacetHeaderRenderer = (

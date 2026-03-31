@@ -56,6 +56,7 @@ export default class GroupedRowLayout extends StandardLayout {
           path: [label],
           level: 0,
           index: j,
+          key,
           ...(meta && { flatMeta: meta }),
         };
         const { trackRenderer: grpTrackRenderer, styleFns: grpStyleFns } = this.resolveFacetOverrides([label], rowFacetDefs);

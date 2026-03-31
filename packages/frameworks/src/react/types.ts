@@ -1,0 +1,51 @@
+import type { FC } from "react";
+import type Grid from "grid/dist/renderer";
+import type {
+  GridDataViewModel,
+  ColAutoSizeConfig,
+  SelectionPayload,
+  LayoutType,
+  CellRenderer,
+} from "grid/dist/renderer";
+
+export type { CellRenderer };
+
+export interface CellProps<T = any> {
+  value: T;
+  rowIndex: number;
+  colIndex: number;
+}
+
+export interface FacetCellProps {
+  value: string | null;
+  path: (string | null)[];
+  level: number;
+  index: number;
+}
+
+export interface FacetHeaderProps {
+  text: string;
+  level: number;
+}
+
+export interface ColumnDef {
+  renderer?: FC<CellProps>;
+  cellHeight?: number;
+  sampleData?: any;
+  colSize?: ColAutoSizeConfig;
+}
+
+export interface DataGridHandle {
+  grid: Grid;
+}
+
+export interface DataGridProps {
+  data: GridDataViewModel | null;
+  layout?: LayoutType;
+  theme?: string;
+  onCellRelease?: (key: string, cell: HTMLElement) => void;
+  onRenderComplete?: (viewport: { x0: number; y0: number; x1: number; y1: number }) => void;
+  onViewDataEmpty?: (payload: { startRow: number; endRow: number }) => void;
+  onSelectionAdded?: (payload: SelectionPayload) => void;
+  onSelectionRemoved?: (payload: SelectionPayload) => void;
+}
