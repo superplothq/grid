@@ -24,6 +24,8 @@ export const lightTheme: Theme = {
   dataLeftBorderColor: "#ccd0da",
   dataTopBorderWidth: 1,
   dataTopBorderColor: "#ccd0da",
+  errOverlayBackgroundColor: "rgba(255, 255, 255, 0.9)",
+  errOverlayTextColor: "#d81b60",
 };
 
 export const darkTheme: Theme = {
@@ -49,6 +51,8 @@ export const darkTheme: Theme = {
   dataLeftBorderColor: "#414559",
   dataTopBorderWidth: 1,
   dataTopBorderColor: "#414559",
+  errOverlayBackgroundColor: "rgba(48, 52, 70, 0.9)",
+  errOverlayTextColor: "#ff7043",
 };
 
 registerTheme("light", lightTheme);

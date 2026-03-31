@@ -6,6 +6,8 @@ import type {GetRowsIR, FlatTableConfig} from "grid/dist/index";
 import {
   DataGrid,
   useFlatGrid,
+  SkeletonGrid,
+  GridErrOverlay,
   type CellProps,
   type ColumnDef,
 } from "frameworks/dist/react";
@@ -126,12 +128,23 @@ const FlatTableWithBinding: React.FC<FlatTableProps> = ({dataSource, schema}) =>
   );
 };
 
+const THEMES = ["light", "dark"] as const;
+
+const overlayContainerStyle: React.CSSProperties = {
+  height: "200px",
+  flex: 1,
+  border: "1px solid #eaeaea",
+  borderRadius: "4px",
+  overflow: "hidden",
+};
+
 const ReactBindingDemo: React.FC = () => {
   const [dsState, setDsState] = useState<
     | {status: "loading"}
     | {status: "ready"; ds: SqlDataSource; columns: ColumnMetadata[]; schema: DataSchema[]}
     | {status: "error"; error: string}
   >({status: "loading"});
+  const [overlayTheme, setOverlayTheme] = useState<string>("light");
 
   useEffect(() => {
     let cancelled = false;
@@ -160,6 +173,24 @@ const ReactBindingDemo: React.FC = () => {
       <h2>React Binding Demo</h2>
       <p>Flat table using React binding layer. Currency columns use React cell renderer.</p>
       <FlatTableWithBinding dataSource={dsState.ds} schema={dsState.schema} />
+
+      <h2 style={{marginTop: "40px"}}>Loading State</h2>
+      <div style={{marginBottom: "12px"}}>
+        <label>
+          Theme:{" "}
+          <select value={overlayTheme} onChange={(e) => setOverlayTheme(e.target.value)}>
+            {THEMES.map((t) => <option key={t} value={t}>{t}</option>)}
+          </select>
+        </label>
+      </div>
+      <div style={{display: "flex", gap: "16px", width: "calc(100vw - 200px)"}}>
+        <div style={overlayContainerStyle}>
+          <SkeletonGrid theme={overlayTheme} />
+        </div>
+        <div style={overlayContainerStyle}>
+          <GridErrOverlay theme={overlayTheme} errBody="Failed to fetch data from server." />
+        </div>
+      </div>
     </>
   );
 };

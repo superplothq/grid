@@ -43,7 +43,7 @@ export type {
   SelectionProps,
 } from "./types";
 export { Selection, CellSelection } from "./select-all";
-export { registerTheme } from "./registry";
+export { registerTheme, getTheme } from "./registry";
 export { GridDataViewModel, MetaState } from "./grid-data-viewmodel";
 export { PivotDataViewModel } from "./pivot-data-viewmodel";
 export { FlattenedDataViewModel, createRowMeta } from "./flattened-data-viewmodel";

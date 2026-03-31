@@ -1,4 +1,4 @@
-import SimpleTable from "./components/SimpleTable";
+import FlatTable from "./components/FlatTable";
 
 # Getting Started — Flat Data
 
@@ -22,13 +22,13 @@ const columns = await ds.loadDataFromURL({
 
 ## Loading data as is in a simple table
 
-Wrap your app with `DataSourceProvider` to initialize the datasource once, then use `SimpleTable` anywhere inside:
+Wrap your app with `DataSourceProvider` to initialize the datasource once, then use `FlatTable` anywhere inside:
 
 ```tsx
 <DataSourceProvider ds={ds}>
-  <SimpleTable height="500px" />
+  <FlatTable height="500px" />
 </DataSourceProvider>
 ```
 This will render a vanilla table without any filtering / sorting / grouping / faceting UI. We will incrementally add those.
 
-<SimpleTable height="500px" />
+<FlatTable height="500px" />
