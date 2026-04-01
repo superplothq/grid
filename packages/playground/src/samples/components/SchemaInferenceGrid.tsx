@@ -43,30 +43,24 @@ const COLORS = {
   dark: {Dimension: "#1a3a5c", Measure: "#1a3c2a", Temporal: "#3c3a1a"},
 };
 
-const SchemaTypeFacet: React.FC<FacetCellProps & {theme: string}> = ({value, theme}) => {
+const SchemaTypeFacet: React.FC<FacetCellProps & {theme: string}> = ({value, theme, cell}) => {
   const c = theme === "dark" ? COLORS.dark : COLORS.light;
-  const bg = c[value as keyof typeof c] ?? "transparent";
-  return (
-    <div style={{backgroundColor: bg, width: "100%", height: "100%", display: "flex", alignItems: "center", padding: "0 8px"}}>
-      {value}
-    </div>
-  );
+  cell.style.backgroundColor = c[value as keyof typeof c] ?? "";
+  return <span>{value}</span>;
 };
 
 const WarningColNameFacet: React.FC<FacetCellProps> = ({value}) => {
   const fix = SCHEMA_FIXES[value ?? ""];
   return (
-    <div style={{display: "flex", alignItems: "center", padding: "0 8px", width: "100%", height: "100%"}}>
+    <span>
       {value}
       {fix && <span title={fix} style={{cursor: "help", fontSize: 11, color: "#e67e22", marginLeft: 4}}>⚠</span>}
-    </div>
+    </span>
   );
 };
 
 const ColNameFacet: React.FC<FacetCellProps> = ({value}) => (
-  <div style={{display: "flex", alignItems: "center", padding: "0 8px", width: "100%", height: "100%"}}>
-    {value}
-  </div>
+  <span>{value}</span>
 );
 
 const DATE_FORMAT = new Intl.DateTimeFormat("en-GB", {day: "2-digit", month: "short", year: "numeric"});

@@ -36,7 +36,7 @@ export class ReactCellAdapter {
   createNativeDataCellRenderer(Component: FC<CellProps>): CellRenderer<any> {
     return (data: any, ctx: RendererContext) => {
       const root = this.#getOrCreateRoot(ctx.key, ctx.container);
-      const wrapped = this.#wrap(createElement(Component, { value: data }));
+      const wrapped = this.#wrap(createElement(Component, { value: data, cell: ctx.container }));
       this.#pendingRenders.push(() => root.render(wrapped));
     };
   }
@@ -49,6 +49,8 @@ export class ReactCellAdapter {
         path: dataCtx.path,
         level: dataCtx.level,
         index: dataCtx.index,
+        cell: ctx.cell,
+        container: ctx.container,
       }));
       this.#pendingRenders.push(() => root.render(wrapped));
     };

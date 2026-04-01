@@ -13,6 +13,7 @@ export type { CellRenderer };
 
 export interface CellProps<T = any> {
   value: T;
+  cell: HTMLElement;
 }
 
 export interface FacetCellProps {
@@ -20,6 +21,8 @@ export interface FacetCellProps {
   path: (string | null)[];
   level: number;
   index: number;
+  cell: HTMLElement;
+  container: HTMLElement;
 }
 
 export interface FacetHeaderProps {

@@ -405,6 +405,7 @@ export default class StandardLayout extends StandardLayoutBase {
     };
     const rendererCtx: FacetRendererContext = {
       render: (vm: GridDataViewModel) => this.renderWithDataViewModel(vm),
+      cell,
       container,
     };
     const result = renderer(merge.value, dataCtx, rendererCtx);

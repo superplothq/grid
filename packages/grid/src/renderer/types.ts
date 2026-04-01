@@ -82,6 +82,7 @@ type El = HTMLElement | HTMLElement[] | string;
 
 export interface FacetRendererContext {
   render: (viewModel: GridDataViewModel) => void;
+  cell: HTMLElement;
   container: HTMLElement;
 }
 

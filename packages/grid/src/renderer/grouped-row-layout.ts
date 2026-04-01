@@ -59,6 +59,7 @@ export default class GroupedRowLayout extends StandardLayout {
         const facetContainer = this.createFacetContainer(cell);
         const rendererCtx: FacetRendererContext = {
           render: (vm: GridDataViewModel) => this.renderWithDataViewModel(vm),
+          cell,
           container: facetContainer,
         };
         const { trackRenderer: grpTrackRenderer, styleFns: grpStyleFns } = this.resolveFacetOverrides([label], rowFacetDefs);
