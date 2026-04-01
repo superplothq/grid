@@ -3,8 +3,9 @@ import { FlattenedDataViewModel, type GridDataViewModelOptions, type VTrackDef }
 import { SqlFlatTableDataModel, type FlattenedDataViewModelParams, type GetRowsIR, type FlatTableConfig, type DataSchema } from "grid/dist/index";
 import type { SqlDataSource } from "grid/dist/index";
 import type { FacetDef } from "grid/dist/renderer";
+import type { FacetCellRenderer } from "grid/dist/renderer";
 import { ReactCellAdapter } from "../renderer-adapter";
-import type { ColumnDef, ReactFacetDefs } from "../types";
+import type { ColumnDef, FacetCellProps, ReactFacetDefs } from "../types";
 
 export interface UseFlatGridOptions {
   dataSource: SqlDataSource;
@@ -17,6 +18,8 @@ export interface UseFlatGridOptions {
   contextWrapper?: FC<{ children: ReactNode }>;
 }
 
+export type TransformFn = (val: any) => any;
+
 export interface UseFlatGridResult {
   viewModel: FlattenedDataViewModel | null;
   loading: boolean;
@@ -24,6 +27,9 @@ export interface UseFlatGridResult {
   fetchPage: (startRow: number, endRow: number) => Promise<void>;
   onCellRelease: (key: string, cell: HTMLElement) => void;
   onBeforeMeasure: () => void;
+  applyTransform: (colIndex: number, fn: TransformFn) => void;
+  resetTransform: (colIndex: number) => void;
+  createFacetRenderer: (component: FC<FacetCellProps>) => FacetCellRenderer;
 }
 
 export function useFlatGrid(options: UseFlatGridOptions): UseFlatGridResult {
@@ -78,8 +84,23 @@ export function useFlatGrid(options: UseFlatGridOptions): UseFlatGridResult {
   const transformResultRef = useRef(transformResult);
   transformResultRef.current = transformResult;
 
+  const lastRawResultRef = useRef<FlattenedDataViewModelParams | null>(null);
+  const columnTransformsRef = useRef<Map<number, TransformFn>>(new Map());
+
   const applyResult = useCallback((rawResult: FlattenedDataViewModelParams) => {
+    lastRawResultRef.current = rawResult;
     const result = transformResultRef.current ? transformResultRef.current(rawResult) : rawResult;
+
+    const transforms = columnTransformsRef.current;
+    let data = result.data;
+    if (transforms.size > 0) {
+      data = data.map((col, i) => {
+        const fn = transforms.get(i);
+        if (!fn) return col;
+        return col.map(fn);
+      });
+    }
+
     const vmOptions: GridDataViewModelOptions = {
       ...result.options,
       ...(nativeFacetDefsRef.current && { facetDefs: nativeFacetDefsRef.current }),
@@ -89,11 +110,13 @@ export function useFlatGrid(options: UseFlatGridOptions): UseFlatGridResult {
     if (!vmRef.current) {
       vmRef.current = new FlattenedDataViewModel({
         ...result,
+        data,
         options: vmOptions,
       });
     } else {
       vmRef.current.updateData({
         ...result,
+        data,
         options: vmOptions,
       });
     }
@@ -142,5 +165,19 @@ export function useFlatGrid(options: UseFlatGridOptions): UseFlatGridResult {
     adapterRef.current?.flush();
   }, []);
 
-  return { viewModel: vmRef.current, loading, error, fetchPage, onCellRelease, onBeforeMeasure };
+  const applyTransform = useCallback((colIndex: number, fn: TransformFn) => {
+    columnTransformsRef.current.set(colIndex, fn);
+    if (lastRawResultRef.current) applyResult(lastRawResultRef.current);
+  }, [applyResult]);
+
+  const resetTransform = useCallback((colIndex: number) => {
+    columnTransformsRef.current.delete(colIndex);
+    if (lastRawResultRef.current) applyResult(lastRawResultRef.current);
+  }, [applyResult]);
+
+  const createFacetRenderer = useCallback((component: FC<FacetCellProps>): FacetCellRenderer => {
+    return adapterRef.current!.createNativeFacetRenderer(component);
+  }, []);
+
+  return { viewModel: vmRef.current, loading, error, fetchPage, onCellRelease, onBeforeMeasure, applyTransform, resetTransform, createFacetRenderer };
 }

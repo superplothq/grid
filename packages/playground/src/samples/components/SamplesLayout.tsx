@@ -20,6 +20,7 @@ const pages = [
   { path: "getting-started-flat-data", label: "Getting Started" },
   { path: "clean-and-transform-data", label: "Clean & Transform Data" },
   { path: "columns-and-sizing", label: "Columns & Sizing" },
+  { path: "custom-button", label: "Custom Button" },
 ];
 
 const SamplesLayout: React.FC = () => {

@@ -51,6 +51,8 @@ export class ReactCellAdapter {
         index: dataCtx.index,
         cell: ctx.cell,
         container: ctx.container,
+        viewModel: dataCtx.viewModel,
+        render: ctx.render,
       }));
       this.#pendingRenders.push(() => root.render(wrapped));
     };

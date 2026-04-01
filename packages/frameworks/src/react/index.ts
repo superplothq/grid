@@ -8,6 +8,7 @@ export type {
   ReactFacetDefs,
   DataGridHandle,
   DataGridProps,
+  GridDataViewModel,
 } from "./types";
 export {
   DataSourceProvider,

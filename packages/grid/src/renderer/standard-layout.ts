@@ -353,7 +353,7 @@ export default class StandardLayout extends StandardLayoutBase {
   protected populateFacetContainer(cell: HTMLElement, container: HTMLElement, result: FacetCellContent | string | HTMLElement | HTMLElement[] | void | null): void {
     if (result !== undefined && result !== null) {
       const children = this.getCommonCellForContainer(result);
-      container.append(...children);
+      container.replaceChildren(...children);
     }
     addOrReplaceChildren(cell, container);
   }

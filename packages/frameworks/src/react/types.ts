@@ -9,6 +9,8 @@ import type {
   FacetDef,
 } from "grid/dist/renderer";
 
+export type { GridDataViewModel };
+
 export type { CellRenderer };
 
 export interface CellProps<T = any> {
@@ -23,6 +25,8 @@ export interface FacetCellProps {
   index: number;
   cell: HTMLElement;
   container: HTMLElement;
+  viewModel: GridDataViewModel;
+  render: (vm: GridDataViewModel) => void;
 }
 
 export interface FacetHeaderProps {
