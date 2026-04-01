@@ -1,6 +1,6 @@
 import { FlatSliceResult, GridDataViewModelOptions, FacetData, FlatRowMeta } from "./types";
 import { GridDataViewModel } from "./grid-data-viewmodel";
-import { DataSchema } from "../datamodel/types";
+import type { DataSchema } from "../datamodel/types";
 
 const DEPTH_SHIFT = 4;
 const DEPTH_MASK  = 0xF0;
@@ -27,7 +27,6 @@ export interface FlattenedDataViewModelParams {
 export class FlattenedDataViewModel extends GridDataViewModel {
   #rowFacet?: (string | null)[];
   #rowMeta?: Uint8Array;
-  schema?: DataSchema[];
 
   constructor(params: FlattenedDataViewModelParams) {
     super(params.data, params.columnFacets);

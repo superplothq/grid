@@ -1,5 +1,6 @@
 import { BaseSliceResult, GridDataViewModelOptions, ResolvedVTrackDef, ColAutoSizeConfig, IColAutoSizeStrategyStatic, FacetDef, FacetData } from "./types";
 import { textRenderer, defaultFacetRenderer, defaultFacetHeaderRenderer } from "./cell-renderers";
+import { DataSchema } from "../datamodel/types";
 
 const defaultColAutoSize: ColAutoSizeConfig = { strategy: "max-cell" };
 const defaultStaticColSize: IColAutoSizeStrategyStatic = { strategy: "static", width: 1, unit: "fr" };
@@ -58,6 +59,7 @@ export abstract class GridDataViewModel {
   #staticStrategy!: boolean;
   #totalRows: number | undefined;
   #offsetTop: number | undefined;
+  schema?: DataSchema[];
   readonly metaState: MetaState = new MetaState();
 
   constructor(data: any[][], columnFacets: FacetData) {

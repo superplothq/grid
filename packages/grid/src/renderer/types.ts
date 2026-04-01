@@ -136,6 +136,7 @@ export interface FacetDef {
   trackRenderer: FacetCellRenderer;
   meta?: FacetMeta;
   pseudo?: boolean;
+  // Only used for row facet defs — column facets inherit the width of the data track above them.
   colSize?: ColAutoSizeConfig;
 }
 

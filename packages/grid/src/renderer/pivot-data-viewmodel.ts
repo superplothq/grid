@@ -1,6 +1,6 @@
 import { PivotSliceResult, GridDataViewModelOptions, FacetData } from "./types";
 import { GridDataViewModel } from "./grid-data-viewmodel";
-import { DataSchema } from "../datamodel/types";
+import type { DataSchema } from "../datamodel/types";
 
 export interface PivotDataViewModelParams {
   data: any[][];
@@ -12,7 +12,6 @@ export interface PivotDataViewModelParams {
 
 export class PivotDataViewModel extends GridDataViewModel {
   #rowFacets?: FacetData;
-  schema?: DataSchema[];
 
   constructor(params: PivotDataViewModelParams) {
     super(params.data, params.columnFacets);
