@@ -51,6 +51,7 @@ export interface DataGridProps {
   layout?: LayoutType;
   theme?: string;
   onCellRelease?: (key: string, cell: HTMLElement) => void;
+  onBeforeMeasure?: () => void;
   onRenderComplete?: (viewport: { x0: number; y0: number; x1: number; y1: number }) => void;
   onViewDataEmpty?: (payload: { startRow: number; endRow: number }) => void;
   onSelectionAdded?: (payload: SelectionPayload) => void;

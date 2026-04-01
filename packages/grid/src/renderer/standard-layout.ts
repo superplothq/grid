@@ -275,16 +275,18 @@ export default class StandardLayout extends StandardLayoutBase {
     const colFacetDefs = this.data!.facetDefs.col;
     this.buildAndPlaceFacetCell(facetSample, colFacetDefs, sampleMerge, [["Mgy$123,456"]], "test-measurement-track");
     this.#con.appendChild(facetSample);
+    this.onBeforeMeasure?.();
     let facetHeight = facetSample.getBoundingClientRect().height;
     this.#con.removeChild(facetSample);
 
     const headerSample = document.createElement("div");
     headerSample.className = "cell col-header header";
     headerSample.style.visibility = "hidden";
-    const headerContainer = this.createFacetContainer();
+    const headerContainer = this.createFacetContainer(headerSample);
     const headerContent = colFacetDefs[0].headerRenderer("Mgy$123,456", { viewModel: this.data!, axis: "col", level: 0, key: "__measure", container: headerContainer });
     this.populateFacetContainer(headerSample, headerContainer, headerContent);
     this.#con.appendChild(headerSample);
+    this.onBeforeMeasure?.();
     facetHeight = Math.max(facetHeight, headerSample.getBoundingClientRect().height);
     this.#con.removeChild(headerSample);
     this.rowHeightByType.facet = facetHeight;
@@ -317,6 +319,7 @@ export default class StandardLayout extends StandardLayoutBase {
     const prevTemplate = this.#con.style.gridTemplateColumns;
     this.#con.style.gridTemplateColumns = `repeat(${this.data!.numCols}, max-content)`;
     this.#con.append(...measureCells);
+    this.onBeforeMeasure?.();
 
     let maxHeight = 0;
     for (const cell of measureCells) {
@@ -339,7 +342,9 @@ export default class StandardLayout extends StandardLayoutBase {
     }
   }
 
-  protected createFacetContainer(): HTMLElement {
+  protected createFacetContainer(cell: HTMLElement): HTMLElement {
+    const existing = cell.querySelector(".f-cell-con") as HTMLElement | null;
+    if (existing) return existing;
     const container = document.createElement("div");
     container.className = "f-cell-con";
     return container;
@@ -390,7 +395,7 @@ export default class StandardLayout extends StandardLayoutBase {
 
   protected buildAndPlaceFacetCell(cell: HTMLElement, facetDefs: FacetDef[], merge: MergeState, facets: (string | null)[][], key: string, opts?: { rendererOverride?: FacetCellRenderer; resizeHandle?: boolean }): void {
     const renderer = opts?.rendererOverride ?? facetDefs[merge.level].trackRenderer;
-    const container = this.createFacetContainer();
+    const container = this.createFacetContainer(cell);
     const dataCtx: FacetDataContext = {
       viewModel: this.data!,
       path: facets[merge.start],
@@ -1061,7 +1066,7 @@ export default class StandardLayout extends StandardLayoutBase {
           extraStyles,
         });
         if (contentDirty) {
-          const headerContainer = this.createFacetContainer();
+          const headerContainer = this.createFacetContainer(cell);
           const ctx: HeaderCellContext = { viewModel: this.data!, axis: "col", level: hRow, key, container: headerContainer };
           let headerContent: FacetCellContent | string | HTMLElement | HTMLElement[] | void | null = null;
           if (fixtureDef) headerContent = fixtureDef.headerCells(ctx);
@@ -1098,7 +1103,7 @@ export default class StandardLayout extends StandardLayoutBase {
         },
       });
       if (contentDirty) {
-        const headerContainer = this.createFacetContainer();
+        const headerContainer = this.createFacetContainer(cell);
         const ctx: HeaderCellContext = { viewModel: this.data!, axis: "col", level: 0, key, container: headerContainer };
         const headerContent = def.headerCells(ctx);
         this.populateFacetContainer(cell, headerContainer, headerContent);
@@ -1295,6 +1300,7 @@ export default class StandardLayout extends StandardLayoutBase {
       this.#con.removeChild(cell);
     }
 
+    this.onBeforeMeasure?.();
     this.#autosizeCells();
 
     // After autosizing of column, should we apply sticky scrolling for column facets

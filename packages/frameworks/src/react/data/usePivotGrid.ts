@@ -21,6 +21,7 @@ export interface UsePivotGridResult {
   loading: boolean;
   error: Error | null;
   onCellRelease: (key: string, cell: HTMLElement) => void;
+  onBeforeMeasure: () => void;
 }
 
 export function usePivotGrid(options: UsePivotGridOptions): UsePivotGridResult {
@@ -118,5 +119,9 @@ export function usePivotGrid(options: UsePivotGridOptions): UsePivotGridResult {
     adapterRef.current?.handleCellRelease(key);
   }, []);
 
-  return { viewModel: vmRef.current, loading, error, onCellRelease };
+  const onBeforeMeasure = useCallback(() => {
+    adapterRef.current?.flush();
+  }, []);
+
+  return { viewModel: vmRef.current, loading, error, onCellRelease, onBeforeMeasure };
 }

@@ -56,7 +56,7 @@ export default class GroupedRowLayout extends StandardLayout {
           key,
           ...(meta && { flatMeta: meta }),
         };
-        const facetContainer = this.createFacetContainer();
+        const facetContainer = this.createFacetContainer(cell);
         const rendererCtx: FacetRendererContext = {
           render: (vm: GridDataViewModel) => this.renderWithDataViewModel(vm),
           container: facetContainer,

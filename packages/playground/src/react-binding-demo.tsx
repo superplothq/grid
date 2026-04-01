@@ -1,4 +1,4 @@
-import React, {useEffect, useState} from "react";
+import React, {useEffect, useRef, useState} from "react";
 import "grid/dist/grid.css";
 import {DuckDBWasmDataSource, DataSchema, ColumnMetadata} from "grid/dist/index";
 import type {SqlDataSource} from "grid/dist/index";
@@ -10,6 +10,7 @@ import {
   GridErrOverlay,
   type CellProps,
   type ColumnDef,
+  type DataGridHandle,
 } from "frameworks/dist/react";
 
 const CurrencyCell: React.FC<CellProps<number>> = ({value}) => {
@@ -99,7 +100,9 @@ interface FlatTableProps {
 }
 
 const FlatTableWithBinding: React.FC<FlatTableProps> = ({dataSource, schema}) => {
-  const {viewModel, loading, error, fetchPage, onCellRelease} = useFlatGrid({
+  const gridRef = useRef<DataGridHandle>(null);
+  const [perfMetrics, setPerfMetrics] = useState<Record<string, unknown> | null>(null);
+  const {viewModel, loading, error, fetchPage, onCellRelease, onBeforeMeasure} = useFlatGrid({
     dataSource,
     schema,
     config: FLAT_CONFIG,
@@ -108,23 +111,39 @@ const FlatTableWithBinding: React.FC<FlatTableProps> = ({dataSource, schema}) =>
     facetDefs: {row: [{text: ""}], col: [{text: "", facetField: "colName"}], axis: "col"},
   });
 
+  useEffect(() => {
+    const grid = gridRef.current?.grid;
+    if (!grid) return;
+    grid.on("debug_perf:metrics", (payload) => setPerfMetrics(payload));
+  }, [viewModel]);
+
   if (loading) return <p>Loading data...</p>;
   if (error) return <p style={{color: "red"}}>Error: {error.message}</p>;
 
   return (
-    <div style={{
-      height: "calc(100vh - 250px)",
-      width: "calc(100vw - 200px)",
-      border: "1px solid #eaeaea",
-      background: "white",
-    }}>
-      <DataGrid
-        data={viewModel}
-        layout="flat"
-        onCellRelease={onCellRelease}
-        onViewDataEmpty={({startRow, endRow}) => fetchPage(startRow, endRow)}
-      />
-    </div>
+    <>
+      <div style={{
+        height: "calc(100vh - 250px)",
+        width: "calc(100vw - 200px)",
+        border: "1px solid #eaeaea",
+        background: "white",
+      }}>
+        <DataGrid
+          ref={gridRef}
+          data={viewModel}
+          layout="flat"
+          onCellRelease={onCellRelease}
+          onBeforeMeasure={onBeforeMeasure}
+          onViewDataEmpty={({startRow, endRow}) => fetchPage(startRow, endRow)}
+        />
+      </div>
+      <details>
+        <summary>Perf</summary>
+        <pre style={{maxHeight: "150px", overflow: "auto", fontSize: "11px", background: "#f5f5f5", padding: "8px"}}>
+          {perfMetrics ? JSON.stringify(perfMetrics, null, 2) : ""}
+        </pre>
+      </details>
+    </>
   );
 };
 

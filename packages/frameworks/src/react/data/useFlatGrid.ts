@@ -23,6 +23,7 @@ export interface UseFlatGridResult {
   error: Error | null;
   fetchPage: (startRow: number, endRow: number) => Promise<void>;
   onCellRelease: (key: string, cell: HTMLElement) => void;
+  onBeforeMeasure: () => void;
 }
 
 export function useFlatGrid(options: UseFlatGridOptions): UseFlatGridResult {
@@ -137,5 +138,9 @@ export function useFlatGrid(options: UseFlatGridOptions): UseFlatGridResult {
     adapterRef.current?.handleCellRelease(key);
   }, []);
 
-  return { viewModel: vmRef.current, loading, error, fetchPage, onCellRelease };
+  const onBeforeMeasure = useCallback(() => {
+    adapterRef.current?.flush();
+  }, []);
+
+  return { viewModel: vmRef.current, loading, error, fetchPage, onCellRelease, onBeforeMeasure };
 }

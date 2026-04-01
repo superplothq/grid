@@ -14,6 +14,7 @@ export const DataGrid = forwardRef<DataGridHandle, DataGridProps>(function DataG
     layout = "pivot",
     theme,
     onCellRelease,
+    onBeforeMeasure,
     onRenderComplete,
     onViewDataEmpty,
     onSelectionAdded,
@@ -34,6 +35,8 @@ export const DataGrid = forwardRef<DataGridHandle, DataGridProps>(function DataG
   onSelectionRemovedRef.current = onSelectionRemoved;
   const onCellReleaseRef = useRef(onCellRelease);
   onCellReleaseRef.current = onCellRelease;
+  const onBeforeMeasureRef = useRef(onBeforeMeasure);
+  onBeforeMeasureRef.current = onBeforeMeasure;
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -42,6 +45,7 @@ export const DataGrid = forwardRef<DataGridHandle, DataGridProps>(function DataG
     const config = theme ? { theme } : {};
     const grid = new Grid(config, containerRef.current, layout, {
       onCellRelease: (key, cell) => onCellReleaseRef.current?.(key, cell),
+      onBeforeMeasure: () => onBeforeMeasureRef.current?.(),
     });
     gridRef.current = grid;
 

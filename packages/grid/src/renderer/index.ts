@@ -103,6 +103,7 @@ export default class Grid extends GridWithEvents {
 
   constructor(config: Partial<GridConfig>, mountPoint: HTMLElement, layoutType: LayoutType = "pivot", opts?: {
     onCellRelease?: (key: string, cell: HTMLElement) => void;
+    onBeforeMeasure?: () => void;
   }) {
     super();
     this.#config = { ...defaultConfig, ...config };
@@ -111,6 +112,7 @@ export default class Grid extends GridWithEvents {
     if (opts?.onCellRelease) this.#cellManager.onRelease = opts.onCellRelease;
     const LayoutClass = layoutType === "flat" ? GroupedRowLayout : StandardLayout;
     this.#layout = new LayoutClass(this.#config, mountPoint, this.#cellManager);
+    if (opts?.onBeforeMeasure) this.#layout.onBeforeMeasure = opts.onBeforeMeasure;
 
     this.#ruleStore = new SelectionRuleStore(() => this.draw());
 
@@ -263,7 +265,7 @@ export default class Grid extends GridWithEvents {
   scheduleDraw(): void {
     if (this.#scheduleDrawPending) return;
     this.#scheduleDrawPending = true;
-    queueMicrotask(() => {
+    requestAnimationFrame(() => {
       this.#scheduleDrawPending = false;
       this.draw();
     });

@@ -19,6 +19,7 @@ export default abstract class PLayout {
   config: GridConfig;
   mountPoint: HTMLElement;
   cellManager: CellManager;
+  onBeforeMeasure: (() => void) | null = null;
 
 
   constructor(config: GridConfig, mountPoint: HTMLElement, cellManager: CellManager) {

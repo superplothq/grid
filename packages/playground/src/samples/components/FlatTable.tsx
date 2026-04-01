@@ -52,7 +52,7 @@ const FlatTableInner: React.FC<FlatTableInnerProps> = ({ds, columns, theme, heig
     filter: [],
   }), [schema]);
 
-  const {viewModel, loading, error, fetchPage, onCellRelease} = useFlatGrid({
+  const {viewModel, loading, error, fetchPage, onCellRelease, onBeforeMeasure} = useFlatGrid({
     dataSource: ds,
     schema,
     config,
@@ -74,6 +74,7 @@ const FlatTableInner: React.FC<FlatTableInnerProps> = ({ds, columns, theme, heig
         layout="flat"
         theme={theme}
         onCellRelease={onCellRelease}
+        onBeforeMeasure={onBeforeMeasure}
         onViewDataEmpty={({startRow, endRow}) => fetchPage(startRow, endRow)}
       />
     </div>
