@@ -1,5 +1,10 @@
+// flushSync is required because the grid's render pipeline measures cell dimensions
+// (getBoundingClientRect) immediately after calling renderers — e.g. for column auto-sizing
+// and sticky translateX on non-leaf column facets. Without flushSync, React's async batching
+// means the DOM is empty at measurement time, producing wrong widths on the first frame.
 import { createElement, type FC, type ReactNode } from "react";
 import { createRoot, type Root } from "react-dom/client";
+import { flushSync } from "react-dom";
 import type { CellRenderer, RendererContext } from "grid/dist/renderer";
 import type { FacetCellRenderer, FacetHeaderRenderer, FacetDataContext, FacetRendererContext, FacetHeaderContext } from "grid/dist/renderer";
 import type { CellProps, FacetCellProps, FacetHeaderProps } from "./types";
@@ -26,7 +31,7 @@ export class ReactCellAdapter {
         ? createElement(this.#contextWrapper, null, element)
         : element;
 
-      root.render(wrapped);
+      flushSync(() => root.render(wrapped));
     };
   }
 
@@ -49,7 +54,7 @@ export class ReactCellAdapter {
         ? createElement(this.#contextWrapper, null, element)
         : element;
 
-      root.render(wrapped);
+      flushSync(() => root.render(wrapped));
     };
   }
 
@@ -70,7 +75,7 @@ export class ReactCellAdapter {
         ? createElement(this.#contextWrapper, null, element)
         : element;
 
-      root.render(wrapped);
+      flushSync(() => root.render(wrapped));
     };
   }
 

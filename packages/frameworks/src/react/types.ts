@@ -2,10 +2,11 @@ import type { FC } from "react";
 import type Grid from "grid/dist/renderer";
 import type {
   GridDataViewModel,
-  ColAutoSizeConfig,
   SelectionPayload,
   LayoutType,
   CellRenderer,
+  VTrackDef,
+  FacetDef,
 } from "grid/dist/renderer";
 
 export type { CellRenderer };
@@ -26,11 +27,19 @@ export interface FacetHeaderProps {
   level: number;
 }
 
-export interface ColumnDef {
+export interface ColumnDef extends Omit<VTrackDef, "renderer"> {
   renderer?: FC<CellProps>;
-  cellHeight?: number;
-  sampleData?: any;
-  colSize?: ColAutoSizeConfig;
+}
+
+export interface ReactFacetDef extends Omit<Partial<FacetDef>, "trackRenderer" | "headerRenderer"> {
+  trackRenderer?: FC<FacetCellProps>;
+  headerRenderer?: FC<FacetHeaderProps>;
+}
+
+export interface ReactFacetDefs {
+  row: ReactFacetDef[];
+  col: ReactFacetDef[];
+  axis: "row" | "col";
 }
 
 export interface DataGridHandle {

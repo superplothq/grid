@@ -60,8 +60,8 @@ const FlatTableInner: React.FC<FlatTableInnerProps> = ({ds, columns, theme, heig
     facetDefs: {row: [{text: ""}], col: [{text: "", facetField: "colName"}], axis: "col"},
   });
 
-  if (loading) return <p>Loading table...</p>;
-  if (error) return <p style={{color: "red"}}>Error: {error.message}</p>;
+  if (loading) return <div className="grid-sample" style={{border: "2px solid rgb(160, 160, 160)", borderRadius: "8px", height}}><SkeletonGrid theme={theme} /></div>;
+  if (error) return <div className="grid-sample" style={{border: "2px solid rgb(160, 160, 160)", borderRadius: "8px", height}}><GridErrOverlay theme={theme} errBody={error.message} /></div>;
 
   return (
     <div className="grid-sample" style={{

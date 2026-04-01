@@ -1,6 +1,5 @@
-import SimpleTable from "./components/SimpleTable";
-import SchemaInferenceTable from "./components/SchemaInferenceTable";
-import {CleanTable} from "./components/SchemaInferenceTable";
+import SchemaInferenceGrid from "./components/SchemaInferenceGrid";
+import {CleanGrid} from "./components/SchemaInferenceGrid";
 
 # Clean and Transform Data
 
@@ -55,7 +54,7 @@ Several columns are wrong:
 
 With this incorrect schema, the grid renders like this — notice the warning icons on mistyped columns:
 
-<SchemaInferenceTable height="150px" />
+<SchemaInferenceGrid height="150px" />
 
 ## Cleaning data and imposing schema
 
@@ -99,4 +98,4 @@ What happens under the hood: grid first loads everything as VARCHAR, then for ea
 
 With the correct schema and cleaned data, the grid renders correctly — numeric columns are right-aligned and sortable as numbers, and the date column is properly parsed:
 
-<CleanTable height="300px" />
+<CleanGrid height="300px" />

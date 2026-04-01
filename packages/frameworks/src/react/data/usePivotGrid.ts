@@ -3,15 +3,16 @@ import { PivotDataViewModel, type GridDataViewModelOptions, type VTrackDef } fro
 import { SqlPivotDataModel, type DataSchema, type PivotConfig } from "grid/dist/index";
 import type { PivotDataViewModelParams } from "grid/dist/renderer/pivot-data-viewmodel";
 import type { SqlDataSource } from "grid/dist/index";
+import type { FacetDef } from "grid/dist/renderer";
 import { ReactCellAdapter } from "../renderer-adapter";
-import type { ColumnDef } from "../types";
+import type { ColumnDef, ReactFacetDefs } from "../types";
 
 export interface UsePivotGridOptions {
   dataSource: SqlDataSource;
   schema: DataSchema[];
   config: PivotConfig;
   columns?: ColumnDef[];
-  facetDefs?: GridDataViewModelOptions["facetDefs"];
+  facetDefs?: ReactFacetDefs;
   contextWrapper?: FC<{ children: ReactNode }>;
 }
 
@@ -29,8 +30,6 @@ export function usePivotGrid(options: UsePivotGridOptions): UsePivotGridResult {
   const adapterRef = useRef<ReactCellAdapter | null>(null);
   const vmRef = useRef<PivotDataViewModel | null>(null);
   const vTrackDefsRef = useRef<VTrackDef[] | undefined>(undefined);
-  const facetDefsRef = useRef(facetDefs);
-  facetDefsRef.current = facetDefs;
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
@@ -54,6 +53,23 @@ export function usePivotGrid(options: UsePivotGridOptions): UsePivotGridResult {
     });
   }
 
+  const nativeFacetDefsRef = useRef<GridDataViewModelOptions["facetDefs"] | undefined>(undefined);
+  if (!nativeFacetDefsRef.current && facetDefs) {
+    const adapter = adapterRef.current!;
+    const resolve = (defs: ReactFacetDefs["row"]): Partial<FacetDef>[] =>
+      defs.map(({trackRenderer, headerRenderer, ...rest}) => {
+        const native: Partial<FacetDef> = {...rest};
+        if (trackRenderer) native.trackRenderer = adapter.createNativeFacetRenderer(trackRenderer);
+        if (headerRenderer) native.headerRenderer = adapter.createNativeHeaderRenderer(headerRenderer);
+        return native;
+      });
+    nativeFacetDefsRef.current = {
+      row: resolve(facetDefs.row),
+      col: resolve(facetDefs.col),
+      axis: facetDefs.axis,
+    };
+  }
+
   useEffect(() => {
     const model = modelRef.current;
     if (!model) return;
@@ -66,7 +82,7 @@ export function usePivotGrid(options: UsePivotGridOptions): UsePivotGridResult {
 
       const vmOptions: GridDataViewModelOptions = {
         ...result.options,
-        ...(facetDefsRef.current && { facetDefs: facetDefsRef.current }),
+        ...(nativeFacetDefsRef.current && { facetDefs: nativeFacetDefsRef.current }),
         ...(vTrackDefsRef.current && { vTrackDefs: vTrackDefsRef.current }),
       };
 
