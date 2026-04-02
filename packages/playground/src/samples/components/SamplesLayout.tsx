@@ -21,6 +21,7 @@ const pages = [
   { path: "clean-and-transform-data", label: "Clean & Transform Data" },
   { path: "columns-and-sizing", label: "Columns & Sizing" },
   { path: "custom-button", label: "Custom Button" },
+  { path: "sorting", label: "Sorting" },
 ];
 
 const SamplesLayout: React.FC = () => {

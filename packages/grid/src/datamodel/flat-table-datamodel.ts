@@ -396,11 +396,9 @@ export abstract class FlatTableDataModel {
 
     const options: GridDataViewModelOptions = {
       ...this.viewModelOptions,
-      totalRows,
-      offsetTop,
     };
 
-    return { data, columnFacets, rowFacet, rowMeta, options };
+    return { data, columnFacets, rowFacet, rowMeta, options, totalRows, offsetTop };
   }
 
   private buildProjectForDepth(depth: number): string[] {

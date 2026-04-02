@@ -76,6 +76,11 @@ export abstract class GridDataViewModel {
     this.data = data;
   }
 
+  protected updatePagination(totalRows: number | undefined, offsetTop: number | undefined): void {
+    this.#totalRows = totalRows;
+    this.#offsetTop = offsetTop;
+  }
+
   protected init(options: GridDataViewModelOptions | undefined): void {
     const resolved = this.normalizeOptions(options);
     this.#resolvedVTrackDefs = resolved.vTrackDefs;
@@ -91,8 +96,6 @@ export abstract class GridDataViewModel {
         if (d.colSize?.strategy !== "static") d.colSize = defaultStaticColSize;
       }
     }
-    this.#totalRows = options?.totalRows;
-    this.#offsetTop = options?.offsetTop;
   }
 
   private normalizeOptions(options: GridDataViewModelOptions | undefined): {

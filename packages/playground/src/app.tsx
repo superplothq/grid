@@ -11,6 +11,7 @@ import GettingStartedFlatData from "./samples/getting-started-flat-data.mdx";
 import CleanAndTransformData from "./samples/clean-and-transform-data.mdx";
 import ColumnsAndSizing from "./samples/columns-and-sizing.mdx";
 import CustomButton from "./samples/custom-button.mdx";
+import Sorting from "./samples/sorting.mdx";
 import feather from "feather-icons";
 
 const Home: React.FC = () => {
@@ -78,6 +79,7 @@ const App: React.FC = () => {
         <Route path="clean-and-transform-data" element={<CleanAndTransformData />} />
         <Route path="columns-and-sizing" element={<ColumnsAndSizing />} />
         <Route path="custom-button" element={<CustomButton />} />
+        <Route path="sorting" element={<Sorting />} />
       </Route>
     </Routes>
   );

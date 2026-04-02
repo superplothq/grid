@@ -58,6 +58,7 @@ const FlatTableInner: React.FC<FlatTableInnerProps> = ({ds, columns, theme, heig
     config,
     ir,
     facetDefs: {row: [{text: ""}], col: [{text: "", facetField: "colName"}], axis: "col"},
+    enableSorting: true,
   });
 
   if (loading) return <div className="grid-sample" style={{border: "2px solid rgb(160, 160, 160)", borderRadius: "8px", height}}><SkeletonGrid theme={theme} /></div>;

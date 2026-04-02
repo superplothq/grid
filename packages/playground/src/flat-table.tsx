@@ -98,11 +98,7 @@ function makeFacetRenderer(
         result = await model.expandData(select);
       }
 
-      const updatedOptions: GridDataViewModelOptions = {
-        ...result.options,
-        facetDefs: viewModel.facetDefs,
-      };
-      viewModel.updateData({ data: result.data, columnFacets: result.columnFacets, rowFacet: result.rowFacet, rowMeta: result.rowMeta, options: updatedOptions });
+      viewModel.updateData({ data: result.data, columnFacets: result.columnFacets, rowFacet: result.rowFacet, rowMeta: result.rowMeta, totalRows: result.totalRows, offsetTop: result.offsetTop });
       dataCtx.viewModel.metaState.clear(ns);
       grid.draw();
     });
@@ -207,7 +203,7 @@ const FlatTablePlayground: React.FC = () => {
       };
 
       const viewModel = new FlattenedDataViewModel({
-        data: result.data, columnFacets: result.columnFacets, rowFacet: result.rowFacet, rowMeta: result.rowMeta, options,
+        data: result.data, columnFacets: result.columnFacets, rowFacet: result.rowFacet, rowMeta: result.rowMeta, options, totalRows: result.totalRows, offsetTop: result.offsetTop,
       });
       viewModelRef.current = viewModel;
 
@@ -241,17 +237,8 @@ const FlatTablePlayground: React.FC = () => {
 
           const fetchResult = await model.getViewModelData(newIR);
 
-          const updatedOptions: GridDataViewModelOptions = {
-            ...fetchResult.options,
-            facetDefs: {
-              row: [{trackRenderer: facetRenderer, text: "Group"}],
-              col: [{text: ""}],
-              axis: "col",
-            },
-          };
-
           viewModel.updateData({
-            data: fetchResult.data, columnFacets: fetchResult.columnFacets, rowFacet: fetchResult.rowFacet, rowMeta: fetchResult.rowMeta, options: updatedOptions,
+            data: fetchResult.data, columnFacets: fetchResult.columnFacets, rowFacet: fetchResult.rowFacet, rowMeta: fetchResult.rowMeta, totalRows: fetchResult.totalRows, offsetTop: fetchResult.offsetTop,
           });
           grid.draw();
           setFetchingPage(false);

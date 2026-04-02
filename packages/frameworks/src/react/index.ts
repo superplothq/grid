@@ -21,3 +21,6 @@ export {
   useFlatGrid,
   usePivotGrid,
 } from "./data";
+export { DataModelContext, useDataModelContext, type DataModelContextValue, type GridConfig } from "./components/DataModelContext";
+export { Sort, type SortProps } from "./components/Sort";
+export { SortableColumnRenderer } from "./components/SortableColumnRenderer";

@@ -1,11 +1,13 @@
-import { useRef, useState, useEffect, useCallback, type FC, type ReactNode } from "react";
+import React, { useRef, useState, useEffect, useCallback, createElement, type FC, type ReactNode } from "react";
 import { FlattenedDataViewModel, type GridDataViewModelOptions, type VTrackDef } from "grid/dist/renderer";
 import type { FacetPredicate, SelectionProps, ColAutoSizeConfig } from "grid/dist/renderer";
 import { SqlFlatTableDataModel, type FlattenedDataViewModelParams, type GetRowsIR, type FlatTableConfig, type DataSchema } from "grid/dist/index";
 import type { SqlDataSource } from "grid/dist/index";
 import type { FacetDef } from "grid/dist/renderer";
 import { ReactCellAdapter } from "../renderer-adapter";
-import type { ColumnDef, CellProps, FacetCellProps, DataGridHandle, ReactFacetDefs } from "../types";
+import type { ColumnDef, CellProps, FacetCellProps, DataGridHandle, ReactFacetDefs, ReactFacetDef } from "../types";
+import { SortableColumnRenderer } from "../components/SortableColumnRenderer";
+import { DataModelContext } from "../components/DataModelContext";
 
 export interface SelectionDef {
   predicate: FacetPredicate;
@@ -24,6 +26,7 @@ export interface UseFlatGridOptions {
   selections?: SelectionDef[];
   transformResult?: (result: FlattenedDataViewModelParams) => FlattenedDataViewModelParams;
   contextWrapper?: FC<{ children: ReactNode }>;
+  enableSorting?: boolean;
 }
 
 export type TransformFn = (val: any) => any;
@@ -48,7 +51,7 @@ export interface UseFlatGridResult {
 }
 
 export function useFlatGrid(options: UseFlatGridOptions): UseFlatGridResult {
-  const { dataSource, schema, config, ir, columns, facetDefs, selections, transformResult, contextWrapper } = options;
+  const { dataSource, schema, config, ir, columns, facetDefs, selections, transformResult, contextWrapper, enableSorting } = options;
 
   const modelRef = useRef<SqlFlatTableDataModel | null>(null);
   const adapterRef = useRef<ReactCellAdapter | null>(null);
@@ -67,8 +70,13 @@ export function useFlatGrid(options: UseFlatGridOptions): UseFlatGridResult {
     modelRef.current = new SqlFlatTableDataModel(config, schema, dataSource);
   }
 
+  const resolvedWrapper = ({ children }: { children: ReactNode }) => {
+    const inner = createElement(DataModelContext.Provider, { value: { model: modelRef.current!, ir: irRef.current, gridConfig: { enableSorting } } }, children);
+    return contextWrapper ? createElement(contextWrapper, null, inner) : inner;
+  };
+
   if (!adapterRef.current) {
-    adapterRef.current = new ReactCellAdapter(contextWrapper);
+    adapterRef.current = new ReactCellAdapter(resolvedWrapper);
   }
 
   if (!vTrackDefsRef.current && columns) {
@@ -85,16 +93,23 @@ export function useFlatGrid(options: UseFlatGridOptions): UseFlatGridResult {
   const nativeFacetDefsRef = useRef<GridDataViewModelOptions["facetDefs"] | undefined>(undefined);
   if (!nativeFacetDefsRef.current && facetDefs) {
     const adapter = adapterRef.current!;
-    const resolve = (defs: ReactFacetDefs["row"]): Partial<FacetDef>[] =>
+    const resolve = (defs: ReactFacetDef[]): Partial<FacetDef>[] =>
       defs.map(({trackRenderer, headerRenderer, ...rest}) => {
         const native: Partial<FacetDef> = {...rest};
         if (trackRenderer) native.trackRenderer = adapter.createNativeFacetRenderer(trackRenderer);
         if (headerRenderer) native.headerRenderer = adapter.createNativeHeaderRenderer(headerRenderer);
         return native;
       });
+
+    const colDefs = facetDefs.col;
+    const needsSortRenderer = enableSorting && !colDefs.some(d => d.trackRenderer);
+    const resolvedCol = needsSortRenderer
+      ? resolve(colDefs.map(d => ({ ...d, trackRenderer: SortableColumnRenderer })))
+      : resolve(colDefs);
+
     nativeFacetDefsRef.current = {
       row: resolve(facetDefs.row),
-      col: resolve(facetDefs.col),
+      col: resolvedCol,
       axis: facetDefs.axis,
     };
   }
@@ -130,12 +145,14 @@ export function useFlatGrid(options: UseFlatGridOptions): UseFlatGridResult {
         ...result,
         data,
         options: vmOptions,
+        schema,
       });
     } else {
       vmRef.current.updateData({
         ...result,
         data,
         options: vmOptions,
+        schema,
       });
     }
   }, []);

@@ -22,6 +22,8 @@ export interface FlattenedDataViewModelParams {
   rowMeta?: Uint8Array;
   options?: GridDataViewModelOptions;
   schema?: DataSchema[];
+  totalRows?: number;
+  offsetTop?: number;
 }
 
 export class FlattenedDataViewModel extends GridDataViewModel {
@@ -34,6 +36,7 @@ export class FlattenedDataViewModel extends GridDataViewModel {
     this.#rowMeta = params.rowMeta;
     this.schema = params.schema;
     this.init(params.options);
+    this.updatePagination(params.totalRows, params.offsetTop);
   }
 
   get numRowFacetLevels(): number {
@@ -60,8 +63,7 @@ export class FlattenedDataViewModel extends GridDataViewModel {
     this.updateBase(params.data, params.columnFacets);
     this.#rowFacet = params.rowFacet;
     this.#rowMeta = params.rowMeta;
-    if (params.schema !== undefined) this.schema = params.schema;
-    this.init(params.options);
+    this.updatePagination(params.totalRows, params.offsetTop);
   }
 
   private unpackMeta(bits: number): FlatRowMeta {
