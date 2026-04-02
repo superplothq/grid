@@ -32,11 +32,11 @@ Sort state is stored in `viewModel.metaState` under the `"sort"` namespace. When
 
 No React state is involved in the data flow — the entire cycle is imperative.
 
-## Sort behavior
+## Sort interactions
 
-- **Dimensions:** Sort alphabetically by the field value. Multi-sort is supported — click multiple columns to stack sort criteria.
-- **Measures:** Sort numerically by the aggregated value.
-- **Click cycle:** unsorted → ascending → descending → unsorted.
+- **Click** — Single sort. Replaces all existing sorts with this column. Cycles through ascending → descending → unsorted.
+- **Shift+Click** — Multi sort. Adds this column to the existing sort stack (or cycles it if already present). Use this to sort by multiple columns at once.
+- **Cmd+Click** — Reset. Removes this column from the sort criteria.
 
 ## Composable `<Sort />` component
 

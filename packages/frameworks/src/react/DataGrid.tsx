@@ -68,8 +68,11 @@ export const DataGrid = forwardRef<DataGridHandle, DataGridProps>(function DataG
     const grid = gridRef.current;
     if (!grid || !data) return;
 
-    grid.data = data;
-    grid.scheduleDraw();
+    const id = requestAnimationFrame(() => {
+      grid.data = data;
+      grid.draw();
+    });
+    return () => cancelAnimationFrame(id);
   }, [data, gridInstance]);
 
   useImperativeHandle(ref, () => ({

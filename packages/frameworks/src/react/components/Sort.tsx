@@ -1,4 +1,4 @@
-import React, { useCallback } from "react";
+import React, { useCallback, useState } from "react";
 import type { GridDataViewModel } from "grid/dist/renderer";
 import { FlattenedDataViewModel } from "grid/dist/renderer";
 import type { DataSchema, SortEntry, SortDirection } from "grid/dist/index";
@@ -29,24 +29,66 @@ function cycleDirection(current: SortDirection | null): SortDirection | null {
   return null;
 }
 
+function formatDirectionLabel(dir: SortDirection | null): string {
+  if (dir === "asc") return "Ascending";
+  if (dir === "desc") return "Descending";
+  return "Unsorted";
+}
+
+function buildTooltip(field: string, direction: SortDirection | null, allEntries: SortEntry[]): string {
+  const lines: string[] = [];
+  lines.push(`${field}: ${formatDirectionLabel(direction)}`);
+  if (allEntries.length > 0) {
+    lines.push("");
+    lines.push("Active sorts:");
+    for (const e of allEntries) {
+      lines.push(`  ${e.field}: ${formatDirectionLabel(e.direction)}`);
+    }
+  }
+  lines.push("");
+  const cmdKey = navigator.platform.includes("Mac") ? "\u2318" : "\u229E";
+  lines.push("Click: Single sort");
+  lines.push(`${cmdKey}+Click: Reset sort`);
+  lines.push("\u21E7+Click: Multi sort");
+  return lines.join("\n");
+}
+
 export const Sort: React.FC<SortProps> = ({ schema, viewModel, render }) => {
   const { model, ir } = useDataModelContext();
   const field = schema.name;
   const direction = getCurrentDirection(viewModel, field);
+  const [tooltip, setTooltip] = useState("");
 
-  const handleClick = useCallback(async () => {
+  const handleMouseEnter = useCallback(() => {
+    const entries = getSortEntries(viewModel);
+    setTooltip(buildTooltip(field, direction, entries));
+  }, [viewModel, field, direction]);
+
+  const handleClick = useCallback(async (e: React.MouseEvent) => {
     const currentEntries = getSortEntries(viewModel);
-    const nextDir = cycleDirection(direction);
 
     let newEntries: SortEntry[];
-    if (nextDir === null) {
-      newEntries = currentEntries.filter(e => e.field !== field);
-    } else {
-      const existing = currentEntries.find(e => e.field === field);
-      if (existing) {
-        newEntries = currentEntries.map(e => e.field === field ? { ...e, direction: nextDir } : e);
+
+    if (e.metaKey) {
+      newEntries = currentEntries.filter(entry => entry.field !== field);
+    } else if (e.shiftKey) {
+      const nextDir = cycleDirection(direction);
+      if (nextDir === null) {
+        newEntries = currentEntries.filter(entry => entry.field !== field);
       } else {
-        newEntries = [...currentEntries, { field, direction: nextDir }];
+        const existing = currentEntries.find(entry => entry.field === field);
+        if (existing) {
+          newEntries = currentEntries.map(entry => entry.field === field ? { ...entry, direction: nextDir } : entry);
+        } else {
+          newEntries = [...currentEntries, { field, direction: nextDir }];
+        }
+      }
+    } else {
+      const nextDir = cycleDirection(direction);
+      if (nextDir === null) {
+        newEntries = [];
+      } else {
+        newEntries = [{ field, direction: nextDir }];
       }
     }
 
@@ -57,18 +99,23 @@ export const Sort: React.FC<SortProps> = ({ schema, viewModel, render }) => {
     render(viewModel);
   }, [model, ir, viewModel, render, field, direction]);
 
+  const faded = 0.25;
+  const solid = 0.9;
+  const upOpacity = direction === "asc" ? solid : faded;
+  const downOpacity = direction === "desc" ? solid : faded;
+
   return (
-    <span
+    <svg
       onClick={handleClick}
-      style={{
-        cursor: "pointer",
-        opacity: direction ? 1 : 0.3,
-        marginLeft: 4,
-        fontSize: 10,
-        userSelect: "none",
-      }}
+      onMouseEnter={handleMouseEnter}
+      width="10"
+      height="14"
+      viewBox="0 0 10 14"
+      style={{ cursor: "pointer", marginLeft: 4, userSelect: "none" }}
     >
-      {direction === "desc" ? "▼" : "▲"}
-    </span>
+      <title>{tooltip}</title>
+      <path d="M5 0.5 L9 5.5 L1 5.5 Z" fill="currentColor" opacity={upOpacity} />
+      <path d="M5 13.5 L9 8.5 L1 8.5 Z" fill="currentColor" opacity={downOpacity} />
+    </svg>
   );
 };
