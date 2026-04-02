@@ -58,7 +58,6 @@ interface GridProps {
 }
 
 const ExcludeColumnFacetsGrid: React.FC<GridProps> = ({ds, schema, theme, height, exclude}) => {
-  const gridRef = useRef<DataGridHandle>(null);
 
   const config = React.useMemo<FlatTableConfig>(() => ({schema, pageSize: 100}), [schema]);
 
@@ -74,7 +73,7 @@ const ExcludeColumnFacetsGrid: React.FC<GridProps> = ({ds, schema, theme, height
 
   const columns = React.useMemo(() => buildColumns(schema, exclude), [schema, exclude]);
 
-  const {viewModel, loading, error, fetchPage, onCellRelease, onBeforeMeasure} = useFlatGrid({
+  const {bindings, gridRef, viewModel, loading, error, fetchPage} = useFlatGrid({
     dataSource: ds,
     schema,
     config,
@@ -101,12 +100,9 @@ const ExcludeColumnFacetsGrid: React.FC<GridProps> = ({ds, schema, theme, height
   return (
     <div className="grid-sample" style={{height}}>
       <DataGrid
-        ref={gridRef}
-        data={viewModel}
+        {...bindings}
         layout="flat"
         theme={theme}
-        onCellRelease={onCellRelease}
-        onBeforeMeasure={onBeforeMeasure}
         onViewDataEmpty={({startRow, endRow}) => fetchPage(startRow, endRow)}
       />
     </div>

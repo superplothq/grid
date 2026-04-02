@@ -1,11 +1,12 @@
-import React, {useEffect, useRef, useState} from "react";
+import React, {useEffect, useMemo, useState} from "react";
 import "grid/dist/grid.css";
 import type {DataSchema, ColumnMetadata} from "grid/dist/index";
 import type {GetRowsIR, FlatTableConfig} from "grid/dist/index";
 import {
   DataGrid, useFlatGrid, SkeletonGrid, GridErrOverlay,
-  type ColumnDef, type FacetCellProps, type ReactFacetDefs, type DataGridHandle,
+  type ColumnDef, type FacetCellProps, type ReactFacetDefs,
 } from "frameworks/dist/react";
+import type {SelectionDef} from "frameworks/dist/react/data";
 import {useDataSource} from "./DataSourceContext";
 import {useTheme} from "./ThemeContext";
 
@@ -13,6 +14,7 @@ const PROJECT = ["First Name", "Last Name", "Total OT Paid", "Total Other Pay"];
 const MEASURE_COLUMNS = new Set(["Total OT Paid", "Total Other Pay"]);
 const USD_TO_INR = 83.5;
 const META_NS = "currency";
+const MEASURE_PREDICATE = (dim: string, dimVal: string | null) => dim === "colName" && MEASURE_COLUMNS.has(dimVal ?? "");
 
 function buildSchema(columns: ColumnMetadata[]): DataSchema[] {
   return columns.map((col) => ({
@@ -80,7 +82,7 @@ const GlobalCurrencyButton: React.FC<FacetCellProps> = ({value, viewModel, rende
   };
 
   return (
-    <span style={{display: "flex", alignItems: "center", gap: "4px"}}>
+    <span style={{display: "flex", alignItems: "center", gap: "8px"}}>
       <span>{value}</span>
       <button
         className="sample-btn"
@@ -128,12 +130,11 @@ interface GridProps {
 }
 
 const CurrencyConversionGrid: React.FC<GridProps> = ({ds, schema, theme, height}) => {
-  const gridRef = useRef<DataGridHandle>(null);
   const [globalMode, setGlobalMode] = useState(false);
 
-  const config = React.useMemo<FlatTableConfig>(() => ({schema, pageSize: 100}), [schema]);
+  const config = useMemo<FlatTableConfig>(() => ({schema, pageSize: 100}), [schema]);
 
-  const ir = React.useMemo<GetRowsIR>(() => ({
+  const ir = useMemo<GetRowsIR>(() => ({
     startRow: 0,
     endRow: 100,
     select: [],
@@ -143,7 +144,7 @@ const CurrencyConversionGrid: React.FC<GridProps> = ({ds, schema, theme, height}
     filter: [],
   }), [schema]);
 
-  const measureIndices = React.useMemo(() => {
+  const measureIndices = useMemo(() => {
     const map = new Map<string, number>();
     schema.forEach((s, i) => {
       const name = s.displayName ?? s.name;
@@ -152,34 +153,27 @@ const CurrencyConversionGrid: React.FC<GridProps> = ({ds, schema, theme, height}
     return map;
   }, [schema]);
 
-  const {viewModel, loading, error, fetchPage, onCellRelease, onBeforeMeasure, applyTransform, resetTransform, createFacetRenderer} = useFlatGrid({
+  const selections = useMemo<SelectionDef[]>(() => [{
+    predicate: MEASURE_PREDICATE,
+    trackRenderer: globalMode ? GlobalCurrencyButton : CurrencyButton,
+  }], [globalMode]);
+
+  const {bindings, viewModel, loading, error, fetchPage, applyTransform, resetTransform} = useFlatGrid({
     dataSource: ds,
     schema,
     config,
     ir,
     columns: COLUMNS,
     facetDefs: FACET_DEFS,
+    selections,
   });
 
-  const perColRendererRef = useRef(createFacetRenderer(CurrencyButton));
-  const globalRendererRef = useRef(createFacetRenderer(GlobalCurrencyButton));
-
   useEffect(() => {
-    const grid = gridRef.current?.grid;
-    if (!grid || !viewModel) return;
-
+    if (!viewModel) return;
     viewModel.metaState.set("transforms", "applyTransform", applyTransform);
     viewModel.metaState.set("transforms", "resetTransform", resetTransform);
     viewModel.metaState.set("transforms", "measureIndices", measureIndices);
-
-    const renderer = globalMode ? globalRendererRef.current : perColRendererRef.current;
-
-    const selection = grid
-      .selectAll((dim, dimVal) => dim === "colName" && MEASURE_COLUMNS.has(dimVal ?? ""))
-      .prop({trackRenderer: renderer});
-
-    return () => selection.undo();
-  }, [viewModel, applyTransform, resetTransform, measureIndices, globalMode]);
+  }, [viewModel, applyTransform, resetTransform, measureIndices]);
 
   if (loading) return <div className="grid-sample" style={{height}}><SkeletonGrid theme={theme} /></div>;
   if (error) return <div className="grid-sample" style={{height}}><GridErrOverlay theme={theme} errBody={error.message} /></div>;
@@ -198,12 +192,9 @@ const CurrencyConversionGrid: React.FC<GridProps> = ({ds, schema, theme, height}
       </div>
       <div className="grid-sample" style={{height}}>
         <DataGrid
-          ref={gridRef}
-          data={viewModel}
+          {...bindings}
           layout="flat"
           theme={theme}
-          onCellRelease={onCellRelease}
-          onBeforeMeasure={onBeforeMeasure}
           onViewDataEmpty={({startRow, endRow}) => fetchPage(startRow, endRow)}
         />
       </div>

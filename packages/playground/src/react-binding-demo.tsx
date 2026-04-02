@@ -100,9 +100,8 @@ interface FlatTableProps {
 }
 
 const FlatTableWithBinding: React.FC<FlatTableProps> = ({dataSource, schema}) => {
-  const gridRef = useRef<DataGridHandle>(null);
   const [perfMetrics, setPerfMetrics] = useState<Record<string, unknown> | null>(null);
-  const {viewModel, loading, error, fetchPage, onCellRelease, onBeforeMeasure} = useFlatGrid({
+  const {bindings, gridRef, viewModel, loading, error, fetchPage} = useFlatGrid({
     dataSource,
     schema,
     config: FLAT_CONFIG,
@@ -129,11 +128,8 @@ const FlatTableWithBinding: React.FC<FlatTableProps> = ({dataSource, schema}) =>
         background: "white",
       }}>
         <DataGrid
-          ref={gridRef}
-          data={viewModel}
+          {...bindings}
           layout="flat"
-          onCellRelease={onCellRelease}
-          onBeforeMeasure={onBeforeMeasure}
           onViewDataEmpty={({startRow, endRow}) => fetchPage(startRow, endRow)}
         />
       </div>

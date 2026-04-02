@@ -1,11 +1,18 @@
 import { useRef, useState, useEffect, useCallback, type FC, type ReactNode } from "react";
 import { FlattenedDataViewModel, type GridDataViewModelOptions, type VTrackDef } from "grid/dist/renderer";
+import type { FacetPredicate, SelectionProps, ColAutoSizeConfig } from "grid/dist/renderer";
 import { SqlFlatTableDataModel, type FlattenedDataViewModelParams, type GetRowsIR, type FlatTableConfig, type DataSchema } from "grid/dist/index";
 import type { SqlDataSource } from "grid/dist/index";
 import type { FacetDef } from "grid/dist/renderer";
-import type { FacetCellRenderer } from "grid/dist/renderer";
 import { ReactCellAdapter } from "../renderer-adapter";
-import type { ColumnDef, FacetCellProps, ReactFacetDefs } from "../types";
+import type { ColumnDef, CellProps, FacetCellProps, DataGridHandle, ReactFacetDefs } from "../types";
+
+export interface SelectionDef {
+  predicate: FacetPredicate;
+  trackRenderer?: FC<FacetCellProps>;
+  cellRenderer?: FC<CellProps>;
+  colSize?: ColAutoSizeConfig;
+}
 
 export interface UseFlatGridOptions {
   dataSource: SqlDataSource;
@@ -14,31 +21,39 @@ export interface UseFlatGridOptions {
   ir: GetRowsIR;
   columns?: ColumnDef[];
   facetDefs?: ReactFacetDefs;
+  selections?: SelectionDef[];
   transformResult?: (result: FlattenedDataViewModelParams) => FlattenedDataViewModelParams;
   contextWrapper?: FC<{ children: ReactNode }>;
 }
 
 export type TransformFn = (val: any) => any;
 
+export interface GridBindings {
+  ref: React.RefObject<DataGridHandle>;
+  data: FlattenedDataViewModel | null;
+  onCellRelease: (key: string, cell: HTMLElement) => void;
+  onBeforeMeasure: () => void;
+}
+
 export interface UseFlatGridResult {
+  bindings: GridBindings;
   viewModel: FlattenedDataViewModel | null;
+  gridRef: React.RefObject<DataGridHandle>;
   loading: boolean;
   error: Error | null;
   fetchPage: (startRow: number, endRow: number) => Promise<void>;
-  onCellRelease: (key: string, cell: HTMLElement) => void;
-  onBeforeMeasure: () => void;
   applyTransform: (colIndex: number, fn: TransformFn) => void;
   resetTransform: (colIndex: number) => void;
-  createFacetRenderer: (component: FC<FacetCellProps>) => FacetCellRenderer;
 }
 
 export function useFlatGrid(options: UseFlatGridOptions): UseFlatGridResult {
-  const { dataSource, schema, config, ir, columns, facetDefs, transformResult, contextWrapper } = options;
+  const { dataSource, schema, config, ir, columns, facetDefs, selections, transformResult, contextWrapper } = options;
 
   const modelRef = useRef<SqlFlatTableDataModel | null>(null);
   const adapterRef = useRef<ReactCellAdapter | null>(null);
   const vmRef = useRef<FlattenedDataViewModel | null>(null);
   const vTrackDefsRef = useRef<VTrackDef[] | undefined>(undefined);
+  const gridRef = useRef<DataGridHandle>(null);
   const irRef = useRef(ir);
   irRef.current = ir;
 
@@ -149,6 +164,22 @@ export function useFlatGrid(options: UseFlatGridOptions): UseFlatGridResult {
     };
   }, []);
 
+  useEffect(() => {
+    const grid = gridRef.current?.grid;
+    if (!grid || !vmRef.current || !selections || selections.length === 0) return;
+
+    const adapter = adapterRef.current!;
+    const undos = selections.map((sel) => {
+      const props: SelectionProps = {};
+      if (sel.trackRenderer) props.trackRenderer = adapter.createNativeFacetRenderer(sel.trackRenderer);
+      if (sel.cellRenderer) props.cellRenderer = adapter.createNativeDataCellRenderer(sel.cellRenderer);
+      if (sel.colSize) props.colSize = sel.colSize;
+      return grid.selectAll(sel.predicate).prop(props);
+    });
+
+    return () => { for (const s of undos) s.undo(); };
+  }, [selections, loading]);
+
   const fetchPage = useCallback(async (startRow: number, endRow: number) => {
     const model = modelRef.current;
     if (!model || !irRef.current) return;
@@ -175,9 +206,7 @@ export function useFlatGrid(options: UseFlatGridOptions): UseFlatGridResult {
     if (lastRawResultRef.current) applyResult(lastRawResultRef.current);
   }, [applyResult]);
 
-  const createFacetRenderer = useCallback((component: FC<FacetCellProps>): FacetCellRenderer => {
-    return adapterRef.current!.createNativeFacetRenderer(component);
-  }, []);
+  const bindings: GridBindings = { ref: gridRef, data: vmRef.current, onCellRelease, onBeforeMeasure };
 
-  return { viewModel: vmRef.current, loading, error, fetchPage, onCellRelease, onBeforeMeasure, applyTransform, resetTransform, createFacetRenderer };
+  return { bindings, viewModel: vmRef.current, gridRef, loading, error, fetchPage, applyTransform, resetTransform };
 }
