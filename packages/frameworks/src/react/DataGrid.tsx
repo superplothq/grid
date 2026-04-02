@@ -7,12 +7,15 @@ import {
 } from "react";
 import Grid from "grid/dist/renderer";
 import type { DataGridProps, DataGridHandle } from "./types";
+import { PageLoadingIndicator } from "./components/PageLoadingIndicator";
 
 export const DataGrid = forwardRef<DataGridHandle, DataGridProps>(function DataGrid(props, ref) {
   const {
     data,
     layout = "pivot",
     theme,
+    pageLoadingInProgress,
+    pageLoadingIndicator: CustomLoadingIndicator,
     onCellRelease,
     onBeforeMeasure,
     onRenderComplete,
@@ -73,5 +76,12 @@ export const DataGrid = forwardRef<DataGridHandle, DataGridProps>(function DataG
     get grid() { return gridRef.current!; },
   }), []);
 
-  return <div ref={containerRef} style={{ width: "100%", height: "100%", position: "relative" }} />;
+  const Indicator = CustomLoadingIndicator ?? PageLoadingIndicator;
+
+  return (
+    <div style={{ width: "100%", height: "100%",  position: "relative" }}>
+      <div ref={containerRef} style={{ width: "100%", height: "100%", position: "relative" }} />
+      {pageLoadingInProgress && <Indicator />}
+    </div>
+  );
 });

@@ -1,4 +1,4 @@
-import type { FC } from "react";
+import type { FC, ComponentType } from "react";
 import type Grid from "grid/dist/renderer";
 import type {
   GridDataViewModel,
@@ -57,6 +57,8 @@ export interface DataGridProps {
   data: GridDataViewModel | null;
   layout?: LayoutType;
   theme?: string;
+  pageLoadingInProgress?: boolean;
+  pageLoadingIndicator?: ComponentType;
   onCellRelease?: (key: string, cell: HTMLElement) => void;
   onBeforeMeasure?: () => void;
   onRenderComplete?: (viewport: { x0: number; y0: number; x1: number; y1: number }) => void;

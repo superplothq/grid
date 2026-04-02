@@ -31,6 +31,7 @@ export type TransformFn = (val: any) => any;
 export interface GridBindings {
   ref: React.RefObject<DataGridHandle>;
   data: FlattenedDataViewModel | null;
+  pageLoadingInProgress: boolean;
   onCellRelease: (key: string, cell: HTMLElement) => void;
   onBeforeMeasure: () => void;
 }
@@ -59,6 +60,8 @@ export function useFlatGrid(options: UseFlatGridOptions): UseFlatGridResult {
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
+  const [pageLoadingInProgress, setPageLoadingInProgress] = useState(false);
+  const inFlightCountRef = useRef(0);
 
   if (!modelRef.current) {
     modelRef.current = new SqlFlatTableDataModel(config, schema, dataSource);
@@ -184,8 +187,18 @@ export function useFlatGrid(options: UseFlatGridOptions): UseFlatGridResult {
     const model = modelRef.current;
     if (!model || !irRef.current) return;
     const pageIR: GetRowsIR = { ...irRef.current, startRow, endRow };
-    const result = await model.getViewModelData(pageIR);
-    applyResult(result);
+    inFlightCountRef.current++;
+    setPageLoadingInProgress(true);
+    try {
+      const result = await model.getViewModelData(pageIR);
+      applyResult(result);
+      gridRef.current?.grid.scheduleDraw();
+    } finally {
+      inFlightCountRef.current--;
+      if (inFlightCountRef.current === 0) {
+        setPageLoadingInProgress(false);
+      }
+    }
   }, [applyResult]);
 
   const onCellRelease = useCallback((key: string) => {
@@ -206,7 +219,7 @@ export function useFlatGrid(options: UseFlatGridOptions): UseFlatGridResult {
     if (lastRawResultRef.current) applyResult(lastRawResultRef.current);
   }, [applyResult]);
 
-  const bindings: GridBindings = { ref: gridRef, data: vmRef.current, onCellRelease, onBeforeMeasure };
+  const bindings: GridBindings = { ref: gridRef, data: vmRef.current, pageLoadingInProgress, onCellRelease, onBeforeMeasure };
 
   return { bindings, viewModel: vmRef.current, gridRef, loading, error, fetchPage, applyTransform, resetTransform };
 }

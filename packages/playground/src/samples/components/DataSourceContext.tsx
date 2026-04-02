@@ -53,10 +53,11 @@ function buildReplaceMap(): Map<string, Map<string, string>> {
   return replace;
 }
 
+const ROW_COUNT = 500;
 function slicePreprocess(data: unknown): unknown {
   const slicedData: any[] = [];
   let i = 0;
-  while (i < 50) {
+  while (i < ROW_COUNT) {
     slicedData.push((data as unknown[])[i*500]);
     i++;
   }

@@ -16,6 +16,7 @@ export {
 } from "./data";
 export { SkeletonGrid, type SkeletonGridProps } from "./components/SkeletonGrid";
 export { GridErrOverlay, type GridErrOverlayProps } from "./components/GridErrOverlay";
+export { PageLoadingIndicator, type PageLoadingIndicatorProps } from "./components/PageLoadingIndicator";
 export {
   useFlatGrid,
   usePivotGrid,
