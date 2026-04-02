@@ -69,7 +69,9 @@ export const Sort: React.FC<SortProps> = ({ schema, viewModel, render }) => {
 
     let newEntries: SortEntry[];
 
-    if (e.metaKey) {
+    const isResetKey = e.metaKey || e.ctrlKey;
+
+    if (isResetKey) {
       newEntries = currentEntries.filter(entry => entry.field !== field);
     } else if (e.shiftKey) {
       const nextDir = cycleDirection(direction);
