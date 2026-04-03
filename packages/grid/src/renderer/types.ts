@@ -78,6 +78,7 @@ export interface VTrackDef<T = any> {
   sampleData?: T;
   colSize?: ColAutoSizeConfig;
 }
+
 type El = HTMLElement | HTMLElement[] | string;
 
 export interface FacetRendererContext {

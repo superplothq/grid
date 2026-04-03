@@ -35,7 +35,9 @@ export class DuckDBWasmDataSource extends SqlDataSource {
     });
 
     const worker = new Worker(bundle.mainWorker!);
-    const logger = new duckdb.ConsoleLogger();
+    // TODO: enable console logging only for dev mode
+    // const logger = new duckdb.ConsoleLogger();
+    const logger = new duckdb.VoidLogger();
     const db = new duckdb.AsyncDuckDB(logger, worker);
     await db.instantiate(bundle.mainModule, bundle.pthreadWorker);
 

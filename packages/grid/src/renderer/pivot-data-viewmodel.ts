@@ -10,6 +10,11 @@ export interface PivotDataViewModelParams {
   schema?: DataSchema[];
 }
 
+// Invariants:
+//   this.data.length === this.vTrackDefs.length
+//   this.schema.length is different — it holds the raw dimension/measure definitions from the
+//     dataset (e.g. 5 fields), while data.length is the pivoted column count wrt dimensional value
+//     after reshaping (e.g. 2 dimensions × 3 measure values = 6 columns).
 export class PivotDataViewModel extends GridDataViewModel {
   #rowFacets?: FacetData;
 

@@ -26,6 +26,17 @@ export interface FlattenedDataViewModelParams {
   offsetTop?: number;
 }
 
+// Invariants:
+//   this.data.length === this.vTrackDefs.length (both equal numCols, built from ir.project)
+//     If this viewmodel is being generated from datamodel, projection (ir.project) determines
+//     which all fields are present in viewmodel.
+//   this.schema.length === this.data.length - Should be true
+//     Note for upstream (datamodel layer): schema is fully generated from datamodel, if projection
+//     is present, schema needs to be updated to reflect the projection so that extra fields from
+//     the original datamodel are not present in the viewmodel.
+//
+// ColumnFacets: the last level holds the original column names/labels. Any nesting or
+//     grouping is done by building additional layers on top.
 export class FlattenedDataViewModel extends GridDataViewModel {
   #rowFacet?: (string | null)[];
   #rowMeta?: Uint8Array;
