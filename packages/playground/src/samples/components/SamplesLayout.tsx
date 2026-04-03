@@ -22,6 +22,7 @@ const pages = [
   { path: "columns-and-sizing", label: "Columns & Sizing" },
   { path: "custom-button", label: "Custom Button" },
   { path: "sorting", label: "Sorting" },
+  { path: "grouping", label: "Grouping" },
 ];
 
 const SamplesLayout: React.FC = () => {

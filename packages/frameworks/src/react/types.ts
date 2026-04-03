@@ -7,6 +7,7 @@ import type {
   CellRenderer,
   VTrackDef,
   FacetDef,
+  FlatRowMeta,
 } from "grid/dist/renderer";
 
 export type { GridDataViewModel };
@@ -27,6 +28,7 @@ export interface FacetCellProps {
   container: HTMLElement;
   viewModel: GridDataViewModel;
   render: (vm: GridDataViewModel) => void;
+  flatMeta?: FlatRowMeta;
 }
 
 export interface FacetHeaderProps {

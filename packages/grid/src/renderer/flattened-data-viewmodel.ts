@@ -66,6 +66,23 @@ export class FlattenedDataViewModel extends GridDataViewModel {
     this.updatePagination(params.totalRows, params.offsetTop);
   }
 
+  getSelectPath(rowIndex: number): string[] {
+    const meta = this.#rowMeta!;
+    const facet = this.#rowFacet!;
+    const targetDepth = getDepth(meta[rowIndex]);
+    const path: string[] = new Array(targetDepth + 1);
+    path[targetDepth] = facet[rowIndex] as string;
+    let remaining = targetDepth;
+    for (let i = rowIndex - 1; i >= 0 && remaining > 0; i--) {
+      const d = getDepth(meta[i]);
+      if (d < remaining) {
+        path[d] = facet[i] as string;
+        remaining = d;
+      }
+    }
+    return path;
+  }
+
   private unpackMeta(bits: number): FlatRowMeta {
     return {
       depth: getDepth(bits),

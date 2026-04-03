@@ -53,6 +53,7 @@ export class ReactCellAdapter {
         container: ctx.container,
         viewModel: dataCtx.viewModel,
         render: ctx.render,
+        ...(dataCtx.flatMeta && { flatMeta: dataCtx.flatMeta }),
       }));
       this.#pendingRenders.push(() => root.render(wrapped));
     };

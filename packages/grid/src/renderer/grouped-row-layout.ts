@@ -1,6 +1,7 @@
 import StandardLayout, { CellRenderResult, ViewModel } from "./standard-layout";
 import { FlatSliceResult, FacetDataContext, FacetRendererContext, CellToMeasure, BaseSliceResult } from "./types";
 import { GridDataViewModel } from "./grid-data-viewmodel";
+import { FlattenedDataViewModel } from "./flattened-data-viewmodel";
 
 
 export default class GroupedRowLayout extends StandardLayout {
@@ -48,11 +49,12 @@ export default class GroupedRowLayout extends StandardLayout {
 
       if (contentDirty) {
         const label = flatSlice.rowFacets[j];
+        const rowIndex = viewModel.y0 + j;
         const dataCtx: FacetDataContext = {
           viewModel: this.data!,
-          path: [label],
+          path: (this.data! as FlattenedDataViewModel).getSelectPath(rowIndex),
           level: 0,
-          index: j,
+          index: rowIndex,
           key,
           ...(meta && { flatMeta: meta }),
         };

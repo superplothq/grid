@@ -90,7 +90,7 @@ function makeFacetRenderer(
       dataCtx.viewModel.metaState.set(ns, "loading", true);
       rCtx.render(viewModel);
 
-      const select = dataCtx.path.filter((v): v is string => v !== null);
+      const select = dataCtx.path as string[];
       let result: FlattenedDataViewModelParams;
       if (flatMeta.isExpanded) {
         result = await model.collapseData(select);
