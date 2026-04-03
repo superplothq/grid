@@ -28,6 +28,9 @@ export interface FacetCellProps {
   container: HTMLElement;
   viewModel: GridDataViewModel;
   render: (vm: GridDataViewModel) => void;
+  // TODO: this is mandatory for flattened-data-viewmodel
+  //       Since for flattened data and pivot data only one FacetCellProps is the only
+  //       interface that's carry the information for now it's passed as optional argument
   flatMeta?: FlatRowMeta;
 }
 
