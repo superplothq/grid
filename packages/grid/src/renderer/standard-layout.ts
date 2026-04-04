@@ -477,11 +477,11 @@ export default class StandardLayout extends StandardLayoutBase {
       ?? this.config.defaultCellWidth;
   }
 
-  getLeftRegionWidth(): number {
-    return this.getLeftFixtureWidth() + this.getRowFacetsWidth();
+  #getLeftRegionWidth(): number {
+    return this.#getLeftFixtureWidth() + this.#getRowFacetsWidth();
   }
 
-  getLeftFixtureWidth(): number {
+  #getLeftFixtureWidth(): number {
     let width = 0;
     for (let i = 0; i < this.#fixtures.left.length; i++) {
       width += this.getColumnWidth("left", i);
@@ -489,7 +489,7 @@ export default class StandardLayout extends StandardLayoutBase {
     return width;
   }
 
-  getRowFacetsWidth(): number {
+  #getRowFacetsWidth(): number {
     let width = 0;
     const start = this.#fixtures.left.length;
     for (let i = 0; i < this.data!.numRowFacetLevels; i++) {
@@ -498,7 +498,7 @@ export default class StandardLayout extends StandardLayoutBase {
     return width;
   }
 
-  getRightFixtureWidth(): number {
+  #getRightFixtureWidth(): number {
     let width = 0;
     for (let i = 0; i < this.#fixtures.right.length; i++) {
       width += this.getColumnWidth("right", i);
@@ -506,7 +506,7 @@ export default class StandardLayout extends StandardLayoutBase {
     return width;
   }
 
-  getCenterTotalWidth(): number {
+  #getCenterTotalWidth(): number {
     let width = 0;
     for (let i = 0; i < this.data!.numCols; i++) {
       width += this.getColumnWidth("center", i);
@@ -514,7 +514,7 @@ export default class StandardLayout extends StandardLayoutBase {
     return width;
   }
 
-  calcNumVisibleDataColumns(startCol: number, viewWidth: number) {
+  #calcNumVisibleDataColumns(startCol: number, viewWidth: number) {
     let width = 0;
     let count = 0;
 
@@ -645,7 +645,7 @@ export default class StandardLayout extends StandardLayoutBase {
       accRightWidth += this.getColumnWidth("right", i);
     }
 
-    const rowFacetsWidth = this.getRowFacetsWidth();
+    const rowFacetsWidth = this.#getRowFacetsWidth();
 
     return {
       startColFloat: 0,
@@ -663,7 +663,7 @@ export default class StandardLayout extends StandardLayoutBase {
     const scrollLeft = this.mountPoint.scrollLeft;
     const viewWidth = this.mountPoint.clientWidth;
 
-    const leftFixtureWidth = this.getLeftFixtureWidth();
+    const leftFixtureWidth = this.#getLeftFixtureWidth();
     // TODO[improvment]
     //   rf11 rf12 rf13 ... ...
     //   ____ ____ rf23 ... ...
@@ -671,9 +671,9 @@ export default class StandardLayout extends StandardLayoutBase {
     //   ____ ____ rf43 ... ...
     //   1. For config like this if rf12 is overflowing it can wrap it's content
     //   2. Individual row facet might have it's own maxWidth
-    const rowFacetsWidth = this.getRowFacetsWidth();
-    const rightFixtureWidth = this.getRightFixtureWidth();
-    const totalWidth = this.getLeftRegionWidth() + this.getCenterTotalWidth() + rightFixtureWidth;
+    const rowFacetsWidth = this.#getRowFacetsWidth();
+    const rightFixtureWidth = this.#getRightFixtureWidth();
+    const totalWidth = this.#getLeftRegionWidth() + this.#getCenterTotalWidth() + rightFixtureWidth;
     const scrollableWidth = Math.max(1, totalWidth - viewWidth);
     const scrollPercentX = Math.min(1, scrollLeft / scrollableWidth);
     /*
@@ -714,7 +714,7 @@ export default class StandardLayout extends StandardLayoutBase {
 
     const startColFloat = maxScrollCol * scrollPercentX;
     const startCol = Math.floor(startColFloat);
-    const visibleCols = this.calcNumVisibleDataColumns(startCol, visibleDataWidth);
+    const visibleCols = this.#calcNumVisibleDataColumns(startCol, visibleDataWidth);
     const endCol = Math.min(this.data!.numCols, startCol + visibleCols);
 
     const startColWidth = this.getColumnWidth("center", startCol);
@@ -811,10 +811,10 @@ export default class StandardLayout extends StandardLayoutBase {
 
     const attempt = (remaining: number) => {
       const viewWidth = this.mountPoint.clientWidth;
-      const leftFixtureWidth = this.getLeftFixtureWidth();
-      const rowFacetsWidth = this.getRowFacetsWidth();
-      const rightFixtureWidth = this.getRightFixtureWidth();
-      const totalWidth = this.getLeftRegionWidth() + this.getCenterTotalWidth() + rightFixtureWidth;
+      const leftFixtureWidth = this.#getLeftFixtureWidth();
+      const rowFacetsWidth = this.#getRowFacetsWidth();
+      const rightFixtureWidth = this.#getRightFixtureWidth();
+      const totalWidth = this.#getLeftRegionWidth() + this.#getCenterTotalWidth() + rightFixtureWidth;
       const scrollableWidth = Math.max(1, totalWidth - viewWidth);
       const visibleDataWidth = viewWidth - rowFacetsWidth - leftFixtureWidth - rightFixtureWidth;
 
@@ -1644,6 +1644,7 @@ export default class StandardLayout extends StandardLayoutBase {
         (cell.firstElementChild as HTMLElement).style.transform = labelOffset !== 0 ? `translateY(${labelOffset}px)` : "";
       }
       cell.dataset.cellType = "row-facet";
+      // Used by changeRowFacetTrackWidth to shift subsequent track cells' style.left during live drag
       cell.dataset.rowFacetLevel = String(merge.level);
       needAppend && nodesToAppend.push(cell);
       // NOTE: we don't add row facets for column width measurement as corner cells are sent with for measurement

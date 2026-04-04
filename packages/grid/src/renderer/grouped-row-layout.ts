@@ -71,6 +71,7 @@ export default class GroupedRowLayout extends StandardLayout {
       }
 
       cell.dataset.cellType = "row-facet";
+      // Used by changeRowFacetTrackWidth to shift subsequent track cells' style.left during live drag
       cell.dataset.rowFacetLevel = "0";
       needAppend && nodesToAppend.push(cell);
       adjustCells.push({ cell, level: gridColOffset });
