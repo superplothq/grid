@@ -804,7 +804,7 @@ const GridPlayground: React.FC = () => {
     // Create or update grid
     if (!gridRef.current) {
       const layoutType = layoutMode === "grouped" ? "flat" : "pivot";
-      gridRef.current = new Grid({ fixtures: { top: [/* FilterFixture */], left: [LineNumberFixture/*CheckboxFixture, LineNumberFixture*/], bottom: [AggregationFixture, BottomDetailFixture], right: [CheckboxFixture] } }, gridConRef.current, layoutType);
+      gridRef.current = new Grid({ fixtures: { top: [FilterFixture], left: [LineNumberFixture/*CheckboxFixture, LineNumberFixture*/], bottom: [AggregationFixture, BottomDetailFixture], right: [CheckboxFixture] } }, gridConRef.current, layoutType);
       gridLayoutModeRef.current = layoutMode;
       for (const e of ['renderComplete', 'selectionAdded', 'selectionRemoved']) {
         gridRef.current.on(e as any, (payload) => {

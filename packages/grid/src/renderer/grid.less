@@ -48,11 +48,11 @@
   }
 
   &.facet-b-edge, &.header-b-edge {
-    border-bottom: calc(var(--data-left-border-width) * 1px) solid var(--data-left-border-color) !important;
+    border-bottom: calc(var(--data-top-border-width) * 1px) solid var(--data-top-border-color) !important;
   }
 
   &.facet-r-edge, &.header-r-edge {
-    border-right: calc(var(--data-top-border-width) * 1px) solid var(--data-top-border-color) !important;
+    border-right: calc(var(--data-left-border-width) * 1px) solid var(--data-left-border-color) !important;
   }
 
   &.col-facet {
@@ -79,35 +79,6 @@
       text-overflow: ellipsis;
       white-space: nowrap;
       min-width: 0;
-    }
-
-    > .resize-handle {
-      position: absolute;
-      right: -4px;
-      width: 8px;
-      height: 70%;
-      z-index: 1;
-
-      &::after {
-        content: "";
-        position: absolute;
-        top: 0;
-        left: 50%;
-        width: 2px;
-        border-radius: 2px;
-        height: 100%;
-        background: var(--vertical-border-color);
-        transform: translateX(-50%);
-        transition: width 0.2s ease-in-out;
-      }
-    }
-
-    &:hover > .resize-handle::after {
-      width: 4px;
-    }
-
-    > .resize-handle:hover {
-      cursor: col-resize;
     }
   }
 
@@ -206,8 +177,25 @@
 
   &.corner {
     position: sticky;
-    z-index: 9999;
     overflow: visible;
+  }
+
+  &.selection-overlay {
+    pointer-events: none;
+    background: rgba(0, 120, 215, 0.1);
+    border: 2px solid #0078d7;
+    z-index: 5;
+    position: relative;
+    box-sizing: border-box;
+  }
+
+  &.left-fixture-header, &.right-fixture-header {
+    overflow: visible;
+  }
+
+  &.col-facet, &.corner, &.left-fixture-header, &.right-fixture-header {
+    // border-left: none !important;
+    // border-right: none !important;
 
     > .resize-handle {
       position: absolute;
@@ -237,18 +225,5 @@
     > .resize-handle:hover {
       cursor: col-resize;
     }
-  }
-
-  &.selection-overlay {
-    pointer-events: none;
-    background: rgba(0, 120, 215, 0.1);
-    border: 2px solid #0078d7;
-    z-index: 5;
-    position: relative;
-    box-sizing: border-box;
-  }
-
-  &.right-fixture-header {
-    z-index: 9999;
   }
 }

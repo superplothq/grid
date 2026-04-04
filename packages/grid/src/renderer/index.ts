@@ -190,7 +190,10 @@ export default class Grid extends GridWithEvents {
         // Here we find out : for a given level and value of column facet what are the leaf level columns over which the
         // column facet spans. This would contain columns that are in viewport and that are invisible and not in dom
         // because of virtualization
-        const fullRange = findFullColumnRange(level, rightPtr);
+        const leafLevel = this.#layout.data!.numColFacetLevels - 1;
+        const fullRange = level < leafLevel
+          ? findFullColumnRange(level, rightPtr)
+          : { start: rightPtr, end: rightPtr };
         totalColCount = fullRange.end - fullRange.start + 1;
 
         // Find out out of all leaf level nodes over which the column being dragged spans, which columns are in dom

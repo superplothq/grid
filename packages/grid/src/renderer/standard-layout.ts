@@ -940,7 +940,7 @@ export default class StandardLayout extends StandardLayoutBase {
         indices[sizeKey] = width;
       }
 
-      if (cell.classList.contains("corner") && !cell.classList.contains("right-fixture-header")) {
+      if (cell.classList.contains("corner") && !cell.classList.contains("right-fixture-header") && !cell.classList.contains("left-fixture-header")) {
         let cellsInIndex = cornerCells[sizeKey];
         if (!cellsInIndex)  cellsInIndex = cornerCells[sizeKey] = [];
         cellsInIndex.push(cell);
@@ -1050,17 +1050,23 @@ export default class StandardLayout extends StandardLayoutBase {
     const axis = this.data!.facetDefs.axis;
     const rowFacetDefs = this.data!.facetDefs.row.filter(d => !d.pseudo);
     const colFacetDefs = this.data!.facetDefs.col.filter(d => !d.pseudo);
-    const allDefs: Array<PVerticalFixture | FacetDef> = [...fixtures.left, ...rowFacetDefs];
+    const numLeftFixtures = fixtures.left.length;
+    const numRowFacetLevels = this.data!.numRowFacetLevels;
 
+    // render left fixture header cells
+    const fixtureHeaderOpts = { numColFacetLevels, viewModel, hintContentDirty, nodeAppendList };
+    this.#renderFixtureHeaders(fixtures.left, "left", { ...fixtureHeaderOpts, gridColStart: 1 });
+
+    // render corner cells which results from intersection of row and column facets
     for (let hRow = 0; hRow < numColFacetLevels; hRow++) { // each row of header cells
-      for (let hCol = 0; hCol < numLeftVFixedTrack; hCol++) { // each cell in a row
-        const key = `corner-${hRow}-${hCol}`;
+      for (let hCol = 0; hCol < numRowFacetLevels; hCol++) { // each row facet column
+        const absCol = hCol + numLeftFixtures;
+        const key = `corner-${hRow}-${absCol}`;
 
         let shouldSpan = false;
         let isSpanned = false;
         let hasRenderer = false;
         let headerDef: FacetDef | null = null;
-        let fixtureDef: PVerticalFixture | null = null;
 
         if (axis === "col") {
           if (hRow < numColFacetLevels - 1) { // column facet header spanned horizontally
@@ -1072,27 +1078,16 @@ export default class StandardLayout extends StandardLayoutBase {
               isSpanned = true;
             }
           } else { // last row would hold all the row facet headers
-            const def = allDefs[hCol];
-            if (def) {
-              if (def instanceof PVerticalFixture) { fixtureDef = def; hasRenderer = true; }
-              else if (!def.pseudo) { headerDef = def; hasRenderer = true; }
-            }
+            const def = rowFacetDefs[hCol];
+            if (def && !def.pseudo) { headerDef = def; hasRenderer = true; }
           }
         } else {
-          if (hCol < numLeftVFixedTrack) { // row facet header spanned vertically
-            if (hRow === 0) {
-              shouldSpan = true;
-              const def = allDefs[hCol];
-              if (def) {
-                if (def instanceof PVerticalFixture) { fixtureDef = def; hasRenderer = true; }
-                else if (!def.pseudo) { headerDef = def; hasRenderer = true; }
-              }
-            } else { // merged via rowspan
-              isSpanned = true;
-            }
-          } else { // the last column holds all the column facet headers
-            const def = colFacetDefs[hRow];
+          if (hRow === 0) {
+            shouldSpan = true;
+            const def = rowFacetDefs[hCol];
             if (def && !def.pseudo) { headerDef = def; hasRenderer = true; }
+          } else { // merged via rowspan
+            isSpanned = true;
           }
         }
 
@@ -1100,12 +1095,12 @@ export default class StandardLayout extends StandardLayoutBase {
 
         const extraStyles: Record<string, any> = {
           top: viewModel.colFacetsTopPositions[hRow],
-          left: viewModel.fixedLeftVTrackPositions[hCol],
+          left: viewModel.fixedLeftVTrackPositions[absCol],
         };
 
         if (shouldSpan) {
           if (axis === "col") {
-            extraStyles.colspan = numLeftVFixedTrack;
+            extraStyles.colspan = numRowFacetLevels;
           } else {
             extraStyles.rowspan = numColFacetLevels;
           }
@@ -1118,13 +1113,13 @@ export default class StandardLayout extends StandardLayoutBase {
           if (hRow === numColFacetLevels - 1 || (shouldSpan && axis === "row")) cornerCls += " b-edge";
           if (hRow === numColFacetLevels - 1) cornerCls += " nl-edge";
         }
-        if (hCol === numLeftVFixedTrack - 1 || (shouldSpan && axis === "col")) cornerCls += " r-edge header-r-edge";
+        if (absCol === numLeftVFixedTrack - 1 || (shouldSpan && axis === "col")) cornerCls += " r-edge header-r-edge";
         if (hRow === numColFacetLevels - 1) cornerCls += " header-b-edge";
 
         const [cell, needAppend, contentDirty] = this.placeCellInDom({
           key,
           gridRow: hRow + 1,
-          gridCol: hCol + 1,
+          gridCol: absCol + 1,
           hintContentDirty,
           cls: cornerCls,
           extraStyles,
@@ -1133,53 +1128,26 @@ export default class StandardLayout extends StandardLayoutBase {
           const headerContainer = this.createFacetContainer(cell);
           const ctx: HeaderCellContext = { viewModel: this.data!, axis: "col", level: hRow, key, container: headerContainer };
           let headerContent: FacetCellContent | string | HTMLElement | HTMLElement[] | void | null = null;
-          if (fixtureDef) headerContent = fixtureDef.headerCells(ctx);
-          else if (headerDef) headerContent = headerDef.headerRenderer(headerDef.text, ctx);
+          if (headerDef) headerContent = headerDef.headerRenderer(headerDef.text, ctx);
           this.populateFacetContainer(cell, headerContainer, headerContent);
-          if (hCol >= fixtures.left.length) {
+          if (!(shouldSpan && axis === "col")) {
             this.appendResizeHandle(cell, "left");
-            cell.dataset.rowFacetLevel = String(hCol - fixtures.left.length);
+            cell.dataset.rowFacetLevel = String(hCol);
           }
         }
+        cell.style.zIndex = `${8888 - hCol}`;
         needAppend && nodeAppendList.push(cell);
         const hasHorizontalSpan = shouldSpan && axis === "col";
         if (!hasHorizontalSpan) {
           // only push cells that are not merged horizontally otherwise incorrect cell size will be reported
-          this.#cellsToMeasure.push({ cell, sizeKey: hCol, region: "left" });
-          this.#postRenderAdjustLeftCellsPerLevel[hCol].push(cell);
+          this.#cellsToMeasure.push({ cell, sizeKey: absCol, region: "left" });
         }
+        this.#postRenderAdjustLeftCellsPerLevel[absCol].push(cell);
       }
     }
 
     // render right fixture header cells
-    for (let fi = 0; fi < fixtures.right.length; fi++) {
-      const def = fixtures.right[fi];
-      const key = `right-fixture-header-${fi}`;
-      const gridCol = numLeftVFixedTrack + numDataColsVisible + fi + 1;
-
-      const [cell, needAppend, contentDirty] = this.placeCellInDom({
-        key,
-        gridRow: 1,
-        gridCol,
-        hintContentDirty,
-        cls: "corner header right-fixture-header b-edge header-b-edge",
-        extraStyles: {
-          ...(numColFacetLevels > 1 && { rowspan: numColFacetLevels }),
-          top: viewModel.colFacetsTopPositions[0],
-          right: viewModel.fixedRightVTrackPositions[fi],
-        },
-      });
-      if (contentDirty) {
-        const headerContainer = this.createFacetContainer(cell);
-        const ctx: HeaderCellContext = { viewModel: this.data!, axis: "col", level: 0, key, container: headerContainer };
-        const headerContent = def.headerCells(ctx);
-        this.populateFacetContainer(cell, headerContainer, headerContent);
-      }
-      needAppend && nodeAppendList.push(cell);
-      this.#cellsToMeasure.push({ cell, sizeKey: fi, region: "right" });
-      if (!this.#postRenderAdjustRightCellsPerLevel[fi]) this.#postRenderAdjustRightCellsPerLevel[fi] = [];
-      this.#postRenderAdjustRightCellsPerLevel[fi].push(cell);
-    }
+    this.#renderFixtureHeaders(fixtures.right, "right", { ...fixtureHeaderOpts, gridColStart: numLeftVFixedTrack + numDataColsVisible + 1 });
 
     // render column facets
     const colDefs = this.data!.vTrackDefs;
@@ -1242,7 +1210,7 @@ export default class StandardLayout extends StandardLayoutBase {
       cell.dataset.hix = String(absoluteColIndex + colspan - 1);
       cell.style.zIndex = `${999 - merge.start}`;
       needAppend && nodeAppendList.push(cell);
-      if (!(colspan && colspan > 1)) {
+      if (isLeafLevel) {
         this.#cellsToMeasure.push({ cell, sizeKey: colIndex, region: "center" });
       }
     }
@@ -1294,7 +1262,26 @@ export default class StandardLayout extends StandardLayoutBase {
             delete e.dataset[datasetKey];
             return type === "h-sticky";
           });
-          this.#postRenderAdjustLeftCellsPerLevel[fi].push(...hStickyNodes);
+          // TODO this is a failsafe to make no row facet cells work
+          //      Here is the root cause of the issue
+          //      Bug: h-sticky nodes from horizontal fixtures mapped to wrong left track level
+          //      In standard-layout.ts (render fixtures loop, top/bottom side), all h-sticky nodes from a
+          //      horizontal fixture are pushed into #postRenderAdjustLeftCellsPerLevel[fi] where fi is the
+          //      top/bottom fixture index. This is wrong:
+          //      
+          //      1. fi is a horizontal fixture index (0, 1, ...), not a left vertical track index
+          //      2. Each h-sticky node corresponds to a specific row facet column (the fixture creates one per
+          //      row facet level at gridCol: leftFixtureCount + rf + 1), but they all get lumped into a single
+          //      level
+          //      3. Result: #onLayoutBootstrap assigns all h-sticky nodes the same left position (from
+          //      fixedLeftVTrackPositions[fi]) instead of their correct per-column position
+          //      4. Crashes when numLeftVFixedTrack is 0 (no left fixtures, no row facets) since the array is
+          //      empty
+          //      
+          //      Fix direction: Each h-sticky node needs to carry its target left track level (e.g. via a data
+          //      attribute set by the fixture), so the layout can distribute nodes to the correct
+          //      #postRenderAdjustLeftCellsPerLevel[level] entry.
+          if (this.#postRenderAdjustLeftCellsPerLevel[fi]) this.#postRenderAdjustLeftCellsPerLevel[fi].push(...hStickyNodes);
 
           for (let lfi = 0; lfi < fixtures.left.length; lfi++) {
             const key = `${side}-fixture-left-empty-${fi}-${lfi}`;
@@ -1419,6 +1406,57 @@ export default class StandardLayout extends StandardLayoutBase {
     this.#cellsToMeasure.push(...result.cellsToMeasure);
     for (const { cell, level } of result.adjustCells) {
       this.#postRenderAdjustLeftCellsPerLevel[level].push(cell);
+    }
+  }
+
+  #renderFixtureHeaders(
+    fixtureDefs: PVerticalFixture[],
+    side: "left" | "right",
+    opts: {
+      numColFacetLevels: number;
+      viewModel: ViewModel;
+      hintContentDirty: boolean | undefined;
+      gridColStart: number;
+      nodeAppendList: HTMLElement[];
+    },
+  ): void {
+    const { numColFacetLevels, viewModel, hintContentDirty, gridColStart, nodeAppendList } = opts;
+    const adjustArray = side === "left"
+      ? this.#postRenderAdjustLeftCellsPerLevel
+      : this.#postRenderAdjustRightCellsPerLevel;
+
+    for (let fi = 0; fi < fixtureDefs.length; fi++) {
+      const def = fixtureDefs[fi];
+      const key = `${side}-fixture-header-${fi}`;
+      const gridCol = gridColStart + fi;
+
+      const positionProp = side === "left"
+        ? { left: viewModel.fixedLeftVTrackPositions[fi] }
+        : { right: viewModel.fixedRightVTrackPositions[fi] };
+
+      const [cell, needAppend, contentDirty] = this.placeCellInDom({
+        key,
+        gridRow: 1,
+        gridCol,
+        hintContentDirty,
+        cls: `corner header ${side}-fixture-header b-edge header-b-edge`,
+        extraStyles: {
+          ...(numColFacetLevels > 1 && { rowspan: numColFacetLevels }),
+          top: viewModel.colFacetsTopPositions[0],
+          ...positionProp,
+        },
+      });
+      if (contentDirty) {
+        const headerContainer = this.createFacetContainer(cell);
+        const ctx: HeaderCellContext = { viewModel: this.data!, axis: "col", level: 0, key, container: headerContainer };
+        const headerContent = def.headerCells(ctx);
+        this.populateFacetContainer(cell, headerContainer, headerContent);
+      }
+      cell.style.zIndex = `${9999 - fi}`;
+      needAppend && nodeAppendList.push(cell);
+      this.#cellsToMeasure.push({ cell, sizeKey: fi, region: side });
+      if (!adjustArray[fi]) adjustArray[fi] = [];
+      adjustArray[fi].push(cell);
     }
   }
 
