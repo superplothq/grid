@@ -183,6 +183,10 @@ export default class StandardLayout extends StandardLayoutBase {
     return this.#con;
   }
 
+  get numLeftFixedTracks(): number {
+    return this.#fixtures.left.length + this.data!.numRowFacetLevels;
+  }
+
   #attachShadowDom(): HTMLElement[] {
     const el = this.mountPoint;
     el.attachShadow({ mode: "open" });

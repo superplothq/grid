@@ -182,8 +182,8 @@ export default class Grid extends GridWithEvents {
         // See the diagram in the comment on standard-layout.ts
         // since for facets level < leaf levels, columns are merged (by applying colspan), rightPtr contains the right
         // most index of the merged column facet value from the data view model.
-        const rowFacetAdjustment = this.#layout.data!.numRowFacetLevels;
-        const rightPtr = parseInt(cell.dataset.hix!, 10) - rowFacetAdjustment;
+        const numLeftFixedTracks = this.#layout.numLeftFixedTracks;
+        const rightPtr = parseInt(cell.dataset.hix!, 10) - numLeftFixedTracks;
 
         // column facets level = leaf levels provides header cells for data cells. These two essentially create a standard table.
         // Column facets level < leaf levels create hierarchy/nesting and spans over multiple leaf level columns.
@@ -194,7 +194,7 @@ export default class Grid extends GridWithEvents {
         totalColCount = fullRange.end - fullRange.start + 1;
 
         // Find out out of all leaf level nodes over which the column being dragged spans, which columns are in dom
-        const visibleCols = getVisibleLeafColumns(fullRange.start + rowFacetAdjustment, fullRange.end + rowFacetAdjustment);
+        const visibleCols = getVisibleLeafColumns(fullRange.start + numLeftFixedTracks, fullRange.end + numLeftFixedTracks);
         // TODO for cells that are not currently in dom atm, but would appear in dom as we scroll / reduce size of columns
         //      we need to update the change in size of columns to be considered as they appears on the dom
 
