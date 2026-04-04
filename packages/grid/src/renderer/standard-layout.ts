@@ -109,17 +109,24 @@ const StandardLayoutBase = WithEvents<LayoutEvents>()(WithCellPlacement(PLayout)
 interface ResizeState {
   widthBeforeResize: number;
   currentWidth: number;
-  cells: HTMLElement[];
 }
 
 
 export default class StandardLayout extends StandardLayoutBase {
-  // all column can be of different sizes hence those are tracked based on column indices
-  colsWidth: { indices: number[]; override: number[] } = {
-    indices: [],
-    override: [],
-  };
-  #resizeState: Map<number, ResizeState> = new Map();
+  // the grid is divided into three regions: left, center and right
+  // left region is sticky and hosts fixture + row facets + pinned columns (later)
+  // right region is sticky and hosts pinned columns (later) + fixture
+  // center region is where the value cells are displayed
+  colsWidth: {
+    left: { indices: number[]; override: number[] };
+    center: { indices: number[]; override: number[] };
+    right: { indices: number[]; override: number[] };
+  } = {
+      left: { indices: [], override: [] },
+      center: { indices: [], override: [] },
+      right: { indices: [], override: [] },
+    };
+  #resizeState: Map<string, ResizeState> = new Map();
   // facet row and data row can have spearate sizes hence those are tracked
   // based on row type. But then all facet rows would have same size and all
   // data rows would have same size.
@@ -143,6 +150,8 @@ export default class StandardLayout extends StandardLayoutBase {
   #fixtureMeasurements = { top: [] as number[], topTotal: 0, bottom: [] as number[], bottomTotal: 0 };
   #selectAllRules: readonly SelectionRule[] = [];
   #isStaticStrategy = false;
+  #columnTemplateParts: string[] | null = null;
+  #columnTemplateDataStartCol = 0;
 
   constructor(config: GridConfig, mountPoint: HTMLElement, cellManager: CellManager) {
     super(config, mountPoint, cellManager);
@@ -393,6 +402,14 @@ export default class StandardLayout extends StandardLayoutBase {
     return children;
   }
 
+  protected appendResizeHandle(cell: HTMLElement, region: "left" | "center" | "right"): void {
+    const handle = document.createElement("span");
+    handle.className = "resize-handle";
+    cell.dataset.cellActionResize = "1";
+    cell.dataset.cellRegion = region;
+    cell.appendChild(handle);
+  }
+
   protected buildAndPlaceFacetCell(cell: HTMLElement, facetDefs: FacetDef[], merge: MergeState, facets: (string | null)[][], key: string, opts?: { rendererOverride?: FacetCellRenderer; resizeHandle?: boolean }): void {
     const renderer = opts?.rendererOverride ?? facetDefs[merge.level].trackRenderer;
     const container = this.createFacetContainer(cell);
@@ -411,9 +428,7 @@ export default class StandardLayout extends StandardLayoutBase {
     const result = renderer(merge.value, dataCtx, rendererCtx);
     this.populateFacetContainer(cell, container, result);
     if (opts?.resizeHandle) {
-      const handle = document.createElement("span");
-      handle.className = "resize-handle";
-      cell.appendChild(handle);
+      this.appendResizeHandle(cell, "center");
     }
   }
 
@@ -455,26 +470,56 @@ export default class StandardLayout extends StandardLayoutBase {
     return this.rowHeightByType[type] || this.config.defaultCellHeight;
   }
 
-  getColumnWidth(index: number) {
-    return this.colsWidth.override[index]
-      ?? this.colsWidth.indices[index]
+  // TODO[now] all new methods should be private
+  getColumnWidth(region: "left" | "center" | "right", index: number): number {
+    return this.colsWidth[region].override[index]
+      ?? this.colsWidth[region].indices[index]
       ?? this.config.defaultCellWidth;
   }
 
-  getColWidthTillIdx(idx: number): number {
-    let rowFacetsWidth = 0;
-    for (let i = 0; i < idx; i++) {
-      rowFacetsWidth += this.getColumnWidth(i);
-    }
-    return rowFacetsWidth;
+  getLeftRegionWidth(): number {
+    return this.getLeftFixtureWidth() + this.getRowFacetsWidth();
   }
 
-  calcNumVisibleColumns(startCol: number, viewWidth: number, fixedTrackCount: number) {
+  getLeftFixtureWidth(): number {
+    let width = 0;
+    for (let i = 0; i < this.#fixtures.left.length; i++) {
+      width += this.getColumnWidth("left", i);
+    }
+    return width;
+  }
+
+  getRowFacetsWidth(): number {
+    let width = 0;
+    const start = this.#fixtures.left.length;
+    for (let i = 0; i < this.data!.numRowFacetLevels; i++) {
+      width += this.getColumnWidth("left", start + i);
+    }
+    return width;
+  }
+
+  getRightFixtureWidth(): number {
+    let width = 0;
+    for (let i = 0; i < this.#fixtures.right.length; i++) {
+      width += this.getColumnWidth("right", i);
+    }
+    return width;
+  }
+
+  getCenterTotalWidth(): number {
+    let width = 0;
+    for (let i = 0; i < this.data!.numCols; i++) {
+      width += this.getColumnWidth("center", i);
+    }
+    return width;
+  }
+
+  calcNumVisibleDataColumns(startCol: number, viewWidth: number) {
     let width = 0;
     let count = 0;
 
     while (width < viewWidth && startCol + count < this.data!.numCols) {
-      width += this.getColumnWidth(fixedTrackCount + startCol + count);
+      width += this.getColumnWidth("center", startCol + count);
       count++;
     }
 
@@ -587,26 +632,20 @@ export default class StandardLayout extends StandardLayoutBase {
     const viewWidth = this.mountPoint.clientWidth;
 
     const fixedVTrackLeftPositions = [0];
-    let k = 0;
-    for (; k < this.#fixtures.left.length; k++) {
+    const numLeftTracks = this.#fixtures.left.length + this.data!.numRowFacetLevels;
+    for (let i = 0; i < numLeftTracks - 1; i++) {
       fixedVTrackLeftPositions.push(
-        fixedVTrackLeftPositions[fixedVTrackLeftPositions.length - 1] + this.getColumnWidth(k));
-    }
-    for (let i = 0; i < this.data!.numRowFacetLevels - 1; i++) {
-      fixedVTrackLeftPositions.push(
-        fixedVTrackLeftPositions[fixedVTrackLeftPositions.length - 1] + this.getColumnWidth(k + i));
+        fixedVTrackLeftPositions[fixedVTrackLeftPositions.length - 1] + this.getColumnWidth("left", i));
     }
 
-    const rightFixtureStartIdx = this.#fixtures.left.length + this.data!.numRowFacetLevels + this.data!.numCols;
     const fixedVTrackRightPositions: number[] = [];
     let accRightWidth = 0;
     for (let i = this.#fixtures.right.length - 1; i >= 0; i--) {
       fixedVTrackRightPositions[i] = accRightWidth;
-      accRightWidth += this.getColumnWidth(rightFixtureStartIdx + i);
+      accRightWidth += this.getColumnWidth("right", i);
     }
 
-    const leftFixtureWidth = this.getColWidthTillIdx(this.#fixtures.left.length);
-    const rowFacetsWidth = this.getColWidthTillIdx(this.#fixtures.left.length + this.data!.numRowFacetLevels) - leftFixtureWidth;
+    const rowFacetsWidth = this.getRowFacetsWidth();
 
     return {
       startColFloat: 0,
@@ -624,7 +663,7 @@ export default class StandardLayout extends StandardLayoutBase {
     const scrollLeft = this.mountPoint.scrollLeft;
     const viewWidth = this.mountPoint.clientWidth;
 
-    const leftFixtureWidth = this.getColWidthTillIdx(this.#fixtures.left.length);
+    const leftFixtureWidth = this.getLeftFixtureWidth();
     // TODO[improvment]
     //   rf11 rf12 rf13 ... ...
     //   ____ ____ rf23 ... ...
@@ -632,14 +671,9 @@ export default class StandardLayout extends StandardLayoutBase {
     //   ____ ____ rf43 ... ...
     //   1. For config like this if rf12 is overflowing it can wrap it's content
     //   2. Individual row facet might have it's own maxWidth
-    const rowFacetsWidth = this.getColWidthTillIdx(this.#fixtures.left.length + this.data!.numRowFacetLevels) -
-      leftFixtureWidth;
-    const rightFixtureStartIdx = this.#fixtures.left.length + this.data!.numRowFacetLevels + this.data!.numCols;
-    let rightFixtureWidth = 0;
-    for (let i = 0; i < this.#fixtures.right.length; i++) {
-      rightFixtureWidth += this.getColumnWidth(rightFixtureStartIdx + i);
-    }
-    const totalWidth = this.getColWidthTillIdx(rightFixtureStartIdx + this.#fixtures.right.length);
+    const rowFacetsWidth = this.getRowFacetsWidth();
+    const rightFixtureWidth = this.getRightFixtureWidth();
+    const totalWidth = this.getLeftRegionWidth() + this.getCenterTotalWidth() + rightFixtureWidth;
     const scrollableWidth = Math.max(1, totalWidth - viewWidth);
     const scrollPercentX = Math.min(1, scrollLeft / scrollableWidth);
     /*
@@ -650,7 +684,7 @@ export default class StandardLayout extends StandardLayoutBase {
      *
      *    ───────────────────────── 110
      *    ··································· 160
-     *       1          2         3       4  
+     *       1          2         3       4
      *    ┌──────┬────────────┬─────────┬────┐
      *    │      │            │         │    │
      *    │      │            │         │    │
@@ -673,36 +707,31 @@ export default class StandardLayout extends StandardLayoutBase {
     let lastColWidth = -1;
     while (maxScrollWidth < visibleDataWidth && maxScrollCol > 0) {
       maxScrollCol--;
-      lastColWidth =  this.getColumnWidth(this.#fixtures.left.length + this.data!.numRowFacetLevels + maxScrollCol);
+      lastColWidth = this.getColumnWidth("center", maxScrollCol);
       maxScrollWidth += lastColWidth;
     }
     maxScrollCol = Math.min(this.data!.numCols - 1, maxScrollCol + ((maxScrollWidth - visibleDataWidth)) / lastColWidth);
 
     const startColFloat = maxScrollCol * scrollPercentX;
     const startCol = Math.floor(startColFloat);
-    const visibleCols = this.calcNumVisibleColumns(startCol, visibleDataWidth, this.data!.numRowFacetLevels + this.#fixtures.left.length);
+    const visibleCols = this.calcNumVisibleDataColumns(startCol, visibleDataWidth);
     const endCol = Math.min(this.data!.numCols, startCol + visibleCols);
 
-    const startColWidth = this.getColumnWidth(this.#fixtures.left.length + this.data!.numRowFacetLevels + startCol);
+    const startColWidth = this.getColumnWidth("center", startCol);
     const offsetX = (startColFloat - startCol) * startColWidth;
 
-    
+    const numLeftTracks = this.#fixtures.left.length + this.data!.numRowFacetLevels;
     const fixedVTrackLeftPositions = [0];
-    let k = 0;
-    for (; k < this.#fixtures.left.length; k++) {
+    for (let i = 0; i < numLeftTracks - 1; i++) {
       fixedVTrackLeftPositions.push(
-        fixedVTrackLeftPositions[fixedVTrackLeftPositions.length - 1] + this.getColumnWidth(k));
-    }
-    for (let i = 0; i < this.data!.numRowFacetLevels - 1; i++) {
-      fixedVTrackLeftPositions.push(
-        fixedVTrackLeftPositions[fixedVTrackLeftPositions.length - 1] + this.getColumnWidth(k + i));
+        fixedVTrackLeftPositions[fixedVTrackLeftPositions.length - 1] + this.getColumnWidth("left", i));
     }
 
     const fixedVTrackRightPositions: number[] = [];
     let accRightWidth = 0;
     for (let i = this.#fixtures.right.length - 1; i >= 0; i--) {
       fixedVTrackRightPositions[i] = accRightWidth;
-      accRightWidth += this.getColumnWidth(rightFixtureStartIdx + i);
+      accRightWidth += this.getColumnWidth("right", i);
     }
 
     return {
@@ -782,14 +811,10 @@ export default class StandardLayout extends StandardLayoutBase {
 
     const attempt = (remaining: number) => {
       const viewWidth = this.mountPoint.clientWidth;
-      const leftFixtureWidth = this.getColWidthTillIdx(this.#fixtures.left.length);
-      const rowFacetsWidth = this.getColWidthTillIdx(this.#fixtures.left.length + this.data!.numRowFacetLevels) - leftFixtureWidth;
-      const rightFixtureStartIdx = this.#fixtures.left.length + this.data!.numRowFacetLevels + this.data!.numCols;
-      let rightFixtureWidth = 0;
-      for (let i = 0; i < this.#fixtures.right.length; i++) {
-        rightFixtureWidth += this.getColumnWidth(rightFixtureStartIdx + i);
-      }
-      const totalWidth = this.getColWidthTillIdx(rightFixtureStartIdx + this.#fixtures.right.length);
+      const leftFixtureWidth = this.getLeftFixtureWidth();
+      const rowFacetsWidth = this.getRowFacetsWidth();
+      const rightFixtureWidth = this.getRightFixtureWidth();
+      const totalWidth = this.getLeftRegionWidth() + this.getCenterTotalWidth() + rightFixtureWidth;
       const scrollableWidth = Math.max(1, totalWidth - viewWidth);
       const visibleDataWidth = viewWidth - rowFacetsWidth - leftFixtureWidth - rightFixtureWidth;
 
@@ -798,7 +823,7 @@ export default class StandardLayout extends StandardLayoutBase {
       let lastColWidth = -1;
       while (maxScrollWidth < visibleDataWidth && maxScrollCol > 0) {
         maxScrollCol--;
-        lastColWidth = this.getColumnWidth(this.#fixtures.left.length + this.data!.numRowFacetLevels + maxScrollCol);
+        lastColWidth = this.getColumnWidth("center", maxScrollCol);
         maxScrollWidth += lastColWidth;
       }
       maxScrollCol = Math.min(this.data!.numCols - 1, maxScrollCol + (maxScrollWidth - visibleDataWidth) / lastColWidth);
@@ -834,26 +859,52 @@ export default class StandardLayout extends StandardLayoutBase {
 
     const topFixtureRows = fixtures.top.map(f => f.getHeight() + "px").join(" ");
     const bottomFixtureRows = fixtures.bottom.map(f => f.getHeight() + "px").join(" ");
-    const coreRows = `repeat(${numColFacets}, ${this.rowHeightByType.facet}px)`;
+    const colFacetRows = `repeat(${numColFacets}, ${this.rowHeightByType.facet}px)`;
     const dataRows = `repeat(${numDataRows}, ${this.rowHeightByType.data}px)`;
 
-    let columns: string;
+    const parts: string[] = [];
     if (this.#isStaticStrategy) {
-      const parts: string[] = [];
       for (const f of fixtures.left) parts.push(colSizeToCss(f.colSize));
       for (const d of this.data!.facetDefs.row) parts.push(colSizeToCss(d.colSize));
       for (const d of this.data!.vTrackDefs) parts.push(colSizeToCss(d.colSize));
       for (const f of fixtures.right) parts.push(colSizeToCss(f.colSize));
-      columns = parts.join(" ");
     } else {
-      const coreCols = `repeat(${numRowFacets + numDataCols}, max-content)`;
-      columns = [numLeftFixtures && `repeat(${numLeftFixtures}, max-content)`, coreCols, numRightFixtures && `repeat(${numRightFixtures}, max-content)`].filter(Boolean).join(" ");
+      for (let i = 0; i < numLeftFixtures; i++) parts.push("max-content");
+      for (let i = 0; i < numRowFacets; i++) parts.push("max-content");
+      for (let i = 0; i < numDataCols; i++) parts.push("max-content");
+      for (let i = 0; i < numRightFixtures; i++) parts.push("max-content");
     }
+    this.#columnTemplateParts = parts;
 
     return {
-      columns,
-      rows: [coreRows, topFixtureRows, dataRows, bottomFixtureRows].filter(Boolean).join(" "),
+      columns: this.#buildColumnTemplateWithOverrides(),
+      rows: [colFacetRows, topFixtureRows, dataRows, bottomFixtureRows].filter(Boolean).join(" "),
     };
+  }
+
+  #buildColumnTemplateWithOverrides(): string {
+    if (!this.#columnTemplateParts) return "";
+    const parts = [...this.#columnTemplateParts];
+    const numLeft = this.#fixtures.left.length + this.data!.numRowFacetLevels;
+    const numRight = this.#fixtures.right.length;
+    const numCenter = parts.length - numLeft - numRight;
+
+    for (let i = 0; i < numLeft; i++) {
+      if (this.colsWidth.left.override[i] !== undefined) parts[i] = `${this.colsWidth.left.override[i]}px`;
+    }
+    const x0 = this.#columnTemplateDataStartCol;
+    for (let i = 0; i < numCenter; i++) {
+      const absIdx = x0 + i;
+      if (this.colsWidth.center.override[absIdx] !== undefined) parts[numLeft + i] = `${this.colsWidth.center.override[absIdx]}px`;
+    }
+    for (let i = 0; i < numRight; i++) {
+      if (this.colsWidth.right.override[i] !== undefined) parts[numLeft + numCenter + i] = `${this.colsWidth.right.override[i]}px`;
+    }
+    return parts.join(" ");
+  }
+
+  #applyColumnTemplate(): void {
+    this.#con.style.gridTemplateColumns = this.#buildColumnTemplateWithOverrides();
   }
 
   #updateVirtualPanel(vs: ViewModel): void {
@@ -874,14 +925,13 @@ export default class StandardLayout extends StandardLayoutBase {
     if (this.#isStaticStrategy) { this.#cellsToMeasure = []; return; }
     if (this.#cellsToMeasure.length === 0) return;
 
-    const indices: number[] = [];
+    const regionIndicesMap: Record<string, number[]> = { left: [], center: [], right: [] };
 
     let cornerCells: HTMLElement[][] = [];
-    for (const { cell, sizeKey } of this.#cellsToMeasure) {
+    for (const { cell, sizeKey, region } of this.#cellsToMeasure) {
       const width = cell.getBoundingClientRect().width;
       if (!width) continue;
-      // sizeKey is the index of the column facet for the leaf column facet level (for which the data cells are aligned)
-      // For one column - calculate the max width of all the data cells in the column as that'd be the width of the column
+      const indices = regionIndicesMap[region];
       if (width > (indices[sizeKey] || 0)) {
         indices[sizeKey] = width;
       }
@@ -894,15 +944,23 @@ export default class StandardLayout extends StandardLayoutBase {
     }
 
     const maxSeen = this.config.columnAutosizingStrategyOnScroll === "max-seen";
-    for (let i = 0; i < indices.length; i++) {
-      if (indices[i] === undefined) continue;
-      if (maxSeen && indices[i] <= (this.colsWidth.indices[i] || 0)) {
-        for (const { cell, sizeKey } of this.#cellsToMeasure) {
-          if (sizeKey === i) cell.style.minWidth = `${this.colsWidth.override[i] || this.colsWidth.indices[i]}px`;
+    for (const region of ["left", "center", "right"] as const) {
+      const indices = regionIndicesMap[region];
+      const store = this.colsWidth[region];
+      for (let i = 0; i < indices.length; i++) {
+        if (indices[i] === undefined) continue;
+        if (maxSeen && indices[i] <= (store.indices[i] || 0)) {
+          for (const { cell, sizeKey, region: r } of this.#cellsToMeasure) {
+            // TODO[now] instead of #cellsToMeasure a flat array with iteration make #cellsToMeasure a map
+            // Record<sizeKey: number, cells: HTMLElement[]> so that 
+            // this following operation becomes O(1)
+            // Currently this is O(n^2) with the above loop
+            if (r === region && sizeKey === i) cell.style.minWidth = `${store.override[i] || store.indices[i]}px`;
+          }
+          continue;
         }
-        continue;
+        store.indices[i] = indices[i];
       }
-      this.colsWidth.indices[i] = indices[i];
     }
 
 
@@ -911,7 +969,7 @@ export default class StandardLayout extends StandardLayoutBase {
     // This is a workaround to fix that
     let left = 0;
     for (let i = 0; i < cornerCells.length; i++) {
-      if (i > 0) left = left + this.getColumnWidth(i - 1);
+      if (i > 0) left = left + this.getColumnWidth("left", i - 1);
       const cells = cornerCells[i];
       if (!cells) continue;
       for (const cell of cells) {
@@ -965,6 +1023,7 @@ export default class StandardLayout extends StandardLayoutBase {
     const numColFacetLevels = this.data!.numColFacetLevels;
     const numLeftVFixedTrack = this.data!.numRowFacetLevels + fixtures.left.length;
 
+    this.#columnTemplateDataStartCol = viewModel.x0;
     const template = this.getGridTemplate(
       this.data!.numRowFacetLevels,
       this.data!.numColFacetLevels,
@@ -1073,12 +1132,16 @@ export default class StandardLayout extends StandardLayoutBase {
           if (fixtureDef) headerContent = fixtureDef.headerCells(ctx);
           else if (headerDef) headerContent = headerDef.headerRenderer(headerDef.text, ctx);
           this.populateFacetContainer(cell, headerContainer, headerContent);
+          if (hCol >= fixtures.left.length) {
+            this.appendResizeHandle(cell, "left");
+            cell.dataset.rowFacetLevel = String(hCol - fixtures.left.length);
+          }
         }
         needAppend && nodeAppendList.push(cell);
         const hasHorizontalSpan = shouldSpan && axis === "col";
         if (!hasHorizontalSpan) {
           // only push cells that are not merged horizontally otherwise incorrect cell size will be reported
-          this.#cellsToMeasure.push({ cell, sizeKey: hCol });
+          this.#cellsToMeasure.push({ cell, sizeKey: hCol, region: "left" });
           this.#postRenderAdjustLeftCellsPerLevel[hCol].push(cell);
         }
       }
@@ -1089,7 +1152,6 @@ export default class StandardLayout extends StandardLayoutBase {
       const def = fixtures.right[fi];
       const key = `right-fixture-header-${fi}`;
       const gridCol = numLeftVFixedTrack + numDataColsVisible + fi + 1;
-      const rightFixtureColIdx = this.#fixtures.left.length + this.data!.numRowFacetLevels + this.data!.numCols + fi;
 
       const [cell, needAppend, contentDirty] = this.placeCellInDom({
         key,
@@ -1110,7 +1172,7 @@ export default class StandardLayout extends StandardLayoutBase {
         this.populateFacetContainer(cell, headerContainer, headerContent);
       }
       needAppend && nodeAppendList.push(cell);
-      this.#cellsToMeasure.push({ cell, sizeKey: rightFixtureColIdx });
+      this.#cellsToMeasure.push({ cell, sizeKey: fi, region: "right" });
       if (!this.#postRenderAdjustRightCellsPerLevel[fi]) this.#postRenderAdjustRightCellsPerLevel[fi] = [];
       this.#postRenderAdjustRightCellsPerLevel[fi].push(cell);
     }
@@ -1147,7 +1209,6 @@ export default class StandardLayout extends StandardLayoutBase {
           colspan,
           top: viewModel.colFacetsTopPositions[merge.level],
           ...(merge.spanSecondary > 1 && { rowspan: merge.spanSecondary }),
-          ...(fixedSize?.widthInPx !== undefined && { width: fixedSize.widthInPx }),
           ...(fixedSize?.minWidthInPx !== undefined && { minWidth: fixedSize.minWidthInPx }),
           ...(fixedSize?.maxWidthInPx !== undefined && { maxWidth: fixedSize.maxWidthInPx }),
         },
@@ -1178,7 +1239,7 @@ export default class StandardLayout extends StandardLayoutBase {
       cell.style.zIndex = `${999 - merge.start}`;
       needAppend && nodeAppendList.push(cell);
       if (!(colspan && colspan > 1)) {
-        this.#cellsToMeasure.push({ cell, sizeKey: absoluteColIndex });
+        this.#cellsToMeasure.push({ cell, sizeKey: colIndex, region: "center" });
       }
     }
 
@@ -1312,13 +1373,13 @@ export default class StandardLayout extends StandardLayoutBase {
       let accWidth = -viewModel.offsetX;
       for (let i = 0; i < numDataColsVisible; i++) {
         colLeftPositions[i] = accWidth;
-        accWidth += this.getColumnWidth(numLeftVFixedTrack + viewModel.x0 + i);
+        accWidth += this.getColumnWidth("center", viewModel.x0 + i);
       }
 
       for (const { cell, mergeStart, mergeSpan } of nonLeafColFacets) {
         let cellWidth = 0;
         for (let i = 0; i < mergeSpan; i++) {
-          cellWidth += this.getColumnWidth(numLeftVFixedTrack + viewModel.x0 + mergeStart + i);
+          cellWidth += this.getColumnWidth("center", viewModel.x0 + mergeStart + i);
         }
         const cellLeftInDataArea = colLeftPositions[mergeStart];
         const cellRightInDataArea = cellLeftInDataArea + cellWidth;
@@ -1327,7 +1388,7 @@ export default class StandardLayout extends StandardLayoutBase {
         const clippedRight = Math.max(0, cellRightInDataArea - visibleDataWidth);
 
         const rawOffset = (clippedLeft - clippedRight) / 2;
-        const firstColWidth = this.getColumnWidth(numLeftVFixedTrack + viewModel.x0 + mergeStart);
+        const firstColWidth = this.getColumnWidth("center", viewModel.x0 + mergeStart);
         const maxOffset = Math.max(0, (cellWidth - firstColWidth) / 2);
         const labelOffset = Math.max(-maxOffset, Math.min(maxOffset, rawOffset));
 
@@ -1583,6 +1644,7 @@ export default class StandardLayout extends StandardLayoutBase {
         (cell.firstElementChild as HTMLElement).style.transform = labelOffset !== 0 ? `translateY(${labelOffset}px)` : "";
       }
       cell.dataset.cellType = "row-facet";
+      cell.dataset.rowFacetLevel = String(merge.level);
       needAppend && nodesToAppend.push(cell);
       // NOTE: we don't add row facets for column width measurement as corner cells are sent with for measurement
       // itself. This is important as row cells might have span that would would divide the track to equal parts in case
@@ -1648,7 +1710,6 @@ export default class StandardLayout extends StandardLayoutBase {
           cell.dataset.cellType = "value";
           cell.dataset.cclix = String(absoluteColIndex);
           cell.dataset.croix = String(absoluteRowIndex);
-          cell.style.width = fixedSize?.widthInPx !== undefined ? `${fixedSize.widthInPx}px` : "";
           cell.style.minWidth = fixedSize?.minWidthInPx !== undefined ? `${fixedSize.minWidthInPx}px` : "";
           cell.style.maxWidth = fixedSize?.maxWidthInPx !== undefined ? `${fixedSize.maxWidthInPx}px` : "";
           for (const fn of dataStyleFns) fn(cell);
@@ -1697,127 +1758,154 @@ export default class StandardLayout extends StandardLayoutBase {
   // nested facets (level_n-1 where nth is leaf nodes) are nesting/hierarchy that aligns with the trackHeader cells.
   // The sizing (width) always gets added to the last level of facets - the nested facets have colspan property set on
   // them that css grid layout manages while creating the nesting/hierarchy.
-  #getLeafColCells(colIdx: number): { trackHeaderCell: HTMLElement | null; cells: HTMLElement[] } {
+  #getLeafColCells(colIdx: number): { trackHeaderCell: HTMLElement /* | null; cells: HTMLElement[] */ } {
     const leafLevel = this.data!.numColFacetLevels - 1;
     const trackHeaderCell = this.#con.querySelector<HTMLElement>(`[data-hix="${colIdx}"][data-facet-level="${leafLevel}"]`);
-    const dataCells = Array.from(this.#con.querySelectorAll<HTMLElement>(`[data-cclix="${colIdx}"]`));
-    const cells: HTMLElement[] = trackHeaderCell ? [trackHeaderCell, ...dataCells] : dataCells;
-    if (cells.length === 0) {
-      throw new Error(`No cells found for column ${colIdx}`);
+    if (!trackHeaderCell) {
+      throw new Error(`No cells found for column ${colIdx} during resize`);
     }
-    return { trackHeaderCell, cells };
+    return { trackHeaderCell };
+  }
+
+  #getRowFacetTrackCells(level: number): { headerCell: HTMLElement /* | null; cells: HTMLElement[] */ } {
+    // TODO[now] this is a little weird how headers are being found vs how data-cells are being found (below)
+    //      data-cell-region='left' and data-cell-type='row-facet'
+    //      while doing this check if #getLeafColCells also requires any changes
+    //      (since this is applied on dom - users might use the data attrs to build stuff on their own, so it has to be proper)
+    const headerCell = this.#con.querySelector<HTMLElement>(
+      `[data-cell-region='left'][data-row-facet-level='${level}']`
+    );
+    if (!headerCell) {
+      throw new Error(`No facet cells found level ${level} during resize`);
+    }
+    return { headerCell };
+  }
+
+  autofitRowFacetTrackWidth(level: number): void {
+    const { headerCell } = this.#getRowFacetTrackCells(level);
+    if (!headerCell) return;
+    this.#autofitTrack(headerCell, () => this.changeRowFacetTrackWidth(level));
+  }
+
+  changeRowFacetTrackWidth(level: number) {
+    const leftIndex = this.#fixtures.left.length + level;
+    const { headerCell } = this.#getRowFacetTrackCells(level);
+
+    // Collect all left-region cells to the right of this track for live drag adjustment
+    const subsequentLeftCells: HTMLElement[] = [];
+    const numLeftTracks = this.#fixtures.left.length + this.data!.numRowFacetLevels;
+    for (let i = leftIndex + 1; i < numLeftTracks; i++) {
+      const rfLevel = i - this.#fixtures.left.length;
+      subsequentLeftCells.push(...Array.from(this.#con.querySelectorAll<HTMLElement>(
+        `[data-cell-type='row-facet'][data-row-facet-level='${rfLevel}']`
+      )));
+      const hdr = this.#con.querySelector<HTMLElement>(`[data-cell-region='left'][data-row-facet-level='${rfLevel}']`);
+      if (hdr) subsequentLeftCells.push(hdr);
+    }
+
+    return this.#changeTrackWidth({
+      region: "left",
+      regionIndex: leftIndex,
+      headerCell,
+      onDelta: (widthDelta) => {
+        for (const cell of subsequentLeftCells) {
+          const currentLeft = parseFloat(cell.style.left) || 0;
+          cell.style.left = `${currentLeft + widthDelta}px`;
+        }
+      },
+      onCommit: (finalWidth) => {
+        this.data!.facetDefs.row[level].colSize = { strategy: "fixed-width", widthInPx: finalWidth };
+      },
+    });
   }
 
   autofitLeafColWidth(colIdx: number): void {
-    const { trackHeaderCell, cells } = this.#getLeafColCells(colIdx);
+    const { trackHeaderCell } = this.#getLeafColCells(colIdx);
     if (!trackHeaderCell) return;
+    this.#autofitTrack(trackHeaderCell, () => this.changeLeafColWidth(colIdx));
+  }
 
-    for (const cell of [trackHeaderCell, ...cells]) {
-      cell.style.width = "";
-      cell.style.minWidth = "";
-      cell.style.maxWidth = "";
-    }
+  changeLeafColWidth(colIdx: number) {
+    const centerIdx = colIdx - this.#fixtures.left.length - this.data!.numRowFacetLevels;
+    const { trackHeaderCell } = this.#getLeafColCells(colIdx);
+    return this.#changeTrackWidth({
+      region: "center",
+      regionIndex: centerIdx,
+      headerCell: trackHeaderCell,
+      onCommit: (finalWidth) => {
+        this.data!.setColSize(centerIdx, { strategy: "fixed-width", widthInPx: finalWidth });
+      },
+    });
+  }
 
-    const contentWidth = trackHeaderCell.getBoundingClientRect().width;
-
-    const ctrl = this.changeLeafColWidth(colIdx);
+  #autofitTrack(headerCell: HTMLElement, createCtrl: () => ReturnType<StandardLayout["changeLeafColWidth"]>): void {
+    headerCell.style.minWidth = "";
+    const contentWidth = headerCell.getBoundingClientRect().width;
+    const ctrl = createCtrl();
     ctrl.byAbsValue(contentWidth);
     ctrl.commit();
   }
 
-  // colIdx is the absolute column index including row facets
-  // TODO if left fixture is present, this value might not be correct as call site does not know about it
-  changeLeafColWidth(colIdx: number): {
+  #changeTrackWidth(opts: {
+    region: "left" | "center" | "right";
+    regionIndex: number;
+    headerCell: HTMLElement;
+    onDelta?: (widthDelta: number) => void;
+    onCommit: (finalWidth: number) => void;
+  }): {
     byDelta: (dw: number) => number;
     byAbsValue: (width: number) => number;
     commit: () => number;
     cancel: () => number;
   } {
-    const cleanup = () => {
-      const state = this.#resizeState.get(colIdx);
-      if (!state) return;
-      for (const cell of state.cells) {
-        delete cell.dataset.stashedWidth;
-        delete cell.dataset.stashedMinWidth;
-        delete cell.dataset.stashedMaxWidth;
-      }
-      this.#resizeState.delete(colIdx);
-    };
+    const { region, regionIndex, headerCell, onDelta, onCommit } = opts;
+    const store = this.colsWidth[region];
+    const resizeKey = `${region}:${regionIndex}`;
 
-    if (this.#resizeState.has(colIdx)) {
-      console.warn(`Column ${colIdx} is already being resized. Cleaning up previous resize.`);
-    }
-    cleanup();
-
-    const { cells } = this.#getLeafColCells(colIdx);
-
-    const widthBeforeResize = cells[0].getBoundingClientRect().width;
-
-    for (const cell of cells) {
-      if (cell.style.width) {
-        cell.dataset.stashedWidth = cell.style.width;
-      }
-      if (cell.style.minWidth) {
-        cell.dataset.stashedMinWidth = cell.style.minWidth;
-        cell.style.minWidth = "";
-      }
-      if (cell.style.maxWidth) {
-        cell.dataset.stashedMaxWidth = cell.style.maxWidth;
-        cell.style.maxWidth = "";
-      }
-      cell.style.width = `${widthBeforeResize}px`;
+    if (this.#resizeState.has(resizeKey)) {
+      console.warn(`Track ${resizeKey} is already being resized. Cleaning up previous resize.`);
+      this.#resizeState.delete(resizeKey);
     }
 
-    let resizeState = {
-      widthBeforeResize,
-      currentWidth: widthBeforeResize,
-      cells,
-    };
-    this.#resizeState.set(colIdx, resizeState);
+    const widthBeforeResize = headerCell.getBoundingClientRect().width;
+    const stashedMinWidth = headerCell.style.minWidth ?? "";
+    headerCell.style.minWidth = "";
+
+    store.override[regionIndex] = widthBeforeResize;
+    this.#applyColumnTemplate();
+
+    const resizeState: ResizeState = { widthBeforeResize, currentWidth: widthBeforeResize };
+    this.#resizeState.set(resizeKey, resizeState);
 
     return {
       byDelta: (dw: number): number => {
-        // 20 is minimum width that a column can be resized to
         const newWidth = Math.max(20, resizeState.widthBeforeResize + dw);
+        const widthDelta = newWidth - resizeState.currentWidth;
         resizeState.currentWidth = newWidth;
-        for (const cell of resizeState.cells) {
-          cell.style.width = `${newWidth}px`;
-        }
+        store.override[regionIndex] = newWidth;
+        this.#applyColumnTemplate();
+        onDelta?.(widthDelta);
         return newWidth;
       },
       byAbsValue: (width: number): number => {
         const newWidth = Math.max(20, width);
         resizeState.currentWidth = newWidth;
-        for (const cell of resizeState.cells) {
-          cell.style.width = `${newWidth}px`;
-        }
+        store.override[regionIndex] = newWidth;
+        this.#applyColumnTemplate();
         return newWidth;
       },
       commit: (): number => {
         const finalWidth = resizeState.currentWidth;
-        // TODO[1]
-        this.data!.setColSize(colIdx - this.data!.numRowFacetLevels, { strategy: "fixed-width", widthInPx: finalWidth });
-        this.colsWidth.override[colIdx] = finalWidth;
-        cleanup();
+        onCommit(finalWidth);
+        this.#resizeState.delete(resizeKey);
         return finalWidth;
       },
       cancel: (): number => {
-        const originalWidth = resizeState.widthBeforeResize;
-        for (const cell of resizeState.cells) {
-          if (cell.dataset.stashedWidth) {
-            cell.style.width = cell.dataset.stashedWidth;
-          } else {
-            cell.style.width = "";
-          }
-          if (cell.dataset.stashedMinWidth) {
-            cell.style.minWidth = cell.dataset.stashedMinWidth;
-          }
-          if (cell.dataset.stashedMaxWidth) {
-            cell.style.maxWidth = cell.dataset.stashedMaxWidth;
-          }
-        }
-        cleanup();
-        return originalWidth;
+        delete store.override[regionIndex];
+        headerCell.style.minWidth = stashedMinWidth;
+        this.#applyColumnTemplate();
+        this.#resizeState.delete(resizeKey);
+        return resizeState.widthBeforeResize;
       },
     };
   }

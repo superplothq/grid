@@ -131,9 +131,9 @@ export default class Grid extends GridWithEvents {
       return target.classList.contains("resize-handle");
     };
 
-    const getHeaderCell = (target: EventTarget | null): HTMLElement | null => {
+    const getResizeTarget = (target: EventTarget | null): HTMLElement | null => {
       if (!(target instanceof HTMLElement)) return null;
-      return target.closest<HTMLElement>("[data-cell-type='column-facet']");
+      return target.closest<HTMLElement>("[data-cell-action-resize='1']");
     };
 
     const findFullColumnRange = (level: number, rightPtr: number): { start: number; end: number } => {
@@ -167,43 +167,46 @@ export default class Grid extends GridWithEvents {
 
     container.addEventListener("mousedown", (e: MouseEvent) => {
       if (!isResizeHandle(e.target)) return;
-      const cell = getHeaderCell(e.target);
+      const cell = getResizeTarget(e.target);
       if (!cell) return;
 
-      const level = parseInt(cell.dataset.facetLevel!, 10);
-      // See the diagram in the comment on standard-layout.ts
-      // since for facets level < leaf levels, columns are merged (by applying colspan), rightPtr contains the right
-      // most index of the merged column facet value from the data view model.
-
-      // TODO[1] this confusing rowFacetAdjustment is necessary because the dataset indices (hix, cclix)
-      //      includes row facets while computing the indices. But column facets / col defs in data view model
-      //      does not include row facets header.
-      //      This is a temporary fix. To fix it properly - add rowFacet headers in both colDefs and columnFacets
-      //      (we will need it when we have to show row header / enable row resizing).
-      const rowFacetAdjustment = this.#layout.data!.numRowFacetLevels;
-      const rightPtr = parseInt(cell.dataset.hix!, 10) - rowFacetAdjustment;
-
-      // column facets level = leaf levels provides header cells for data cells. These two essentially create a standard table.
-      // Column facets level < leaf levels create hierarchy/nesting and spans over multiple leaf level columns.
-      // Here we find out : for a given level and value of column facet what are the leaf level columns over which the
-      // column facet spans. This would contain columns that are in viewport and that are invisible and not in dom
-      // because of virtualization
-      const fullRange = findFullColumnRange(level, rightPtr);
-      const totalColCount = fullRange.end - fullRange.start + 1;
+      const region = cell.dataset.cellRegion as "left" | "center" | "right";
       const startX = e.clientX;
 
-      // Find out out of all leaf level nodes over which the column being dragged spans, which columns are in dom
-      // TODO[1]
-      const visibleCols = getVisibleLeafColumns(fullRange.start + rowFacetAdjustment, fullRange.end + rowFacetAdjustment);
-      // TODO for cells that are not currently in dom atm, but would appear in dom as we scroll / reduce size of columns
-      //      we need to update the change in size of columns to be considered as they appears on the dom
-
       type ResizeController = ReturnType<StandardLayout["changeLeafColWidth"]>;
-      const resizeControllers: { idx: number; ctrl: ResizeController }[] = [];
-      for (const colIdx of visibleCols) {
-        resizeControllers.push({ idx: colIdx, ctrl: this.#layout.changeLeafColWidth(colIdx) });
+      let resizeControllers: { idx: number; ctrl: ResizeController }[] = [];
+      let totalColCount = 1;
+
+      if (region === "center") {
+        const level = parseInt(cell.dataset.facetLevel!, 10);
+        // See the diagram in the comment on standard-layout.ts
+        // since for facets level < leaf levels, columns are merged (by applying colspan), rightPtr contains the right
+        // most index of the merged column facet value from the data view model.
+        const rowFacetAdjustment = this.#layout.data!.numRowFacetLevels;
+        const rightPtr = parseInt(cell.dataset.hix!, 10) - rowFacetAdjustment;
+
+        // column facets level = leaf levels provides header cells for data cells. These two essentially create a standard table.
+        // Column facets level < leaf levels create hierarchy/nesting and spans over multiple leaf level columns.
+        // Here we find out : for a given level and value of column facet what are the leaf level columns over which the
+        // column facet spans. This would contain columns that are in viewport and that are invisible and not in dom
+        // because of virtualization
+        const fullRange = findFullColumnRange(level, rightPtr);
+        totalColCount = fullRange.end - fullRange.start + 1;
+
+        // Find out out of all leaf level nodes over which the column being dragged spans, which columns are in dom
+        const visibleCols = getVisibleLeafColumns(fullRange.start + rowFacetAdjustment, fullRange.end + rowFacetAdjustment);
+        // TODO for cells that are not currently in dom atm, but would appear in dom as we scroll / reduce size of columns
+        //      we need to update the change in size of columns to be considered as they appears on the dom
+
+        for (const colIdx of visibleCols) {
+          resizeControllers.push({ idx: colIdx, ctrl: this.#layout.changeLeafColWidth(colIdx) });
+        }
+      } else if (region === "left") {
+        const level = parseInt(cell.dataset.rowFacetLevel!, 10);
+        resizeControllers.push({ idx: level, ctrl: this.#layout.changeRowFacetTrackWidth(level) });
       }
 
+      if (resizeControllers.length === 0) return;
 
       // Without didDrag, mousedown commits + redraws on mouseup even for a simple click.
       // That destroys the DOM element before the second click, preventing dblclick from firing
@@ -239,15 +242,22 @@ export default class Grid extends GridWithEvents {
 
     container.addEventListener("dblclick", (e: MouseEvent) => {
       if (!isResizeHandle(e.target)) return;
-      const cell = getHeaderCell(e.target);
+      const cell = getResizeTarget(e.target);
       if (!cell) return;
 
-      const leafLevel = this.#layout.data!.numColFacetLevels - 1;
-      if (parseInt(cell.dataset.facetLevel!, 10) !== leafLevel) return;
+      const region = cell.dataset.cellRegion as "left" | "center" | "right";
 
-      const colIdx = parseInt(cell.dataset.hix!, 10);
-      this.#layout.autofitLeafColWidth(colIdx);
-      this.draw();
+      if (region === "left") {
+        const level = parseInt(cell.dataset.rowFacetLevel!, 10);
+        this.#layout.autofitRowFacetTrackWidth(level);
+        this.draw();
+      } else if (region === "center") {
+        const leafLevel = this.#layout.data!.numColFacetLevels - 1;
+        if (parseInt(cell.dataset.facetLevel!, 10) !== leafLevel) return;
+        const colIdx = parseInt(cell.dataset.hix!, 10);
+        this.#layout.autofitLeafColWidth(colIdx);
+        this.draw();
+      }
     });
   }
 

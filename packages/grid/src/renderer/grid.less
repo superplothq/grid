@@ -207,6 +207,36 @@
   &.corner {
     position: sticky;
     z-index: 9999;
+    overflow: visible;
+
+    > .resize-handle {
+      position: absolute;
+      right: -4px;
+      width: 8px;
+      height: 70%;
+      z-index: 1;
+
+      &::after {
+        content: "";
+        position: absolute;
+        top: 0;
+        left: 50%;
+        width: 2px;
+        border-radius: 2px;
+        height: 100%;
+        background: var(--vertical-border-color);
+        transform: translateX(-50%);
+        transition: width 0.2s ease-in-out;
+      }
+    }
+
+    &:hover > .resize-handle::after {
+      width: 4px;
+    }
+
+    > .resize-handle:hover {
+      cursor: col-resize;
+    }
   }
 
   &.selection-overlay {

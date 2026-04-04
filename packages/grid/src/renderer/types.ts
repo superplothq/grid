@@ -159,6 +159,7 @@ export interface ResolvedVTrackDef extends VTrackDef {
 export interface CellToMeasure {
   cell: HTMLElement;
   sizeKey: number;
+  region: "left" | "center" | "right";
 }
 
 export type PFixtureCls = new (config: GridConfig, con: HTMLElement, cellManager: CellManager) => PFixture;
