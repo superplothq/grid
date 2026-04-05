@@ -8,6 +8,7 @@ import { BaseSliceResult, ColAutoSizeConfig, HeaderCellContext } from "./types";
 export interface BaseFixtureViewModel {
   offset: number;
   track: number;
+  suggestedCls: string[];
 }
 
 export default abstract class PFixture {

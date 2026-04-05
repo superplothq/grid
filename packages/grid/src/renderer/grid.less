@@ -21,7 +21,6 @@
   /* Base cell styling */
 .cell {
   padding: calc(var(--cell-padding-y) * 1px) calc(var(--cell-padding-x) * 1px);
-  border-left: calc(var(--vertical-border-width) * 1px) solid var(--vertical-border-color);
   margin: 0;
   white-space: nowrap;
   overflow: hidden;
@@ -88,6 +87,7 @@
     z-index: 15;
     color: var(--column-facet-text-color);
     border-top: calc(var(--horizontal-border-width) * 1px) solid var(--horizontal-border-color);
+    border-left: calc(var(--vertical-border-width) * 1px) solid var(--vertical-border-color);
 
     &.first {
       border-top: none !important;
@@ -130,6 +130,7 @@
     background: var(--value-background-color);
     color: var(--value-text-color);
     border-top: calc(var(--horizontal-border-width) * 1px) solid var(--horizontal-border-color);
+    border-left: calc(var(--vertical-border-width) * 1px) solid var(--vertical-border-color);
 
     &.custom-rendered {
       justify-content: center;
@@ -157,22 +158,22 @@
     font-weight: var(--facet-header-font-weight);
   }
 
-  &.fixture {
+  &.left-fixture, &.right-fixture, &.top-fixture, &.bottom-fixture {
     position: sticky;
   }
 
-  &.h-fixture {
+  &.top-fixture, &.bottom-fixture {
     z-index: 20;
     border-bottom: 1px solid var(--horizontal-border-color);
+
+    &.h-fixed {
+      z-index: 30;
+    }
   }
 
-  &.v-fixture {
+  &.left-fixture, &.right-fixture {
     z-index: 15;
     border-top: none;
-  }
-
-  &.h-fixed.h-fixture {
-    z-index: 30;
   }
 
   &.corner {
@@ -189,11 +190,12 @@
     box-sizing: border-box;
   }
 
-  &.left-fixture-header, &.right-fixture-header {
+  &.left-fixture.header, &.right-fixture.header {
     overflow: visible;
   }
 
-  &.col-facet, &.corner, &.left-fixture-header, &.right-fixture-header {
+  &.col-facet, &.corner {
+    // TODO once all the columns are marked as header, it'd be .header
     // border-left: none !important;
     // border-right: none !important;
 

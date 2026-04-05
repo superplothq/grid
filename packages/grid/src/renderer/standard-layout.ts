@@ -940,7 +940,7 @@ export default class StandardLayout extends StandardLayoutBase {
         indices[sizeKey] = width;
       }
 
-      if (cell.classList.contains("corner") && !cell.classList.contains("right-fixture-header") && !cell.classList.contains("left-fixture-header")) {
+      if (cell.classList.contains("corner") && !cell.classList.contains("right-fixture") && !cell.classList.contains("left-fixture")) {
         let cellsInIndex = cornerCells[sizeKey];
         if (!cellsInIndex)  cellsInIndex = cornerCells[sizeKey] = [];
         cellsInIndex.push(cell);
@@ -1245,7 +1245,7 @@ export default class StandardLayout extends StandardLayoutBase {
           offset = viewModel.fixedBottomHTrackPositions[fi];
           track = numColFacetLevels + fixtures.top.length + sliceData.sliceNumRows + fi + 1;
         }
-        const fixtureResult = inst.getCellsToRender(viewModel, { offset, track }, sliceData);
+        const fixtureResult = inst.getCellsToRender(viewModel, { offset, track, suggestedCls: [`${side}-fixture`] }, sliceData);
         nodeAppendList.push(...fixtureResult.nodesToAppend);
         if (side === "left") this.#postRenderAdjustLeftCellsPerLevel[fi].push(...fixtureResult.nodesToAppend);
         else if (side === "right") {
@@ -1439,7 +1439,7 @@ export default class StandardLayout extends StandardLayoutBase {
         gridRow: 1,
         gridCol,
         hintContentDirty,
-        cls: `corner header ${side}-fixture-header b-edge header-b-edge`,
+        cls: `corner header ${side}-fixture b-edge header-b-edge`,
         extraStyles: {
           ...(numColFacetLevels > 1 && { rowspan: numColFacetLevels }),
           top: viewModel.colFacetsTopPositions[0],
