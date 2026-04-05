@@ -205,8 +205,11 @@ export default class Grid extends GridWithEvents {
           resizeControllers.push({ idx: colIdx, ctrl: this.#layout.changeLeafColWidth(colIdx) });
         }
       } else if (region === "left") {
-        const level = parseInt(cell.dataset.rowFacetLevel!, 10);
-        resizeControllers.push({ idx: level, ctrl: this.#layout.changeRowFacetTrackWidth(level) });
+        const trackIndex = parseInt(cell.dataset.leftStickyTrackIndex!, 10);
+        resizeControllers.push({ idx: trackIndex, ctrl: this.#layout.changeLeftStickyTrackWidth(trackIndex) });
+      } else if (region === "right") {
+        const trackIndex = parseInt(cell.dataset.rightStickyTrackIndex!, 10);
+        resizeControllers.push({ idx: trackIndex, ctrl: this.#layout.changeRightStickyTrackWidth(trackIndex) });
       }
 
       if (resizeControllers.length === 0) return;
@@ -220,7 +223,7 @@ export default class Grid extends GridWithEvents {
         didDrag = true;
         container.style.cursor = "col-resize";
         const deltaX = moveEvent.clientX - startX;
-        const lastPerColDelta = deltaX / totalColCount;
+        const lastPerColDelta = (region === "right" ? -deltaX : deltaX) / totalColCount;
         resizeControllers.forEach(c => c.ctrl.byDelta(lastPerColDelta));
       };
 
@@ -251,8 +254,12 @@ export default class Grid extends GridWithEvents {
       const region = cell.dataset.cellRegion as "left" | "center" | "right";
 
       if (region === "left") {
-        const level = parseInt(cell.dataset.rowFacetLevel!, 10);
-        this.#layout.autofitRowFacetTrackWidth(level);
+        const trackIndex = parseInt(cell.dataset.leftStickyTrackIndex!, 10);
+        this.#layout.autofitLeftStickyTrackWidth(trackIndex);
+        this.draw();
+      } else if (region === "right") {
+        const trackIndex = parseInt(cell.dataset.rightStickyTrackIndex!, 10);
+        this.#layout.autofitRightStickyTrackWidth(trackIndex);
         this.draw();
       } else if (region === "center") {
         const leafLevel = this.#layout.data!.numColFacetLevels - 1;

@@ -71,8 +71,8 @@ export default class GroupedRowLayout extends StandardLayout {
       }
 
       cell.dataset.cellType = "row-facet";
-      // Used by changeRowFacetTrackWidth to shift subsequent track cells' style.left during live drag
-      cell.dataset.rowFacetLevel = "0";
+      // Used by changeLeftStickyTrackWidth to shift subsequent track cells' style.left during live drag
+      cell.dataset.leftStickyTrackIndex = String(this.numLeftFixtures);
       needAppend && nodesToAppend.push(cell);
       adjustCells.push({ cell, level: gridColOffset });
     }

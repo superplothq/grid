@@ -112,7 +112,6 @@ export type FacetCellRenderer<T = string> = (
 
 export interface HeaderCellContext {
   viewModel: GridDataViewModel;
-  axis: "row" | "col";
   level: number;
   key: string;
   container: HTMLElement;

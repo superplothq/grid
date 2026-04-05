@@ -39,7 +39,9 @@ export default abstract class PFixture {
 }
 
 export abstract class PVerticalFixture extends WithCellPlacement(PFixture) {
-  get colSize(): ColAutoSizeConfig { return { strategy: "max-cell" }; }
+  #colSize: ColAutoSizeConfig = { strategy: "max-cell" };
+  get colSize(): ColAutoSizeConfig { return this.#colSize; }
+  set colSize(value: ColAutoSizeConfig) { this.#colSize = value; }
   abstract headerCells(ctx: HeaderCellContext): HTMLElement | HTMLElement[] | string | null;
 }
 

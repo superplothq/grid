@@ -87,7 +87,7 @@
     z-index: 15;
     color: var(--column-facet-text-color);
     border-top: calc(var(--horizontal-border-width) * 1px) solid var(--horizontal-border-color);
-    border-left: calc(var(--vertical-border-width) * 1px) solid var(--vertical-border-color);
+    border-right: calc(var(--vertical-border-width) * 1px) solid var(--vertical-border-color);
 
     &.first {
       border-top: none !important;
@@ -130,7 +130,7 @@
     background: var(--value-background-color);
     color: var(--value-text-color);
     border-top: calc(var(--horizontal-border-width) * 1px) solid var(--horizontal-border-color);
-    border-left: calc(var(--vertical-border-width) * 1px) solid var(--vertical-border-color);
+    border-right: calc(var(--vertical-border-width) * 1px) solid var(--vertical-border-color);
 
     &.custom-rendered {
       justify-content: center;
@@ -171,9 +171,23 @@
     }
   }
 
+  &.right-fixture.data {
+    &[data-right-sticky-track-index="0"] {
+      border-left: calc(var(--vertical-border-width) * 1px) solid var(--vertical-border-color);
+    }
+
+    &.last-fixture {
+      border-right: none;
+    }
+  }
+
   &.left-fixture, &.right-fixture {
     z-index: 15;
     border-top: none;
+
+    &.header {
+      overflow: visible;
+    }
   }
 
   &.corner {
@@ -188,10 +202,6 @@
     z-index: 5;
     position: relative;
     box-sizing: border-box;
-  }
-
-  &.left-fixture.header, &.right-fixture.header {
-    overflow: visible;
   }
 
   &.col-facet, &.corner {

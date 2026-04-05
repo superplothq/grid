@@ -187,6 +187,10 @@ export default class StandardLayout extends StandardLayoutBase {
     return this.#fixtures.left.length + this.data!.numRowFacetLevels;
   }
 
+  protected get numLeftFixtures(): number {
+    return this.#fixtures.left.length;
+  }
+
   #attachShadowDom(): HTMLElement[] {
     const el = this.mountPoint;
     el.attachShadow({ mode: "open" });
@@ -296,7 +300,7 @@ export default class StandardLayout extends StandardLayoutBase {
     headerSample.className = "cell col-header header";
     headerSample.style.visibility = "hidden";
     const headerContainer = this.createFacetContainer(headerSample);
-    const headerContent = colFacetDefs[0].headerRenderer("Mgy$123,456", { viewModel: this.data!, axis: "col", level: 0, key: "__measure", container: headerContainer });
+    const headerContent = colFacetDefs[0].headerRenderer("Mgy$123,456", { viewModel: this.data!, level: 0, key: "__measure", container: headerContainer });
     this.populateFacetContainer(headerSample, headerContainer, headerContent);
     this.#con.appendChild(headerSample);
     this.onBeforeMeasure?.();
@@ -406,12 +410,13 @@ export default class StandardLayout extends StandardLayoutBase {
     return children;
   }
 
-  protected appendResizeHandle(cell: HTMLElement, region: "left" | "center" | "right"): void {
+  protected appendResizeHandle(cell: HTMLElement, region: "left" | "center" | "right"): HTMLElement {
     const handle = document.createElement("span");
     handle.className = "resize-handle";
     cell.dataset.cellActionResize = "1";
     cell.dataset.cellRegion = region;
     cell.appendChild(handle);
+    return handle;
   }
 
   protected buildAndPlaceFacetCell(cell: HTMLElement, facetDefs: FacetDef[], merge: MergeState, facets: (string | null)[][], key: string, opts?: { rendererOverride?: FacetCellRenderer; resizeHandle?: boolean }): void {
@@ -1106,7 +1111,7 @@ export default class StandardLayout extends StandardLayoutBase {
           }
         }
 
-        let cornerCls = `corner level-${hRow} header`;
+        let cornerCls = "corner header";
         if (hasRenderer) {
           cornerCls += " b-edge";
         } else {
@@ -1126,13 +1131,13 @@ export default class StandardLayout extends StandardLayoutBase {
         });
         if (contentDirty) {
           const headerContainer = this.createFacetContainer(cell);
-          const ctx: HeaderCellContext = { viewModel: this.data!, axis: "col", level: hRow, key, container: headerContainer };
+          const ctx: HeaderCellContext = { viewModel: this.data!, level: hRow, key, container: headerContainer };
           let headerContent: FacetCellContent | string | HTMLElement | HTMLElement[] | void | null = null;
           if (headerDef) headerContent = headerDef.headerRenderer(headerDef.text, ctx);
           this.populateFacetContainer(cell, headerContainer, headerContent);
           if (!(shouldSpan && axis === "col")) {
             this.appendResizeHandle(cell, "left");
-            cell.dataset.rowFacetLevel = String(hCol);
+            cell.dataset.leftStickyTrackIndex = String(absCol);
           }
         }
         cell.style.zIndex = `${8888 - hCol}`;
@@ -1245,7 +1250,11 @@ export default class StandardLayout extends StandardLayoutBase {
           offset = viewModel.fixedBottomHTrackPositions[fi];
           track = numColFacetLevels + fixtures.top.length + sliceData.sliceNumRows + fi + 1;
         }
-        const fixtureResult = inst.getCellsToRender(viewModel, { offset, track, suggestedCls: [`${side}-fixture`] }, sliceData);
+        const suggestedCls = [`${side}-fixture`];
+        if ((side === "left" || side === "right") && fi === fixtures[side].length - 1) suggestedCls.push("last-fixture");
+        const fixtureResult = inst.getCellsToRender(viewModel, { offset, track, suggestedCls }, sliceData);
+        const stickyTrackAttr = `${side}StickyTrackIndex`;
+        for (const node of fixtureResult.nodesToAppend) node.dataset[stickyTrackAttr] = String(fi);
         nodeAppendList.push(...fixtureResult.nodesToAppend);
         if (side === "left") this.#postRenderAdjustLeftCellsPerLevel[fi].push(...fixtureResult.nodesToAppend);
         else if (side === "right") {
@@ -1439,7 +1448,7 @@ export default class StandardLayout extends StandardLayoutBase {
         gridRow: 1,
         gridCol,
         hintContentDirty,
-        cls: `corner header ${side}-fixture b-edge header-b-edge`,
+        cls: `corner header ${side}-fixture${fi === fixtureDefs.length - 1 ? " last-fixture" : ""} b-edge header-b-edge`,
         extraStyles: {
           ...(numColFacetLevels > 1 && { rowspan: numColFacetLevels }),
           top: viewModel.colFacetsTopPositions[0],
@@ -1448,9 +1457,16 @@ export default class StandardLayout extends StandardLayoutBase {
       });
       if (contentDirty) {
         const headerContainer = this.createFacetContainer(cell);
-        const ctx: HeaderCellContext = { viewModel: this.data!, axis: "col", level: 0, key, container: headerContainer };
+        const ctx: HeaderCellContext = { viewModel: this.data!, level: 0, key, container: headerContainer };
         const headerContent = def.headerCells(ctx);
         this.populateFacetContainer(cell, headerContainer, headerContent);
+        const handle = this.appendResizeHandle(cell, side);
+        cell.dataset[`${side}StickyTrackIndex`] = String(fi);
+        if (side === "right") {
+          handle.style.right = "";
+          handle.style.left = "-4px";
+        }
+        handle.style.height = "90%";
       }
       cell.style.zIndex = `${9999 - fi}`;
       needAppend && nodeAppendList.push(cell);
@@ -1686,8 +1702,7 @@ export default class StandardLayout extends StandardLayoutBase {
         (cell.firstElementChild as HTMLElement).style.transform = labelOffset !== 0 ? `translateY(${labelOffset}px)` : "";
       }
       cell.dataset.cellType = "row-facet";
-      // Used by changeRowFacetTrackWidth to shift subsequent track cells' style.left during live drag
-      cell.dataset.rowFacetLevel = String(merge.level);
+      cell.dataset.leftStickyTrackIndex = String(this.#fixtures.left.length + merge.level);
       needAppend && nodesToAppend.push(cell);
       // NOTE: we don't add row facets for column width measurement as corner cells are sent with for measurement
       // itself. This is important as row cells might have span that would would divide the track to equal parts in case
@@ -1810,45 +1825,37 @@ export default class StandardLayout extends StandardLayoutBase {
     return { trackHeaderCell };
   }
 
-  #getRowFacetTrackCells(level: number): { headerCell: HTMLElement /* | null; cells: HTMLElement[] */ } {
-    // TODO[now] this is a little weird how headers are being found vs how data-cells are being found (below)
-    //      data-cell-region='left' and data-cell-type='row-facet'
-    //      while doing this check if #getLeafColCells also requires any changes
-    //      (since this is applied on dom - users might use the data attrs to build stuff on their own, so it has to be proper)
+  #getStickyTrackHeaderCell(side: "left" | "right", trackIndex: number): HTMLElement {
     const headerCell = this.#con.querySelector<HTMLElement>(
-      `[data-cell-region='left'][data-row-facet-level='${level}']`
+      `[data-cell-action-resize][data-${side}-sticky-track-index='${trackIndex}']`
     );
     if (!headerCell) {
-      throw new Error(`No facet cells found level ${level} during resize`);
+      throw new Error(`No ${side} sticky track header found for index ${trackIndex} during resize`);
     }
-    return { headerCell };
+    return headerCell;
   }
 
-  autofitRowFacetTrackWidth(level: number): void {
-    const { headerCell } = this.#getRowFacetTrackCells(level);
-    if (!headerCell) return;
-    this.#autofitTrack(headerCell, () => this.changeRowFacetTrackWidth(level));
+  autofitLeftStickyTrackWidth(trackIndex: number): void {
+    const headerCell = this.#getStickyTrackHeaderCell("left", trackIndex);
+    this.#autofitTrack(headerCell, () => this.changeLeftStickyTrackWidth(trackIndex));
   }
 
-  changeRowFacetTrackWidth(level: number) {
-    const leftIndex = this.#fixtures.left.length + level;
-    const { headerCell } = this.#getRowFacetTrackCells(level);
+  changeLeftStickyTrackWidth(trackIndex: number) {
+    const headerCell = this.#getStickyTrackHeaderCell("left", trackIndex);
+    const numLeftFixtures = this.#fixtures.left.length;
 
     // Collect all left-region cells to the right of this track for live drag adjustment
     const subsequentLeftCells: HTMLElement[] = [];
-    const numLeftTracks = this.#fixtures.left.length + this.data!.numRowFacetLevels;
-    for (let i = leftIndex + 1; i < numLeftTracks; i++) {
-      const rfLevel = i - this.#fixtures.left.length;
+    const numLeftTracks = numLeftFixtures + this.data!.numRowFacetLevels;
+    for (let i = trackIndex + 1; i < numLeftTracks; i++) {
       subsequentLeftCells.push(...Array.from(this.#con.querySelectorAll<HTMLElement>(
-        `[data-cell-type='row-facet'][data-row-facet-level='${rfLevel}']`
+        `[data-left-sticky-track-index='${i}']`
       )));
-      const hdr = this.#con.querySelector<HTMLElement>(`[data-cell-region='left'][data-row-facet-level='${rfLevel}']`);
-      if (hdr) subsequentLeftCells.push(hdr);
     }
 
     return this.#changeTrackWidth({
       region: "left",
-      regionIndex: leftIndex,
+      regionIndex: trackIndex,
       headerCell,
       onDelta: (widthDelta) => {
         for (const cell of subsequentLeftCells) {
@@ -1857,7 +1864,44 @@ export default class StandardLayout extends StandardLayoutBase {
         }
       },
       onCommit: (finalWidth) => {
-        this.data!.facetDefs.row[level].colSize = { strategy: "fixed-width", widthInPx: finalWidth };
+        // Left region tracks are laid out as: [fixture0, fixture1, ..., rowFacet0, rowFacet1, ...]
+        // Tracks below numLeftFixtures are fixtures; the rest are row facets offset by numLeftFixtures.
+        if (trackIndex < numLeftFixtures) {
+          this.#fixtures.left[trackIndex].colSize = { strategy: "fixed-width", widthInPx: finalWidth };
+        } else {
+          this.data!.facetDefs.row[trackIndex - numLeftFixtures].colSize = { strategy: "fixed-width", widthInPx: finalWidth };
+        }
+      },
+    });
+  }
+
+  autofitRightStickyTrackWidth(trackIndex: number): void {
+    const headerCell = this.#getStickyTrackHeaderCell("right", trackIndex);
+    this.#autofitTrack(headerCell, () => this.changeRightStickyTrackWidth(trackIndex));
+  }
+
+  changeRightStickyTrackWidth(trackIndex: number) {
+    const headerCell = this.#getStickyTrackHeaderCell("right", trackIndex);
+
+    const subsequentRightCells: HTMLElement[] = [];
+    for (let i = trackIndex - 1; i >= 0; i--) {
+      subsequentRightCells.push(...Array.from(this.#con.querySelectorAll<HTMLElement>(
+        `[data-right-sticky-track-index='${i}']`
+      )));
+    }
+
+    return this.#changeTrackWidth({
+      region: "right",
+      regionIndex: trackIndex,
+      headerCell,
+      onDelta: (widthDelta) => {
+        for (const cell of subsequentRightCells) {
+          const currentRight = parseFloat(cell.style.right) || 0;
+          cell.style.right = `${currentRight + widthDelta}px`;
+        }
+      },
+      onCommit: (finalWidth) => {
+        this.#fixtures.right[trackIndex].colSize = { strategy: "fixed-width", widthInPx: finalWidth };
       },
     });
   }
