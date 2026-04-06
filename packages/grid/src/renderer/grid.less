@@ -30,27 +30,23 @@
   display: flex;
   align-items: center;
 
-  &.fixture-empty {
-    z-index: 30 !important;
-  }
+  &.fixture-spacer {
+    z-index: 10000 !important;
 
-  &.l-edge, &.nl-edge {
-    border-left: none;
-  }
+    &.intersect-left {
+      border-right: calc(var(--vertical-border-width) * 1px) solid var(--vertical-border-color);
+    }
 
-  &.r-edge {
-    border-right: calc(var(--vertical-border-width) * 1px) solid var(--vertical-border-color);
-  }
-
-  &.b-edge {
-    border-bottom: calc(var(--horizontal-border-width) * 1px) solid var(--horizontal-border-color) !important;
+    &.intersect-right {
+      border-left: calc(var(--vertical-border-width) * 1px) solid var(--vertical-border-color);
+    }
   }
 
   &.facet-b-edge, &.header-b-edge {
     border-bottom: calc(var(--data-top-border-width) * 1px) solid var(--data-top-border-color) !important;
   }
 
-  &.facet-r-edge, &.header-r-edge {
+  &.facet-r-edge {
     border-right: calc(var(--data-left-border-width) * 1px) solid var(--data-left-border-color) !important;
   }
 
@@ -60,7 +56,6 @@
     position: sticky;
     z-index: 20;
     border-bottom: calc(var(--horizontal-border-width) * 1px) solid var(--horizontal-border-color);
-    border-left: none;
     font-weight: var(--column-facet-font-weight);
     color: var(--column-facet-text-color);
     overflow: visible;
@@ -149,6 +144,10 @@
     &.last {
       border-bottom: calc(var(--horizontal-border-width) * 1px) solid var(--horizontal-border-color);
     }
+
+    &.r-edge {
+      border-right: none;
+    }
   }
 
   &.header {
@@ -156,6 +155,12 @@
     color: var(--facet-header-font-color);
     font-size: calc(var(--facet-header-font-size) * 1px);
     font-weight: var(--facet-header-font-weight);
+    border-bottom: calc(var(--horizontal-border-width) * 1px) solid var(--horizontal-border-color);
+
+    &.bottom-fixture {
+      border-bottom: none;
+      border-top: calc(var(--horizontal-border-width) * 1px) solid var(--horizontal-border-color);
+    }
   }
 
   &.left-fixture, &.right-fixture, &.top-fixture, &.bottom-fixture {
@@ -205,10 +210,6 @@
   }
 
   &.col-facet, &.corner {
-    // TODO once all the columns are marked as header, it'd be .header
-    // border-left: none !important;
-    // border-right: none !important;
-
     > .resize-handle {
       position: absolute;
       right: -4px;
@@ -228,6 +229,10 @@
         transform: translateX(-50%);
         transition: width 0.2s ease-in-out;
       }
+    }
+
+    &.r-edge > .resize-handle {
+      right: -2px;
     }
 
     &:hover > .resize-handle::after {
