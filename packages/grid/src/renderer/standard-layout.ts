@@ -1063,6 +1063,7 @@ export default class StandardLayout extends StandardLayoutBase {
     this.#renderFixtureHeaders(fixtures.left, "left", { ...fixtureHeaderOpts, gridColStart: 1 });
 
     // render corner cells which results from intersection of row and column facets
+    let cmnCornerCls = "corner header";
     for (let hRow = 0; hRow < numColFacetLevels; hRow++) { // each row of header cells
       for (let hCol = 0; hCol < numRowFacetLevels; hCol++) { // each row facet column
         const absCol = hCol + numLeftFixtures;
@@ -1071,13 +1072,14 @@ export default class StandardLayout extends StandardLayoutBase {
         let shouldSpan = false;
         let isSpanned = false;
         let headerDef: FacetDef | null = null;
+        let drawGroupResizeHandler = false;
 
         if (axis === "col") {
           if (hRow < numColFacetLevels - 1) { // column facet header spanned horizontally
             if (hCol === 0) {
               shouldSpan = true;
               const def = colFacetDefs[hRow];
-              if (def && !def.pseudo) { headerDef = def; }
+              if (def && !def.pseudo) { headerDef = def; drawGroupResizeHandler = hRow === numColFacetLevels - 2; }
             } else { // the rest of the cells in the horizontal track are merged via colspan
               isSpanned = true;
             }
@@ -1085,7 +1087,7 @@ export default class StandardLayout extends StandardLayoutBase {
             const def = rowFacetDefs[hCol];
             if (def && !def.pseudo) { headerDef = def; }
           }
-        } else {
+        } else { // axis == "row"
           if (hRow === 0) {
             shouldSpan = true;
             const def = rowFacetDefs[hCol];
@@ -1110,13 +1112,12 @@ export default class StandardLayout extends StandardLayoutBase {
           }
         }
 
-        let cornerCls = "corner header";
         const [cell, needAppend, contentDirty] = this.placeCellInDom({
           key,
           gridRow: hRow + 1,
           gridCol: absCol + 1,
           hintContentDirty,
-          cls: cornerCls,
+          cls: cmnCornerCls,
           extraStyles,
         });
         if (contentDirty) {
@@ -1128,6 +1129,12 @@ export default class StandardLayout extends StandardLayoutBase {
           if (!(shouldSpan && axis === "col")) {
             this.appendResizeHandle(cell, "left");
             cell.dataset.leftStickyTrackIndex = String(absCol);
+          }
+          if (drawGroupResizeHandler) {
+            const handler = this.appendResizeHandle(cell, "left");
+            handler.style.height = (88 * (numColFacetLevels - 1))  + "%";
+            handler.style.bottom = "4px";
+            handler.dataset.groupFacetResize = "1";
           }
         }
         cell.style.zIndex = `${8888 - hCol}`;
@@ -1825,7 +1832,7 @@ export default class StandardLayout extends StandardLayoutBase {
 
   autofitLeftStickyTrackWidth(trackIndex: number): void {
     const headerCell = this.#getStickyTrackHeaderCell("left", trackIndex);
-    this.#autofitTrack(headerCell, () => this.changeLeftStickyTrackWidth(trackIndex));
+    this.#autofitTrack("left", trackIndex, headerCell, () => this.changeLeftStickyTrackWidth(trackIndex));
   }
 
   changeLeftStickyTrackWidth(trackIndex: number) {
@@ -1865,7 +1872,7 @@ export default class StandardLayout extends StandardLayoutBase {
 
   autofitRightStickyTrackWidth(trackIndex: number): void {
     const headerCell = this.#getStickyTrackHeaderCell("right", trackIndex);
-    this.#autofitTrack(headerCell, () => this.changeRightStickyTrackWidth(trackIndex));
+    this.#autofitTrack("right", trackIndex, headerCell, () => this.changeRightStickyTrackWidth(trackIndex));
   }
 
   changeRightStickyTrackWidth(trackIndex: number) {
@@ -1897,7 +1904,8 @@ export default class StandardLayout extends StandardLayoutBase {
   autofitLeafColWidth(colIdx: number): void {
     const { trackHeaderCell } = this.#getLeafColCells(colIdx);
     if (!trackHeaderCell) return;
-    this.#autofitTrack(trackHeaderCell, () => this.changeLeafColWidth(colIdx));
+    const centerIdx = colIdx - this.#fixtures.left.length - this.data!.numRowFacetLevels;
+    this.#autofitTrack("center", centerIdx, trackHeaderCell, () => this.changeLeafColWidth(colIdx));
   }
 
   changeLeafColWidth(colIdx: number) {
@@ -1913,9 +1921,22 @@ export default class StandardLayout extends StandardLayoutBase {
     });
   }
 
-  #autofitTrack(headerCell: HTMLElement, createCtrl: () => ReturnType<StandardLayout["changeLeafColWidth"]>): void {
+  #autofitTrack(region: "left" | "center" | "right", regionIndex: number, headerCell: HTMLElement, createCtrl: () => ReturnType<StandardLayout["changeLeafColWidth"]>): void {
+    // Temporarily remove any fixed-width override so the column falls back to max-content,
+    // allowing getBoundingClientRect to return the intrinsic content width.
+    const store = this.colsWidth[region];
+    const hadOverride = regionIndex in store.override;
+    const stashedOverride = store.override[regionIndex];
+    if (hadOverride) {
+      delete store.override[regionIndex];
+      this.#applyColumnTemplate();
+    }
     headerCell.style.minWidth = "";
     const contentWidth = headerCell.getBoundingClientRect().width;
+    if (hadOverride) {
+      store.override[regionIndex] = stashedOverride;
+      this.#applyColumnTemplate();
+    }
     const ctrl = createCtrl();
     ctrl.byAbsValue(contentWidth);
     ctrl.commit();

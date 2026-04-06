@@ -174,7 +174,8 @@ export default class Grid extends GridWithEvents {
       const startX = e.clientX;
 
       type ResizeController = ReturnType<StandardLayout["changeLeafColWidth"]>;
-      let resizeControllers: { idx: number; ctrl: ResizeController }[] = [];
+      const resizeControllers: { idx: number; ctrl: ResizeController }[] = [];
+      const createControllers: (() => void)[] = [];
       let totalColCount = 1;
 
       if (region === "center") {
@@ -202,25 +203,36 @@ export default class Grid extends GridWithEvents {
         //      we need to update the change in size of columns to be considered as they appears on the dom
 
         for (const colIdx of visibleCols) {
-          resizeControllers.push({ idx: colIdx, ctrl: this.#layout.changeLeafColWidth(colIdx) });
+          createControllers.push(() => resizeControllers.push({ idx: colIdx, ctrl: this.#layout.changeLeafColWidth(colIdx) }));
+        }
+      } else if (region === "left" && (e.target as HTMLElement).dataset.groupFacetResize === "1") {
+        const numLeftFixtures = this.#layout.numLeftFixedTracks - this.#layout.data!.numRowFacetLevels;
+        const numRowFacetLevels = this.#layout.data!.numRowFacetLevels;
+        totalColCount = numRowFacetLevels;
+        for (let i = 0; i < numRowFacetLevels; i++) {
+          const trackIndex = numLeftFixtures + i;
+          createControllers.push(() => resizeControllers.push({ idx: trackIndex, ctrl: this.#layout.changeLeftStickyTrackWidth(trackIndex) }));
         }
       } else if (region === "left") {
         const trackIndex = parseInt(cell.dataset.leftStickyTrackIndex!, 10);
-        resizeControllers.push({ idx: trackIndex, ctrl: this.#layout.changeLeftStickyTrackWidth(trackIndex) });
+        createControllers.push(() => resizeControllers.push({ idx: trackIndex, ctrl: this.#layout.changeLeftStickyTrackWidth(trackIndex) }));
       } else if (region === "right") {
         const trackIndex = parseInt(cell.dataset.rightStickyTrackIndex!, 10);
-        resizeControllers.push({ idx: trackIndex, ctrl: this.#layout.changeRightStickyTrackWidth(trackIndex) });
+        createControllers.push(() => resizeControllers.push({ idx: trackIndex, ctrl: this.#layout.changeRightStickyTrackWidth(trackIndex) }));
       }
 
-      if (resizeControllers.length === 0) return;
+      if (createControllers.length === 0) return;
 
-      // Without didDrag, mousedown commits + redraws on mouseup even for a simple click.
-      // That destroys the DOM element before the second click, preventing dblclick from firing
-      // on the resize handle. By tracking whether the mouse actually moved, we cancel instead
-      // of committing on a no-drag click, keeping the DOM intact for dblclick.
+      // Defer controller creation to the first mousemove. Creating controllers eagerly on mousedown
+      // mutates gridTemplateColumns (override set + #applyColumnTemplate), and the cancel on mouseup
+      // mutates it again. These two mutations on a no-drag click cause a browser relayout that
+      // breaks dblclick detection. By deferring, single clicks cause zero template mutations.
       let didDrag = false;
       const onMouseMove = (moveEvent: MouseEvent) => {
-        didDrag = true;
+        if (!didDrag) {
+          didDrag = true;
+          for (const fn of createControllers) fn();
+        }
         container.style.cursor = "col-resize";
         const deltaX = moveEvent.clientX - startX;
         const lastPerColDelta = (region === "right" ? -deltaX : deltaX) / totalColCount;
@@ -235,8 +247,6 @@ export default class Grid extends GridWithEvents {
         if (didDrag) {
           resizeControllers.forEach(c => c.ctrl.commit());
           this.draw();
-        } else {
-          resizeControllers.forEach(c => c.ctrl.cancel());
         }
       };
 
@@ -253,7 +263,14 @@ export default class Grid extends GridWithEvents {
 
       const region = cell.dataset.cellRegion as "left" | "center" | "right";
 
-      if (region === "left") {
+      if (region === "left" && (e.target as HTMLElement).dataset.groupFacetResize === "1") {
+        const numLeftFixtures = this.#layout.numLeftFixedTracks - this.#layout.data!.numRowFacetLevels;
+        const numRowFacetLevels = this.#layout.data!.numRowFacetLevels;
+        for (let i = 0; i < numRowFacetLevels; i++) {
+          this.#layout.autofitLeftStickyTrackWidth(numLeftFixtures + i);
+        }
+        this.draw();
+      } else if (region === "left") {
         const trackIndex = parseInt(cell.dataset.leftStickyTrackIndex!, 10);
         this.#layout.autofitLeftStickyTrackWidth(trackIndex);
         this.draw();
