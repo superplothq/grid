@@ -497,6 +497,26 @@ describe("FlatTableDataModel (real DuckDB)", () => {
     expect(slice.rowFacets).to.deep.equal(["Germany", "UK"]);
   });
 
+  it("should expand after sorting by a non-group column", async () => {
+    const model = await makeModel();
+    const ir = makeIR({
+      groupBy: ["region", "country"],
+      sort: [
+        { field: "region", direction: "asc" as const },
+        { field: "revenue", direction: "desc" as const },
+      ],
+    });
+    await model.getViewModel(ir);
+
+    const vm = await model.expand(["Europe"]);
+    const slice = vm.getSlice(0, 0, 4, vm.numRows);
+
+    expect(slice.rowFacets[0]).to.equal("Europe");
+    expect(slice.rowMeta[0].isExpanded).to.equal(true);
+    expect(slice.rowFacets).to.include("Germany");
+    expect(slice.rowFacets).to.include("UK");
+  });
+
   it("should invalidate cache when filter changes", async () => {
     const model = await makeModel();
     const ir1 = makeIR({ groupBy: ["country"] });

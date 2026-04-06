@@ -107,12 +107,23 @@ export class SqlFlatTableDataModel extends FlatTableDataModel {
         const def = this.config.schema.find((d) => d.name === s.by);
         const agg = def?.aggregateFn ?? "sum";
         parts.push(`${agg.toUpperCase()}("${s.by}") ${s.direction.toUpperCase()}`);
+      } else if (isGroupLevel) {
+        if (s.field === groupField) {
+          parts.push(`"${s.field}" ${s.direction.toUpperCase()}`);
+        } else {
+          const def = this.config.schema.find((d) => d.name === s.field);
+          if (def?.aggregateFn) {
+            parts.push(`${def.aggregateFn.toUpperCase()}("${s.field}") ${s.direction.toUpperCase()}`);
+          }
+        }
       } else {
         parts.push(`"${s.field}" ${s.direction.toUpperCase()}`);
       }
     }
 
-    return parts.length > 0 ? ` ORDER BY ${parts.join(", ")}` : "";
+    if (parts.length > 0) return ` ORDER BY ${parts.join(", ")}`;
+    if (groupField) return ` ORDER BY "${groupField}"`;
+    return "";
   }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
