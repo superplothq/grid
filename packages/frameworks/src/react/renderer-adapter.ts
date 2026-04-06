@@ -87,9 +87,15 @@ export class ReactCellAdapter {
     }
   }
 
+  // Unmounts are deferred to a microtask to avoid React's "synchronously unmount a root while
+  // React was already rendering" warning that fires when dispose() is called from a useEffect
+  // cleanup during a render pass (e.g. navigating between samples). Container reuse is not a
+  // concern because each grid mount creates fresh DOM elements — StrictMode double-mount also
+  // creates a new adapter with new containers, so no new createRoot will target these nodes.
   dispose(): void {
+    this.#pendingRenders = [];
     for (const [, root] of this.#roots) {
-      root.unmount();
+      queueMicrotask(() => root.unmount());
     }
     this.#roots.clear();
   }

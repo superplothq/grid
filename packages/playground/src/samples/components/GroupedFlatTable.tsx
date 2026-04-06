@@ -56,14 +56,14 @@ const ExpandCollapseRenderer: React.FC<FacetCellProps> = ({value, path, viewMode
   if (!flatMeta || flatMeta.isLeaf) return <>{String(value ?? "")}</>;
 
   return (
-    <span style={{display: "inline-flex", alignItems: "center", gap: 4}}>
+    <span style={{display: "flex", alignItems: "center", gap: 4, overflow: "hidden", width: "100%"}}>
       <span
         onClick={handleClick}
-        style={{cursor: loading ? "wait" : "pointer", display: "inline-flex", alignItems: "center", opacity: loading ? 0.4 : 0.9}}
+        style={{cursor: loading ? "wait" : "pointer", display: "inline-flex", alignItems: "center", flexShrink: 0, opacity: loading ? 0.4 : 0.9}}
       >
         {flatMeta.isExpanded ? <MinusIcon /> : <PlusIcon />}
       </span>
-      {String(value ?? "")}
+      <span style={{overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap"}}>{String(value ?? "")}</span>
     </span>
   );
 };
