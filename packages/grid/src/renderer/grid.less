@@ -168,11 +168,19 @@
   }
 
   &.top-fixture, &.bottom-fixture {
-    z-index: 20;
     border-bottom: 1px solid var(--horizontal-border-color);
+    z-index: 9000;
 
     &.h-fixed {
       z-index: 30;
+    }
+
+    &.header:not(.fixture-spacer) {
+      border-right: calc(var(--vertical-border-width) * 1px) solid var(--vertical-border-color);
+    }
+
+    &.intersect-left, &.intersect-right {
+      z-index: 9999;
     }
   }
 

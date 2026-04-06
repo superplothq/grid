@@ -114,6 +114,7 @@ export interface HeaderCellContext {
   viewModel: GridDataViewModel;
   level: number;
   key: string;
+  cell: HTMLElement;
   container: HTMLElement;
 }
 

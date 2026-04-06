@@ -300,7 +300,7 @@ export default class StandardLayout extends StandardLayoutBase {
     headerSample.className = "cell col-header header";
     headerSample.style.visibility = "hidden";
     const headerContainer = this.createFacetContainer(headerSample);
-    const headerContent = colFacetDefs[0].headerRenderer("Mgy$123,456", { viewModel: this.data!, level: 0, key: "__measure", container: headerContainer });
+    const headerContent = colFacetDefs[0].headerRenderer("Mgy$123,456", { viewModel: this.data!, level: 0, key: "__measure", cell: headerSample, container: headerContainer });
     this.populateFacetContainer(headerSample, headerContainer, headerContent);
     this.#con.appendChild(headerSample);
     this.onBeforeMeasure?.();
@@ -1048,6 +1048,9 @@ export default class StandardLayout extends StandardLayoutBase {
     for (let i = 0; i < numLeftVFixedTrack; i++) {
       this.#postRenderAdjustLeftCellsPerLevel.push([]);
     }
+    for (let i = 0; i < fixtures.right.length; i++) {
+      this.#postRenderAdjustRightCellsPerLevel.push([]);
+    }
 
     // render corner cells which results from intersection of row and column facets
     let nodeAppendList: HTMLElement[] = [];
@@ -1122,7 +1125,7 @@ export default class StandardLayout extends StandardLayoutBase {
         });
         if (contentDirty) {
           const headerContainer = this.createFacetContainer(cell);
-          const ctx: HeaderCellContext = { viewModel: this.data!, level: hRow, key, container: headerContainer };
+          const ctx: HeaderCellContext = { viewModel: this.data!, level: hRow, key, cell, container: headerContainer };
           let headerContent: FacetCellContent | string | HTMLElement | HTMLElement[] | void | null = null;
           if (headerDef) headerContent = headerDef.headerRenderer(headerDef.text, ctx);
           this.populateFacetContainer(cell, headerContainer, headerContent);
@@ -1258,65 +1261,61 @@ export default class StandardLayout extends StandardLayoutBase {
             node.style.right = `${viewModel.fixedRightVTrackPositions[fi]}px`;
             node.style.left = "";
           }
-          if (!this.#postRenderAdjustRightCellsPerLevel[fi]) this.#postRenderAdjustRightCellsPerLevel[fi] = [];
           this.#postRenderAdjustRightCellsPerLevel[fi].push(...fixtureResult.nodesToAppend);
         } else if (side === "top" || side === "bottom") {
-          const datasetKey = side === "top" ? "topFixtureNodeType" : "bottomFixtureNodeType";
-          const hStickyNodes = fixtureResult.nodesToAppend.filter(e => {
-            const type = e.dataset[datasetKey];
-            delete e.dataset[datasetKey];
-            return type === "h-sticky";
-          });
-          // TODO this is a failsafe to make no row facet cells work
-          //      Here is the root cause of the issue
-          //      Bug: h-sticky nodes from horizontal fixtures mapped to wrong left track level
-          //      In standard-layout.ts (render fixtures loop, top/bottom side), all h-sticky nodes from a
-          //      horizontal fixture are pushed into #postRenderAdjustLeftCellsPerLevel[fi] where fi is the
-          //      top/bottom fixture index. This is wrong:
-          //      
-          //      1. fi is a horizontal fixture index (0, 1, ...), not a left vertical track index
-          //      2. Each h-sticky node corresponds to a specific row facet column (the fixture creates one per
-          //      row facet level at gridCol: leftFixtureCount + rf + 1), but they all get lumped into a single
-          //      level
-          //      3. Result: #onLayoutBootstrap assigns all h-sticky nodes the same left position (from
-          //      fixedLeftVTrackPositions[fi]) instead of their correct per-column position
-          //      4. Crashes when numLeftVFixedTrack is 0 (no left fixtures, no row facets) since the array is
-          //      empty
-          //      
-          //      Fix direction: Each h-sticky node needs to carry its target left track level (e.g. via a data
-          //      attribute set by the fixture), so the layout can distribute nodes to the correct
-          //      #postRenderAdjustLeftCellsPerLevel[level] entry.
-          if (this.#postRenderAdjustLeftCellsPerLevel[fi]) this.#postRenderAdjustLeftCellsPerLevel[fi].push(...hStickyNodes);
-
           for (let lfi = 0; lfi < fixtures.left.length; lfi++) {
-            const key = `${side}-fixture-left-empty-${fi}-${lfi}`;
-            const [cell, needAppend] = this.placeCellInDom({
-              key,
-              gridRow: track,
-              gridCol: lfi + 1,
-              hintContentDirty,
-              cls: `header ${side}-fixture fixture-spacer intersect-left`,
-              extraStyles: {
-                [side]: offset,
-                left: viewModel.fixedLeftVTrackPositions[lfi],
-              },
+            const [cell, needAppend] = this.#createFixtureSpacerCell({
+              key: `${side}-fixture-left-empty-${fi}-${lfi}`,
+              gridRow: track, gridCol: lfi + 1, hintContentDirty,
+              hFixtureSide: side, hFixtureOffset: offset,
+              stickyRegion: "left", stickyTrackIndex: lfi,
+              stickyPosition: viewModel.fixedLeftVTrackPositions[lfi],
             });
             needAppend && nodeAppendList.push(cell);
+            this.#postRenderAdjustLeftCellsPerLevel[lfi].push(cell);
+          }
+          for (let rfLevel = 0; rfLevel < numRowFacetLevels; rfLevel++) {
+            const stickyTrackIndex = numLeftFixtures + rfLevel;
+            const hFixture = fixtures[side][fi] as PHorizontalFixture;
+            const headerKey = `${side}-fixture-rf-${fi}-${rfLevel}`;
+            const [cell, needAppend, contentDirty] = this.placeCellInDom({
+              key: headerKey,
+              gridRow: track,
+              gridCol: numLeftFixtures + rfLevel + 1,
+              hintContentDirty,
+              cls: `header ${side}-fixture intersect-left`,
+              extraStyles: {
+                [side]: offset,
+                left: viewModel.fixedLeftVTrackPositions[stickyTrackIndex],
+              },
+            });
+            if (contentDirty) {
+              const headerContainer = this.createFacetContainer(cell);
+              const headerCtx: HeaderCellContext = { viewModel: this.data!, level: rfLevel, key: headerKey, cell, container: headerContainer };
+              const headerContent = hFixture.headerCell(headerCtx);
+              if (headerContent === null) {
+                // TODO does it makes sense to release / delete the cell?
+                cell.style.display = "none";
+              } else if (headerContent === undefined) {
+                cell.classList.add("fixture-spacer");
+              } else {
+                this.populateFacetContainer(cell, headerContainer, headerContent);
+              }
+            }
+            cell.dataset.leftStickyTrackIndex = String(stickyTrackIndex);
+            needAppend && nodeAppendList.push(cell);
+            this.#postRenderAdjustLeftCellsPerLevel[stickyTrackIndex].push(cell);
           }
           for (let rfi = 0; rfi < fixtures.right.length; rfi++) {
-            const key = `${side}-fixture-right-empty-${fi}-${rfi}`;
-            const [cell, needAppend] = this.placeCellInDom({
-              key,
-              gridRow: track,
-              gridCol: numLeftVFixedTrack + numDataColsVisible + rfi + 1,
-              hintContentDirty,
-              cls: `header ${side}-fixture fixture-spacer intersect-right`,
-              extraStyles: {
-                [side]: offset,
-                right: viewModel.fixedRightVTrackPositions[rfi],
-              },
+            const [cell, needAppend] = this.#createFixtureSpacerCell({
+              key: `${side}-fixture-right-empty-${fi}-${rfi}`,
+              gridRow: track, gridCol: numLeftVFixedTrack + numDataColsVisible + rfi + 1, hintContentDirty,
+              hFixtureSide: side, hFixtureOffset: offset,
+              stickyRegion: "right", stickyTrackIndex: rfi,
+              stickyPosition: viewModel.fixedRightVTrackPositions[rfi],
             });
             needAppend && nodeAppendList.push(cell);
+            this.#postRenderAdjustRightCellsPerLevel[rfi].push(cell);
           }
         }
       }
@@ -1414,6 +1413,32 @@ export default class StandardLayout extends StandardLayoutBase {
     }
   }
 
+  #createFixtureSpacerCell(opts: {
+    key: string;
+    gridRow: number;
+    gridCol: number;
+    hintContentDirty: boolean | undefined;
+    hFixtureSide: "top" | "bottom";
+    hFixtureOffset: number;
+    stickyRegion: "left" | "right";
+    stickyTrackIndex: number;
+    stickyPosition: number;
+  }): [HTMLElement, boolean] {
+    const [cell, needAppend] = this.placeCellInDom({
+      key: opts.key,
+      gridRow: opts.gridRow,
+      gridCol: opts.gridCol,
+      hintContentDirty: opts.hintContentDirty,
+      cls: `header ${opts.hFixtureSide}-fixture fixture-spacer intersect-${opts.stickyRegion}`,
+      extraStyles: {
+        [opts.hFixtureSide]: opts.hFixtureOffset,
+        [opts.stickyRegion]: opts.stickyPosition,
+      },
+    });
+    cell.dataset[`${opts.stickyRegion}StickyTrackIndex`] = String(opts.stickyTrackIndex);
+    return [cell, needAppend];
+  }
+
   #renderFixtureHeaders(
     fixtureDefs: PVerticalFixture[],
     side: "left" | "right",
@@ -1453,8 +1478,8 @@ export default class StandardLayout extends StandardLayoutBase {
       });
       if (contentDirty) {
         const headerContainer = this.createFacetContainer(cell);
-        const ctx: HeaderCellContext = { viewModel: this.data!, level: 0, key, container: headerContainer };
-        const headerContent = def.headerCells(ctx);
+        const ctx: HeaderCellContext = { viewModel: this.data!, level: 0, key, cell, container: headerContainer };
+        const headerContent = def.headerCell(ctx);
         this.populateFacetContainer(cell, headerContainer, headerContent);
         const handle = this.appendResizeHandle(cell, side);
         cell.dataset[`${side}StickyTrackIndex`] = String(fi);

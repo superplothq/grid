@@ -42,9 +42,10 @@ export abstract class PVerticalFixture extends WithCellPlacement(PFixture) {
   #colSize: ColAutoSizeConfig = { strategy: "max-cell" };
   get colSize(): ColAutoSizeConfig { return this.#colSize; }
   set colSize(value: ColAutoSizeConfig) { this.#colSize = value; }
-  abstract headerCells(ctx: HeaderCellContext): HTMLElement | HTMLElement[] | string | null;
+  abstract headerCell(ctx: HeaderCellContext): HTMLElement | HTMLElement[] | string | null;
 }
 
 export abstract class PHorizontalFixture extends WithCellPlacement(PFixture) {
   abstract getHeight(): number;
+  headerCell(_ctx: HeaderCellContext): HTMLElement | HTMLElement[] | string | null | undefined { return undefined; }
 }
