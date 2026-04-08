@@ -10,7 +10,8 @@ import { FlattenedDataViewModel, FlattenedDataViewModelParams, createRowMeta } f
 import { GridDataViewModelOptions } from "../renderer/types";
 
 const DEFAULT_PAGE_SIZE = 10000;
-const DEFAULT_MAX_CACHE_SIZE = 20;
+const DEFAULT_MAX_CACHE_SIZE = 3 * (10 ** 6);
+// const DEFAULT_MAX_CACHE_SIZE = 50;
 
 export function getUnfetchedPagesByLogicalBoundary(
   pages: PageNode[],
@@ -31,6 +32,7 @@ export function getUnfetchedPagesByLogicalBoundary(
         logicalRow += page.rowCount;
       } else {
         for (let rowIdx = 0; rowIdx < page.rowCount; rowIdx++) {
+          // page doesn't end before the range starts && page doesn't start after the range ends
           if (logicalRow >= logicalEnd) { done = true; return; }
           logicalRow++;
           const expanded = page.expandedRows.get(rowIdx);
@@ -109,6 +111,8 @@ export abstract class FlatTableDataModel {
       const response = await this.getData(bootstrapIR);
       this.pages = this.createPageSlots(response.totalRowCount, this.pageSize);
       this.topLevelRowCount = response.totalRowCount;
+      // TODO always load the first page on the top level irrespective of where the user 
+      // set the startRow and endRow
       this.pages[0].data = response.rowData;
     }
 
@@ -176,6 +180,7 @@ export abstract class FlatTableDataModel {
 
     const response = await this.getData(childIR);
     const childPages = this.createPageSlots(response.totalRowCount, this.pageSize);
+    // TODO always loaded in to first page
     childPages[0].data = response.rowData;
 
     const group: ExpandedGroup = {
@@ -277,6 +282,7 @@ export abstract class FlatTableDataModel {
     const rowFacet: (string | null)[] | undefined = hasGroupBy ? [] : undefined;
     const rowMetaBytes: number[] | undefined = hasGroupBy ? [] : undefined;
     let offsetTop = 0;
+    let logicalPos = 0;
     const hasOutsideFacetDims = this.hasOutsideFacetDims();
 
     const columnDefs = ir.project.map((col) => this.schemaMap.get(col)!);
@@ -299,16 +305,40 @@ export abstract class FlatTableDataModel {
       return { blockStart, blockEnd };
     };
 
+    const pushFacetRow = (page: PageNode, rowIdx: number, depth: number, isExpanded: boolean, groupFieldProject: string[]) => {
+      rowFacet!.push(page.data![0][rowIdx]);
+      const isLeaf = (depth === ir.groupBy.length - 1) && !hasOutsideFacetDims;
+      rowMetaBytes!.push(createRowMeta(depth, isLeaf, isExpanded));
+      for (let colIdx = 0; colIdx < ir.project.length; colIdx++) {
+        const colDef = columnDefs[colIdx];
+        if (colDef.type === "measure") {
+          const projIdx = groupFieldProject.indexOf(ir.project[colIdx]);
+          data[colIdx].push(page.data![projIdx][rowIdx]);
+        } else {
+          data[colIdx].push(null);
+        }
+      }
+    };
+
+    const pushDataRow = (page: PageNode, rowIdx: number, depth: number) => {
+      if (rowFacet) rowFacet.push(null);
+      if (rowMetaBytes) rowMetaBytes.push(createRowMeta(depth, true, false));
+      for (let colIdx = 0; colIdx < ir.project.length; colIdx++) {
+        data[colIdx].push(page.data![colIdx][rowIdx]);
+      }
+    };
+
     // Returns true if the walk completed without hitting a gap (all data contiguous).
     // Returns false if it hit unloaded child pages — caller must stop walking too.
-    const walkPages = (pages: PageNode[], depth: number, targetSlotIndex: number): boolean => {
+    const walkPages = (pages: PageNode[], depth: number, targetSlotPath: number[]): boolean => {
       if (pages.length === 0) return true;
 
       const isFacetLevel = depth < ir.groupBy.length;
       const groupFieldProject = isFacetLevel ? this.buildProjectForDepth(depth) : null;
 
+      const targetSlotIndex = targetSlotPath[depth] ?? 0;
       const { blockStart, blockEnd } = findContiguousBlock(pages, targetSlotIndex);
-      if (blockEnd < blockStart) return true;
+      if (blockEnd < blockStart) return pages.length === 0;
 
       for (let i = 0; i < blockStart; i++) {
         let pageLogicalRows = pages[i].rowCount;
@@ -318,6 +348,7 @@ export abstract class FlatTableDataModel {
           }
         }
         offsetTop += pageLogicalRows;
+        logicalPos += pageLogicalRows;
       }
 
       for (let i = blockStart; i <= blockEnd; i++) {
@@ -328,53 +359,26 @@ export abstract class FlatTableDataModel {
           const isExpanded = expanded?.expanded === true;
 
           if (isFacetLevel) {
-            // Column 0 is always the group field. Each facet level groups by exactly one field
-            // (groupBy[depth]) because expanding a row creates nested PageNodes in expandedRows,
-            // where each child level holds its own data from a separate query. Parent group fields
-            // are consumed as WHERE filters via select path, not included in the child's SELECT.
-            //
-            // groupBy:["country","year"]:
-            //   depth 0: this.pages → SELECT "country", SUM("gold")... GROUP BY "country"
-            //            → data[0] = ["USA","Canada"]
-            //   depth 1: expandedRows[USA].pages → SELECT "year", SUM("gold")... WHERE country='USA' GROUP BY "year"
-            //            → data[0] = ["2008","2012"]
-            rowFacet!.push(page.data![0][rowIdx]);
+            const childLogicalRows = isExpanded && expanded
+              ? this.computeForLevel(expanded.pages, expanded.totalRowCount)
+              : 0;
 
-            // Deepest facet level is only leaf when there are no outsideFacetDim rows below it.
-            // With outsideFacetDims, the facet row is expandable into individual data rows.
-            //
-            // groupBy:[country,year], project:[athlete,gold] (hasOutsideFacetDims=true):
-            //   country (depth 0, isLeaf=false)
-            //     year (depth 1, isLeaf=false) ← expandable into athlete rows
-            //       athlete row (depth 2, isLeaf=true)
-            //
-            // groupBy:[country,year], project:[gold,silver] (hasOutsideFacetDims=false):
-            //   country (depth 0, isLeaf=false)
-            //     year (depth 1, isLeaf=true) ← nothing below
-            const isLeaf = (depth === ir.groupBy.length - 1) && !hasOutsideFacetDims;
-            rowMetaBytes!.push(createRowMeta(depth, isLeaf, isExpanded));
+            if (isExpanded && logicalPos + 1 + childLogicalRows <= ir.startRow) {
+              // parent + all children are entirely before viewport — skip without recursing
+              offsetTop += 1 + childLogicalRows;
+              logicalPos += 1 + childLogicalRows;
+            } else {
+              logicalPos++;
+              pushFacetRow(page, rowIdx, depth, isExpanded, groupFieldProject!);
 
-            for (let colIdx = 0; colIdx < ir.project.length; colIdx++) {
-              const colDef = columnDefs[colIdx];
-              if (colDef.type === "measure") {
-                const projIdx = groupFieldProject!.indexOf(ir.project[colIdx]);
-                data[colIdx].push(page.data![projIdx][rowIdx]);
-              } else {
-                data[colIdx].push(null);
+              if (isExpanded && expanded) {
+                const childComplete = walkPages(expanded.pages, depth + 1, targetSlotPath);
+                if (!childComplete) return false;
               }
             }
-
-            if (isExpanded && expanded) {
-              const childComplete = walkPages(expanded.pages, depth + 1, 0);
-              if (!childComplete) return false;
-            }
           } else {
-            if (rowFacet) rowFacet.push(null);
-            if (rowMetaBytes) rowMetaBytes.push(createRowMeta(depth, true, false));
-
-            for (let colIdx = 0; colIdx < ir.project.length; colIdx++) {
-              data[colIdx].push(page.data![colIdx][rowIdx]);
-            }
+            logicalPos++;
+            pushDataRow(page, rowIdx, depth);
           }
         }
       }
@@ -383,8 +387,8 @@ export abstract class FlatTableDataModel {
       return blockEnd === pages.length - 1;
     };
 
-    const targetSlotIndex = this.findTargetSlotForLogicalStart(ir.startRow);
-    walkPages(this.pages, 0, targetSlotIndex);
+    const targetSlotPath = this.findTargetSlotPath(ir.startRow);
+    walkPages(this.pages, 0, targetSlotPath);
 
     const totalRows = this.computeTotalLogicalRows();
     const rowMeta = rowMetaBytes ? new Uint8Array(rowMetaBytes) : undefined;
@@ -486,21 +490,52 @@ export abstract class FlatTableDataModel {
     }
   }
 
-  private findTargetSlotForLogicalStart(logicalStart: number): number {
-    let logicalRow = 0;
-    for (let i = 0; i < this.pages.length; i++) {
-      const page = this.pages[i];
-      let pageLogicalRows = page.rowCount;
-      for (const [, expanded] of page.expandedRows) {
-        if (expanded.expanded) {
-          pageLogicalRows += this.computeForLevel(expanded.pages, expanded.totalRowCount);
+  private findTargetSlotPath(logicalStart: number): number[] {
+    const path: number[] = [];
+
+    const walk = (pages: PageNode[]): void => {
+      let logicalRow = 0;
+      for (let i = 0; i < pages.length; i++) {
+        const page = pages[i];
+        // count this page's own rows first
+        const ownRows = page.rowCount;
+        let childRows = 0;
+        const expandedEntries: { rowIdx: number; expanded: ExpandedGroup }[] = [];
+        for (const [rowIdx, expanded] of page.expandedRows) {
+          if (expanded.expanded) {
+            const cr = this.computeForLevel(expanded.pages, expanded.totalRowCount);
+            childRows += cr;
+            expandedEntries.push({ rowIdx, expanded });
+          }
         }
+        const pageLogicalRows = ownRows + childRows;
+
+        if (logicalRow + pageLogicalRows > logicalStart) {
+          path.push(i);
+          // check if target falls inside a child expansion within this page
+          let rowLogical = logicalRow;
+          for (let rowIdx = 0; rowIdx < page.rowCount; rowIdx++) {
+            rowLogical++; // the facet/data row itself
+            const exp = page.expandedRows.get(rowIdx);
+            if (exp?.expanded) {
+              const expLogicalRows = this.computeForLevel(exp.pages, exp.totalRowCount);
+              if (logicalStart >= rowLogical && logicalStart < rowLogical + expLogicalRows) {
+                // target is inside this child — adjust logicalStart relative to child and recurse
+                logicalStart = logicalStart - rowLogical;
+                walk(exp.pages);
+                return;
+              }
+              rowLogical += expLogicalRows;
+            }
+          }
+          return;
+        }
+        logicalRow += pageLogicalRows;
       }
-      if (logicalRow + pageLogicalRows > logicalStart) {
-        return i;
-      }
-      logicalRow += pageLogicalRows;
-    }
-    return Math.max(0, this.pages.length - 1);
+      path.push(Math.max(0, pages.length - 1));
+    };
+
+    walk(this.pages);
+    return path;
   }
 }

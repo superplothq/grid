@@ -1,5 +1,5 @@
 import { CellRenderer } from "./cell-renderers";
-import { ProjectionState } from "../datamodel/types";
+import { ProjectionState, DataSchema } from "../datamodel/types";
 import { GridDataViewModel } from "./grid-data-viewmodel";
 import { GridConfig } from "./grid-config";
 import CellManager from "./cell-manager";
@@ -116,6 +116,7 @@ export interface HeaderCellContext {
   key: string;
   cell: HTMLElement;
   container: HTMLElement;
+  render: (viewModel: GridDataViewModel) => void;
 }
 
 // when the renderer takes ownership of the container element (framework like react createRoot rendering)
@@ -139,6 +140,7 @@ export interface FacetDef {
   pseudo?: boolean;
   // Only used for row facet defs — column facets inherit the width of the data track above them.
   colSize?: ColAutoSizeConfig;
+  groupSchema?: DataSchema[];
 }
 
 export interface GridDataViewModelOptions {

@@ -8,6 +8,7 @@ export interface GridConfig {
   fixtures: LayoutFixtureClasses;
   theme: string;
   columnAutosizingStrategyOnScroll: "dynamic" | "max-seen";
+  dataFetchDebounceMs: number;
 }
 
 export const defaultConfig: GridConfig = {
@@ -17,6 +18,7 @@ export const defaultConfig: GridConfig = {
   enableResizeUI: true,
   theme: "light",
   columnAutosizingStrategyOnScroll: "max-seen",
+  dataFetchDebounceMs: 150,
   fixtures: {
     top: [],
     left: [],

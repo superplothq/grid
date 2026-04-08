@@ -65,7 +65,7 @@ export class ReactCellAdapter {
   createNativeHeaderRenderer(Component: FC<FacetHeaderProps>): FacetHeaderRenderer {
     return (text: string, ctx: FacetHeaderContext) => {
       const root = this.#getOrCreateRoot(ctx.key, ctx.container);
-      const wrapped = this.#wrap(createElement(Component, { text, level: ctx.level }));
+      const wrapped = this.#wrap(createElement(Component, { text, level: ctx.level, viewModel: ctx.viewModel, render: ctx.render, container: ctx.container }));
       this.#pendingRenders.push(() => root.render(wrapped));
     };
   }

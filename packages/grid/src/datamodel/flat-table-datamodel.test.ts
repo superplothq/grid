@@ -3,6 +3,7 @@ import { getUnfetchedPagesByLogicalBoundary } from "./flat-table-datamodel";
 import { DuckDBDataSource } from "./duckdb-datasource";
 import { SqlFlatTableDataModel } from "./sql-flat-table-datamodel";
 import { DataSchema, FlatTableConfig, GetRowsIR, GetRowsResponse, GridData, PageNode, ExpandedGroup } from "./types";
+import { FlattenedDataViewModel } from "../renderer/flattened-data-viewmodel";
 
 // 24 rows, 8 dimensions + 4 measures — same dataset as datamodel.data.test.ts
 const schemaColumns: (string | DataSchema)[] = [
@@ -531,6 +532,72 @@ describe("FlatTableDataModel (real DuckDB)", () => {
     expect(vm.numRows).to.equal(2);
     const slice = vm.getSlice(0, 0, 4, 2);
     expect(slice.rowFacets).to.deep.equal(["Germany", "UK"]);
+  });
+
+  it("should flatten past a gap at the beginning of child pages", async () => {
+    // pageSize=1 so each country is its own child page slot
+    // groupBy country → 4 countries (Canada,Germany,UK,USA) each in their own page
+    const model = await makeModel({ pageSize: 1 });
+
+    // Load first page only (Canada)
+    await model.getViewModel(makeIR({ startRow: 0, endRow: 1, groupBy: ["country"] }));
+    expect(model.pages).to.have.length(4);
+    expect(model.pages[0].data).to.not.be.null; // Canada
+    expect(model.pages[1].data).to.be.null;      // Germany
+    expect(model.pages[2].data).to.be.null;      // UK
+    expect(model.pages[3].data).to.be.null;      // USA
+
+    // Now request rows 2-4 (UK, USA) — skipping Germany (slot 1)
+    const vm = await model.getViewModel(makeIR({ startRow: 2, endRow: 4, groupBy: ["country"] }));
+
+    // Slots: Canada(loaded), Germany(NOT loaded), UK(loaded), USA(loaded)
+    expect(model.pages[0].data).to.not.be.null;
+    expect(model.pages[1].data).to.be.null;
+    expect(model.pages[2].data).to.not.be.null;
+    expect(model.pages[3].data).to.not.be.null;
+
+    // flatten should skip the gap and produce UK,USA with offsetTop=2
+    expect(vm.offsetTop).to.equal(2);
+    expect(vm.numRows).to.equal(2);
+    const slice2 = vm.getSlice(0, 0, 4, 2);
+    expect(slice2.rowFacets).to.deep.equal(["UK", "USA"]);
+  });
+
+  it("should flatten past a gap in the middle of child pages", async () => {
+    // pageSize=1, groupBy region,country
+    // 2 regions → expand Europe → child pages: Germany(page0), UK(page1)
+    const model = await makeModel({ pageSize: 1 });
+
+    // Load both region pages
+    const ir = makeIR({ startRow: 0, endRow: 2 });
+    await model.getViewModel(ir);
+    expect(model.pages[0].data).to.not.be.null; // Europe
+    expect(model.pages[1].data).to.not.be.null; // North America
+
+    // Expand Europe → Germany child page loaded, UK child page not loaded
+    await model.expandData(["Europe"]);
+    const europeGroup = model.pages[0].expandedRows.get(0)!;
+    expect(europeGroup.pages[0].data).to.not.be.null; // Germany
+    expect(europeGroup.pages[1].data).to.be.null;      // UK
+
+    // Now evict the Germany child page to create a gap at the beginning
+    europeGroup.pages[0].data = null;
+
+    // Load UK child page
+    const vmData = await model.getViewModelData(makeIR({ startRow: 2, endRow: 3 }));
+    expect(europeGroup.pages[0].data).to.be.null;      // Germany — gap
+    expect(europeGroup.pages[1].data).to.not.be.null;   // UK — loaded
+
+    // flatten should skip the Germany gap and produce:
+    // Europe (parent kept for hierarchy), then skip Germany gap (offsetTop += 1), then UK, then North America
+    // Europe is at logical row 0, Germany would be row 1 (gap), UK at row 2, NA at row 3
+    // offsetTop = 1 (Germany gap), data = [Europe, UK, NA]
+    expect(vmData.offsetTop).to.equal(1);
+    expect(vmData.data[0]?.length).to.equal(3);
+
+    const vm = new FlattenedDataViewModel(vmData);
+    const slice = vm.getSlice(0, 0, 4, 3);
+    expect(slice.rowFacets).to.deep.equal(["Europe", "UK", "North America"]);
   });
 });
 

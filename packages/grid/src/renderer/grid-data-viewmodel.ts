@@ -49,6 +49,9 @@ export class MetaState {
 //   offsetTop × rowHeight as top padding so the loaded rows are positioned correctly
 //   within the full scroll space.
 //   For pivot tables, offsetTop = 0.
+//
+//   TODO pagination offsettop etc supported only for flat table not for pivot,
+//   but all these are present in GridDataViewModel
 export abstract class GridDataViewModel {
   #numRows: number;
   #numCols: number;
@@ -144,6 +147,7 @@ export abstract class GridDataViewModel {
         ...(d?.meta !== undefined && { meta: d.meta }),
         ...(d?.pseudo !== undefined && { pseudo: d.pseudo }),
         ...(d?.colSize !== undefined && { colSize: d.colSize }),
+        ...(d?.groupSchema !== undefined && { groupSchema: d.groupSchema }),
       });
     }
     return defs;

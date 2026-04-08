@@ -93,14 +93,14 @@ interface GroupedFlatTableInnerProps {
 
 const GroupedFlatTableInner: React.FC<GroupedFlatTableInnerProps> = ({ds, columns, theme, height}) => {
   const schema = React.useMemo(() => buildSchema(columns), [columns]);
-  const config = React.useMemo<FlatTableConfig>(() => ({schema, pageSize: 100}), [schema]);
+  const config = React.useMemo<FlatTableConfig>(() => ({schema, pageSize: 20}), [schema]);
 
   const ir = React.useMemo<GetRowsIR>(() => ({
     startRow: 0,
-    endRow: 100,
+    endRow: 20,
     select: [],
     groupBy: GROUP_BY,
-    project: schema.map((s) => s.name),
+    project: [...schema.filter(s => s.type === "measure").map(s => s.name), ...schema.filter(s => s.type !== "measure").map(s => s.name)],
     sort: [],
     filter: [],
   }), [schema]);

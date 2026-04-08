@@ -7,6 +7,7 @@ import type { FacetDef } from "grid/dist/renderer";
 import { ReactCellAdapter } from "../renderer-adapter";
 import type { ColumnDef, CellProps, FacetCellProps, DataGridHandle, ReactFacetDefs, ReactFacetDef } from "../types";
 import { SortableColumnRenderer } from "../components/SortableColumnRenderer";
+import { GroupedRowHeaderRenderer } from "../components/GroupedRowHeaderRenderer";
 import { DataModelContext } from "../components/DataModelContext";
 
 export interface SelectionDef {
@@ -107,8 +108,20 @@ export function useFlatGrid(options: UseFlatGridOptions): UseFlatGridResult {
       ? resolve(colDefs.map(d => ({ ...d, trackRenderer: SortableColumnRenderer })))
       : resolve(colDefs);
 
+    const resolvedRow = resolve(facetDefs.row);
+    if (ir.groupBy.length > 0 && resolvedRow.length > 0 && !facetDefs.row[0].headerRenderer) {
+      const groupSchema = ir.groupBy.map(field => schema.find(s => s.name === field || s.displayName === field)!);
+      const text = groupSchema.map(s => s.displayName ?? s.name).join("\0");
+      resolvedRow[0] = {
+        ...resolvedRow[0],
+        text,
+        groupSchema,
+        headerRenderer: adapter.createNativeHeaderRenderer(GroupedRowHeaderRenderer),
+      };
+    }
+
     nativeFacetDefsRef.current = {
-      row: resolve(facetDefs.row),
+      row: resolvedRow,
       col: resolvedCol,
       axis: facetDefs.axis,
     };

@@ -37,6 +37,9 @@ export interface FacetCellProps {
 export interface FacetHeaderProps {
   text: string;
   level: number;
+  viewModel: GridDataViewModel;
+  render: (vm: GridDataViewModel) => void;
+  container: HTMLElement;
 }
 
 export interface ColumnDef extends Omit<VTrackDef, "renderer"> {

@@ -142,6 +142,7 @@ export default class StandardLayout extends StandardLayoutBase {
   #scrollAxisLock: "x" | "y" | null = null;
   #renderCount = 0;
   #layoutBootstrapped = false;
+  #viewDataEmptyTimer: ReturnType<typeof setTimeout> | null = null;
   #cellsToMeasure: CellToMeasure[] = [];
   #postRenderAdjustLeftCellsPerLevel: HTMLElement[][] = [];
   #postRenderAdjustRightCellsPerLevel: HTMLElement[][] = [];
@@ -295,17 +296,35 @@ export default class StandardLayout extends StandardLayoutBase {
     this.onBeforeMeasure?.();
     let facetHeight = facetSample.getBoundingClientRect().height;
     this.#con.removeChild(facetSample);
+    this.cellManager.onRelease("test-measurement-track", facetSample);
 
     const headerSample = document.createElement("div");
     headerSample.className = "cell col-header header";
     headerSample.style.visibility = "hidden";
     const headerContainer = this.createFacetContainer(headerSample);
-    const headerContent = colFacetDefs[0].headerRenderer("Mgy$123,456", { viewModel: this.data!, level: 0, key: "__measure", cell: headerSample, container: headerContainer });
+    const headerContent = colFacetDefs[0].headerRenderer("Mgy$123,456", { viewModel: this.data!, level: 0, key: "__measure", cell: headerSample, container: headerContainer, render: (vm: GridDataViewModel) => this.renderWithDataViewModel(vm) });
     this.populateFacetContainer(headerSample, headerContainer, headerContent);
     this.#con.appendChild(headerSample);
     this.onBeforeMeasure?.();
     facetHeight = Math.max(facetHeight, headerSample.getBoundingClientRect().height);
     this.#con.removeChild(headerSample);
+    this.cellManager.onRelease("__measure", headerSample);
+
+    const rowFacetDefs = this.data!.facetDefs.row;
+    if (rowFacetDefs.length > 0) {
+      const rowHeaderSample = document.createElement("div");
+      rowHeaderSample.className = "cell corner header";
+      rowHeaderSample.style.visibility = "hidden";
+      const rowHeaderContainer = this.createFacetContainer(rowHeaderSample);
+      const rowHeaderContent = rowFacetDefs[0].headerRenderer(rowFacetDefs[0].text, { viewModel: this.data!, level: 0, key: "__row_header_measure", cell: rowHeaderSample, container: rowHeaderContainer, render: (vm: GridDataViewModel) => this.renderWithDataViewModel(vm) });
+      this.populateFacetContainer(rowHeaderSample, rowHeaderContainer, rowHeaderContent);
+      this.#con.appendChild(rowHeaderSample);
+      this.onBeforeMeasure?.();
+      facetHeight = Math.max(facetHeight, rowHeaderSample.getBoundingClientRect().height);
+      this.#con.removeChild(rowHeaderSample);
+      this.cellManager.onRelease("__row_header_measure", rowHeaderSample);
+    }
+
     this.rowHeightByType.facet = facetHeight;
 
     const colDefs = this.data!.vTrackDefs;
@@ -316,7 +335,7 @@ export default class StandardLayout extends StandardLayoutBase {
       const cell = document.createElement("div");
       cell.className = "cell data";
       cell.style.visibility = "hidden";
-      cell.style.gridRow = "1";
+      cell.style.gridRow = "9999";
       cell.style.gridColumn = `${col + 1}`;
 
       if (colDef.cellHeight !== undefined) {
@@ -329,12 +348,6 @@ export default class StandardLayout extends StandardLayoutBase {
       measureCells.push(cell);
     }
 
-    // gridTemplateColumns: max-content ensures columns don't constrain cell width during measurement
-    // (which could cause text wrapping and affect height). Row height is found by manually iterating
-    // cells and taking the max - we don't need gridTemplateRows: max-content since we need the pixel
-    // value anyway for rowHeightByType.data.
-    const prevTemplate = this.#con.style.gridTemplateColumns;
-    this.#con.style.gridTemplateColumns = `repeat(${this.data!.numCols}, max-content)`;
     this.#con.append(...measureCells);
     this.onBeforeMeasure?.();
 
@@ -347,7 +360,6 @@ export default class StandardLayout extends StandardLayoutBase {
     for (const cell of measureCells) {
       this.#con.removeChild(cell);
     }
-    this.#con.style.gridTemplateColumns = prevTemplate;
 
     this.#fixtureMeasurements = { top: [], topTotal: 0, bottom: [], bottomTotal: 0 };
     for (const side of ["top", "bottom"] as const) {
@@ -1125,7 +1137,7 @@ export default class StandardLayout extends StandardLayoutBase {
         });
         if (contentDirty) {
           const headerContainer = this.createFacetContainer(cell);
-          const ctx: HeaderCellContext = { viewModel: this.data!, level: hRow, key, cell, container: headerContainer };
+          const ctx: HeaderCellContext = { viewModel: this.data!, level: hRow, key, cell, container: headerContainer, render: (vm: GridDataViewModel) => this.renderWithDataViewModel(vm) };
           let headerContent: FacetCellContent | string | HTMLElement | HTMLElement[] | void | null = null;
           if (headerDef) headerContent = headerDef.headerRenderer(headerDef.text, ctx);
           this.populateFacetContainer(cell, headerContainer, headerContent);
@@ -1291,7 +1303,7 @@ export default class StandardLayout extends StandardLayoutBase {
             });
             if (contentDirty) {
               const headerContainer = this.createFacetContainer(cell);
-              const headerCtx: HeaderCellContext = { viewModel: this.data!, level: rfLevel, key: headerKey, cell, container: headerContainer };
+              const headerCtx: HeaderCellContext = { viewModel: this.data!, level: rfLevel, key: headerKey, cell, container: headerContainer, render: (vm: GridDataViewModel) => this.renderWithDataViewModel(vm) };
               const headerContent = hFixture.headerCell(headerCtx);
               if (headerContent === null) {
                 // TODO does it makes sense to release / delete the cell?
@@ -1478,7 +1490,7 @@ export default class StandardLayout extends StandardLayoutBase {
       });
       if (contentDirty) {
         const headerContainer = this.createFacetContainer(cell);
-        const ctx: HeaderCellContext = { viewModel: this.data!, level: 0, key, cell, container: headerContainer };
+        const ctx: HeaderCellContext = { viewModel: this.data!, level: 0, key, cell, container: headerContainer, render: (vm: GridDataViewModel) => this.renderWithDataViewModel(vm) };
         const headerContent = def.headerCell(ctx);
         this.populateFacetContainer(cell, headerContainer, headerContent);
         const handle = this.appendResizeHandle(cell, side);
@@ -1816,7 +1828,11 @@ export default class StandardLayout extends StandardLayoutBase {
     const dataOffsetTop = this.data!.offsetTop;
     const loadedEnd = dataOffsetTop + this.data!.numRows;
     if (logicalY0 < dataOffsetTop || logicalY1 > loadedEnd) {
-      this.emit("viewDataEmpty", { startRow: logicalY0, endRow: logicalY1 });
+      if (this.#viewDataEmptyTimer !== null) clearTimeout(this.#viewDataEmptyTimer);
+      this.#viewDataEmptyTimer = setTimeout(() => {
+        this.#viewDataEmptyTimer = null;
+        this.emit("viewDataEmpty", { startRow: logicalY0, endRow: logicalY1 });
+      }, this.config.dataFetchDebounceMs);
     }
 
     this.emit("debug_perf:metrics", {

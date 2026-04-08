@@ -6,6 +6,7 @@ import PivotGridPlayground from "./pivot-grid";
 import FlatTablePlayground from "./flat-table";
 import SelectionDemo from "./selection-demo";
 import ReactBindingDemo from "./react-binding-demo";
+import PaginationTestPlayground from "./pagination-test";
 import SamplesLayout from "./samples/components/SamplesLayout";
 import GettingStartedFlatData from "./samples/getting-started-flat-data.mdx";
 import CleanAndTransformData from "./samples/clean-and-transform-data.mdx";
@@ -48,6 +49,7 @@ const PlaygroundLayout: React.FC = () => {
         <Link to="/flat-table" style={{ marginLeft: "20px", textDecoration: "none" }}>Flat Table</Link>
         <Link to="/selection" style={{ marginLeft: "20px", textDecoration: "none" }}>Selection</Link>
         <Link to="/react-binding" style={{ marginLeft: "20px", textDecoration: "none" }}>React Binding</Link>
+        <Link to="/pagination-test" style={{ marginLeft: "20px", textDecoration: "none" }}>Pagination Test</Link>
         <a
           href="/samples/getting-started-flat-data"
           target="_blank"
@@ -74,6 +76,7 @@ const App: React.FC = () => {
         <Route path="/flat-table" element={<FlatTablePlayground />} />
         <Route path="/selection" element={<SelectionDemo />} />
         <Route path="/react-binding" element={<ReactBindingDemo />} />
+        <Route path="/pagination-test" element={<PaginationTestPlayground />} />
       </Route>
       <Route path="/samples" element={<SamplesLayout />}>
         <Route path="getting-started-flat-data" element={<GettingStartedFlatData />} />
