@@ -1,4 +1,4 @@
-import React, { useCallback, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import type { FacetHeaderProps } from "../types";
 import type { FlatSliceResult, FlatRowMeta } from "grid/dist/renderer";
 import { FlattenedDataViewModel } from "grid/dist/renderer";
@@ -33,52 +33,95 @@ interface ExpandAllButtonProps {
   render: (vm: FlattenedDataViewModel) => void;
 }
 
-const ExpandAllButton: React.FC<ExpandAllButtonProps> = ({ depth, viewModel, render }) => {
-  const { model } = useDataModelContext();
-  const [loading, setLoading] = useState(false);
-  const busyRef = useRef(false);
+const pathKey = (p: string[]): string => p.join("\0");
 
-  const hasExpandedAtDepth = useCallback(() => {
-    const slice = viewModel.getSlice(0, 0, 1, viewModel.numRows) as FlatSliceResult;
-    return slice.rowMeta.some((m: FlatRowMeta) => m.depth === depth && !m.isLeaf && m.isExpanded);
+const ExpandAllButton: React.FC<ExpandAllButtonProps> = ({ depth, viewModel, render }) => {
+  const { model, grid } = useDataModelContext();
+  const [loading, setLoading] = useState(false);
+  const [isExpandedAll, setIsExpandedAll] = useState(false);
+  const busyRef = useRef(false);
+  const seenPathsRef = useRef<Set<string>>(new Set());
+
+  const collectRowsAtDepth = useCallback((): { path: string[]; meta: FlatRowMeta }[] => {
+    const vp = viewModel.viewport;
+    if (vp.y1 <= vp.y0) return [];
+    const slice = viewModel.getSlice(0, vp.y0, 1, vp.y1) as FlatSliceResult;
+    const rows: { path: string[]; meta: FlatRowMeta }[] = [];
+    for (let i = 0; i < slice.rowMeta.length; i++) {
+      const m = slice.rowMeta[i];
+      if (m.depth !== depth || m.isLeaf) continue;
+      rows.push({ path: viewModel.getSelectPath(vp.y0 + i), meta: m });
+    }
+    return rows;
   }, [viewModel, depth]);
+
+  const applyInViewport = useCallback(async (mode: "expand" | "collapse", onlyNewPaths: boolean): Promise<void> => {
+    const rows = collectRowsAtDepth();
+    const paths: string[][] = [];
+    for (const { path, meta } of rows) {
+      const key = pathKey(path);
+      if (onlyNewPaths && seenPathsRef.current.has(key)) continue;
+      if (mode === "expand" && !meta.isExpanded) paths.push(path);
+      else if (mode === "collapse" && meta.isExpanded) paths.push(path);
+      seenPathsRef.current.add(key);
+    }
+    if (paths.length === 0) return;
+    let result: FlattenedDataViewModelParams | undefined;
+    for (const path of paths) {
+      result = mode === "expand"
+        ? await model.expandData(path)
+        : await model.collapseData(path);
+    }
+    if (result) viewModel.updateData(result);
+    render(viewModel);
+  }, [model, viewModel, render, collectRowsAtDepth]);
+
+  const collapseAllSeen = useCallback(async (): Promise<void> => {
+    const paths = Array.from(seenPathsRef.current).map(s => s.split("\0"));
+    if (paths.length === 0) return;
+    let result: FlattenedDataViewModelParams | undefined;
+    for (const path of paths) {
+      result = await model.collapseData(path);
+    }
+    if (result) viewModel.updateData(result);
+    render(viewModel);
+  }, [model, viewModel, render]);
 
   const handleClick = useCallback(async () => {
     if (busyRef.current) return;
     busyRef.current = true;
     setLoading(true);
-
-    const slice = viewModel.getSlice(0, 0, 1, viewModel.numRows) as FlatSliceResult;
-    const isCollapsing = hasExpandedAtDepth();
-
-    const paths: string[][] = [];
-    for (let i = 0; i < slice.rowMeta.length; i++) {
-      const m = slice.rowMeta[i];
-      if (m.depth !== depth || m.isLeaf) continue;
-      if ((isCollapsing && m.isExpanded) || (!isCollapsing && !m.isExpanded)) {
-        paths.push(viewModel.getSelectPath(i));
-      }
+    if (isExpandedAll) {
+      await collapseAllSeen();
+      seenPathsRef.current = new Set();
+      setIsExpandedAll(false);
+    } else {
+      seenPathsRef.current = new Set();
+      await applyInViewport("expand", false);
+      setIsExpandedAll(true);
     }
-
-    let result: FlattenedDataViewModelParams | undefined;
-    for (const path of paths) {
-      result = isCollapsing
-        ? await model.collapseData(path)
-        : await model.expandData(path);
-    }
-    if (result) viewModel.updateData(result);
-
-    render(viewModel);
     busyRef.current = false;
     setLoading(false);
-  }, [model, viewModel, render, depth, hasExpandedAtDepth]);
+  }, [isExpandedAll, applyInViewport, collapseAllSeen]);
+
+  useEffect(() => {
+    if (!isExpandedAll) return;
+    const unsub = grid.on("viewModelDataChanged", () => {
+      if (busyRef.current) return;
+      busyRef.current = true;
+      applyInViewport("expand", true).finally(() => {
+        busyRef.current = false;
+      });
+    });
+    return unsub;
+  }, [isExpandedAll, grid, applyInViewport]);
 
   return (
     <span
       onClick={handleClick}
       style={{cursor: loading ? "wait" : "pointer", display: "inline-flex", alignItems: "center", flexShrink: 0, opacity: loading ? 0.4 : 0.9}}
     >
-      {hasExpandedAtDepth() ? <MinusIcon /> : <PlusIcon />}
+      {isExpandedAll ? <MinusIcon /> : <PlusIcon />}
     </span>
   );
 };

@@ -1,9 +1,14 @@
-import { BaseSliceResult, GridDataViewModelOptions, ResolvedVTrackDef, ColAutoSizeConfig, IColAutoSizeStrategyStatic, FacetDef, FacetData } from "./types";
+import { BaseSliceResult, DataViewport, GridDataViewModelOptions, ResolvedVTrackDef, ColAutoSizeConfig, IColAutoSizeStrategyStatic, FacetDef, FacetData } from "./types";
 import { textRenderer, defaultFacetRenderer, defaultFacetHeaderRenderer } from "./cell-renderers";
 import { DataSchema } from "../datamodel/types";
 
 const defaultColAutoSize: ColAutoSizeConfig = { strategy: "max-cell" };
 const defaultStaticColSize: IColAutoSizeStrategyStatic = { strategy: "static", width: 1, unit: "fr" };
+const VIEWPORT_CALLBACK_DEBOUNCE_MS = 50;
+
+export interface ViewModelCallbacks {
+  viewportDataChange: (viewport: DataViewport) => void;
+}
 
 export class MetaState {
   #store: Map<string, Record<string, any>> = new Map();
@@ -62,6 +67,12 @@ export abstract class GridDataViewModel {
   #staticStrategy!: boolean;
   #totalRows: number | undefined;
   #offsetTop: number | undefined;
+  #viewport: DataViewport = { x0: 0, y0: 0, x1: 0, y1: 0 };
+  #callbacks: { [K in keyof ViewModelCallbacks]: Set<ViewModelCallbacks[K]> } = {
+    viewportDataChange: new Set(),
+  };
+  #lastCallbackViewport: DataViewport | null = null;
+  #viewportCallbackTimer: ReturnType<typeof setTimeout> | null = null;
   schema?: DataSchema[];
   readonly metaState: MetaState = new MetaState();
 
@@ -73,6 +84,7 @@ export abstract class GridDataViewModel {
   }
 
   protected updateBase(data: any[][], columnFacets: FacetData): void {
+    this.#lastCallbackViewport = null;
     this.#numCols = data.length;
     this.#numRows = data[0].length;
     this.#colFacets = columnFacets;
@@ -242,4 +254,33 @@ export abstract class GridDataViewModel {
   }
 
   abstract getSlice(x0: number, y0: number, x1: number, y1: number): BaseSliceResult;
+
+  getViewportData(x0: number, y0: number, x1: number, y1: number): BaseSliceResult {
+    this.#viewport = { x0, y0, x1, y1 };
+    const result = this.getSlice(x0, y0, x1, y1);
+
+    const prev = this.#lastCallbackViewport;
+    if (prev && prev.x0 === x0 && prev.y0 === y0 && prev.x1 === x1 && prev.y1 === y1) {
+      return result;
+    }
+    this.#lastCallbackViewport = { x0, y0, x1, y1 };
+
+    if (this.#viewportCallbackTimer !== null) clearTimeout(this.#viewportCallbackTimer);
+    this.#viewportCallbackTimer = setTimeout(() => {
+      this.#viewportCallbackTimer = null;
+      const vp = this.#viewport;
+      for (const cb of this.#callbacks.viewportDataChange) cb(vp);
+    }, VIEWPORT_CALLBACK_DEBOUNCE_MS);
+
+    return result;
+  }
+
+  get viewport(): DataViewport {
+    return this.#viewport;
+  }
+
+  register<K extends keyof ViewModelCallbacks>(name: K, callback: ViewModelCallbacks[K]): () => void {
+    this.#callbacks[name].add(callback);
+    return () => { this.#callbacks[name].delete(callback); };
+  }
 }

@@ -41,6 +41,12 @@ export type LayoutEvents = {
     startRow: number;
     endRow: number;
   };
+  viewModelDataChanged: {
+    x0: number;
+    y0: number;
+    x1: number;
+    y1: number;
+  };
   "debug_perf:metrics": {
     timeToRender: number;
     renderCount: number;
@@ -151,6 +157,7 @@ export default class StandardLayout extends StandardLayoutBase {
   #fixtureMeasurements = { top: [] as number[], topTotal: 0, bottom: [] as number[], bottomTotal: 0 };
   #selectAllRules: readonly SelectionRule[] = [];
   #isStaticStrategy = false;
+  #viewportDataChangeUnsub: (() => void) | null = null;
   #columnTemplateParts: string[] | null = null;
   #columnTemplateDataStartCol = 0;
 
@@ -548,7 +555,14 @@ export default class StandardLayout extends StandardLayoutBase {
   }
 
   setData(data: GridDataViewModel): void {
+    if (this.#viewportDataChangeUnsub) {
+      this.#viewportDataChangeUnsub();
+      this.#viewportDataChangeUnsub = null;
+    }
     super.setData(data);
+    this.#viewportDataChangeUnsub = data.register("viewportDataChange", (viewport) => {
+      this.emit("viewModelDataChanged", viewport);
+    });
     for (const side of ["top", "left", "bottom", "right"] as const) {
       for (const inst of this.#fixtures[side]) {
         inst.setData(data);
@@ -1037,7 +1051,7 @@ export default class StandardLayout extends StandardLayoutBase {
     const numDataColsVisible = viewModel.x1 - viewModel.x0;
 
     this.#updateVirtualPanel(viewModel);
-    const sliceData = this.data.getSlice(viewModel.x0, viewModel.y0, viewModel.x1, viewModel.y1) as PivotSliceResult;
+    const sliceData = this.data.getViewportData(viewModel.x0, viewModel.y0, viewModel.x1, viewModel.y1) as PivotSliceResult;
 
     const { fixtures } = viewModel;
     const gridRowOffset = this.data!.numColFacetLevels + fixtures.top.length;

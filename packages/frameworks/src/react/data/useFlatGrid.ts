@@ -72,7 +72,7 @@ export function useFlatGrid(options: UseFlatGridOptions): UseFlatGridResult {
   }
 
   const resolvedWrapper = ({ children }: { children: ReactNode }) => {
-    const inner = createElement(DataModelContext.Provider, { value: { model: modelRef.current!, ir: irRef.current, gridConfig: { enableSorting } } }, children);
+    const inner = createElement(DataModelContext.Provider, { value: { model: modelRef.current!, ir: irRef.current, gridConfig: { enableSorting }, grid: gridRef.current!.grid } }, children);
     return contextWrapper ? createElement(contextWrapper, null, inner) : inner;
   };
 

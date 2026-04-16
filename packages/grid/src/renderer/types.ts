@@ -20,6 +20,13 @@ export type GridWin = Window & {
 
 export type FacetData = (string | null)[][];
 
+export interface DataViewport {
+  x0: number;
+  y0: number;
+  x1: number;
+  y1: number;
+}
+
 export interface FlatRowMeta {
   depth: number;
   isLeaf: boolean;

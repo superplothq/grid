@@ -38,6 +38,7 @@ export type {
   HeaderCellContext as FacetHeaderContext,
   FacetData,
   FlatRowMeta,
+  DataViewport,
   FacetPredicate,
   CellPredicate,
   SelectionProps,
@@ -117,7 +118,7 @@ export default class Grid extends GridWithEvents {
     this.#ruleStore = new SelectionRuleStore(() => this.draw());
 
     // Forward layout events to Grid
-    this.forwardFrom(this.#layout as unknown as EventEmitter<LayoutEvents>, ["renderComplete", "debug_perf:metrics", "viewDataEmpty"]);
+    this.forwardFrom(this.#layout as unknown as EventEmitter<LayoutEvents>, ["renderComplete", "debug_perf:metrics", "viewDataEmpty", "viewModelDataChanged"]);
 
     this.#setupResizeHandler();
   }
