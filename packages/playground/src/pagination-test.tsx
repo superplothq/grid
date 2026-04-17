@@ -113,9 +113,9 @@ function makeFacetRenderer(
       const select = dataCtx.path as string[];
       let result: FlattenedDataViewModelParams;
       if (flatMeta.isExpanded) {
-        result = await model.collapseData(select);
+        result = await model.collapseAndGetData(select);
       } else {
-        result = await model.expandData(select);
+        result = await model.expandAndGetData(select);
       }
 
       viewModel.updateData({ data: result.data, columnFacets: result.columnFacets, rowFacet: result.rowFacet, rowMeta: result.rowMeta, totalRows: result.totalRows, offsetTop: result.offsetTop });
@@ -293,7 +293,7 @@ const PaginationTestPlayground: React.FC = () => {
       console.log(`Expanding ${paths.length} paths at level ${level}`);
       for (const path of paths) {
         try {
-          const result = await model.expandData(path);
+          const result = await model.expandAndGetData(path);
           viewModel.updateData({ data: result.data, columnFacets: result.columnFacets, rowFacet: result.rowFacet, rowMeta: result.rowMeta, totalRows: result.totalRows, offsetTop: result.offsetTop });
         } catch (e) {
           console.log(`Skip expand ${path.join("/")}:`, e);
@@ -318,7 +318,7 @@ const PaginationTestPlayground: React.FC = () => {
       console.log(`Collapsing ${paths.length} paths at level ${level}`);
       for (const path of paths) {
         try {
-          const result = await model.collapseData(path);
+          const result = await model.collapseAndGetData(path);
           viewModel.updateData({ data: result.data, columnFacets: result.columnFacets, rowFacet: result.rowFacet, rowMeta: result.rowMeta, totalRows: result.totalRows, offsetTop: result.offsetTop });
         } catch (e) {
           console.log(`Skip collapse ${path.join("/")}:`, e);

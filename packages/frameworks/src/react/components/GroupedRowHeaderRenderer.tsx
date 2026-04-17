@@ -69,8 +69,8 @@ const ExpandAllButton: React.FC<ExpandAllButtonProps> = ({ depth, viewModel, ren
     let result: FlattenedDataViewModelParams | undefined;
     for (const path of paths) {
       result = mode === "expand"
-        ? await model.expandData(path)
-        : await model.collapseData(path);
+        ? await model.expandAndGetData(path)
+        : await model.collapseAndGetData(path);
     }
     if (result) viewModel.updateData(result);
     render(viewModel);
@@ -81,7 +81,7 @@ const ExpandAllButton: React.FC<ExpandAllButtonProps> = ({ depth, viewModel, ren
     if (paths.length === 0) return;
     let result: FlattenedDataViewModelParams | undefined;
     for (const path of paths) {
-      result = await model.collapseData(path);
+      result = await model.collapseAndGetData(path);
     }
     if (result) viewModel.updateData(result);
     render(viewModel);

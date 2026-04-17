@@ -44,8 +44,8 @@ const ExpandCollapseRenderer: React.FC<FacetCellProps> = ({value, path, viewMode
     setLoading(true);
 
     const result = flatMeta!.isExpanded
-      ? await model.collapseData(path as string[])
-      : await model.expandData(path as string[]);
+      ? await model.collapseAndGetData(path as string[])
+      : await model.expandAndGetData(path as string[]);
 
     (viewModel as FlattenedDataViewModel).updateData(result);
     render(viewModel);

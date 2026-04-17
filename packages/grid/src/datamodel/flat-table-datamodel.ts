@@ -143,7 +143,7 @@ export abstract class FlatTableDataModel {
   //      startRow from last page load when it was at the very bottom of the page (no idea about scroll back up)
   //      Pass the startRow as parameter
   //      this might have an error for page eviction
-  async expandData(select: string[]): Promise<FlattenedDataViewModelParams> {
+  async expandAndGetData(select: string[]): Promise<FlattenedDataViewModelParams> {
     const result = this.findGroupRow(select);
     if (!result) {
       throw new Error(`Group row not found for select: ${select.join(", ")}`);
@@ -194,12 +194,12 @@ export abstract class FlatTableDataModel {
     return this.flatten();
   }
 
-  async expand(select: string[]): Promise<FlattenedDataViewModel> {
-    const args = await this.expandData(select);
+  async expandAndGetViewModel(select: string[]): Promise<FlattenedDataViewModel> {
+    const args = await this.expandAndGetData(select);
     return new FlattenedDataViewModel(args);
   }
 
-  async collapseData(select: string[]): Promise<FlattenedDataViewModelParams> {
+  async collapseAndGetData(select: string[]): Promise<FlattenedDataViewModelParams> {
     const result = this.findGroupRow(select);
     if (!result) {
       throw new Error(`Group row not found for select: ${select.join(", ")}`);
@@ -214,8 +214,8 @@ export abstract class FlatTableDataModel {
     return this.flatten();
   }
 
-  async collapse(select: string[]): Promise<FlattenedDataViewModel> {
-    const args = await this.collapseData(select);
+  async collapseAndGetViewModel(select: string[]): Promise<FlattenedDataViewModel> {
+    const args = await this.collapseAndGetData(select);
     return new FlattenedDataViewModel(args);
   }
 

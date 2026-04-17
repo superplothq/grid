@@ -93,9 +93,9 @@ function makeFacetRenderer(
       const select = dataCtx.path as string[];
       let result: FlattenedDataViewModelParams;
       if (flatMeta.isExpanded) {
-        result = await model.collapseData(select);
+        result = await model.collapseAndGetData(select);
       } else {
-        result = await model.expandData(select);
+        result = await model.expandAndGetData(select);
       }
 
       viewModel.updateData({ data: result.data, columnFacets: result.columnFacets, rowFacet: result.rowFacet, rowMeta: result.rowMeta, totalRows: result.totalRows, offsetTop: result.offsetTop });

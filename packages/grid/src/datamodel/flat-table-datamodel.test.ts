@@ -116,7 +116,7 @@ describe("FlatTableDataModel (real DuckDB)", () => {
     const model = await makeModel();
     await model.getViewModel(makeIR());
 
-    const vm = await model.expand(["Europe"]);
+    const vm = await model.expandAndGetViewModel(["Europe"]);
 
     // Europe expanded → shows child countries: Germany, UK
     // Total rows: Europe + [Germany, UK] + North America = 4
@@ -138,7 +138,7 @@ describe("FlatTableDataModel (real DuckDB)", () => {
       { depth: 0, isLeaf: false, isExpanded: false },
     ]);
 
-    const collapsed = await model.collapse(["Europe"]);
+    const collapsed = await model.collapseAndGetViewModel(["Europe"]);
 
     expect(collapsed.numRows).to.equal(2);
     expect(collapsed.numCols).to.equal(4);
@@ -152,7 +152,7 @@ describe("FlatTableDataModel (real DuckDB)", () => {
     ]);
 
     const callsBefore = model.getDataCallCount();
-    const reExpanded = await model.expand(["Europe"]);
+    const reExpanded = await model.expandAndGetViewModel(["Europe"]);
 
     expect(model.getDataCallCount()).to.equal(callsBefore);
     expect(reExpanded.numRows).to.equal(4);
@@ -179,8 +179,8 @@ describe("FlatTableDataModel (real DuckDB)", () => {
     const ir = makeIR({ project: ["product", "revenue", "cost", "units_sold", "returns"] });
     await model.getViewModel(ir);
 
-    await model.expand(["Europe"]);
-    const vm = await model.expand(["Europe", "Germany"]);
+    await model.expandAndGetViewModel(["Europe"]);
+    const vm = await model.expandAndGetViewModel(["Europe", "Germany"]);
 
     expect(vm.numRows).to.equal(9);
     expect(vm.numCols).to.equal(5);
@@ -213,15 +213,15 @@ describe("FlatTableDataModel (real DuckDB)", () => {
 
     expect(model.computeTotalLogicalRows()).to.equal(2);
 
-    await model.expand(["Europe"]);
+    await model.expandAndGetViewModel(["Europe"]);
     // 2 top-level + 2 children of Europe = 4
     expect(model.computeTotalLogicalRows()).to.equal(4);
 
-    await model.expand(["North America"]);
+    await model.expandAndGetViewModel(["North America"]);
     // 2 top-level + 2 Europe children + 2 NA children (Canada, USA) = 6
     expect(model.computeTotalLogicalRows()).to.equal(6);
 
-    await model.collapse(["Europe"]);
+    await model.collapseAndGetViewModel(["Europe"]);
     // 2 top-level + 2 NA children = 4
     expect(model.computeTotalLogicalRows()).to.equal(4);
   });
@@ -312,7 +312,7 @@ describe("FlatTableDataModel (real DuckDB)", () => {
       ]);
 
       // Expand Europe → child pages: Germany(fetched), UK(unfetched)
-      const vm3 = await model.expand(["Europe"]);
+      const vm3 = await model.expandAndGetViewModel(["Europe"]);
 
       const europeGroup = model.pages[0].expandedRows.get(0)!;
       expect(europeGroup.pages).to.have.length(2);
@@ -381,7 +381,7 @@ describe("FlatTableDataModel (real DuckDB)", () => {
 
     // Expand Europe → fetches Germany child (3 fetched > maxCacheSize=2)
     // Viewport at startRow=0 (near Europe). NA (farthest) should be evicted.
-    await model.expand(["Europe"]);
+    await model.expandAndGetViewModel(["Europe"]);
     const europeGroup = model.pages[0].expandedRows.get(0)!;
     expect(model.pages[0].data).to.not.be.null;
     expect(model.pages[1].data).to.be.null;
@@ -408,7 +408,7 @@ describe("FlatTableDataModel (real DuckDB)", () => {
     const model = await makeModel();
     // project has only measures → no outsideFacetDims → deepest facet level is leaf
     await model.getViewModel(makeIR());
-    const vm = await model.expand(["Europe"]);
+    const vm = await model.expandAndGetViewModel(["Europe"]);
 
     // groupBy=["region","country"], project=["revenue","cost","units_sold","returns"]
     // At depth 1, country is the deepest groupBy level. No outsideFacetDims.
@@ -428,7 +428,7 @@ describe("FlatTableDataModel (real DuckDB)", () => {
     await model.getViewModel(ir);
 
     // Expand Europe — should show individual rows with country, revenue, cost
-    const vm = await model.expand(["Europe"]);
+    const vm = await model.expandAndGetViewModel(["Europe"]);
 
     const slice = vm.getSlice(0, 0, 3, vm.numRows);
 
@@ -463,7 +463,7 @@ describe("FlatTableDataModel (real DuckDB)", () => {
 
     // Expand Canada → should fetch child rows
     const callsBefore = model.getDataCallCount();
-    await model.expand(["Canada"]);
+    await model.expandAndGetViewModel(["Canada"]);
     expect(model.getDataCallCount()).to.be.greaterThan(callsBefore);
   });
 
@@ -472,7 +472,7 @@ describe("FlatTableDataModel (real DuckDB)", () => {
     const ir = makeIR({ groupBy: ["region", "country"] });
     await model.getViewModel(ir);
 
-    const vm = await model.expand(["Europe"]);
+    const vm = await model.expandAndGetViewModel(["Europe"]);
     const slice = vm.getSlice(0, 0, 4, 4);
 
     // Germany revenue: rows 16-19, 23 → 1300+750+350+280+1350 = 4030
@@ -509,7 +509,7 @@ describe("FlatTableDataModel (real DuckDB)", () => {
     });
     await model.getViewModel(ir);
 
-    const vm = await model.expand(["Europe"]);
+    const vm = await model.expandAndGetViewModel(["Europe"]);
     const slice = vm.getSlice(0, 0, 4, vm.numRows);
 
     expect(slice.rowFacets[0]).to.equal("Europe");
@@ -575,7 +575,7 @@ describe("FlatTableDataModel (real DuckDB)", () => {
     expect(model.pages[1].data).to.not.be.null; // North America
 
     // Expand Europe → Germany child page loaded, UK child page not loaded
-    await model.expandData(["Europe"]);
+    await model.expandAndGetData(["Europe"]);
     const europeGroup = model.pages[0].expandedRows.get(0)!;
     expect(europeGroup.pages[0].data).to.not.be.null; // Germany
     expect(europeGroup.pages[1].data).to.be.null;      // UK
