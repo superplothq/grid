@@ -16,13 +16,18 @@ function generateGridData(): GridData {
   const metricA: number[] = [];
   const metricB: number[] = [];
 
+  const pad = (n: number, max: number) => String(n).padStart(String(max - 1).length, "0");
+
   for (let i = 0; i < L0_COUNT; i++) {
     for (let j = 0; j < L1_COUNT; j++) {
       for (let k = 0; k < L2_COUNT; k++) {
-        level0.push(`data${i}`);
-        level1.push(`data${i}.data${j}`);
-        level2.push(`data${i}.data${j}.data${k}`);
-        detail.push(`detail_${i}_${j}_${k}`);
+        const pi = pad(i, L0_COUNT);
+        const pj = pad(j, L1_COUNT);
+        const pk = pad(k, L2_COUNT);
+        level0.push(`data${pi}`);
+        level1.push(`data${pi}.data${pj}`);
+        level2.push(`data${pi}.data${pj}.data${pk}`);
+        detail.push(`detail_${pi}_${pj}_${pk}`);
         metricA.push(Math.floor(Math.random() * 1000));
         metricB.push(Math.floor(Math.random() * 500));
       }
@@ -243,34 +248,23 @@ const PaginationTestPlayground: React.FC = () => {
       grid.data = viewModel;
       grid.draw();
 
-      let throttleTimer: ReturnType<typeof setTimeout> | null = null;
-      let pendingVP: {startRow: number; endRow: number} | null = null;
+      grid.on("viewDataEmpty", async (vp) => {
+        console.log('>>> vp', vp.startRow, vp.endRow);
+        setFetchingPage(true);
+        const newIR: GetRowsIR = {
+          ...lastIRRef.current!,
+          startRow: vp.startRow,
+          endRow: vp.endRow,
+        };
+        lastIRRef.current = newIR;
 
-      grid.on("viewDataEmpty", (vp) => {
-        pendingVP = vp;
-        if (throttleTimer) return;
-        throttleTimer = setTimeout(async () => {
-          throttleTimer = null;
-          const currentVP = pendingVP;
-          pendingVP = null;
-          if (!currentVP) return;
+        const fetchResult = await model.getViewModelData(newIR);
 
-          setFetchingPage(true);
-          const newIR: GetRowsIR = {
-            ...lastIRRef.current!,
-            startRow: currentVP.startRow,
-            endRow: currentVP.endRow,
-          };
-          lastIRRef.current = newIR;
-
-          const fetchResult = await model.getViewModelData(newIR);
-
-          viewModel.updateData({
-            data: fetchResult.data, columnFacets: fetchResult.columnFacets, rowFacet: fetchResult.rowFacet, rowMeta: fetchResult.rowMeta, totalRows: fetchResult.totalRows, offsetTop: fetchResult.offsetTop,
-          });
-          grid.draw();
-          setFetchingPage(false);
-        }, 150);
+        viewModel.updateData({
+          data: fetchResult.data, columnFacets: fetchResult.columnFacets, rowFacet: fetchResult.rowFacet, rowMeta: fetchResult.rowMeta, totalRows: fetchResult.totalRows, offsetTop: fetchResult.offsetTop,
+        });
+        grid.draw();
+        setFetchingPage(false);
       });
 
       setLoading(false);
