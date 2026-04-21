@@ -23,6 +23,7 @@ const pages = [
   { path: "custom-button", label: "Custom Button" },
   { path: "sorting", label: "Sorting" },
   { path: "grouping", label: "Grouping" },
+  { path: "pagination", label: "Pagination" },
 ];
 
 const SamplesLayout: React.FC = () => {

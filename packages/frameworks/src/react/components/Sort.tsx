@@ -54,7 +54,7 @@ function buildTooltip(field: string, direction: SortDirection | null, allEntries
 }
 
 export const Sort: React.FC<SortProps> = ({ schema, viewModel, render }) => {
-  const { model, ir } = useDataModelContext();
+  const { model, ir, sortAction } = useDataModelContext();
   const field = schema.name;
   const direction = getCurrentDirection(viewModel, field);
   const [tooltip, setTooltip] = useState("");
@@ -96,10 +96,14 @@ export const Sort: React.FC<SortProps> = ({ schema, viewModel, render }) => {
 
     viewModel.metaState.set(SORT_META_NS, "entries", newEntries);
 
-    const result = await model.getViewModelData({ ...ir, sort: newEntries });
-    (viewModel as FlattenedDataViewModel).updateData(result);
-    render(viewModel);
-  }, [model, ir, viewModel, render, field, direction]);
+    if (sortAction) {
+      await sortAction(newEntries);
+    } else {
+      const result = await model.getViewModelData({ ...ir, sort: newEntries });
+      (viewModel as FlattenedDataViewModel).updateData(result);
+      render(viewModel);
+    }
+  }, [model, ir, viewModel, render, field, direction, sortAction]);
 
   const faded = 0.25;
   const solid = 0.9;

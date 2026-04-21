@@ -1,7 +1,7 @@
 import React, { useRef, useState, useEffect, useCallback, createElement, type FC, type ReactNode } from "react";
 import { FlattenedDataViewModel, type GridDataViewModelOptions, type VTrackDef } from "grid/dist/renderer";
 import type { FacetPredicate, SelectionProps, ColAutoSizeConfig } from "grid/dist/renderer";
-import { SqlFlatTableDataModel, type FlattenedDataViewModelParams, type GetRowsIR, type FlatTableConfig, type DataSchema } from "grid/dist/index";
+import { SqlFlatTableDataModel, type FlattenedDataViewModelParams, type GetRowsIR, type FlatTableConfig, type DataSchema, type SortEntry } from "grid/dist/index";
 import type { SqlDataSource } from "grid/dist/index";
 import type { FacetDef } from "grid/dist/renderer";
 import { ReactCellAdapter } from "../renderer-adapter";
@@ -9,6 +9,8 @@ import type { ColumnDef, CellProps, FacetCellProps, DataGridHandle, ReactFacetDe
 import { SortableColumnRenderer } from "../components/SortableColumnRenderer";
 import { GroupedRowHeaderRenderer } from "../components/GroupedRowHeaderRenderer";
 import { DataModelContext } from "../components/DataModelContext";
+
+const DEFAULT_PAGE_SIZE = 10000;
 
 export interface SelectionDef {
   predicate: FacetPredicate;
@@ -28,6 +30,8 @@ export interface UseFlatGridOptions {
   transformResult?: (result: FlattenedDataViewModelParams) => FlattenedDataViewModelParams;
   contextWrapper?: FC<{ children: ReactNode }>;
   enableSorting?: boolean;
+  enablePageView?: boolean;
+  displayPageSize?: number;
 }
 
 export type TransformFn = (val: any) => any;
@@ -40,6 +44,16 @@ export interface GridBindings {
   onBeforeMeasure: () => void;
 }
 
+export interface PageViewState {
+  currentPage: number;
+  totalPages: number;
+  displayPageSize: number;
+  datasetTotalRows: number;
+  loading: boolean;
+  goToPage: (page: number) => Promise<void>;
+  setDisplayPageSize: (size: number) => void;
+}
+
 export interface UseFlatGridResult {
   bindings: GridBindings;
   viewModel: FlattenedDataViewModel | null;
@@ -49,10 +63,11 @@ export interface UseFlatGridResult {
   fetchPage: (startRow: number, endRow: number) => Promise<void>;
   applyTransform: (colIndex: number, fn: TransformFn) => void;
   resetTransform: (colIndex: number) => void;
+  pageView: PageViewState | null;
 }
 
 export function useFlatGrid(options: UseFlatGridOptions): UseFlatGridResult {
-  const { dataSource, schema, config, ir, columns, facetDefs, selections, transformResult, contextWrapper, enableSorting } = options;
+  const { dataSource, schema, config, ir, columns, facetDefs, selections, transformResult, contextWrapper, enableSorting, enablePageView, displayPageSize } = options;
 
   const modelRef = useRef<SqlFlatTableDataModel | null>(null);
   const adapterRef = useRef<ReactCellAdapter | null>(null);
@@ -67,12 +82,39 @@ export function useFlatGrid(options: UseFlatGridOptions): UseFlatGridResult {
   const [pageLoadingInProgress, setPageLoadingInProgress] = useState(false);
   const inFlightCountRef = useRef(0);
 
+  const [currentPage, setCurrentPage] = useState(0);
+  const [datasetTotalRows, setDatasetTotalRows] = useState(0);
+  const [activePageSize, setActivePageSize] = useState(displayPageSize ?? config.pageSize ?? DEFAULT_PAGE_SIZE);
+
+  const currentPageRef = useRef(currentPage);
+  currentPageRef.current = currentPage;
+  const activePageSizeRef = useRef(activePageSize);
+  activePageSizeRef.current = activePageSize;
+
+  // The "active IR" accumulates runtime modifications (sort, filter, etc.) on top of
+  // the prop IR. All page-view operations read from this so that page navigation,
+  // expand, and collapse preserve sort/filter state across fetches.
+  const activeIRRef = useRef<GetRowsIR>(ir);
+  activeIRRef.current = { ...ir, sort: activeIRRef.current.sort };
+
+  const sortActionRef = useRef<(entries: SortEntry[]) => Promise<void>>(async () => {});
+  const expandActionRef = useRef<(selectPath: string[]) => Promise<void>>(async () => {});
+  const collapseActionRef = useRef<(selectPath: string[]) => Promise<void>>(async () => {});
+
   if (!modelRef.current) {
     modelRef.current = new SqlFlatTableDataModel(config, schema, dataSource);
   }
 
   const resolvedWrapper = ({ children }: { children: ReactNode }) => {
-    const inner = createElement(DataModelContext.Provider, { value: { model: modelRef.current!, ir: irRef.current, gridConfig: { enableSorting }, grid: gridRef.current!.grid } }, children);
+    const inner = createElement(DataModelContext.Provider, { value: {
+      model: modelRef.current!,
+      ir: irRef.current,
+      gridConfig: { enableSorting },
+      grid: gridRef.current!.grid,
+      sortAction: (entries: SortEntry[]) => sortActionRef.current(entries),
+      expandAction: (selectPath: string[]) => expandActionRef.current(selectPath),
+      collapseAction: (selectPath: string[]) => collapseActionRef.current(selectPath),
+    } }, children);
     return contextWrapper ? createElement(contextWrapper, null, inner) : inner;
   };
 
@@ -133,7 +175,7 @@ export function useFlatGrid(options: UseFlatGridOptions): UseFlatGridResult {
   const lastRawResultRef = useRef<FlattenedDataViewModelParams | null>(null);
   const columnTransformsRef = useRef<Map<number, TransformFn>>(new Map());
 
-  const applyResult = useCallback((rawResult: FlattenedDataViewModelParams) => {
+  const applyResult = useCallback((rawResult: FlattenedDataViewModelParams, pageWindow?: { page: number; size: number }) => {
     lastRawResultRef.current = rawResult;
     const result = transformResultRef.current ? transformResultRef.current(rawResult) : rawResult;
 
@@ -153,20 +195,85 @@ export function useFlatGrid(options: UseFlatGridOptions): UseFlatGridResult {
       ...(vTrackDefsRef.current && { vTrackDefs: vTrackDefsRef.current }),
     };
 
-    if (!vmRef.current) {
-      vmRef.current = new FlattenedDataViewModel({
+    let viewResult;
+    // Use the explicit pageWindow if provided (from the request that produced this result),
+    // falling back to refs for callers that don't pass it (applyTransform/resetTransform).
+    const pvPage = pageWindow?.page ?? currentPageRef.current;
+    const pvSize = pageWindow?.size ?? activePageSizeRef.current;
+    if (enablePageView) {
+      // The datamodel's flatten() returns the full contiguous block (all loaded pages).
+      // For page view, slice to only the rows that belong to the current page.
+      // offsetTop tells us how many rows are before the block start; the page starts
+      // at (pageStartRow - offsetTop) within the returned data arrays.
+      const pageStartRow = pvPage * pvSize;
+      const blockOffsetTop = result.offsetTop ?? 0;
+      const sliceStart = pageStartRow - blockOffsetTop;
+      const sliceEnd = Math.min(sliceStart + pvSize, data[0]?.length ?? 0);
+      const clampedSliceStart = Math.max(0, sliceStart);
+
+      let slicedData = data.map(col => col.slice(clampedSliceStart, sliceEnd));
+      let slicedRowFacet = result.rowFacet?.slice(clampedSliceStart, sliceEnd);
+      let slicedRowMeta = result.rowMeta ? Array.from(result.rowMeta).slice(clampedSliceStart, sliceEnd) : undefined;
+
+      // When a group spans a page boundary, the sliced page may start with child rows
+      // whose parent group rows are on the previous page. getSelectPath() walks backwards
+      // to find ancestors — if they're missing, it produces broken paths (e.g. ["", "ACTIVE"]).
+      // Fix: scan backwards in the unsliced data to find ancestor group rows for each
+      // missing depth level and prepend them so getSelectPath() can reconstruct full paths.
+      //
+      // Known limitation: when the flattened block itself starts at a child row
+      // (clampedSliceStart === 0 but firstDepth > 0), the ancestor rows are not in the
+      // flattened result at all — they'd need to be resolved from the datamodel's page
+      // tree. This can happen when a large expanded group spans multiple cache pages and
+      // the preceding cache page is evicted. Fixing this requires datamodel-level changes
+      // to include ancestor context in flatten() output.
+      if (slicedRowMeta && slicedRowFacet && clampedSliceStart > 0) {
+        const firstDepth = (slicedRowMeta[0] & 0xF0) >> 4;
+        if (firstDepth > 0) {
+          const ancestors: { facet: string | null; meta: number; data: any[] }[] = [];
+          let remaining = firstDepth;
+          for (let i = clampedSliceStart - 1; i >= 0 && remaining > 0; i--) {
+            const bits = result.rowMeta![i];
+            const d = (bits & 0xF0) >> 4;
+            if (d < remaining) {
+              ancestors.push({
+                facet: result.rowFacet![i],
+                meta: bits,
+                data: data.map(col => col[i]),
+              });
+              remaining = d;
+            }
+          }
+          ancestors.reverse();
+          if (ancestors.length > 0) {
+            slicedRowFacet = [...ancestors.map(a => a.facet), ...slicedRowFacet];
+            slicedRowMeta = [...ancestors.map(a => a.meta), ...slicedRowMeta];
+            slicedData = data.map((_, colIdx) => [
+              ...ancestors.map(a => a.data[colIdx]),
+              ...slicedData[colIdx],
+            ]);
+          }
+        }
+      }
+
+      viewResult = {
         ...result,
-        data,
+        data: slicedData,
+        rowFacet: slicedRowFacet,
+        rowMeta: slicedRowMeta ? new Uint8Array(slicedRowMeta) : undefined,
+        offsetTop: 0,
+        totalRows: slicedData[0]?.length ?? 0,
         options: vmOptions,
         schema,
-      });
+      };
     } else {
-      vmRef.current.updateData({
-        ...result,
-        data,
-        options: vmOptions,
-        schema,
-      });
+      viewResult = { ...result, data, options: vmOptions, schema };
+    }
+
+    if (!vmRef.current) {
+      vmRef.current = new FlattenedDataViewModel(viewResult);
+    } else {
+      vmRef.current.updateData(viewResult);
     }
   }, []);
 
@@ -177,9 +284,19 @@ export function useFlatGrid(options: UseFlatGridOptions): UseFlatGridResult {
     setLoading(true);
     setError(null);
 
-    model.getViewModelData(ir).then((result: FlattenedDataViewModelParams) => {
+    const initialIR = enablePageView
+      ? { ...ir, startRow: 0, endRow: displayPageSize ?? model.pageSize }
+      : ir;
+
+    if (enablePageView) {
+      setCurrentPage(0);
+      currentPageRef.current = 0;
+    }
+
+    model.getViewModelData(initialIR).then((result: FlattenedDataViewModelParams) => {
       if (cancelled) return;
-      applyResult(result);
+      applyResult(result, enablePageView ? { page: 0, size: displayPageSize ?? model.pageSize } : undefined);
+      if (enablePageView) setDatasetTotalRows(model.computeTotalLogicalRows());
       setLoading(false);
     }).catch((err: unknown) => {
       if (!cancelled) {
@@ -214,6 +331,7 @@ export function useFlatGrid(options: UseFlatGridOptions): UseFlatGridResult {
   }, [selections, loading]);
 
   const fetchPage = useCallback(async (startRow: number, endRow: number) => {
+    if (enablePageView) return;
     const model = modelRef.current;
     if (!model || !irRef.current) return;
     const pageIR: GetRowsIR = { ...irRef.current, startRow, endRow };
@@ -249,7 +367,148 @@ export function useFlatGrid(options: UseFlatGridOptions): UseFlatGridResult {
     if (lastRawResultRef.current) applyResult(lastRawResultRef.current);
   }, [applyResult]);
 
+  const goToPageWithSize = useCallback(async (page: number, pgSize: number) => {
+    const model = modelRef.current;
+    if (!model || !activeIRRef.current) return;
+    const total = model.computeTotalLogicalRows();
+    if (total === 0) {
+      setCurrentPage(0);
+      setDatasetTotalRows(0);
+      return;
+    }
+    const totalPages = Math.ceil(total / pgSize);
+    if (page < 0 || page >= totalPages) return;
+
+    setCurrentPage(page);
+    currentPageRef.current = page;
+    activePageSizeRef.current = pgSize;
+    const startRow = page * pgSize;
+    const endRow = Math.min(startRow + pgSize, total);
+
+    inFlightCountRef.current++;
+    setPageLoadingInProgress(true);
+    try {
+      const pw = { page, size: pgSize };
+      const pageIR: GetRowsIR = { ...activeIRRef.current, startRow, endRow };
+      const result = await model.getViewModelData(pageIR);
+      applyResult(result, pw);
+      setDatasetTotalRows(model.computeTotalLogicalRows());
+      gridRef.current?.grid.scrollTo("row", 0);
+      gridRef.current?.grid.scheduleDraw();
+    } finally {
+      inFlightCountRef.current--;
+      if (inFlightCountRef.current === 0) setPageLoadingInProgress(false);
+    }
+  }, [applyResult]);
+
+  const goToPage = useCallback(async (page: number) => {
+    goToPageWithSize(page, activePageSize);
+  }, [goToPageWithSize, activePageSize]);
+
+  const setDisplayPageSizeFn = useCallback((newSize: number) => {
+    setActivePageSize(newSize);
+    setCurrentPage(0);
+    goToPageWithSize(0, newSize);
+  }, [goToPageWithSize]);
+
+  const sortAction = useCallback(async (newSortEntries: SortEntry[]) => {
+    const model = modelRef.current;
+    if (!model || !irRef.current) return;
+
+    activeIRRef.current = { ...activeIRRef.current, sort: newSortEntries };
+
+    if (enablePageView) {
+      setCurrentPage(0);
+      currentPageRef.current = 0;
+    }
+
+    const startRow = enablePageView ? 0 : activeIRRef.current.startRow;
+    const endRow = enablePageView ? activePageSizeRef.current : activeIRRef.current.endRow;
+
+    inFlightCountRef.current++;
+    setPageLoadingInProgress(true);
+    try {
+      const sortIR: GetRowsIR = { ...activeIRRef.current, startRow, endRow };
+      const result = await model.getViewModelData(sortIR);
+      applyResult(result, enablePageView ? { page: 0, size: activePageSizeRef.current } : undefined);
+      if (enablePageView) {
+        setDatasetTotalRows(model.computeTotalLogicalRows());
+        gridRef.current?.grid.scrollTo("row", 0);
+      }
+      gridRef.current?.grid.scheduleDraw();
+    } finally {
+      inFlightCountRef.current--;
+      if (inFlightCountRef.current === 0) setPageLoadingInProgress(false);
+    }
+  }, [applyResult, enablePageView]);
+
+  const expandAction = useCallback(async (selectPath: string[]) => {
+    const model = modelRef.current;
+    if (!model) return;
+
+    const result = await model.expandAndGetData(selectPath);
+
+    if (enablePageView) {
+      const total = model.computeTotalLogicalRows();
+      setDatasetTotalRows(total);
+      const pg = currentPageRef.current;
+      const sz = activePageSizeRef.current;
+      const startRow = pg * sz;
+      const endRow = Math.min(startRow + sz, total);
+      const pageIR: GetRowsIR = { ...activeIRRef.current, startRow, endRow };
+      const pageResult = await model.getViewModelData(pageIR);
+      applyResult(pageResult, { page: pg, size: sz });
+    } else {
+      applyResult(result);
+    }
+
+    gridRef.current?.grid.scheduleDraw();
+  }, [applyResult, enablePageView]);
+
+  const collapseAction = useCallback(async (selectPath: string[]) => {
+    const model = modelRef.current;
+    if (!model) return;
+
+    const result = await model.collapseAndGetData(selectPath);
+
+    if (enablePageView) {
+      const total = model.computeTotalLogicalRows();
+      setDatasetTotalRows(total);
+      const sz = activePageSizeRef.current;
+      const totalPages = Math.max(1, Math.ceil(total / sz));
+      const clampedPage = Math.min(currentPageRef.current, totalPages - 1);
+      if (clampedPage !== currentPageRef.current) {
+        setCurrentPage(clampedPage);
+        currentPageRef.current = clampedPage;
+      }
+      const startRow = clampedPage * sz;
+      const endRow = Math.min(startRow + sz, total);
+      const pageIR: GetRowsIR = { ...activeIRRef.current, startRow, endRow };
+      const pageResult = await model.getViewModelData(pageIR);
+      applyResult(pageResult, { page: clampedPage, size: sz });
+    } else {
+      applyResult(result);
+    }
+
+    gridRef.current?.grid.scheduleDraw();
+  }, [applyResult, enablePageView]);
+
+  sortActionRef.current = sortAction;
+  expandActionRef.current = expandAction;
+  collapseActionRef.current = collapseAction;
+
+  const totalPages = Math.max(1, Math.ceil(datasetTotalRows / activePageSize));
+  const pageView: PageViewState | null = enablePageView ? {
+    currentPage,
+    totalPages,
+    displayPageSize: activePageSize,
+    datasetTotalRows,
+    loading: pageLoadingInProgress,
+    goToPage,
+    setDisplayPageSize: setDisplayPageSizeFn,
+  } : null;
+
   const bindings: GridBindings = { ref: gridRef, data: vmRef.current, pageLoadingInProgress, onCellRelease, onBeforeMeasure };
 
-  return { bindings, viewModel: vmRef.current, gridRef, loading, error, fetchPage, applyTransform, resetTransform };
+  return { bindings, viewModel: vmRef.current, gridRef, loading, error, fetchPage, applyTransform, resetTransform, pageView };
 }

@@ -36,7 +36,7 @@ interface ExpandAllButtonProps {
 const pathKey = (p: string[]): string => p.join("\0");
 
 const ExpandAllButton: React.FC<ExpandAllButtonProps> = ({ depth, viewModel, render }) => {
-  const { model, grid } = useDataModelContext();
+  const { model, grid, expandAction, collapseAction } = useDataModelContext();
   const [loading, setLoading] = useState(false);
   const [isExpandedAll, setIsExpandedAll] = useState(false);
   const busyRef = useRef(false);
@@ -66,26 +66,39 @@ const ExpandAllButton: React.FC<ExpandAllButtonProps> = ({ depth, viewModel, ren
       seenPathsRef.current.add(key);
     }
     if (paths.length === 0) return;
-    let result: FlattenedDataViewModelParams | undefined;
-    for (const path of paths) {
-      result = mode === "expand"
-        ? await model.expandAndGetData(path)
-        : await model.collapseAndGetData(path);
+    if (expandAction && collapseAction) {
+      for (const path of paths) {
+        if (mode === "expand") await expandAction(path);
+        else await collapseAction(path);
+      }
+    } else {
+      let result: FlattenedDataViewModelParams | undefined;
+      for (const path of paths) {
+        result = mode === "expand"
+          ? await model.expandAndGetData(path)
+          : await model.collapseAndGetData(path);
+      }
+      if (result) viewModel.updateData(result);
+      render(viewModel);
     }
-    if (result) viewModel.updateData(result);
-    render(viewModel);
-  }, [model, viewModel, render, collectRowsAtDepth]);
+  }, [model, viewModel, render, collectRowsAtDepth, expandAction, collapseAction]);
 
   const collapseAllSeen = useCallback(async (): Promise<void> => {
     const paths = Array.from(seenPathsRef.current).map(s => s.split("\0"));
     if (paths.length === 0) return;
-    let result: FlattenedDataViewModelParams | undefined;
-    for (const path of paths) {
-      result = await model.collapseAndGetData(path);
+    if (collapseAction) {
+      for (const path of paths) {
+        await collapseAction(path);
+      }
+    } else {
+      let result: FlattenedDataViewModelParams | undefined;
+      for (const path of paths) {
+        result = await model.collapseAndGetData(path);
+      }
+      if (result) viewModel.updateData(result);
+      render(viewModel);
     }
-    if (result) viewModel.updateData(result);
-    render(viewModel);
-  }, [model, viewModel, render]);
+  }, [model, viewModel, render, collapseAction]);
 
   const handleClick = useCallback(async () => {
     if (busyRef.current) return;

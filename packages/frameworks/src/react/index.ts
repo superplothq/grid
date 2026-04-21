@@ -25,3 +25,4 @@ export { DataModelContext, useDataModelContext, type DataModelContextValue, type
 export { Sort, type SortProps } from "./components/Sort";
 export { SortableColumnRenderer } from "./components/SortableColumnRenderer";
 export { GroupedRowHeaderRenderer } from "./components/GroupedRowHeaderRenderer";
+export { PageView, type PageViewProps } from "./components/PageView";

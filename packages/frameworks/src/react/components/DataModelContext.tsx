@@ -1,6 +1,6 @@
 import { createContext, useContext } from "react";
 import type { FlatTableDataModel } from "grid/dist/index";
-import type { GetRowsIR } from "grid/dist/index";
+import type { GetRowsIR, SortEntry } from "grid/dist/index";
 import type Grid from "grid/dist/renderer";
 
 export interface GridConfig {
@@ -12,6 +12,9 @@ export interface DataModelContextValue {
   ir: GetRowsIR;
   gridConfig: GridConfig;
   grid: Grid;
+  sortAction?: (entries: SortEntry[]) => Promise<void>;
+  expandAction?: (selectPath: string[]) => Promise<void>;
+  collapseAction?: (selectPath: string[]) => Promise<void>;
 }
 
 export const DataModelContext = createContext<DataModelContextValue | null>(null);
