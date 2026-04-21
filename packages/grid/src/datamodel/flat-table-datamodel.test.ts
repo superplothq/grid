@@ -1,5 +1,5 @@
 import { expect } from "chai";
-import { getUnfetchedPagesByLogicalBoundary } from "./flat-table-datamodel";
+import { getUnfetchedPagesByLogicalBoundary, findTargetSlotPath, findContiguousPageBlocks } from "./flat-table-datamodel";
 import { DuckDBDataSource } from "./duckdb-datasource";
 import { SqlFlatTableDataModel } from "./sql-flat-table-datamodel";
 import { DataSchema, FlatTableConfig, GetRowsIR, GetRowsResponse, GridData, PageNode, ExpandedGroup } from "./types";
@@ -224,6 +224,42 @@ describe("FlatTableDataModel (real DuckDB)", () => {
     await model.collapseAndGetViewModel(["Europe"]);
     // 2 top-level + 2 NA children = 4
     expect(model.computeTotalLogicalRows()).to.equal(4);
+  });
+
+  it("should collapse all after scrolling into expanded children", async () => {
+    const model = await makeModel();
+
+    await model.getViewModel(makeIR({ startRow: 0, endRow: 100 }));
+    await model.expandAndGetData(["Europe"]);
+    await model.expandAndGetData(["North America"]);
+    // total = 2 + 2 + 2 = 6
+    expect(model.computeTotalLogicalRows()).to.equal(6);
+
+    // Simulate scrolling into the middle
+    await model.getViewModel(makeIR({ startRow: 4, endRow: 100 }));
+
+    // Collapse all — each collapse shrinks total, startRow stays stale
+    await model.collapseAndGetData(["Europe"]);
+    const vm = await model.collapseAndGetData(["North America"]);
+    expect(model.computeTotalLogicalRows()).to.equal(2);
+    expect(vm.data[0]?.length).to.equal(2);
+  });
+
+  it("should collapse when startRow is inside the expanded group", async () => {
+    const model = await makeModel();
+
+    // startRow=0, expand Europe → total 4 rows (Europe, Germany, UK, North America)
+    await model.getViewModel(makeIR({ startRow: 0, endRow: 100 }));
+    await model.expandAndGetViewModel(["Europe"]);
+    expect(model.computeTotalLogicalRows()).to.equal(4);
+
+    // Simulate scrolling into the expanded children
+    await model.getViewModel(makeIR({ startRow: 3, endRow: 100 }));
+
+    // Collapse Europe — total drops to 2, but lastIR.startRow is still 3
+    const vm = await model.collapseAndGetViewModel(["Europe"]);
+    expect(model.computeTotalLogicalRows()).to.equal(2);
+    expect(vm.numRows).to.equal(2);
   });
 
   it("should handle incremental page fetching", async () => {
@@ -616,7 +652,7 @@ function makePage(data: any[][] | null, physicalStart: number, rowCount: number,
   return { data, physicalStart, rowCount, expandedRows: expandedRows ?? new Map() };
 }
 
-describe("getUnfetchedPagesByLogicalBoundary", () => {
+describe("#getUnfetchedPagesByLogicalBoundary", () => {
   it("should return empty when all pages are loaded", () => {
     const pages: PageNode[] = [
       makePage([["A", "B", "C"]], 0, 3),
@@ -890,5 +926,457 @@ describe("getUnfetchedPagesByLogicalBoundary", () => {
     expect(result).to.have.length(1);
     expect(result[0].page).to.equal(midPages[1]);
     expect(result[0].selectPath).to.deep.equal(["USA"]);
+  });
+});
+
+describe("#findTargetSlotPath", () => {
+  it("should return empty path for empty pages array", () => {
+    const result = findTargetSlotPath([], 0);
+    expect(result).to.deep.equal([]);
+  });
+
+  it("should return empty path when all pages are unloaded", () => {
+    const pages: PageNode[] = [
+      makePage(null, 0, 10),
+      makePage(null, 10, 10),
+    ];
+    const result = findTargetSlotPath(pages, 5);
+    expect(result).to.deep.equal([]);
+  });
+
+  it("should target first page when logicalStart is 0", () => {
+    const pages: PageNode[] = [
+      makePage([["a", "b", "c", "d", "e"]], 0, 5),
+    ];
+    const result = findTargetSlotPath(pages, 0);
+    expect(result).to.deep.equal([{ pageIdx: 0, rowIdx: -1 }]);
+  });
+
+  it("should target second page when logicalStart falls in it", () => {
+    const pages: PageNode[] = [
+      makePage([["a", "b", "c", "d", "e"]], 0, 5),
+      makePage([["f", "g", "h", "i", "j"]], 5, 5),
+    ];
+    const result = findTargetSlotPath(pages, 7);
+    expect(result).to.deep.equal([{ pageIdx: 1, rowIdx: -1 }]);
+  });
+
+  it("should skip unloaded pages and count their rows", () => {
+    const pages: PageNode[] = [
+      makePage(null, 0, 10),
+      makePage([["a", "b", "c", "d", "e"]], 10, 5),
+    ];
+    const result = findTargetSlotPath(pages, 12);
+    expect(result).to.deep.equal([{ pageIdx: 1, rowIdx: -1 }]);
+  });
+
+  it("should recurse into expanded child when logicalStart is inside it", () => {
+    const childPages: PageNode[] = [
+      makePage([["x", "y", "z"]], 0, 3),
+    ];
+    const expanded: ExpandedGroup = {
+      expanded: true,
+      totalRowCount: 3,
+      pages: childPages,
+    };
+    const pages: PageNode[] = [
+      makePage([["a", "b", "c", "d", "e"]], 0, 5, new Map([[1, expanded]])),
+    ];
+    // row0("a")=0, row1("b")=1, children=2,3,4, row2("c")=5, ...
+    const result = findTargetSlotPath(pages, 3);
+    expect(result).to.deep.equal([
+      { pageIdx: 0, rowIdx: 1 },
+      { pageIdx: 0, rowIdx: -1 },
+    ]);
+  });
+
+  it("should not recurse into collapsed expanded groups", () => {
+    const collapsed: ExpandedGroup = {
+      expanded: false,
+      totalRowCount: 3,
+      pages: [makePage([["x", "y", "z"]], 0, 3)],
+    };
+    const pages: PageNode[] = [
+      makePage([["a", "b", "c", "d", "e"]], 0, 5, new Map([[1, collapsed]])),
+    ];
+    const result = findTargetSlotPath(pages, 3);
+    expect(result).to.deep.equal([{ pageIdx: 0, rowIdx: -1 }]);
+  });
+
+  it("should handle logicalStart at last row of a page", () => {
+    const pages: PageNode[] = [
+      makePage([["a", "b", "c", "d", "e"]], 0, 5),
+    ];
+    const result = findTargetSlotPath(pages, 4);
+    expect(result).to.deep.equal([{ pageIdx: 0, rowIdx: -1 }]);
+  });
+
+  it("should return empty path when logicalStart is beyond all pages", () => {
+    const pages: PageNode[] = [
+      makePage([["a", "b", "c", "d", "e"]], 0, 5),
+    ];
+    const result = findTargetSlotPath(pages, 10);
+    expect(result).to.deep.equal([]);
+  });
+
+  it("should handle multiple expanded rows in same page", () => {
+    const child0: ExpandedGroup = {
+      expanded: true,
+      totalRowCount: 2,
+      pages: [makePage([["c0a", "c0b"]], 0, 2)],
+    };
+    const child2: ExpandedGroup = {
+      expanded: true,
+      totalRowCount: 3,
+      pages: [makePage([["c2a", "c2b", "c2c"]], 0, 3)],
+    };
+    const pages: PageNode[] = [
+      makePage([["a", "b", "c", "d"]], 0, 4, new Map([[0, child0], [2, child2]])),
+    ];
+    // Layout: row0("a")=0, child0=1,2, row1("b")=3, row2("c")=4, child2=5,6,7, row3("d")=8
+    const result = findTargetSlotPath(pages, 6);
+    expect(result).to.deep.equal([
+      { pageIdx: 0, rowIdx: 2 },
+      { pageIdx: 0, rowIdx: -1 },
+    ]);
+  });
+
+  it("should handle deeply nested expansions", () => {
+    const grandchild: PageNode[] = [
+      makePage([["g1", "g2"]], 0, 2),
+    ];
+    const childExpanded: ExpandedGroup = {
+      expanded: true,
+      totalRowCount: 2,
+      pages: grandchild,
+    };
+    const childPages: PageNode[] = [
+      makePage([["c1", "c2", "c3"]], 0, 3, new Map([[0, childExpanded]])),
+    ];
+    const topExpanded: ExpandedGroup = {
+      expanded: true,
+      totalRowCount: 3,
+      pages: childPages,
+    };
+    const pages: PageNode[] = [
+      makePage([["a", "b"]], 0, 2, new Map([[0, topExpanded]])),
+    ];
+    // Layout: a=0, child c1=1, grandchild g1=2, g2=3, c2=4, c3=5, b=6
+    const result = findTargetSlotPath(pages, 2);
+    expect(result).to.deep.equal([
+      { pageIdx: 0, rowIdx: 0 },
+      { pageIdx: 0, rowIdx: 0 },
+      { pageIdx: 0, rowIdx: -1 },
+    ]);
+  });
+
+  it("should target row after expanded group correctly", () => {
+    const child: ExpandedGroup = {
+      expanded: true,
+      totalRowCount: 3,
+      pages: [makePage([["x", "y", "z"]], 0, 3)],
+    };
+    const pages: PageNode[] = [
+      makePage([["a", "b", "c", "d"]], 0, 4, new Map([[0, child]])),
+    ];
+    // Layout: row0("a")=0, children=1,2,3, row1("b")=4, row2("c")=5, row3("d")=6
+    const result = findTargetSlotPath(pages, 5);
+    expect(result).to.deep.equal([{ pageIdx: 0, rowIdx: -1 }]);
+  });
+
+  it("should handle multiple pages with expansion in second page", () => {
+    const child: ExpandedGroup = {
+      expanded: true,
+      totalRowCount: 2,
+      pages: [makePage([["x", "y"]], 0, 2)],
+    };
+    const pages: PageNode[] = [
+      makePage([["a", "b", "c"]], 0, 3),
+      makePage([["d", "e", "f"]], 3, 3, new Map([[1, child]])),
+    ];
+    // Layout: page0: a=0,b=1,c=2, page1: d=3, e=4, children=5,6, f=7
+    const result = findTargetSlotPath(pages, 5);
+    expect(result).to.deep.equal([
+      { pageIdx: 1, rowIdx: 1 },
+      { pageIdx: 0, rowIdx: -1 },
+    ]);
+  });
+
+  it("should handle expansion at last row of page", () => {
+    const child: ExpandedGroup = {
+      expanded: true,
+      totalRowCount: 4,
+      pages: [makePage([["w", "x", "y", "z"]], 0, 4)],
+    };
+    const pages: PageNode[] = [
+      makePage([["a", "b", "c"]], 0, 3, new Map([[2, child]])),
+    ];
+    // Layout: a=0, b=1, c=2, children=3,4,5,6
+    const result = findTargetSlotPath(pages, 4);
+    expect(result).to.deep.equal([
+      { pageIdx: 0, rowIdx: 2 },
+      { pageIdx: 0, rowIdx: -1 },
+    ]);
+  });
+
+  it("should handle unloaded child pages within expansion", () => {
+    const child: ExpandedGroup = {
+      expanded: true,
+      totalRowCount: 5,
+      pages: [makePage(null, 0, 5)],
+    };
+    const pages: PageNode[] = [
+      makePage([["a", "b", "c"]], 0, 3, new Map([[0, child]])),
+    ];
+    // Layout: a=0, children(5 unloaded)=1..5, b=6, c=7
+    const result = findTargetSlotPath(pages, 3);
+    expect(result).to.deep.equal([
+      { pageIdx: 0, rowIdx: 0 },
+    ]);
+  });
+
+  it("should handle logicalStart at exact boundary between page and expanded child", () => {
+    const child: ExpandedGroup = {
+      expanded: true,
+      totalRowCount: 3,
+      pages: [makePage([["x", "y", "z"]], 0, 3)],
+    };
+    const pages: PageNode[] = [
+      makePage([["a", "b", "c"]], 0, 3, new Map([[1, child]])),
+    ];
+    // Layout: a=0, b=1, children=2,3,4, c=5
+    const result = findTargetSlotPath(pages, 2);
+    expect(result).to.deep.equal([
+      { pageIdx: 0, rowIdx: 1 },
+      { pageIdx: 0, rowIdx: -1 },
+    ]);
+  });
+
+  it("should point to first child page when logicalStart lands on an expanded row", () => {
+    // p0(row0, expanded) → children [c0, c1, c2]
+    // p1(row1, expanded) → children [d0, d1]
+    // Layout: p0=0, c0=1, c1=2, c2=3, p1=4, d0=5, d1=6
+    const p0children: ExpandedGroup = { expanded: true, totalRowCount: 3, pages: [makePage([["c0", "c1", "c2"]], 0, 3)] };
+    const p1children: ExpandedGroup = { expanded: true, totalRowCount: 2, pages: [makePage([["d0", "d1"]], 0, 2)] };
+    const pages: PageNode[] = [
+      makePage([["p0", "p1"]], 0, 2, new Map([[0, p0children], [1, p1children]])),
+    ];
+    // logicalStart=4 is p1 itself — should point to p1's first child page
+    const result = findTargetSlotPath(pages, 4);
+    expect(result).to.deep.equal([
+      { pageIdx: 0, rowIdx: 1 },
+      { pageIdx: 0, rowIdx: -1 },
+    ]);
+  });
+
+  it("should point to first child page with 3-level nesting", () => {
+    // depth 0: [r0(expanded), r1(expanded)]
+    // depth 1 under r0: [r0.0(expanded)] → depth 2: [r0.0.0, r0.0.1]
+    // depth 1 under r1: [r1.0(expanded)] → depth 2: [r1.0.0, r1.0.1, r1.0.2]
+    //
+    // Layout: r0=0, r0.0=1, r0.0.0=2, r0.0.1=3, r1=4, r1.0=5, r1.0.0=6, r1.0.1=7, r1.0.2=8
+    const r0_0_children: ExpandedGroup = { expanded: true, totalRowCount: 2, pages: [makePage([["r0.0.0", "r0.0.1"]], 0, 2)] };
+    const r0_children: ExpandedGroup = { expanded: true, totalRowCount: 1, pages: [makePage([["r0.0"]], 0, 1, new Map([[0, r0_0_children]]))] };
+    const r1_0_children: ExpandedGroup = { expanded: true, totalRowCount: 3, pages: [makePage([["r1.0.0", "r1.0.1", "r1.0.2"]], 0, 3)] };
+    const r1_children: ExpandedGroup = { expanded: true, totalRowCount: 1, pages: [makePage([["r1.0"]], 0, 1, new Map([[0, r1_0_children]]))] };
+    const pages: PageNode[] = [
+      makePage([["r0", "r1"]], 0, 2, new Map([[0, r0_children], [1, r1_children]])),
+    ];
+
+    // logicalStart=4 is r1 — point to r1's first child page
+    const result4 = findTargetSlotPath(pages, 4);
+    expect(result4).to.deep.equal([
+      { pageIdx: 0, rowIdx: 1 },
+      { pageIdx: 0, rowIdx: -1 },
+    ]);
+
+    // logicalStart=5 is r1.0 — point to r1.0's first child page
+    const result5 = findTargetSlotPath(pages, 5);
+    expect(result5).to.deep.equal([
+      { pageIdx: 0, rowIdx: 1 },
+      { pageIdx: 0, rowIdx: 0 },
+      { pageIdx: 0, rowIdx: -1 },
+    ]);
+
+    // logicalStart=1 is r0.0 — point to r0.0's first child page
+    const result1 = findTargetSlotPath(pages, 1);
+    expect(result1).to.deep.equal([
+      { pageIdx: 0, rowIdx: 0 },
+      { pageIdx: 0, rowIdx: 0 },
+      { pageIdx: 0, rowIdx: -1 },
+    ]);
+  });
+
+  it("should point to first child page with 4-level nesting", () => {
+    // depth 0: [a(expanded), b(expanded)]
+    // depth 1 under a: [a0(expanded)]
+    // depth 2 under a0: [a00(expanded)]
+    // depth 3 under a00: [a000, a001]
+    // depth 1 under b: [b0(expanded)]
+    // depth 2 under b0: [b00(expanded)]
+    // depth 3 under b00: [b000, b001, b002]
+    //
+    // Layout: a=0, a0=1, a00=2, a000=3, a001=4, b=5, b0=6, b00=7, b000=8, b001=9, b002=10
+    const a00_children: ExpandedGroup = { expanded: true, totalRowCount: 2, pages: [makePage([["a000", "a001"]], 0, 2)] };
+    const a0_children: ExpandedGroup = { expanded: true, totalRowCount: 1, pages: [makePage([["a00"]], 0, 1, new Map([[0, a00_children]]))] };
+    const a_children: ExpandedGroup = { expanded: true, totalRowCount: 1, pages: [makePage([["a0"]], 0, 1, new Map([[0, a0_children]]))] };
+    const b00_children: ExpandedGroup = { expanded: true, totalRowCount: 3, pages: [makePage([["b000", "b001", "b002"]], 0, 3)] };
+    const b0_children: ExpandedGroup = { expanded: true, totalRowCount: 1, pages: [makePage([["b00"]], 0, 1, new Map([[0, b00_children]]))] };
+    const b_children: ExpandedGroup = { expanded: true, totalRowCount: 1, pages: [makePage([["b0"]], 0, 1, new Map([[0, b0_children]]))] };
+    const pages: PageNode[] = [
+      makePage([["a", "b"]], 0, 2, new Map([[0, a_children], [1, b_children]])),
+    ];
+
+    // logicalStart=5 is b — point to b's first child page
+    const result5 = findTargetSlotPath(pages, 5);
+    expect(result5).to.deep.equal([
+      { pageIdx: 0, rowIdx: 1 },
+      { pageIdx: 0, rowIdx: -1 },
+    ]);
+
+    // logicalStart=6 is b0 — point to b0's first child page
+    const result6 = findTargetSlotPath(pages, 6);
+    expect(result6).to.deep.equal([
+      { pageIdx: 0, rowIdx: 1 },
+      { pageIdx: 0, rowIdx: 0 },
+      { pageIdx: 0, rowIdx: -1 },
+    ]);
+
+    // logicalStart=7 is b00 — point to b00's first child page
+    const result7 = findTargetSlotPath(pages, 7);
+    expect(result7).to.deep.equal([
+      { pageIdx: 0, rowIdx: 1 },
+      { pageIdx: 0, rowIdx: 0 },
+      { pageIdx: 0, rowIdx: 0 },
+      { pageIdx: 0, rowIdx: -1 },
+    ]);
+
+    // logicalStart=2 is a00 — point to a00's first child page
+    const result2 = findTargetSlotPath(pages, 2);
+    expect(result2).to.deep.equal([
+      { pageIdx: 0, rowIdx: 0 },
+      { pageIdx: 0, rowIdx: 0 },
+      { pageIdx: 0, rowIdx: 0 },
+      { pageIdx: 0, rowIdx: -1 },
+    ]);
+  });
+
+  it("should handle multiple child pages within expansion", () => {
+    const child: ExpandedGroup = {
+      expanded: true,
+      totalRowCount: 6,
+      pages: [
+        makePage([["x", "y", "z"]], 0, 3),
+        makePage([["w", "v", "u"]], 3, 3),
+      ],
+    };
+    const pages: PageNode[] = [
+      makePage([["a", "b"]], 0, 2, new Map([[0, child]])),
+    ];
+    // Layout: a=0, children=1,2,3,4,5,6, b=7
+    const result = findTargetSlotPath(pages, 4);
+    expect(result).to.deep.equal([
+      { pageIdx: 0, rowIdx: 0 },
+      { pageIdx: 1, rowIdx: -1 },
+    ]);
+  });
+});
+
+describe("#findContiguousPageBlocks", () => {
+  it("should return cursor path when single loaded page", () => {
+    const pages = [makePage([["a", "b"]], 0, 2)];
+    const result = findContiguousPageBlocks(pages, [{ pageIdx: 0, rowIdx: -1 }]);
+    expect(result).to.deep.equal({ blockStart: [{ pageIdx: 0, rowIdx: -1 }], blockEnd: [{ pageIdx: 0, rowIdx: -1 }] });
+  });
+
+  it("should expand block across all loaded sibling pages", () => {
+    const pages = [makePage([["a"]], 0, 1), makePage([["b"]], 1, 1), makePage([["c"]], 2, 1)];
+    const result = findContiguousPageBlocks(pages, [{ pageIdx: 1, rowIdx: -1 }]);
+    expect(result).to.deep.equal({ blockStart: [{ pageIdx: 0, rowIdx: -1 }], blockEnd: [{ pageIdx: 2, rowIdx: -1 }] });
+  });
+
+  it("should stop at unloaded page going upward", () => {
+    const pages = [makePage([["a"]], 0, 1), makePage(null, 1, 3), makePage([["b"]], 4, 1), makePage([["c"]], 5, 1)];
+    const result = findContiguousPageBlocks(pages, [{ pageIdx: 3, rowIdx: -1 }]);
+    expect(result).to.deep.equal({ blockStart: [{ pageIdx: 2, rowIdx: -1 }], blockEnd: [{ pageIdx: 3, rowIdx: -1 }] });
+  });
+
+  it("should stop at unloaded page going downward", () => {
+    const pages = [makePage([["a"]], 0, 1), makePage([["b"]], 1, 1), makePage(null, 2, 3)];
+    const result = findContiguousPageBlocks(pages, [{ pageIdx: 0, rowIdx: -1 }]);
+    expect(result).to.deep.equal({ blockStart: [{ pageIdx: 0, rowIdx: -1 }], blockEnd: [{ pageIdx: 1, rowIdx: -1 }] });
+  });
+
+  it("should include loaded child pages in contiguous block", () => {
+    const child: ExpandedGroup = { expanded: true, totalRowCount: 2, pages: [makePage([["x", "y"]], 0, 2)] };
+    const pages = [makePage([["a", "b"]], 0, 2, new Map([[0, child]]))];
+    const result = findContiguousPageBlocks(pages, [{ pageIdx: 0, rowIdx: -1 }]);
+    expect(result).to.deep.equal({ blockStart: [{ pageIdx: 0, rowIdx: -1 }], blockEnd: [{ pageIdx: 0, rowIdx: 0 }, { pageIdx: 0, rowIdx: -1 }] });
+  });
+
+  it("should stop at unloaded child page", () => {
+    const child: ExpandedGroup = { expanded: true, totalRowCount: 5, pages: [makePage([["x"]], 0, 1), makePage(null, 1, 3), makePage([["y"]], 4, 1)] };
+    const pages = [makePage([["a"]], 0, 1, new Map([[0, child]])), makePage([["b"]], 1, 1)];
+    // flat order: [0] -> [0,0](loaded) -> [0,1](unloaded) -> [0,2](loaded) -> [1]
+    const result = findContiguousPageBlocks(pages, [{ pageIdx: 1, rowIdx: -1 }]);
+    expect(result).to.deep.equal({ blockStart: [{ pageIdx: 0, rowIdx: 0 }, { pageIdx: 2, rowIdx: -1 }], blockEnd: [{ pageIdx: 1, rowIdx: -1 }] });
+  });
+
+  it("should handle cursor inside child pages", () => {
+    const child: ExpandedGroup = { expanded: true, totalRowCount: 4, pages: [makePage([["x", "y"]], 0, 2), makePage(null, 2, 2)] };
+    const pages = [makePage([["a"]], 0, 1, new Map([[0, child]])), makePage([["b"]], 1, 1)];
+    // flat order: [0] -> [0,0] -> [0,1](unloaded) -> [1]
+    const result = findContiguousPageBlocks(pages, [{ pageIdx: 0, rowIdx: 0 }, { pageIdx: 0, rowIdx: -1 }]);
+    expect(result).to.deep.equal({ blockStart: [{ pageIdx: 0, rowIdx: -1 }], blockEnd: [{ pageIdx: 0, rowIdx: 0 }, { pageIdx: 0, rowIdx: -1 }] });
+  });
+
+  it("should return cursor path when cursor not found", () => {
+    const pages = [makePage([["a"]], 0, 1)];
+    const result = findContiguousPageBlocks(pages, [{ pageIdx: 5, rowIdx: -1 }]);
+    expect(result).to.deep.equal({ blockStart: [{ pageIdx: 5, rowIdx: -1 }], blockEnd: [{ pageIdx: 5, rowIdx: -1 }] });
+  });
+
+  it("should handle multiple expanded rows creating interleaved children", () => {
+    const child0: ExpandedGroup = { expanded: true, totalRowCount: 1, pages: [makePage([["c0"]], 0, 1)] };
+    const child1: ExpandedGroup = { expanded: true, totalRowCount: 1, pages: [makePage(null, 0, 1)] };
+    const pages = [makePage([["a", "b"]], 0, 2, new Map([[0, child0], [1, child1]]))];
+    const result = findContiguousPageBlocks(pages, [{ pageIdx: 0, rowIdx: -1 }]);
+    expect(result).to.deep.equal({ blockStart: [{ pageIdx: 0, rowIdx: -1 }], blockEnd: [{ pageIdx: 0, rowIdx: 0 }, { pageIdx: 0, rowIdx: -1 }] });
+  });
+
+  it("should handle collapsed groups not contributing to flat list", () => {
+    const collapsed: ExpandedGroup = { expanded: false, totalRowCount: 3, pages: [makePage([["x", "y", "z"]], 0, 3)] };
+    const pages = [makePage([["a"]], 0, 1, new Map([[0, collapsed]])), makePage([["b"]], 1, 1)];
+    const result = findContiguousPageBlocks(pages, [{ pageIdx: 0, rowIdx: -1 }]);
+    expect(result).to.deep.equal({ blockStart: [{ pageIdx: 0, rowIdx: -1 }], blockEnd: [{ pageIdx: 1, rowIdx: -1 }] });
+  });
+
+  it("should find contiguous block across multiple depths with unloaded boundaries", () => {
+    const p0children: ExpandedGroup = { expanded: true, totalRowCount: 3, pages: [makePage([["a"]], 0, 1), makePage([["b"]], 1, 1), makePage([["c"]], 2, 1)] };
+    const p1_1children: ExpandedGroup = { expanded: true, totalRowCount: 2, pages: [makePage([["d"]], 0, 1), makePage([["e"]], 1, 1)] };
+    const p1children: ExpandedGroup = { expanded: true, totalRowCount: 2, pages: [makePage(null, 0, 1), makePage([["f"]], 1, 1, new Map([[0, p1_1children]]))] };
+    const p2children: ExpandedGroup = { expanded: true, totalRowCount: 2, pages: [makePage([["g"]], 0, 1), makePage([["h"]], 1, 1)] };
+    const p3_0children: ExpandedGroup = { expanded: true, totalRowCount: 2, pages: [makePage([["i"]], 0, 1), makePage(null, 1, 1)] };
+    const p3children: ExpandedGroup = { expanded: true, totalRowCount: 1, pages: [makePage([["j"]], 0, 1, new Map([[0, p3_0children]]))] };
+
+    const pages = [
+      makePage([["p0"]], 0, 1, new Map([[0, p0children]])),
+      makePage([["p1"]], 1, 1, new Map([[0, p1children]])),
+      makePage([["p2"]], 2, 1, new Map([[0, p2children]])),
+      makePage([["p3"]], 3, 1, new Map([[0, p3children]])),
+    ];
+    const cursor = [{ pageIdx: 2, rowIdx: 0 }, { pageIdx: 1, rowIdx: -1 }];
+    const result = findContiguousPageBlocks(pages, cursor);
+    // flat order (with full paths):
+    // [0:-1], [0:0,0:-1], [0:0,1:-1], [0:0,2:-1],
+    // [1:-1], [1:0,0:-1](unloaded), [1:0,1:-1], [1:0,1:0,0:-1], [1:0,1:0,1:-1],
+    // [2:-1], [2:0,0:-1], [2:0,1:-1] <- cursor,
+    // [3:-1], [3:0,0:-1], [3:0,0:0,0:-1], [3:0,0:0,1:-1](unloaded)
+    // blockStart: walk up from cursor -> [2:0,0:-1] -> [2:-1] -> [1:0,1:0,1:-1] -> [1:0,1:0,0:-1] -> [1:0,1:-1] -> [1:0,0:-1] UNLOADED => stop
+    // blockEnd: walk down from cursor -> [3:-1] -> [3:0,0:-1] -> [3:0,0:0,0:-1] -> [3:0,0:0,1:-1] UNLOADED => stop
+    expect(result).to.deep.equal({
+      blockStart: [{ pageIdx: 1, rowIdx: 0 }, { pageIdx: 1, rowIdx: -1 }],
+      blockEnd: [{ pageIdx: 3, rowIdx: 0 }, { pageIdx: 0, rowIdx: 0 }, { pageIdx: 0, rowIdx: -1 }],
+    });
   });
 });
