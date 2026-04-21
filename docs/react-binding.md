@@ -971,7 +971,7 @@ function PaginatedTable() {
   const model = useFlatModel({ schema, pageSize: 100 });
   const [ir, setIR] = useState<GetRowsIR>({
     startRow: 0, endRow: 100,
-    select: [], groupBy: ["group"], project: ["value"],
+    groupPath: [], groupBy: ["group"], project: ["value"],
     sort: [], filter: [],
   });
 

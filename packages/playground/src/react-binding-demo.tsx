@@ -87,7 +87,7 @@ const COLUMNS: ColumnDef[] = SCHEMA.map((s) => {
 const IR: GetRowsIR = {
   startRow: 0,
   endRow: 100,
-  select: [],
+  groupPath: [],
   groupBy: [],
   project: SCHEMA.map(s => s.name),
   sort: [],

@@ -13,7 +13,7 @@ Pass an array of column names to `groupBy` in the IR. The order defines the nest
 const ir: GetRowsIR = {
   startRow: 0,
   endRow: 100,
-  select: [],
+  groupPath: [],
   groupBy: ["Agency Name", "Work Location Borough", "Leave Status as of June 30"],
   project: schema.map((s) => s.name),
   sort: [],

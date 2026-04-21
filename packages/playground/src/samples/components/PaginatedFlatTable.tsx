@@ -104,7 +104,7 @@ const PaginatedFlatTableInner: React.FC<PaginatedFlatTableInnerProps> = ({ds, co
   const ir = React.useMemo<GetRowsIR>(() => ({
     startRow: 0,
     endRow: PAGE_SIZE,
-    select: [],
+    groupPath: [],
     groupBy: GROUP_BY,
     project: [...schema.filter(s => s.type === "measure").map(s => s.name), ...schema.filter(s => s.type !== "measure").map(s => s.name)],
     sort: [],

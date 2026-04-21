@@ -60,7 +60,7 @@ const ColumnsAndSizingGrid: React.FC<GridProps> = ({ds, schema, theme, height}) 
   const ir = React.useMemo<GetRowsIR>(() => ({
     startRow: 0,
     endRow: 100,
-    select: [],
+    groupPath: [],
     groupBy: [],
     project: schema.map((s) => s.name),
     sort: [],

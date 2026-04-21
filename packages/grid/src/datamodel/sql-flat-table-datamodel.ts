@@ -1,6 +1,6 @@
 import { FlatTableDataModel } from "./flat-table-datamodel";
 import { SqlDataSource } from "./sql-datasource";
-import { DataSchema, FlatTableConfig, GetRowsIR, GetRowsResponse, SortEntry } from "./types";
+import { DataSchema, DatePartScalarFilter, FlatTableConfig, GetRowsIR, GetRowsResponse, ScalarFilter, SortEntry } from "./types";
 
 export class SqlFlatTableDataModel extends FlatTableDataModel {
   protected table: string;
@@ -23,7 +23,7 @@ export class SqlFlatTableDataModel extends FlatTableDataModel {
     }
 
     const totalRowCount = Number(rows[0].__total__);
-    const depth = ir.select.length;
+    const depth = ir.groupPath.length;
     const isGroupLevel = depth < ir.groupBy.length;
     const groupField = isGroupLevel ? ir.groupBy[depth] : null;
 
@@ -42,13 +42,13 @@ export class SqlFlatTableDataModel extends FlatTableDataModel {
   }
 
   private buildSQL(ir: GetRowsIR): string {
-    const depth = ir.select.length;
+    const depth = ir.groupPath.length;
     const isGroupLevel = depth < ir.groupBy.length;
     const whereClauses: string[] = [];
 
-    for (let i = 0; i < ir.select.length; i++) {
+    for (let i = 0; i < ir.groupPath.length; i++) {
       const field = ir.groupBy[i];
-      const value = ir.select[i];
+      const value = ir.groupPath[i];
       whereClauses.push(`"${field}" = '${this.escapeSQL(String(value))}'`);
     }
 
@@ -126,8 +126,11 @@ export class SqlFlatTableDataModel extends FlatTableDataModel {
     return "";
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  private buildFilterClause(f: { field: string; op: string; value: any }): string {
+  private buildFilterClause(f: ScalarFilter): string {
+    if (f.subtype === "date") {
+      return this.buildDatePartFilterClause(f as DatePartScalarFilter);
+    }
+
     switch (f.op) {
     case "eq": return `"${f.field}" = '${this.escapeSQL(String(f.value))}'`;
     case "neq": return `"${f.field}" != '${this.escapeSQL(String(f.value))}'`;
@@ -144,6 +147,24 @@ export class SqlFlatTableDataModel extends FlatTableDataModel {
     case "empty": return `"${f.field}" IS NULL`;
     case "notEmpty": return `"${f.field}" IS NOT NULL`;
     case "between": return `"${f.field}" BETWEEN ${(f.value as number[])[0]} AND ${(f.value as number[])[1]}`;
+    default: return "1=1";
+    }
+  }
+
+  private buildDatePartFilterClause(f: DatePartScalarFilter): string {
+    const extract = `EXTRACT(${f.part} FROM "${f.field}")`;
+    switch (f.op) {
+    case "eq": return `${extract} = ${f.value}`;
+    case "neq": return `${extract} != ${f.value}`;
+    case "gt": return `${extract} > ${f.value}`;
+    case "lt": return `${extract} < ${f.value}`;
+    case "gte": return `${extract} >= ${f.value}`;
+    case "lte": return `${extract} <= ${f.value}`;
+    case "between": return `${extract} BETWEEN ${(f.value as number[])[0]} AND ${(f.value as number[])[1]}`;
+    case "in": return `${extract} IN (${(f.value as number[]).join(", ")})`;
+    case "not_in": return `${extract} NOT IN (${(f.value as number[]).join(", ")})`;
+    case "empty": return `"${f.field}" IS NULL`;
+    case "notEmpty": return `"${f.field}" IS NOT NULL`;
     default: return "1=1";
     }
   }

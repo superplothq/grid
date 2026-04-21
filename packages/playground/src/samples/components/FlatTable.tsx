@@ -45,7 +45,7 @@ const FlatTableInner: React.FC<FlatTableInnerProps> = ({ds, columns, theme, heig
   const ir = React.useMemo<GetRowsIR>(() => ({
     startRow: 0,
     endRow: 100,
-    select: [],
+    groupPath: [],
     groupBy: [],
     project: schema.map((s) => s.name),
     sort: [],

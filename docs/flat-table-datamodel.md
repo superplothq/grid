@@ -112,7 +112,7 @@ Subclasses implement:
 abstract getRows(ir: {
   startRow: number;
   endRow: number;
-  select: string[];             // values identifying the expanded path (relational algebra: selection)
+  groupPath: string[];          // values identifying the expanded path (relational algebra: selection)
   groupBy: string[];            // fields defining the hierarchy
   project: string[];            // which fields to return (relational algebra: projection)
   sort: SortItem[];
@@ -146,16 +146,16 @@ There are two cases where data needs to be fetched:
 **Case 2: Initial render with pre-expanded state.** User opens a saved view where multiple groups are already expanded (e.g., USA/2008, USA/2012, and UK all open). The datamodel needs multiple queries at different tree depths:
 
 ```
-getRows({ select: [],                            ... })  → top-level groups
-getRows({ select: ["United States"],              ... })  → year sub-groups of US
-getRows({ select: ["United States", "2008"],      ... })  → leaf rows of US/2008
-getRows({ select: ["United States", "2012"],      ... })  → leaf rows of US/2012
-getRows({ select: ["UK"],                         ... })  → year sub-groups of UK
-                                                            ─────────
-                                                            5 queries
+getRows({ groupPath: [],                            ... })  → top-level groups
+getRows({ groupPath: ["United States"],              ... })  → year sub-groups of US
+getRows({ groupPath: ["United States", "2008"],      ... })  → leaf rows of US/2008
+getRows({ groupPath: ["United States", "2012"],      ... })  → leaf rows of US/2012
+getRows({ groupPath: ["UK"],                         ... })  → year sub-groups of UK
+                                                                ─────────
+                                                                5 queries
 ```
 
-These are fired in parallel via `Promise.all`. Each query is independent — different `select` path, potentially different GROUP BY depth, different result shape.
+These are fired in parallel via `Promise.all`. Each query is independent — different `groupPath` path, potentially different GROUP BY depth, different result shape.
 
 **Why parallel queries instead of a single UNION ALL?**
 
@@ -170,7 +170,7 @@ The only scenario where UNION ALL would be better is if there's a hard constrain
 
 Given `groupBy: ["country", "year"]`, `project: ["athlete", "sport", "gold", "silver", "bronze"]`:
 
-**Level 0 — top groups (`select: []`):**
+**Level 0 — top groups (`groupPath: []`):**
 
 ```sql
 SELECT country, COUNT(*) AS __count__, SUM(gold) AS gold
@@ -182,18 +182,18 @@ ORDER BY country
 
 Returns group rows. Columns without aggregation are `null`.
 
-**Level 1 — sub-groups (`select: ["United States"]`):**
+**Level 1 — sub-groups (`groupPath: ["United States"]`):**
 
 ```sql
 SELECT year, COUNT(*) AS __count__, SUM(gold) AS gold
 FROM data
-WHERE country = 'United States'     -- select values become WHERE clauses
+WHERE country = 'United States'     -- groupPath values become WHERE clauses
   AND sport = 'Swimming'            -- filter (if any)
 GROUP BY year
 ORDER BY year
 ```
 
-**Leaf level — raw rows (`select: ["United States", "2008"]`):**
+**Leaf level — raw rows (`groupPath: ["United States", "2008"]`):**
 
 ```sql
 SELECT athlete, sport, gold, silver, bronze
@@ -240,16 +240,16 @@ interface ExpandedGroup {
 The root of the tree holds the top-level pages (depth 0). When a row is expanded, its `expandedRows` entry holds child pages at the next depth. This recurses for deeper groupBy levels.
 
 ```
-root                                     select: []
+root                                     groupPath: []
 ├── page0 (P: 0-29, 30 rows)
 │   └── expandedRows:
-│       ├── 0 → USA (totalRowCount: 60)  select: ["USA"]
+│       ├── 0 → USA (totalRowCount: 60)  groupPath: ["USA"]
 │       │   ├── usa_page0 (P: 0-29)
 │       │   │   └── expandedRows:
-│       │   │       └── 3 → California   select: ["USA", "California"]
+│       │   │       └── 3 → California   groupPath: ["USA", "California"]
 │       │   │           └── ca_page0
 │       │   └── usa_page1 (P: 30-59)
-│       └── 5 → Canada (totalRowCount: 45)  select: ["Canada"]
+│       └── 5 → Canada (totalRowCount: 45)  groupPath: ["Canada"]
 │           ├── can_page0 (P: 0-29)
 │           └── can_page1 (P: 30-44)
 ├── page1 (P: 30-59, 30 rows)
@@ -288,7 +288,7 @@ The total logical row count of the root = sum of all page rows + sum of all expa
 1. User clicks expand on a group row (e.g., "USA" at row 0 in page0)
 2. Check if `expandedRows` already has an entry for that row (previously collapsed but pages retained)
    - **Yes**: set `expanded = true`, skip fetch — data is already cached
-   - **No**: fetch children via `getRows({ select: ["USA"], startRow: 0, endRow: pageSize, ... })`, create `ExpandedGroup { expanded: true, totalRowCount, pages: [new PageNode] }`
+   - **No**: fetch children via `getRows({ groupPath: ["USA"], startRow: 0, endRow: pageSize, ... })`, create `ExpandedGroup { expanded: true, totalRowCount, pages: [new PageNode] }`
 3. Recompute total logical rows (root L range grows by the loaded children)
 4. Flatten and rebuild `FlattenedDataViewModel`
 5. Notify layout to re-render
@@ -475,7 +475,7 @@ Config: `groupBy: ["country", "year"]`, `project: ["athlete", "sport", "gold", "
 
 ```
 1. Initial load
-   → getRows({ select: [], startRow: 0, endRow: 30 })
+   → getRows({ groupPath: [], startRow: 0, endRow: 30 })
    → Server returns: 30 countries, totalRowCount: 160
    → Tree: root.pages = [page0(P: 0-29)]
    → Flatten: 30 rows, all depth-0 groups, collapsed
@@ -483,7 +483,7 @@ Config: `groupBy: ["country", "year"]`, `project: ["athlete", "sport", "gold", "
    → Layout renders collapsed groups
 
 2. User expands "USA" (row 0 in page0)
-   → getRows({ select: ["USA"], startRow: 0, endRow: 30 })
+   → getRows({ groupPath: ["USA"], startRow: 0, endRow: 30 })
    → Server returns: 30 years, totalRowCount: 60
    → page0.expandedRows.set(0, { totalRowCount: 60, pages: [usa_page0(P: 0-29)] })
    → Tree: root.pages = [page0], page0 → USA → [usa_page0]
@@ -521,6 +521,6 @@ Config: `groupBy: ["country", "year"]`, `project: ["athlete", "sport", "gold", "
 
 7. User applies filter: sport = "Swimming"
    → Full invalidation — clear entire page tree
-   → getRows({ select: [], startRow: 0, endRow: 30, filter: [...] })
+   → getRows({ groupPath: [], startRow: 0, endRow: 30, filter: [...] })
    → Fresh start with filtered data
 ```

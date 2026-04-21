@@ -19,6 +19,7 @@ export interface Schema {
   subtype?: SchemaSubtype;
   datetimeFormat?: string;
   aggregateFn?: AggregateFn;
+  cardinality?: "low" | "high";
 }
 
 export interface DataSchema extends Schema {
@@ -70,6 +71,7 @@ export interface CrossSegment {
 export interface ScalarFilter {
   type: "scalar";
   field: string;
+  subtype?: "date";
   op: "eq" | "neq" | "in" | "not_in"
     | "gt" | "lt" | "gte" | "lte"
     | "between"
@@ -77,6 +79,13 @@ export interface ScalarFilter {
     | "before" | "after"
     | "empty" | "notEmpty";
   value: string | string[] | number | number[] | null;
+}
+
+export type DatePart = "year" | "month" | "day" | "hour" | "minute" | "second" | "quarter" | "week";
+
+export interface DatePartScalarFilter extends ScalarFilter {
+  subtype: "date";
+  part: DatePart;
 }
 
 export interface TupleFilter {
@@ -155,7 +164,7 @@ export interface FlatTableConfig {
 export interface GetRowsIR {
   startRow: number;
   endRow: number;
-  select: string[];
+  groupPath: string[];
   groupBy: string[];
   project: string[];
   sort: SortEntry[];

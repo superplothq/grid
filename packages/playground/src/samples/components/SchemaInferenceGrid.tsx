@@ -89,7 +89,7 @@ const SchemaInferenceGridInner: React.FC<InnerProps> = ({ds, columns, theme, hei
   const ir = React.useMemo<GetRowsIR>(() => ({
     startRow: 0,
     endRow: 100,
-    select: [],
+    groupPath: [],
     groupBy: [],
     project: schema.map((s) => s.name),
     sort: [],

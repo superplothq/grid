@@ -98,7 +98,7 @@ const GroupedFlatTableInner: React.FC<GroupedFlatTableInnerProps> = ({ds, column
   const ir = React.useMemo<GetRowsIR>(() => ({
     startRow: 0,
     endRow: 20,
-    select: [],
+    groupPath: [],
     groupBy: GROUP_BY,
     project: [...schema.filter(s => s.type === "measure").map(s => s.name), ...schema.filter(s => s.type !== "measure").map(s => s.name)],
     sort: [],

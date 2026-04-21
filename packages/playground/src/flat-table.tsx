@@ -181,7 +181,7 @@ const FlatTablePlayground: React.FC = () => {
       const ir: GetRowsIR = {
         startRow: 0,
         endRow: ps,
-        select: [],
+        groupPath: [],
         groupBy: ["group", "item"],
         project: ["value"],
         sort: [],

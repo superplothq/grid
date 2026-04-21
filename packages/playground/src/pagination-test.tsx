@@ -215,7 +215,7 @@ const PaginationTestPlayground: React.FC = () => {
       const ir: GetRowsIR = {
         startRow: 0,
         endRow: 20,
-        select: [],
+        groupPath: [],
         groupBy: GROUP_BY,
         project: PROJECT,
         sort: [],

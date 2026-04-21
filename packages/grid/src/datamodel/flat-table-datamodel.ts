@@ -294,7 +294,7 @@ export abstract class FlatTableDataModel {
         ...ir,
         startRow: 0,
         endRow: this.pageSize,
-        select: [],
+        groupPath: [],
       };
       const response = await this.getData(bootstrapIR);
       this.pages = this.createPageSlots(response.totalRowCount, this.pageSize);
@@ -309,7 +309,7 @@ export abstract class FlatTableDataModel {
     await Promise.all(pagesToFetch.map(async (req) => {
       const fetchIR: GetRowsIR = {
         ...ir,
-        select: req.selectPath,
+        groupPath: req.selectPath,
         startRow: req.page.physicalStart,
         endRow: req.page.physicalStart + req.page.rowCount,
       };
@@ -359,7 +359,7 @@ export abstract class FlatTableDataModel {
     const childIR: GetRowsIR = {
       startRow: 0,
       endRow: this.pageSize,
-      select,
+      groupPath: select,
       groupBy: ir.groupBy,
       project: ir.project,
       sort: ir.sort,

@@ -2,7 +2,7 @@ import { expect } from "chai";
 import { getUnfetchedPagesByLogicalBoundary, findTargetSlotPath, findContiguousPageBlocks } from "./flat-table-datamodel";
 import { DuckDBDataSource } from "./duckdb-datasource";
 import { SqlFlatTableDataModel } from "./sql-flat-table-datamodel";
-import { DataSchema, FlatTableConfig, GetRowsIR, GetRowsResponse, GridData, PageNode, ExpandedGroup } from "./types";
+import { DataSchema, DatePartScalarFilter, FlatTableConfig, GetRowsIR, GetRowsResponse, GridData, PageNode, ExpandedGroup } from "./types";
 import { FlattenedDataViewModel } from "../renderer/flattened-data-viewmodel";
 
 // 24 rows, 8 dimensions + 4 measures — same dataset as datamodel.data.test.ts
@@ -60,7 +60,7 @@ function makeIR(overrides: Partial<GetRowsIR> = {}): GetRowsIR {
   return {
     startRow: 0,
     endRow: 100,
-    select: [],
+    groupPath: [],
     groupBy: ["region", "country"],
     project: ["revenue", "cost", "units_sold", "returns"],
     sort: [],
@@ -634,6 +634,144 @@ describe("FlatTableDataModel (real DuckDB)", () => {
     const vm = new FlattenedDataViewModel(vmData);
     const slice = vm.getSlice(0, 0, 4, 3);
     expect(slice.rowFacets).to.deep.equal(["Europe", "UK", "North America"]);
+  });
+});
+
+describe("DatePartScalarFilter (real DuckDB)", () => {
+  const tsSchema: DataSchema[] = [
+    { name: "created_at", type: "dimension", subtype: "temporal", datetimeFormat: "%Y-%m-%d %H:%M:%S" },
+    { name: "category", type: "dimension" },
+    { name: "amount", displayName: "Amount", type: "measure", aggregateFn: "sum" },
+  ];
+
+  const tsGridData: GridData = {
+    columns: [
+      { name: "created_at", type: "dimension", subtype: "temporal", datetimeFormat: "%Y-%m-%d %H:%M:%S" },
+      "category",
+      { name: "amount", displayName: "Amount", type: "measure", aggregateFn: "sum" },
+    ],
+    data: [
+      // created_at — 6 rows spanning 2023 and 2024
+      ["2023-01-15 10:30:00", "2023-06-20 14:00:00", "2023-12-01 08:00:00", "2024-03-10 09:15:00", "2024-07-22 16:45:00", "2024-11-05 12:00:00"],
+      // category
+      ["A", "B", "A", "B", "A", "B"],
+      // amount
+      [100, 200, 150, 300, 250, 400],
+    ],
+  };
+
+  async function makeTsModel() {
+    const ds = DuckDBDataSource.create();
+    await ds.loadData({ table: "ts_data", schema: tsSchema, data: tsGridData.data });
+    return new SqlFlatTableDataModel(
+      { schema: tsSchema, pageSize: 100, maxCacheSize: 20 },
+      tsSchema,
+      ds,
+    );
+  }
+
+  function makeTsIR(overrides: Partial<GetRowsIR> = {}): GetRowsIR {
+    return {
+      startRow: 0,
+      endRow: 100,
+      groupPath: [],
+      groupBy: [],
+      project: ["created_at", "category", "amount"],
+      sort: [],
+      filter: [],
+      ...overrides,
+    };
+  }
+
+  function datePart(part: DatePartScalarFilter["part"], op: DatePartScalarFilter["op"], value: DatePartScalarFilter["value"]): DatePartScalarFilter {
+    return { type: "scalar", field: "created_at", subtype: "date", part, op, value };
+  }
+
+  it("should filter by year eq", async () => {
+    const model = await makeTsModel();
+    const vm = await model.getViewModel(makeTsIR({
+      filter: [datePart("year", "eq", 2024)],
+    }));
+    expect(vm.numRows).to.equal(3);
+  });
+
+  it("should filter by year gt", async () => {
+    const model = await makeTsModel();
+    const vm = await model.getViewModel(makeTsIR({
+      filter: [datePart("year", "gt", 2023)],
+    }));
+    expect(vm.numRows).to.equal(3);
+  });
+
+  it("should filter by year lt", async () => {
+    const model = await makeTsModel();
+    const vm = await model.getViewModel(makeTsIR({
+      filter: [datePart("year", "lt", 2024)],
+    }));
+    expect(vm.numRows).to.equal(3);
+  });
+
+  it("should filter by month gte", async () => {
+    const model = await makeTsModel();
+    const vm = await model.getViewModel(makeTsIR({
+      filter: [datePart("month", "gte", 7)],
+    }));
+    // Jun=no, Jul=yes, Dec=yes, Nov=yes → 3 rows
+    expect(vm.numRows).to.equal(3);
+  });
+
+  it("should filter by month between", async () => {
+    const model = await makeTsModel();
+    const vm = await model.getViewModel(makeTsIR({
+      filter: [datePart("month", "between", [3, 7])],
+    }));
+    // Jun(6), Mar(3), Jul(7) → 3 rows
+    expect(vm.numRows).to.equal(3);
+  });
+
+  it("should filter by year in", async () => {
+    const model = await makeTsModel();
+    const vm = await model.getViewModel(makeTsIR({
+      filter: [datePart("year", "in", [2023])],
+    }));
+    expect(vm.numRows).to.equal(3);
+  });
+
+  it("should filter by year not_in", async () => {
+    const model = await makeTsModel();
+    const vm = await model.getViewModel(makeTsIR({
+      filter: [datePart("year", "not_in", [2023])],
+    }));
+    expect(vm.numRows).to.equal(3);
+  });
+
+  it("should filter by year neq", async () => {
+    const model = await makeTsModel();
+    const vm = await model.getViewModel(makeTsIR({
+      filter: [datePart("year", "neq", 2023)],
+    }));
+    expect(vm.numRows).to.equal(3);
+  });
+
+  it("should combine date part filter with scalar filter", async () => {
+    const model = await makeTsModel();
+    const vm = await model.getViewModel(makeTsIR({
+      filter: [
+        datePart("year", "eq", 2024),
+        { type: "scalar", field: "category", op: "eq", value: "A" },
+      ],
+    }));
+    // 2024 rows: Mar(B), Jul(A), Nov(B) → only Jul(A) matches both
+    expect(vm.numRows).to.equal(1);
+  });
+
+  it("should filter by day lte", async () => {
+    const model = await makeTsModel();
+    const vm = await model.getViewModel(makeTsIR({
+      filter: [datePart("day", "lte", 5)],
+    }));
+    // day=15,20,1,10,22,5 → 1 and 5 match
+    expect(vm.numRows).to.equal(2);
   });
 });
 

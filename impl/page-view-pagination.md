@@ -630,7 +630,7 @@ const config: FlatTableConfig = { schema, pageSize: 50 };
 const ir: GetRowsIR = {
   startRow: 0,
   endRow: 50,
-  select: [],
+  groupPath: [],
   groupBy: [],
   project: schema.map(s => s.name),
   sort: [],
