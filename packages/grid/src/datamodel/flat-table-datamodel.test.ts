@@ -534,6 +534,26 @@ describe("FlatTableDataModel (real DuckDB)", () => {
     expect(slice.rowFacets).to.deep.equal(["Germany", "UK"]);
   });
 
+  it("should return no rows when filter uses in with empty array", async () => {
+    const model = await makeModel();
+    const ir = makeIR({
+      groupBy: ["country"],
+      filter: [{ type: "scalar" as const, field: "region", op: "in" as const, value: [] }],
+    });
+    const vm = await model.getViewModel(ir);
+    expect(vm.numRows).to.equal(0);
+  });
+
+  it("should return all rows when filter uses not_in with empty array", async () => {
+    const model = await makeModel();
+    const ir = makeIR({
+      groupBy: ["country"],
+      filter: [{ type: "scalar" as const, field: "region", op: "not_in" as const, value: [] }],
+    });
+    const vm = await model.getViewModel(ir);
+    expect(vm.numRows).to.equal(4);
+  });
+
   it("should expand after sorting by a non-group column", async () => {
     const model = await makeModel();
     const ir = makeIR({
@@ -772,6 +792,84 @@ describe("DatePartScalarFilter (real DuckDB)", () => {
     }));
     // day=15,20,1,10,22,5 → 1 and 5 match
     expect(vm.numRows).to.equal(2);
+  });
+
+  it("should filter by before op", async () => {
+    const model = await makeTsModel();
+    const vm = await model.getViewModel(makeTsIR({
+      filter: [{ type: "scalar" as const, field: "created_at", op: "before" as const, value: "2024-01-01 00:00:00" }],
+    }));
+    // 3 rows in 2023
+    expect(vm.numRows).to.equal(3);
+  });
+
+  it("should filter by after op", async () => {
+    const model = await makeTsModel();
+    const vm = await model.getViewModel(makeTsIR({
+      filter: [{ type: "scalar" as const, field: "created_at", op: "after" as const, value: "2024-01-01 00:00:00" }],
+    }));
+    // 3 rows in 2024
+    expect(vm.numRows).to.equal(3);
+  });
+
+  it("should filter by between op with timestamp values", async () => {
+    const model = await makeTsModel();
+    const vm = await model.getViewModel(makeTsIR({
+      filter: [{ type: "scalar" as const, field: "created_at", op: "between" as const, value: ["2023-06-01 00:00:00", "2024-03-31 23:59:59"] }],
+    }));
+    // Jun 2023, Dec 2023, Mar 2024 → 3 rows
+    expect(vm.numRows).to.equal(3);
+  });
+});
+
+describe("getDomainValues (real DuckDB)", () => {
+  it("should return categorical values for dimension fields", async () => {
+    const model = await makeModel();
+    const result = await model.getDomainValues("region");
+    expect(result.type).to.equal("categorical");
+    if (result.type === "categorical") {
+      expect(result.values).to.include("Europe");
+      expect(result.values).to.include("North America");
+      expect(result.values).to.have.length(2);
+    }
+  });
+
+  it("should return range for measure fields", async () => {
+    const model = await makeModel();
+    const result = await model.getDomainValues("revenue");
+    expect(result.type).to.equal("range");
+    if (result.type === "range") {
+      expect(result.min).to.equal(200);
+      expect(result.max).to.equal(1500);
+    }
+  });
+
+  it("should return temporal range for date fields", async () => {
+    const tsSchema: DataSchema[] = [
+      { name: "created_at", type: "dimension", subtype: "temporal", datetimeFormat: "%Y-%m-%d %H:%M:%S" },
+      { name: "amount", displayName: "Amount", type: "measure", aggregateFn: "sum" },
+    ];
+    const tsGridData: GridData = {
+      columns: [
+        { name: "created_at", type: "dimension", subtype: "temporal", datetimeFormat: "%Y-%m-%d %H:%M:%S" },
+        { name: "amount", displayName: "Amount", type: "measure", aggregateFn: "sum" },
+      ],
+      data: [
+        ["2023-01-15 10:30:00", "2024-11-05 12:00:00"],
+        [100, 400],
+      ],
+    };
+    const ds = DuckDBDataSource.create();
+    await ds.loadData({ table: "domain_ts", schema: tsSchema, data: tsGridData.data });
+    const model = new SqlFlatTableDataModel({ schema: tsSchema, pageSize: 100, maxCacheSize: 20 }, tsSchema, ds);
+    const result = await model.getDomainValues("created_at");
+    expect(result.type).to.equal("temporal");
+    if (result.type === "temporal") {
+      expect(result.min).to.be.a("string");
+      expect(result.max).to.be.a("string");
+      expect(result.min).to.include("2023");
+      expect(result.max).to.include("2024");
+    }
   });
 });
 

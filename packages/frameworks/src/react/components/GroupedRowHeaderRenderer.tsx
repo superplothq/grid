@@ -4,6 +4,7 @@ import type { FlatSliceResult, FlatRowMeta } from "grid/dist/renderer";
 import { FlattenedDataViewModel } from "grid/dist/renderer";
 import type { FlattenedDataViewModelParams } from "grid/dist/index";
 import { Sort } from "./Sort";
+import { Filter } from "./Filter";
 import { useDataModelContext } from "./DataModelContext";
 
 const PlusIcon: React.FC<{size?: number}> = ({size = 9}) => (
@@ -170,9 +171,10 @@ export const GroupedRowHeaderRenderer: React.FC<FacetHeaderProps> = ({ text, vie
             <span style={{flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0}}>
               {schema?.displayName ?? field}
             </span>
-            {gridConfig.enableSorting && schema && (
-              <span style={{flexShrink: 0}}>
-                <Sort schema={schema} viewModel={viewModel} render={render} />
+            {(gridConfig.enableFiltering || gridConfig.enableSorting) && schema && (
+              <span style={{display: "flex", alignItems: "center", gap: 2, flexShrink: 0}}>
+                {gridConfig.enableFiltering && <Filter schema={schema} viewModel={viewModel} render={render} />}
+                {gridConfig.enableSorting && <Sort schema={schema} viewModel={viewModel} render={render} />}
               </span>
             )}
           </div>

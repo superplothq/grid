@@ -88,6 +88,11 @@ export interface DatePartScalarFilter extends ScalarFilter {
   part: DatePart;
 }
 
+export type DomainValues =
+  | { type: "categorical"; values: string[] }
+  | { type: "range"; min: number; max: number }
+  | { type: "temporal"; min: string; max: string };
+
 export interface TupleFilter {
   type: "tuple";
   fields: string[];

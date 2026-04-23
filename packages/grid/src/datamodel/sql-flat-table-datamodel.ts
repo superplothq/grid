@@ -1,6 +1,6 @@
 import { FlatTableDataModel } from "./flat-table-datamodel";
 import { SqlDataSource } from "./sql-datasource";
-import { DataSchema, DatePartScalarFilter, FlatTableConfig, GetRowsIR, GetRowsResponse, ScalarFilter, SortEntry } from "./types";
+import { DataSchema, DatePartScalarFilter, DomainValues, FlatTableConfig, GetRowsIR, GetRowsResponse, ScalarFilter, SortEntry } from "./types";
 
 export class SqlFlatTableDataModel extends FlatTableDataModel {
   protected table: string;
@@ -39,6 +39,27 @@ export class SqlFlatTableDataModel extends FlatTableDataModel {
     const rowData = this.toColumnMajor(rows, outputColumns);
 
     return { rowData, totalRowCount };
+  }
+
+  async getDomainValues(field: string): Promise<DomainValues> {
+    const schema = this.config.schema.find((s) => s.name === field);
+    if (!schema) throw new Error(`Field "${field}" not found in schema`);
+
+    if (schema.type === "measure") {
+      const sql = `SELECT MIN("${field}") AS min_val, MAX("${field}") AS max_val FROM "${this.table}"`;
+      const rows = await this.dataSource.execute(sql);
+      return { type: "range", min: Number(rows[0].min_val), max: Number(rows[0].max_val) };
+    }
+
+    if (schema.subtype === "temporal") {
+      const sql = `SELECT MIN("${field}") AS min_val, MAX("${field}") AS max_val FROM "${this.table}"`;
+      const rows = await this.dataSource.execute(sql);
+      return { type: "temporal", min: String(rows[0].min_val), max: String(rows[0].max_val) };
+    }
+
+    const sql = `SELECT DISTINCT "${field}" FROM "${this.table}" ORDER BY "${field}"`;
+    const rows = await this.dataSource.execute(sql);
+    return { type: "categorical", values: rows.map((r) => String(r[field])) };
   }
 
   private buildSQL(ir: GetRowsIR): string {
@@ -138,15 +159,25 @@ export class SqlFlatTableDataModel extends FlatTableDataModel {
     case "lt": return `"${f.field}" < ${f.value}`;
     case "gte": return `"${f.field}" >= ${f.value}`;
     case "lte": return `"${f.field}" <= ${f.value}`;
-    case "in": return `"${f.field}" IN (${(f.value as string[]).map((v) => `'${this.escapeSQL(String(v))}'`).join(", ")})`;
-    case "not_in": return `"${f.field}" NOT IN (${(f.value as string[]).map((v) => `'${this.escapeSQL(String(v))}'`).join(", ")})`;
+    case "in": {
+      const vals = f.value as string[];
+      if (vals.length === 0) return "1=0";
+      return `"${f.field}" IN (${vals.map((v) => `'${this.escapeSQL(String(v))}'`).join(", ")})`;
+    }
+    case "not_in": {
+      const vals = f.value as string[];
+      if (vals.length === 0) return "1=1";
+      return `"${f.field}" NOT IN (${vals.map((v) => `'${this.escapeSQL(String(v))}'`).join(", ")})`;
+    }
     case "contains": return `"${f.field}" LIKE '%${this.escapeSQL(String(f.value))}%'`;
     case "doesNotContain": return `"${f.field}" NOT LIKE '%${this.escapeSQL(String(f.value))}%'`;
     case "startsWith": return `"${f.field}" LIKE '${this.escapeSQL(String(f.value))}%'`;
     case "endsWith": return `"${f.field}" LIKE '%${this.escapeSQL(String(f.value))}'`;
     case "empty": return `"${f.field}" IS NULL`;
     case "notEmpty": return `"${f.field}" IS NOT NULL`;
-    case "between": return `"${f.field}" BETWEEN ${(f.value as number[])[0]} AND ${(f.value as number[])[1]}`;
+    case "before": return `"${f.field}" < '${this.escapeSQL(String(f.value))}'`;
+    case "after": return `"${f.field}" > '${this.escapeSQL(String(f.value))}'`;
+    case "between": return `"${f.field}" BETWEEN '${this.escapeSQL(String((f.value as (string | number)[])[0]))}' AND '${this.escapeSQL(String((f.value as (string | number)[])[1]))}'`;
     default: return "1=1";
     }
   }

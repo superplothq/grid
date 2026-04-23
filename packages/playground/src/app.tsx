@@ -15,6 +15,7 @@ import CustomButton from "./samples/custom-button.mdx";
 import Sorting from "./samples/sorting.mdx";
 import Grouping from "./samples/grouping.mdx";
 import Pagination from "./samples/pagination.mdx";
+import Filtering from "./samples/filtering.mdx";
 import feather from "feather-icons";
 
 const Home: React.FC = () => {
@@ -87,6 +88,7 @@ const App: React.FC = () => {
         <Route path="sorting" element={<Sorting />} />
         <Route path="grouping" element={<Grouping />} />
         <Route path="pagination" element={<Pagination />} />
+        <Route path="filtering" element={<Filtering />} />
       </Route>
     </Routes>
   );

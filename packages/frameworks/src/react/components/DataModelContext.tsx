@@ -1,10 +1,12 @@
 import { createContext, useContext } from "react";
 import type { FlatTableDataModel } from "grid/dist/index";
-import type { GetRowsIR, SortEntry } from "grid/dist/index";
+import type { GetRowsIR, SortEntry, ScalarFilter, DomainValues } from "grid/dist/index";
 import type Grid from "grid/dist/renderer";
 
 export interface GridConfig {
   enableSorting?: boolean;
+  enableFiltering?: boolean;
+  theme?: string;
 }
 
 export interface DataModelContextValue {
@@ -13,6 +15,8 @@ export interface DataModelContextValue {
   gridConfig: GridConfig;
   grid: Grid;
   sortAction?: (entries: SortEntry[]) => Promise<void>;
+  filterAction?: (filters: ScalarFilter[]) => Promise<void>;
+  getDomainValues?: (field: string) => Promise<DomainValues>;
   expandAction?: (selectPath: string[]) => Promise<void>;
   collapseAction?: (selectPath: string[]) => Promise<void>;
 }

@@ -24,6 +24,7 @@ const pages = [
   { path: "sorting", label: "Sorting" },
   { path: "grouping", label: "Grouping" },
   { path: "pagination", label: "Pagination" },
+  { path: "filtering", label: "Filtering" },
 ];
 
 const SamplesLayout: React.FC = () => {

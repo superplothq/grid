@@ -1,12 +1,13 @@
 import React, { useRef, useState, useEffect, useCallback, createElement, type FC, type ReactNode } from "react";
 import { FlattenedDataViewModel, type GridDataViewModelOptions, type VTrackDef } from "grid/dist/renderer";
 import type { FacetPredicate, SelectionProps, ColAutoSizeConfig } from "grid/dist/renderer";
-import { SqlFlatTableDataModel, type FlattenedDataViewModelParams, type GetRowsIR, type FlatTableConfig, type DataSchema, type SortEntry } from "grid/dist/index";
+import { SqlFlatTableDataModel, type FlattenedDataViewModelParams, type GetRowsIR, type FlatTableConfig, type DataSchema, type SortEntry, type ScalarFilter, type DomainValues } from "grid/dist/index";
 import type { SqlDataSource } from "grid/dist/index";
 import type { FacetDef } from "grid/dist/renderer";
 import { ReactCellAdapter } from "../renderer-adapter";
 import type { ColumnDef, CellProps, FacetCellProps, DataGridHandle, ReactFacetDefs, ReactFacetDef } from "../types";
 import { SortableColumnRenderer } from "../components/SortableColumnRenderer";
+import { FilterableColumnRenderer } from "../components/FilterableColumnRenderer";
 import { GroupedRowHeaderRenderer } from "../components/GroupedRowHeaderRenderer";
 import { DataModelContext } from "../components/DataModelContext";
 
@@ -30,8 +31,10 @@ export interface UseFlatGridOptions {
   transformResult?: (result: FlattenedDataViewModelParams) => FlattenedDataViewModelParams;
   contextWrapper?: FC<{ children: ReactNode }>;
   enableSorting?: boolean;
+  enableFiltering?: boolean;
   enablePageView?: boolean;
   displayPageSize?: number;
+  theme?: string;
 }
 
 export type TransformFn = (val: any) => any;
@@ -67,7 +70,7 @@ export interface UseFlatGridResult {
 }
 
 export function useFlatGrid(options: UseFlatGridOptions): UseFlatGridResult {
-  const { dataSource, schema, config, ir, columns, facetDefs, selections, transformResult, contextWrapper, enableSorting, enablePageView, displayPageSize } = options;
+  const { dataSource, schema, config, ir, columns, facetDefs, selections, transformResult, contextWrapper, enableSorting, enableFiltering, enablePageView, displayPageSize, theme } = options;
 
   const modelRef = useRef<SqlFlatTableDataModel | null>(null);
   const adapterRef = useRef<ReactCellAdapter | null>(null);
@@ -95,9 +98,11 @@ export function useFlatGrid(options: UseFlatGridOptions): UseFlatGridResult {
   // the prop IR. All page-view operations read from this so that page navigation,
   // expand, and collapse preserve sort/filter state across fetches.
   const activeIRRef = useRef<GetRowsIR>(ir);
-  activeIRRef.current = { ...ir, sort: activeIRRef.current.sort };
+  activeIRRef.current = { ...ir, sort: activeIRRef.current.sort, filter: activeIRRef.current.filter };
 
   const sortActionRef = useRef<(entries: SortEntry[]) => Promise<void>>(async () => {});
+  const filterActionRef = useRef<(filters: ScalarFilter[]) => Promise<void>>(async () => {});
+  const getDomainValuesRef = useRef<(field: string) => Promise<DomainValues>>(async () => ({ type: "categorical" as const, values: [] }));
   const expandActionRef = useRef<(selectPath: string[]) => Promise<void>>(async () => {});
   const collapseActionRef = useRef<(selectPath: string[]) => Promise<void>>(async () => {});
 
@@ -109,9 +114,11 @@ export function useFlatGrid(options: UseFlatGridOptions): UseFlatGridResult {
     const inner = createElement(DataModelContext.Provider, { value: {
       model: modelRef.current!,
       ir: irRef.current,
-      gridConfig: { enableSorting },
+      gridConfig: { enableSorting, enableFiltering, theme },
       grid: gridRef.current!.grid,
       sortAction: (entries: SortEntry[]) => sortActionRef.current(entries),
+      filterAction: (filters: ScalarFilter[]) => filterActionRef.current(filters),
+      getDomainValues: (field: string) => getDomainValuesRef.current(field),
       expandAction: (selectPath: string[]) => expandActionRef.current(selectPath),
       collapseAction: (selectPath: string[]) => collapseActionRef.current(selectPath),
     } }, children);
@@ -145,10 +152,13 @@ export function useFlatGrid(options: UseFlatGridOptions): UseFlatGridResult {
       });
 
     const colDefs = facetDefs.col;
-    const needsSortRenderer = enableSorting && !colDefs.some(d => d.trackRenderer);
-    const resolvedCol = needsSortRenderer
-      ? resolve(colDefs.map(d => ({ ...d, trackRenderer: SortableColumnRenderer })))
-      : resolve(colDefs);
+    const needsFilterRenderer = enableFiltering && !colDefs.some(d => d.trackRenderer);
+    const needsSortRenderer = enableSorting && !needsFilterRenderer && !colDefs.some(d => d.trackRenderer);
+    const resolvedCol = needsFilterRenderer
+      ? resolve(colDefs.map(d => ({ ...d, trackRenderer: FilterableColumnRenderer })))
+      : needsSortRenderer
+        ? resolve(colDefs.map(d => ({ ...d, trackRenderer: SortableColumnRenderer })))
+        : resolve(colDefs);
 
     const resolvedRow = resolve(facetDefs.row);
     if (ir.groupBy.length > 0 && resolvedRow.length > 0 && !facetDefs.row[0].headerRenderer) {
@@ -334,7 +344,7 @@ export function useFlatGrid(options: UseFlatGridOptions): UseFlatGridResult {
     if (enablePageView) return;
     const model = modelRef.current;
     if (!model || !irRef.current) return;
-    const pageIR: GetRowsIR = { ...irRef.current, startRow, endRow };
+    const pageIR: GetRowsIR = { ...activeIRRef.current, startRow, endRow };
     inFlightCountRef.current++;
     setPageLoadingInProgress(true);
     try {
@@ -442,6 +452,58 @@ export function useFlatGrid(options: UseFlatGridOptions): UseFlatGridResult {
     }
   }, [applyResult, enablePageView]);
 
+  const filterAction = useCallback(async (newFilters: ScalarFilter[]) => {
+    const model = modelRef.current;
+    if (!model || !irRef.current) return;
+
+    const expandedPaths = model.getExpandedPaths();
+
+    activeIRRef.current = { ...activeIRRef.current, filter: newFilters };
+
+    if (enablePageView) {
+      setCurrentPage(0);
+      currentPageRef.current = 0;
+    }
+
+    const startRow = enablePageView ? 0 : activeIRRef.current.startRow;
+    const endRow = enablePageView ? activePageSizeRef.current : activeIRRef.current.endRow;
+
+    inFlightCountRef.current++;
+    setPageLoadingInProgress(true);
+    try {
+      const filterIR: GetRowsIR = { ...activeIRRef.current, startRow, endRow };
+      const result = await model.getViewModelData(filterIR);
+
+      // Re-expand previously expanded paths (parents before children)
+      if (expandedPaths.length > 0) {
+        expandedPaths.sort((a, b) => a.length - b.length);
+        for (const path of expandedPaths) {
+          await model.expandAndGetData(path);
+        }
+      }
+
+      const finalResult = expandedPaths.length > 0
+        ? await model.getViewModelData({ ...activeIRRef.current, startRow, endRow })
+        : result;
+
+      applyResult(finalResult, enablePageView ? { page: 0, size: activePageSizeRef.current } : undefined);
+      if (enablePageView) {
+        setDatasetTotalRows(model.computeTotalLogicalRows());
+        gridRef.current?.grid.scrollTo("row", 0);
+      }
+      gridRef.current?.grid.scheduleDraw();
+    } finally {
+      inFlightCountRef.current--;
+      if (inFlightCountRef.current === 0) setPageLoadingInProgress(false);
+    }
+  }, [applyResult, enablePageView]);
+
+  const getDomainValuesAction = useCallback(async (field: string): Promise<DomainValues> => {
+    const model = modelRef.current;
+    if (!model) return { type: "categorical", values: [] };
+    return model.getDomainValues(field);
+  }, []);
+
   const expandAction = useCallback(async (selectPath: string[]) => {
     const model = modelRef.current;
     if (!model) return;
@@ -494,6 +556,8 @@ export function useFlatGrid(options: UseFlatGridOptions): UseFlatGridResult {
   }, [applyResult, enablePageView]);
 
   sortActionRef.current = sortAction;
+  filterActionRef.current = filterAction;
+  getDomainValuesRef.current = getDomainValuesAction;
   expandActionRef.current = expandAction;
   collapseActionRef.current = collapseAction;
 

@@ -1,5 +1,6 @@
 import {
   DataSchema,
+  DomainValues,
   FlatTableConfig,
   GetRowsIR,
   GetRowsResponse,
@@ -251,6 +252,7 @@ export abstract class FlatTableDataModel {
   }
 
   abstract getData(ir: GetRowsIR): Promise<GetRowsResponse>;
+  abstract getDomainValues(field: string): Promise<DomainValues>;
 
   get pageSize(): number {
     return this.config.pageSize ?? DEFAULT_PAGE_SIZE;
@@ -299,9 +301,11 @@ export abstract class FlatTableDataModel {
       const response = await this.getData(bootstrapIR);
       this.pages = this.createPageSlots(response.totalRowCount, this.pageSize);
       this.topLevelRowCount = response.totalRowCount;
-      // TODO always load the first page on the top level irrespective of where the user 
+      // TODO always load the first page on the top level irrespective of where the user
       // set the startRow and endRow
-      this.pages[0].data = response.rowData;
+      if (this.pages.length > 0) {
+        this.pages[0].data = response.rowData;
+      }
     }
 
     const pagesToFetch = getUnfetchedPagesByLogicalBoundary(this.pages, ir.startRow, ir.endRow);
@@ -334,7 +338,7 @@ export abstract class FlatTableDataModel {
   async expandAndGetData(select: string[]): Promise<FlattenedDataViewModelParams> {
     const result = this.findGroupRow(select);
     if (!result) {
-      throw new Error(`Group row not found for select: ${select.join(", ")}`);
+      return this.flatten();
     }
 
     const { page, localRowIndex } = result;
@@ -390,7 +394,7 @@ export abstract class FlatTableDataModel {
   async collapseAndGetData(select: string[]): Promise<FlattenedDataViewModelParams> {
     const result = this.findGroupRow(select);
     if (!result) {
-      throw new Error(`Group row not found for select: ${select.join(", ")}`);
+      return this.flatten();
     }
 
     const { page, localRowIndex } = result;
@@ -582,6 +586,24 @@ export abstract class FlatTableDataModel {
       if (def.aggregateFn) measureCols.push(name);
     }
     return [groupField, ...measureCols];
+  }
+
+  getExpandedPaths(): string[][] {
+    const paths: string[][] = [];
+    const walk = (pages: PageNode[], prefix: string[]): void => {
+      for (const page of pages) {
+        if (!page.data) continue;
+        for (const [rowIdx, group] of page.expandedRows) {
+          if (!group.expanded) continue;
+          const value = String(page.data[0][rowIdx]);
+          const path = [...prefix, value];
+          paths.push(path);
+          walk(group.pages, path);
+        }
+      }
+    };
+    walk(this.pages, []);
+    return paths;
   }
 
   computeTotalLogicalRows(): number {
