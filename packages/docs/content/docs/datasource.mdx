@@ -1,0 +1,58 @@
+---
+title: DataSource
+description: Connects to a data source and executes downstream commands such as SQL queries or HTTP requests.
+---
+
+<agent-review>
+The `DataSource<T>` interface is the foundational abstraction for all data access in the grid. This interface's only responsibility is to provide mechanism to connect to external sources of data and execute commands against those sources.
+
+You can create your own custom DataSource by extending this base class, or any concrete class of `DataSource`. Here are some examples of data sources:
+
+// TODO[agent]: 1. Create a table with following list (3 columns)
+//              2. link duckdb
+
+- API datasource: Connect to an API endpoint that talks to a database: Provided.
+- WASM datasource: Connect to WASM datasources in browser like duckdb / PGLite: Provided.
+- In JS memory datasource: Access data stored in jsmemory (as array / object) and: Not Provided. Note - as WASM datasource is superior.
+
+It provides a generic query execution contract with ref-counted lifecycle management,
+allowing multiple consumers (pivot grid, flat table) to share a single underlying connection.
+
+`DataSource` is an abstract class, we pack concrete implementation of some data sources in the grid that covers majority of the usecase.
+
+```
+DataSource<T> (interface)         — generic: execute, addRef, release
+└── SqlDataSource (abstract)      — implements DataSource<string>, adds loadData + table
+    ├── DuckDBDataSource          — Node.js duckdb
+    └── DuckDBWasmDataSource      — Browser WASM duckdb
+```
+
+### What does query execution mean?
+
+When grid needs data to show (during the load phase / during interactions), the relevant DataModel figures what data needs to be loaded, then DataModel for API datasource forwards the payload to the http api, similarly DataModel for SQL over WASM prepares right SQL to fetch data from source. This process is is called query exection. DataSource provides the standard for generic query exectuion.
+
+### How does grid makes uses of `DataSource`?
+
+1. User configures DataSource (API, WASM)
+2. Grid looks at the configuration based on which the data needs to be loaded
+3. Grid calls DataModel to figure which exact query (SQL / HTTP payload) needs to be executed
+4. DataModel forward the query to DataSource
+</agent-review>
+
+
+## API Reference
+
+<auto-type-table path="packages/grid/src/datamodel/datasource.ts" name="DataSource" />
+
+## Column Types
+
+```json doc-gen:file
+{ "file": "packages/grid/src/datamodel/datasource.ts#sql-column-type", "codeblock": { "lang": "ts" } }
+```
+
+| Value | Description |
+| --- | --- |
+| `VARCHAR` | Variable-length string |
+| `INTEGER` | 32-bit signed integer |
+| `DOUBLE` | 64-bit floating point |
+| `TIMESTAMP` | Date and time |

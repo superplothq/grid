@@ -16,8 +16,7 @@
     "@duckdb/duckdb-wasm": "^1.33.1-dev18.0",
     "d3-dsv": "^3.0.1",
     "d3-scale": "^4.0.2",
-    "d3-shape": "^3.2.0",
-    "utils": "1.0.0"
+    "d3-shape": "^3.2.0"
   },
   "devDependencies": {
     "@esm-bundle/chai": "^4.3.4-fix.0",

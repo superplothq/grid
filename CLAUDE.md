@@ -11,7 +11,6 @@ This is a yarn workspace with following packages:
 - **packages/playground**: React web application that creates playground where samples of grid can get created during development / demo
 
 ### Technology Stack
-- **utils**: TypeScript, ESLint
 - **grid**: TypeScript, ESLint, DuckDB (WASM for browser, native for Node.js) for local data storage and SQL-based querying
 - **frameworks**: React 18, TypeScript, ESLint
 - **playground**: React 18, TypeScript, Webpack 5, ESLint
