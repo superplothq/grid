@@ -1,11 +1,13 @@
 import defaultMdxComponents from 'fumadocs-ui/mdx';
-import { TypeTable } from 'fumadocs-ui/components/type-table';
+import { TypeTable } from '@/components/type-table-open';
+import { Term } from '@/components/term';
 import type { MDXComponents } from 'mdx/types';
 
 export function getMDXComponents(components?: MDXComponents) {
   return {
     ...defaultMdxComponents,
     TypeTable,
+    Term,
     ...components,
   } satisfies MDXComponents;
 }
