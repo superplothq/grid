@@ -8,3 +8,4 @@ The audience is  AI agents (primary persona) and developer (secondary persona) w
 4. **Show alongside telling.** Every concept needs a code snippet or example right next to the explanation. Don't describe behavior without demonstrating it. This code example's are mostly short showing how the api is being consumed by the downstream.
 5. **Self-contained pages.** A reader should be able to follow a page top-to-bottom without jumping elsewhere. Include enough context on each page that it stands alone. Link to other pages for deeper dives, not for prerequisites.
 6. **One idea per section.** If a section covers two concepts, split it.
+7. **Do not use — ** Use - or ; instead

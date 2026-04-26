@@ -18,6 +18,12 @@ const DEFAULT_BUNDLES: DuckDBWasmBundles = {
   },
 };
 
+/**
+ * The recommended [SqlDataSource](/docs/datasource/sql-datasource) implementation for browser applications, to load full CSV / JSON data in memory.
+ *
+ * Runs DuckDB compiled to WebAssembly directly in the browser - no server required.
+ * Supports native Arrow ingestion for batch insertion, making `loadData()` and `loadDataFromURL()` fast even for large datasets.
+ */
 export class DuckDBWasmDataSource extends SqlDataSource {
   private wasmDb: duckdb.AsyncDuckDB;
   private wasmConn: duckdb.AsyncDuckDBConnection;
@@ -28,6 +34,11 @@ export class DuckDBWasmDataSource extends SqlDataSource {
     this.wasmConn = wasmConn;
   }
 
+  /**
+   * Create a new `DuckDBWasmDataSource` instance. Downloads and instantiates the DuckDB WASM binary.
+   *
+   * @param bundles - Optional custom WASM bundle paths. Default bundles are included with the package.
+   */
   static async create(bundles: DuckDBWasmBundles = DEFAULT_BUNDLES): Promise<DuckDBWasmDataSource> {
     const bundle = await duckdb.selectBundle({
       mvp: { mainModule: bundles.mvp.mainModule, mainWorker: bundles.mvp.mainWorker },
@@ -46,6 +57,12 @@ export class DuckDBWasmDataSource extends SqlDataSource {
     return new DuckDBWasmDataSource(db, conn);
   }
 
+  /**
+   * Execute a SQL string against the DuckDB WASM engine and return the result rows.
+   *
+   * @param sql - A SQL query string.
+   * @returns Result rows as key-value records.
+   */
   execute(sql: string): Promise<Record<string, any>[]> {
     return this.wasmConn.query(sql).then(result => result.toArray().map(row => row.toJSON()));
   }
@@ -54,6 +71,9 @@ export class DuckDBWasmDataSource extends SqlDataSource {
     await this.wasmConn.insertArrowTable(table, { name, create: false });
   }
 
+  /**
+   * Decrement the reference count. When it reaches zero, the WASM connection is closed and the DuckDB WASM instance is terminated, freeing memory.
+   */
   async release(): Promise<void> {
     this.refCount--;
     if (this.refCount <= 0) {

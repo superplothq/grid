@@ -2,7 +2,9 @@ import { VTrackDef } from "../renderer/types";
 
 // TODO [Later] remember there might be custom aggregate function as well
 //   (those functions will be registered separately and the name will be used here)
+// #region aggregate-fn
 type AggregateFn = "sum" | "avg" | "count" | "min" | "max";
+// #endregion aggregate-fn
 
 export type SortDirection = "asc" | "desc" | "noop";
 
@@ -12,18 +14,57 @@ export interface SortEntry {
   by?: string;
 }
 
-export type SchemaSubtype = "quantitative" | "temporal" | "nominal" | "integer" | "decimal";
+// #region schema-subtype
+export type SchemaSubtype = "temporal" | "nominal" | "integer" | "decimal";
+// #endregion schema-subtype
 
+/**
+ * Defines the semantic role and behavior of a column — whether it holds values to aggregate (measure) or categories to group by (dimension), how its raw values should be parsed and stored, and what operations are valid on it.
+ *
+ * By attaching semantics to each field, the data model and renderer can make decisions automatically based on the column's role — SQL type casting during loading, aggregation strategy, domain value extraction for filters, and rendering behavior in the UI.
+ */
 export interface Schema {
+  /**
+   * Determines how the grid treats this column.
+   *
+   * - `"measure"` — stored as a number (`INTEGER` or `DOUBLE` in SQL). The grid can aggregate it (sum, avg, etc.) and reports numeric domain ranges (min/max) for filtering.
+   * - `"dimension"` — used for grouping, pivoting, and labeling rows. Stored as `VARCHAR` (or `TIMESTAMP` if `subtype` is `"temporal"`). Filtering returns distinct categorical values.
+   */
   type: "measure" | "dimension";
+  /**
+   * Optional refinement that controls SQL type casting and filtering behavior. See [SchemaSubtype](/docs/api-references/type-references#schemasubtype).
+   *
+   * | Subtype | Valid for type | Behavior |
+   * | --- | --- | --- |
+   * | `"integer"` | `"measure"` | Whole-number storage and aggregation |
+   * | `"decimal"` | `"measure"` | Floating-point storage and aggregation |
+   * | `"temporal"` | `"dimension"` | Parsed using `datetimeFormat`, filtered by date range (min/max) |
+   * | `"nominal"` | `"dimension"` | Default for dimensions, filtered by distinct values |
+   */
   subtype?: SchemaSubtype;
+  /**
+   * Format string that tells the SQL engine how to parse date/time values from raw strings.
+   * Only used when `subtype` is `"temporal"`.
+   *
+   * Uses [strptime format codes](https://duckdb.org/docs/sql/functions/dateformat.html) — e.g. `"%Y-%m-%d"` parses `"2024-03-15"`, `"%m/%d/%Y %H:%M"` parses `"03/15/2024 14:30"`.
+   */
   datetimeFormat?: string;
+  /** Aggregate function for measures. Defaults to `"sum"` if not specified. See [AggregateFn](/docs/api-references/type-references#aggregatefn). */
   aggregateFn?: AggregateFn;
+  /** Cardinality hint for dimensions: `"low"` for few unique values, `"high"` for many. Upstream consumers can use this to pick appropriate UI — e.g. a dropdown for low cardinality vs. a search input for high cardinality. */
   cardinality?: "low" | "high";
 }
 
+/**
+ * A named column definition that extends `Schema` with an identifier.
+ *
+ * This is the primary type used throughout the grid to describe columns —
+ * in datasource, datamodel, and grid configuration.
+ */
 export interface DataSchema extends Schema {
+  /** The column name as it appears in the data source. */
   name: string;
+  /** Optional human-readable label for rendering in headers. */
   displayName?: string;
 }
 

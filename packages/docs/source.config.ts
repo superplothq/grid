@@ -25,7 +25,16 @@ export default defineConfig({
   mdxOptions: {
     remarkPlugins: [
       [remarkTypeTableWithDocs, { basePath: projectRoot }],
-      [remarkAutoTypeTable, { options: { basePath: projectRoot } }],
+      [remarkAutoTypeTable, { options: {
+        basePath: projectRoot,
+        transform(entry: any) {
+          for (const tag of entry.tags ?? []) {
+            if (tag.name === 'throws') {
+              entry.description += '\n\n**Throws:**\n\n' + tag.text;
+            }
+          }
+        },
+      } }],
       [remarkDocGen, { generators: [fileRegionGenerator({ basePath: projectRoot })] }],
     ],
   },

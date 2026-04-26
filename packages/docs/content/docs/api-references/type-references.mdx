@@ -1,0 +1,26 @@
+---
+title: Type References
+description: All shared types used across the grid library.
+---
+
+## Schema
+
+<auto-type-table path="packages/grid/src/datamodel/types.ts" name="Schema" />
+
+## DataSchema
+
+Extends [Schema](#schema).
+
+<auto-type-table path="packages/grid/src/datamodel/types.ts" type="Omit<DataSchema, keyof Schema>" name="DataSchemaOwn" origname="DataSchema" />
+
+## SchemaSubtype
+
+```json doc-gen:file
+{ "file": "packages/grid/src/datamodel/types.ts#schema-subtype", "codeblock": { "lang": "ts" } }
+```
+
+## AggregateFn
+
+```json doc-gen:file
+{ "file": "packages/grid/src/datamodel/types.ts#aggregate-fn", "codeblock": { "lang": "ts" } }
+```
