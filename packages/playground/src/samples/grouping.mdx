@@ -23,7 +23,7 @@ const ir: GetRowsIR = {
 
 ## How it works
 
-When `groupBy` is non-empty, `SqlFlatTableDataModel` generates SQL with `GROUP BY` clauses and builds a tree of expandable row nodes. Each group header row can be expanded to reveal child groups or leaf rows. The grid handles expand/collapse state internally.
+When `groupBy` is non-empty, `SqlStandardTableDataModel` generates SQL with `GROUP BY` clauses and builds a tree of expandable row nodes. Each group header row can be expanded to reveal child groups or leaf rows. The grid handles expand/collapse state internally.
 
 ## Try it
 

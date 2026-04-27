@@ -1,7 +1,7 @@
 import React, {useEffect, useRef, useState} from "react";
 import "grid/dist/grid.css";
 import Grid, {PivotDataViewModel, FacetCellRenderer, FacetDataContext, FacetRendererContext, FacetHeaderRenderer, FacetHeaderContext, GridDataViewModelOptions} from "grid/dist/renderer";
-import {DuckDBWasmDataSource, SqlPivotDataModel, cross, hierarchy, GridData, DataSchema, ProjectionState, AxisConfig, DimensionalProjectionPath, SortEntry, Filter, ScalarFilter} from "grid/dist/index";
+import {DuckDBWasmDataSource, SqlPivotTableDataModel, cross, hierarchy, GridData, DataSchema, ProjectionState, AxisConfig, DimensionalProjectionPath, SortEntry, Filter, ScalarFilter} from "grid/dist/index";
 import feather from "feather-icons";
 import SortDropdown, {SortEntryConfig} from "./sort-dropdown";
 import FilterDropdown from "./filter-dropdown";
@@ -183,7 +183,7 @@ function makeFacetRenderer(
   axis: "row" | "col",
   hierarchyDepth: number,
   projectionTreeRef: React.MutableRefObject<ProjectionTree>,
-  modelRef: React.MutableRefObject<SqlPivotDataModel | null>,
+  modelRef: React.MutableRefObject<SqlPivotTableDataModel | null>,
   viewModelRef: React.MutableRefObject<PivotDataViewModel | null>,
   buildConfig: () => { rows: AxisConfig; columns: AxisConfig; sort?: SortEntry[]; filter?: Filter[] },
 ): FacetCellRenderer {
@@ -250,7 +250,7 @@ function makeFacetRenderer(
 const PivotGridPlayground: React.FC = () => {
   const gridConRef = useRef<HTMLDivElement>(null);
   const gridRef = useRef<Grid | null>(null);
-  const modelRef = useRef<SqlPivotDataModel | null>(null);
+  const modelRef = useRef<SqlPivotTableDataModel | null>(null);
   const viewModelRef = useRef<PivotDataViewModel | null>(null);
   const rowProjectionRef = useRef<ProjectionTree>({});
   const colProjectionRef = useRef<ProjectionTree>({});
@@ -375,7 +375,7 @@ const PivotGridPlayground: React.FC = () => {
       });
       const ds = await DuckDBWasmDataSource.create();
       await ds.loadData({ schema, data: gridData.data });
-      const model = new SqlPivotDataModel(schema, ds);
+      const model = new SqlPivotTableDataModel(schema, ds);
       modelRef.current = model;
 
       const config = buildConfig();

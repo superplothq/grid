@@ -7,7 +7,7 @@ import {
   PageNode,
   ExpandedGroup,
 } from "./types";
-import { FlattenedDataViewModel, FlattenedDataViewModelParams, createRowMeta } from "../renderer/flattened-data-viewmodel";
+import { FlattenedDataViewModelParams, createRowMeta } from "../renderer/flattened-data-viewmodel";
 import { GridDataViewModelOptions } from "../renderer/types";
 
 const DEFAULT_PAGE_SIZE = 10000;
@@ -237,7 +237,7 @@ export function findContiguousPageBlocks(pages: PageNode[], cursor: TargetSlotPa
   return { blockStart: flatPages[startIdx].path, blockEnd: flatPages[endIdx].path };
 }
 
-export abstract class FlatTableDataModel {
+export abstract class StandardTableDataModel {
   config: FlatTableConfig;
   pages: PageNode[] = [];
   topLevelRowCount = 0;
@@ -325,18 +325,13 @@ export abstract class FlatTableDataModel {
     return this.flatten();
   }
 
-  async getViewModel(ir: GetRowsIR): Promise<FlattenedDataViewModel> {
-    const args = await this.getViewModelData(ir);
-    return new FlattenedDataViewModel(args);
-  }
-
   // TODO when expand happens the IR is not updated, hence the IR does not know the upto date startRow
   //      Example: scroll down to load more page, scroll back up and then expand, IR would have the
   //      startRow from last page load when it was at the very bottom of the page (no idea about scroll back up)
   //      Pass the startRow as parameter
   //      this might have an error for page eviction
-  async expandAndGetData(select: string[]): Promise<FlattenedDataViewModelParams> {
-    const result = this.findGroupRow(select);
+  async expand(groupPath: string[]): Promise<FlattenedDataViewModelParams> {
+    const result = this.findGroupRow(groupPath);
     if (!result) {
       return this.flatten();
     }
@@ -352,7 +347,7 @@ export abstract class FlatTableDataModel {
     }
 
     const ir = this.lastIR!;
-    const childGroupBy = ir.groupBy.slice(select.length);
+    const childGroupBy = ir.groupBy.slice(groupPath.length);
     const hasOutsideFacetDims = this.hasOutsideFacetDims();
     const isLeafFacet = childGroupBy.length === 0;
 
@@ -363,7 +358,7 @@ export abstract class FlatTableDataModel {
     const childIR: GetRowsIR = {
       startRow: 0,
       endRow: this.pageSize,
-      groupPath: select,
+      groupPath: groupPath,
       groupBy: ir.groupBy,
       project: ir.project,
       sort: ir.sort,
@@ -386,13 +381,8 @@ export abstract class FlatTableDataModel {
     return this.flatten();
   }
 
-  async expandAndGetViewModel(select: string[]): Promise<FlattenedDataViewModel> {
-    const args = await this.expandAndGetData(select);
-    return new FlattenedDataViewModel(args);
-  }
-
-  async collapseAndGetData(select: string[]): Promise<FlattenedDataViewModelParams> {
-    const result = this.findGroupRow(select);
+  async collapse(groupPath: string[]): Promise<FlattenedDataViewModelParams> {
+    const result = this.findGroupRow(groupPath);
     if (!result) {
       return this.flatten();
     }
@@ -404,11 +394,6 @@ export abstract class FlatTableDataModel {
     }
 
     return this.flatten();
-  }
-
-  async collapseAndGetViewModel(select: string[]): Promise<FlattenedDataViewModel> {
-    const args = await this.collapseAndGetData(select);
-    return new FlattenedDataViewModel(args);
   }
 
   private hasOutsideFacetDims(): boolean {

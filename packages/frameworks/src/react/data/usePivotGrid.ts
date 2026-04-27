@@ -1,6 +1,6 @@
 import { useRef, useState, useEffect, useCallback, type FC, type ReactNode } from "react";
 import { PivotDataViewModel, type GridDataViewModelOptions, type VTrackDef } from "grid/dist/renderer";
-import { SqlPivotDataModel, type DataSchema, type PivotConfig } from "grid/dist/index";
+import { SqlPivotTableDataModel, type DataSchema, type PivotConfig } from "grid/dist/index";
 import type { PivotDataViewModelParams } from "grid/dist/renderer/pivot-data-viewmodel";
 import type { SqlDataSource } from "grid/dist/index";
 import type { FacetDef } from "grid/dist/renderer";
@@ -27,7 +27,7 @@ export interface UsePivotGridResult {
 export function usePivotGrid(options: UsePivotGridOptions): UsePivotGridResult {
   const { dataSource, schema, config, columns, facetDefs, contextWrapper } = options;
 
-  const modelRef = useRef<SqlPivotDataModel | null>(null);
+  const modelRef = useRef<SqlPivotTableDataModel | null>(null);
   const adapterRef = useRef<ReactCellAdapter | null>(null);
   const vmRef = useRef<PivotDataViewModel | null>(null);
   const vTrackDefsRef = useRef<VTrackDef[] | undefined>(undefined);
@@ -36,7 +36,7 @@ export function usePivotGrid(options: UsePivotGridOptions): UsePivotGridResult {
   const [error, setError] = useState<Error | null>(null);
 
   if (!modelRef.current) {
-    modelRef.current = new SqlPivotDataModel(schema, dataSource);
+    modelRef.current = new SqlPivotTableDataModel(schema, dataSource);
   }
 
   if (!adapterRef.current) {

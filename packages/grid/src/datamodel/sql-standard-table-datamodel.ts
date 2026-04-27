@@ -1,8 +1,8 @@
-import { FlatTableDataModel } from "./flat-table-datamodel";
+import { StandardTableDataModel } from "./standard-table-datamodel";
 import { SqlDataSource } from "./sql-datasource";
 import { DataSchema, DatePartScalarFilter, DomainValues, FlatTableConfig, GetRowsIR, GetRowsResponse, ScalarFilter, SortEntry } from "./types";
 
-export class SqlFlatTableDataModel extends FlatTableDataModel {
+export class SqlStandardTableDataModel extends StandardTableDataModel {
   protected table: string;
   protected dataSchema: DataSchema[];
   protected dataSource: SqlDataSource;

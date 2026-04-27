@@ -2,7 +2,7 @@ import * as arrow from "apache-arrow";
 import { csvParseRows } from "d3-dsv";
 import { DataSource, SqlColumnType } from "./datasource";
 import { DataSchema } from "./types";
-import { schemaToSqlType } from "./sql-pivot-datamodel";
+import { schemaToSqlType } from "./sql-pivot-table-datamodel";
 import { GridError, GridErrorCode } from "../errors";
 
 export type ColumnMetadata = DataSchema & {

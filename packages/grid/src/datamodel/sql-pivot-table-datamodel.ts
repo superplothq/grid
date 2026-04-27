@@ -1,4 +1,4 @@
-import { GridPivotDataModel } from "./grid-pivot-datamodel";
+import { PivotTableDataModel } from "./pivot-table-datamodel";
 import { SqlDataSource } from "./sql-datasource";
 import {
   CrossSegment,
@@ -97,7 +97,7 @@ export function schemaToSqlType(s: Schema): string {
   return "VARCHAR";
 }
 
-export class SqlPivotDataModel extends GridPivotDataModel {
+export class SqlPivotTableDataModel extends PivotTableDataModel {
   protected dataSource: SqlDataSource;
 
   constructor(schema: DataSchema[], dataSource: SqlDataSource) {

@@ -1,7 +1,7 @@
 import React, {useEffect, useRef, useState} from "react";
 import "grid/dist/grid.css";
 import Grid, {FlattenedDataViewModel, FacetCellRenderer, FacetDataContext, FacetRendererContext, GridDataViewModelOptions} from "grid/dist/renderer";
-import {DuckDBWasmDataSource, SqlFlatTableDataModel, GridData, DataSchema, FlatTableConfig, GetRowsIR, FlattenedDataViewModelParams} from "grid/dist/index";
+import {DuckDBWasmDataSource, SqlStandardTableDataModel, GridData, DataSchema, FlatTableConfig, GetRowsIR, FlattenedDataViewModelParams} from "grid/dist/index";
 import feather from "feather-icons";
 
 const L0_COUNT = 30;
@@ -77,7 +77,7 @@ const spinnerIcon = (size = 12): HTMLElement => {
 };
 
 function makeFacetRenderer(
-  modelRef: React.MutableRefObject<SqlFlatTableDataModel | null>,
+  modelRef: React.MutableRefObject<SqlStandardTableDataModel | null>,
   viewModelRef: React.MutableRefObject<FlattenedDataViewModel | null>,
   gridRef: React.MutableRefObject<Grid | null>,
   lastIRRef: React.MutableRefObject<GetRowsIR | null>,
@@ -113,9 +113,9 @@ function makeFacetRenderer(
       const select = dataCtx.path as string[];
       let result: FlattenedDataViewModelParams;
       if (flatMeta.isExpanded) {
-        result = await model.collapseAndGetData(select);
+        result = await model.collapse(select);
       } else {
-        result = await model.expandAndGetData(select);
+        result = await model.expand(select);
       }
 
       viewModel.updateData({ data: result.data, columnFacets: result.columnFacets, rowFacet: result.rowFacet, rowMeta: result.rowMeta, totalRows: result.totalRows, offsetTop: result.offsetTop });
@@ -177,7 +177,7 @@ function collectExpandedPathsAtLevel(pages: any[], targetLevel: number, currentP
 const PaginationTestPlayground: React.FC = () => {
   const gridConRef = useRef<HTMLDivElement>(null);
   const gridRef = useRef<Grid | null>(null);
-  const modelRef = useRef<SqlFlatTableDataModel | null>(null);
+  const modelRef = useRef<SqlStandardTableDataModel | null>(null);
   const viewModelRef = useRef<FlattenedDataViewModel | null>(null);
   const lastIRRef = useRef<GetRowsIR | null>(null);
 
@@ -207,7 +207,7 @@ const PaginationTestPlayground: React.FC = () => {
       });
       const ds = await DuckDBWasmDataSource.create();
       await ds.loadData({ schema: dataSchema, data: gridData.data });
-      const model = new SqlFlatTableDataModel(config, dataSchema, ds);
+      const model = new SqlStandardTableDataModel(config, dataSchema, ds);
 
       if (cancelled) return;
       modelRef.current = model;
@@ -293,7 +293,7 @@ const PaginationTestPlayground: React.FC = () => {
       console.log(`Expanding ${paths.length} paths at level ${level}`);
       for (const path of paths) {
         try {
-          const result = await model.expandAndGetData(path);
+          const result = await model.expand(path);
           viewModel.updateData({ data: result.data, columnFacets: result.columnFacets, rowFacet: result.rowFacet, rowMeta: result.rowMeta, totalRows: result.totalRows, offsetTop: result.offsetTop });
         } catch (e) {
           console.log(`Skip expand ${path.join("/")}:`, e);
@@ -318,7 +318,7 @@ const PaginationTestPlayground: React.FC = () => {
       console.log(`Collapsing ${paths.length} paths at level ${level}`);
       for (const path of paths) {
         try {
-          const result = await model.collapseAndGetData(path);
+          const result = await model.collapse(path);
           viewModel.updateData({ data: result.data, columnFacets: result.columnFacets, rowFacet: result.rowFacet, rowMeta: result.rowMeta, totalRows: result.totalRows, offsetTop: result.offsetTop });
         } catch (e) {
           console.log(`Skip collapse ${path.join("/")}:`, e);

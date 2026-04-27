@@ -1,9 +1,10 @@
 /* eslint-disable quotes */
 import { expect } from "chai";
-import { concat, cross, hierarchy } from "./grid-pivot-datamodel";
+import { concat, cross, hierarchy } from "./pivot-table-datamodel";
 import { makeModel, makePatchedModel } from "./datamodel.data.test";
 import { DuckDBDataSource } from "./duckdb-datasource";
-import { SqlPivotDataModel } from "./sql-pivot-datamodel";
+import { SqlPivotTableDataModel } from "./sql-pivot-table-datamodel";
+import { PivotDataViewModel } from "../renderer/pivot-data-viewmodel";
 import { AxisConfig, DataSchema, PivotConfig, ProjectionState } from "./types";
 import { GridDataViewModel } from "../renderer/grid-data-viewmodel";
 
@@ -3117,7 +3118,13 @@ describe("Dimensional Projections", () => {
       const data = [employee, department, product, revenue];
       const ds = DuckDBDataSource.create();
       await ds.loadData({ table: "data", schema, data });
-      return new SqlPivotDataModel(schema, ds);
+      const model = new SqlPivotTableDataModel(schema, ds);
+      return Object.assign(model, {
+        async getViewModel(config: PivotConfig) {
+          const args = await model.getViewModelData(config);
+          return new PivotDataViewModel(args);
+        },
+      });
     }
 
     it("selective open Sales+Engineering groups children under parent", async () => {

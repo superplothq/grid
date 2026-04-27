@@ -1,7 +1,7 @@
 import { expect } from "chai";
-import { getUnfetchedPagesByLogicalBoundary, findTargetSlotPath, findContiguousPageBlocks } from "./flat-table-datamodel";
+import { getUnfetchedPagesByLogicalBoundary, findTargetSlotPath, findContiguousPageBlocks } from "./standard-table-datamodel";
 import { DuckDBDataSource } from "./duckdb-datasource";
-import { SqlFlatTableDataModel } from "./sql-flat-table-datamodel";
+import { SqlStandardTableDataModel } from "./sql-standard-table-datamodel";
 import { DataSchema, DatePartScalarFilter, FlatTableConfig, GetRowsIR, GetRowsResponse, GridData, PageNode, ExpandedGroup } from "./types";
 import { FlattenedDataViewModel } from "../renderer/flattened-data-viewmodel";
 
@@ -69,11 +69,24 @@ function makeIR(overrides: Partial<GetRowsIR> = {}): GetRowsIR {
   };
 }
 
-async function makeModel(configOverrides: Partial<FlatTableConfig> = {}) {
-  return makePatchedModel(configOverrides);
+function withViewModelHelpers<T extends SqlStandardTableDataModel>(model: T) {
+  return Object.assign(model, {
+    async getViewModel(ir: GetRowsIR) {
+      const args = await model.getViewModelData(ir);
+      return new FlattenedDataViewModel(args);
+    },
+    async expandAndGetViewModel(select: string[]) {
+      const args = await model.expand(select);
+      return new FlattenedDataViewModel(args);
+    },
+    async collapseAndGetViewModel(select: string[]) {
+      const args = await model.collapse(select);
+      return new FlattenedDataViewModel(args);
+    },
+  });
 }
 
-async function makePatchedModel(configOverrides: Partial<FlatTableConfig> = {}) {
+async function makeModel(configOverrides: Partial<FlatTableConfig> = {}) {
   const dataSchema: DataSchema[] = gridData.columns.map((col) => {
     if (typeof col === "string") {
       return { name: col, displayName: col, type: "dimension" as const };
@@ -82,19 +95,19 @@ async function makePatchedModel(configOverrides: Partial<FlatTableConfig> = {}) 
   });
   const ds = DuckDBDataSource.create();
   await ds.loadData({ table: "data", schema: dataSchema, data: gridData.data });
-  const model = new SqlFlatTableDataModel(makeConfig(configOverrides), dataSchema, ds);
+  const model = new SqlStandardTableDataModel(makeConfig(configOverrides), dataSchema, ds);
   let getDataCallCount = 0;
   const origGetData = model.getData.bind(model);
   model.getData = async (ir: GetRowsIR): Promise<GetRowsResponse> => {
     getDataCallCount++;
     return origGetData(ir);
   };
-  return Object.assign(model, {
+  return Object.assign(withViewModelHelpers(model), {
     getDataCallCount: () => getDataCallCount,
   });
 }
 
-describe("FlatTableDataModel (real DuckDB)", () => {
+describe("StandardTableDataModel (real DuckDB)", () => {
   it("should produce correct viewmodel for top-level groups", async () => {
     const model = await makeModel();
     const vm = await model.getViewModel(makeIR());
@@ -230,8 +243,8 @@ describe("FlatTableDataModel (real DuckDB)", () => {
     const model = await makeModel();
 
     await model.getViewModel(makeIR({ startRow: 0, endRow: 100 }));
-    await model.expandAndGetData(["Europe"]);
-    await model.expandAndGetData(["North America"]);
+    await model.expand(["Europe"]);
+    await model.expand(["North America"]);
     // total = 2 + 2 + 2 = 6
     expect(model.computeTotalLogicalRows()).to.equal(6);
 
@@ -239,8 +252,8 @@ describe("FlatTableDataModel (real DuckDB)", () => {
     await model.getViewModel(makeIR({ startRow: 4, endRow: 100 }));
 
     // Collapse all — each collapse shrinks total, startRow stays stale
-    await model.collapseAndGetData(["Europe"]);
-    const vm = await model.collapseAndGetData(["North America"]);
+    await model.collapse(["Europe"]);
+    const vm = await model.collapse(["North America"]);
     expect(model.computeTotalLogicalRows()).to.equal(2);
     expect(vm.data[0]?.length).to.equal(2);
   });
@@ -631,7 +644,7 @@ describe("FlatTableDataModel (real DuckDB)", () => {
     expect(model.pages[1].data).to.not.be.null; // North America
 
     // Expand Europe → Germany child page loaded, UK child page not loaded
-    await model.expandAndGetData(["Europe"]);
+    await model.expand(["Europe"]);
     const europeGroup = model.pages[0].expandedRows.get(0)!;
     expect(europeGroup.pages[0].data).to.not.be.null; // Germany
     expect(europeGroup.pages[1].data).to.be.null;      // UK
@@ -683,11 +696,11 @@ describe("DatePartScalarFilter (real DuckDB)", () => {
   async function makeTsModel() {
     const ds = DuckDBDataSource.create();
     await ds.loadData({ table: "ts_data", schema: tsSchema, data: tsGridData.data });
-    return new SqlFlatTableDataModel(
+    return withViewModelHelpers(new SqlStandardTableDataModel(
       { schema: tsSchema, pageSize: 100, maxCacheSize: 20 },
       tsSchema,
       ds,
-    );
+    ));
   }
 
   function makeTsIR(overrides: Partial<GetRowsIR> = {}): GetRowsIR {
@@ -861,7 +874,7 @@ describe("getDomainValues (real DuckDB)", () => {
     };
     const ds = DuckDBDataSource.create();
     await ds.loadData({ table: "domain_ts", schema: tsSchema, data: tsGridData.data });
-    const model = new SqlFlatTableDataModel({ schema: tsSchema, pageSize: 100, maxCacheSize: 20 }, tsSchema, ds);
+    const model = new SqlStandardTableDataModel({ schema: tsSchema, pageSize: 100, maxCacheSize: 20 }, tsSchema, ds);
     const result = await model.getDomainValues("created_at");
     expect(result.type).to.equal("temporal");
     if (result.type === "temporal") {

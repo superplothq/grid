@@ -51,6 +51,29 @@ Your markdown content here.
 
 The page is automatically available at `/docs/<filename>` (without the `.mdx` extension).
 
+### Sidebar ordering and nesting
+
+Sidebar order is controlled by `meta.json` files in each directory. The `pages` array sets the order:
+
+```json
+{ "pages": ["index", "datasource", "api-references"] }
+```
+
+For nested sections, create a folder with an `index.mdx` (the parent page) and a `meta.json`:
+
+```
+content/docs/
+  datasource/
+    index.mdx              # Parent page: /docs/datasource
+    meta.json              # { "pages": ["sql-datasource"] }
+    sql-datasource/
+      index.mdx            # Child page: /docs/datasource/sql-datasource
+      meta.json            # { "title": "SqlDataSource", "pages": ["duckdb-wasm-datasource"] }
+      duckdb-wasm-datasource.mdx
+```
+
+A folder's `meta.json` can include a `title` to override the sidebar label. Pages not listed in `pages` won't appear in the sidebar.
+
 ## Sourcing API Docs from TypeScript (auto-type-table)
 
 Use `<auto-type-table>` to generate a property/method table from a TypeScript interface or type. The interface-level JSDoc is automatically rendered as markdown above the table (via `remarkTypeTableWithDocs`).
@@ -64,6 +87,12 @@ Use `<auto-type-table>` to generate a property/method table from a TypeScript in
 - JSDoc on the interface itself becomes the description paragraph (supports markdown: `**bold**`, `` `code` ``, lists)
 - JSDoc on each property/method becomes the row description in the table
 - Works for interfaces and object types, NOT for union types (use manual docs for those)
+- Use `type` and `origname` props for advanced cases:
+  - To omit inherited properties: `type="Omit<Child, keyof Parent>"` with `origname="Child"` (for JSDoc lookup)
+  - To show only specific members: `type="Pick<ClassName, 'method1' | 'method2'>"` with `origname="ClassName"`
+- For static methods, use `typeof`: `type="Omit<typeof ClassName, 'prototype'>"` (filters out the `prototype` noise)
+- JSDoc in source files must use markdown links (`[Text](/path)`), not `{@link}` syntax - the remark plugin parses JSDoc as markdown
+- If changes to JSDoc in source files don't appear, clear `.next` cache (`rm -rf packages/docs/.next`) and restart the dev server
 
 ## Sourcing Code Snippets from Files (doc-gen:file)
 
@@ -137,13 +166,6 @@ Configured in `source.config.ts`, runs in this order:
 1. `remarkTypeTableWithDocs` — extracts interface-level JSDoc from `<auto-type-table>` and inserts as markdown
 2. `remarkAutoTypeTable` — converts `<auto-type-table>` into `<TypeTable>` with property entries
 3. `remarkDocGen` with `fileRegionGenerator` — processes `doc-gen:file` code blocks into embedded source
-
-## Fonts
-
-- Body: IBM Plex Sans (`--font-body`)
-- Headings: IBM Plex Mono (`--font-title`)
-
-Configured in `app/layout.tsx` as CSS variables, mapped to Tailwind in `app/global.css` via `@theme`.
 
 ## Deployment
 

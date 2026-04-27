@@ -1,5 +1,5 @@
 import { createContext, useContext } from "react";
-import type { FlatTableDataModel } from "grid/dist/index";
+import type { StandardTableDataModel } from "grid/dist/index";
 import type { GetRowsIR, SortEntry, ScalarFilter, DomainValues } from "grid/dist/index";
 import type Grid from "grid/dist/renderer";
 
@@ -10,7 +10,7 @@ export interface GridConfig {
 }
 
 export interface DataModelContextValue {
-  model: FlatTableDataModel;
+  model: StandardTableDataModel;
   ir: GetRowsIR;
   gridConfig: GridConfig;
   grid: Grid;

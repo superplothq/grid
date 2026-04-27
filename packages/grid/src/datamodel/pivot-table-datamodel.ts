@@ -1,4 +1,4 @@
-import { PivotDataViewModel, PivotDataViewModelParams } from "../renderer/pivot-data-viewmodel";
+import { PivotDataViewModelParams } from "../renderer/pivot-data-viewmodel";
 import {
   AxisConfig,
   AxisExpr,
@@ -566,7 +566,7 @@ function buildInvertedIndex(facetSpace: (string | null)[][]): Map<string, number
  * ```
  */
 
-export abstract class GridPivotDataModel {
+export abstract class PivotTableDataModel {
   static readonly SRC_COL_PREFIX = "__src__";
 
   protected schema: DataSchema[];
@@ -599,11 +599,11 @@ export abstract class GridPivotDataModel {
   // __src__0 disambiguates rows so that values from different branches are not mixed up
   // during facet extraction. Override in subclasses to customize the naming.
   protected srcColName(n: number): string {
-    return `${GridPivotDataModel.SRC_COL_PREFIX}${n}`;
+    return `${PivotTableDataModel.SRC_COL_PREFIX}${n}`;
   }
 
   protected isSrcCol(name: string): boolean {
-    return name.startsWith(GridPivotDataModel.SRC_COL_PREFIX);
+    return name.startsWith(PivotTableDataModel.SRC_COL_PREFIX);
   }
 
   private extractFacetSpace(
@@ -948,8 +948,4 @@ export abstract class GridPivotDataModel {
     };
   }
 
-  async getViewModel(config: PivotConfig): Promise<PivotDataViewModel> {
-    const { data, columnFacets, rowFacets, options } = await this.getViewModelData(config);
-    return new PivotDataViewModel({ data, columnFacets, rowFacets, options });
-  }
 }

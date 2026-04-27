@@ -1,7 +1,7 @@
 import React, { useRef, useState, useEffect, useCallback, createElement, type FC, type ReactNode } from "react";
 import { FlattenedDataViewModel, type GridDataViewModelOptions, type VTrackDef } from "grid/dist/renderer";
 import type { FacetPredicate, SelectionProps, ColAutoSizeConfig } from "grid/dist/renderer";
-import { SqlFlatTableDataModel, type FlattenedDataViewModelParams, type GetRowsIR, type FlatTableConfig, type DataSchema, type SortEntry, type ScalarFilter, type DomainValues } from "grid/dist/index";
+import { SqlStandardTableDataModel, type FlattenedDataViewModelParams, type GetRowsIR, type FlatTableConfig, type DataSchema, type SortEntry, type ScalarFilter, type DomainValues } from "grid/dist/index";
 import type { SqlDataSource } from "grid/dist/index";
 import type { FacetDef } from "grid/dist/renderer";
 import { ReactCellAdapter } from "../renderer-adapter";
@@ -72,7 +72,7 @@ export interface UseFlatGridResult {
 export function useFlatGrid(options: UseFlatGridOptions): UseFlatGridResult {
   const { dataSource, schema, config, ir, columns, facetDefs, selections, transformResult, contextWrapper, enableSorting, enableFiltering, enablePageView, displayPageSize, theme } = options;
 
-  const modelRef = useRef<SqlFlatTableDataModel | null>(null);
+  const modelRef = useRef<SqlStandardTableDataModel | null>(null);
   const adapterRef = useRef<ReactCellAdapter | null>(null);
   const vmRef = useRef<FlattenedDataViewModel | null>(null);
   const vTrackDefsRef = useRef<VTrackDef[] | undefined>(undefined);
@@ -107,7 +107,7 @@ export function useFlatGrid(options: UseFlatGridOptions): UseFlatGridResult {
   const collapseActionRef = useRef<(selectPath: string[]) => Promise<void>>(async () => {});
 
   if (!modelRef.current) {
-    modelRef.current = new SqlFlatTableDataModel(config, schema, dataSource);
+    modelRef.current = new SqlStandardTableDataModel(config, schema, dataSource);
   }
 
   const resolvedWrapper = ({ children }: { children: ReactNode }) => {
@@ -478,7 +478,7 @@ export function useFlatGrid(options: UseFlatGridOptions): UseFlatGridResult {
       if (expandedPaths.length > 0) {
         expandedPaths.sort((a, b) => a.length - b.length);
         for (const path of expandedPaths) {
-          await model.expandAndGetData(path);
+          await model.expand(path);
         }
       }
 
@@ -508,7 +508,7 @@ export function useFlatGrid(options: UseFlatGridOptions): UseFlatGridResult {
     const model = modelRef.current;
     if (!model) return;
 
-    const result = await model.expandAndGetData(selectPath);
+    const result = await model.expand(selectPath);
 
     if (enablePageView) {
       const total = model.computeTotalLogicalRows();
@@ -531,7 +531,7 @@ export function useFlatGrid(options: UseFlatGridOptions): UseFlatGridResult {
     const model = modelRef.current;
     if (!model) return;
 
-    const result = await model.collapseAndGetData(selectPath);
+    const result = await model.collapse(selectPath);
 
     if (enablePageView) {
       const total = model.computeTotalLogicalRows();

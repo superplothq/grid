@@ -1,7 +1,8 @@
 import { expect } from "chai";
 import { DuckDBDataSource } from "./duckdb-datasource";
-import { SqlPivotDataModel } from "./sql-pivot-datamodel";
-import { DataSchema } from "./types";
+import { SqlPivotTableDataModel } from "./sql-pivot-table-datamodel";
+import { PivotDataViewModel } from "../renderer/pivot-data-viewmodel";
+import { DataSchema, PivotConfig } from "./types";
 
 // 24 rows, 8 dimensions + 4 measures (column-major format)
 //
@@ -68,7 +69,13 @@ export async function makeModel() {
   const schema = resolveSchema(schemaColumns);
   const ds = DuckDBDataSource.create();
   await ds.loadData({ table: "data", schema, data });
-  return new SqlPivotDataModel(schema, ds);
+  const model = new SqlPivotTableDataModel(schema, ds);
+  return Object.assign(model, {
+    async getViewModel(config: PivotConfig) {
+      const args = await model.getViewModelData(config);
+      return new PivotDataViewModel(args);
+    },
+  });
 }
 
 export async function makePatchedModel() {
@@ -85,7 +92,7 @@ export async function makePatchedModel() {
   });
 }
 
-describe("GridPivotDataModel", () => {
+describe("PivotTableDataModel", () => {
   it("should have correct number of rows and columns", async () => {
     const model = await makeModel();
     const schema = (model as any).schema;
@@ -113,7 +120,7 @@ describe("Schema extensions", () => {
         [100, 200, 300],
       ],
     });
-    const model = new SqlPivotDataModel(schema, ds);
+    const model = new SqlPivotTableDataModel(schema, ds);
 
     const rows = await (model as any).dataSource.execute("SELECT order_date, revenue FROM data ORDER BY order_date");
     expect(rows).to.have.length(3);
@@ -136,7 +143,7 @@ describe("Schema extensions", () => {
         [1200, 950],
       ],
     });
-    const model = new SqlPivotDataModel(schema, ds);
+    const model = new SqlPivotTableDataModel(schema, ds);
 
     const rows = await (model as any).dataSource.execute("SELECT category, amount FROM data ORDER BY amount");
     expect(rows).to.have.length(2);
@@ -158,7 +165,7 @@ describe("Schema extensions", () => {
         [500, 750],
       ],
     });
-    const model = new SqlPivotDataModel(schema, ds);
+    const model = new SqlPivotTableDataModel(schema, ds);
 
     const rows = await (model as any).dataSource.execute("SELECT sale_date, price FROM data ORDER BY sale_date");
     expect(rows).to.have.length(2);
@@ -183,7 +190,7 @@ describe("Schema extensions", () => {
       ],
       replace: new Map([["revenue", new Map([["$", ""], [",", ""]])]]),
     });
-    const model = new SqlPivotDataModel(schema, ds);
+    const model = new SqlPivotTableDataModel(schema, ds);
 
     const rows = await (model as any).dataSource.execute("SELECT product, revenue FROM data ORDER BY revenue");
     expect(rows).to.have.length(2);
@@ -205,7 +212,7 @@ describe("Schema extensions", () => {
         [100, 200, 300],
       ],
     });
-    const model = new SqlPivotDataModel(schema, ds);
+    const model = new SqlPivotTableDataModel(schema, ds);
 
     const rows = await (model as any).dataSource.execute("SELECT date, value FROM data ORDER BY date");
     expect(rows).to.have.length(3);
