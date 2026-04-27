@@ -5,11 +5,7 @@ description: Abstract base class for SQL-backed data sources that adds data load
 
 `SqlDataSource` is an abstract class that builds on top of [DataSource](/docs/datasource). It defines a common abstraction to connect to WASM-based SQL-supported data sources in the browser (like DuckDB WASM or PGLite) and run SQL against them by fixing `execute(sql: string)` to `string`.
 
-```ts
-// DataSource<T> accepts any command type
-// SqlDataSource narrows it to SQL strings
-class SqlDataSource implements DataSource<string> { ... }
-```
+<auto-class-outline path="packages/grid/src/datamodel/sql-datasource.ts" name="SqlDataSource" title="Outline" />
 
 On top of query execution, it adds two data loading methods: `loadData()` for in-memory arrays and `loadDataFromURL()` for fetching JSON or CSV from a URL and loading to WASM-based sources in the browser.
 

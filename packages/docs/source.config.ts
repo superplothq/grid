@@ -5,6 +5,7 @@ import { remarkDocGen } from 'fumadocs-docgen';
 import { remarkMdxMermaid } from 'fumadocs-core/mdx-plugins';
 import { fileRegionGenerator } from './lib/file-region-generator';
 import { remarkTypeTableWithDocs } from './lib/remark-type-table-with-docs';
+import { remarkClassOutline } from './lib/remark-class-outline';
 import path from 'node:path';
 
 const projectRoot = path.resolve(process.cwd(), '..', '..');
@@ -37,6 +38,7 @@ export default defineConfig({
         },
       } }],
       [remarkDocGen, { generators: [fileRegionGenerator({ basePath: projectRoot })] }],
+      [remarkClassOutline, { basePath: projectRoot }],
       remarkMdxMermaid,
     ],
   },

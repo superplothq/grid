@@ -5,13 +5,7 @@ description: Fetches raw data from a DataSource and transforms it into a structu
 
 `DataModel<TInput, TViewModelData>` is the abstract base class that sits between a <Term id="data-source">data source</Term> and the renderer. Subclasses fetch raw data from the data source and transform it into a structure the renderer can display directly.
 
-```ts
-abstract class DataModel<TInput, TViewModelData> {
-  constructor(schema: DataSchema[]);
-  protected getColumn(name: string): DataSchema;
-  abstract getViewModelData(input: TInput): Promise<TViewModelData>;
-}
-```
+<auto-class-outline path="packages/grid/src/datamodel/datamodel.ts" name="DataModel" title="Outline" />
 
 - `TInput` - the input that describes what data to produce (e.g. a pivot config, a row range query)
 - `TViewModelData` - the output shape the renderer expects
