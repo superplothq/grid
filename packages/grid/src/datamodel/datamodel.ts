@@ -1,26 +1,20 @@
 import { DataSchema } from "./types";
 
 /**
- * Abstract base class that transforms raw data from a [DataSource](/docs/datasource) into a structure the renderer can display.
+ * Abstract base class that fetches raw data from a [DataSource](/docs/datasource) and transforms it into a structure the renderer can display.
 
- *
- * `TInput` is the input that describes what data to produce (e.g. a pivot config, a row range query).
- * `TViewModelData` is the output shape the renderer expects.
  *
  * Subclasses implement `getViewModelData` to build a command, send it to the data source, and reshape the result.
  *
- * @typeParam TInput - Config or query object that describes the desired output.
+ * @typeParam TInput - Config that describes how the data should be transformed at the source and what needs to be fetched (e.g. a pivot config, a row range query)..
  * @typeParam TViewModelData - The view model data shape returned to the renderer.
  */
 export abstract class DataModel<TInput, TViewModelData> {
   /**
-   * Column definitions describing name, type, display name, and aggregation for each field. Set once at construction and read-only.
+   * [`DataSchema`](/docs/api-references/type-references#dataschema) column definitions describing name, type, display name, and aggregation for each field. Set once at construction and read-only.
    */
   protected schema: DataSchema[];
 
-  /**
-   * Maps column name to its index in the `schema` array for O(1) lookup.
-   */
   protected schemaIndex: Map<string, number>;
 
   constructor(schema: DataSchema[]) {
@@ -43,9 +37,13 @@ export abstract class DataModel<TInput, TViewModelData> {
   }
 
   /**
-   * Transform the input into view model data. Subclasses implement this to build a query, fetch data from the data source, and reshape the result.
+   * Transform (if supported) and fetch data from the data source based on input. Transform the data in memory and return the result that's ready for the renderer to consume.
    *
-   * @param input - The config or query describing what data to produce.
+   * For SQL-backed sources, you can transform data at the source (sort, group, window, project, select, etc), get the result in JS memory, and reshape if necessary for renderer consumption.
+   *
+   * For other sources like directly loading a CSV file, download the data and transform the whole data in memory.
+   *
+   * @param input - The config or query describing what data to fetch
    */
   abstract getViewModelData(input: TInput): Promise<TViewModelData>;
 }
