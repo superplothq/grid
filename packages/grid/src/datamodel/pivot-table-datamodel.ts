@@ -1,4 +1,5 @@
 import { PivotDataViewModelParams } from "../renderer/pivot-data-viewmodel";
+import { DataModel } from "./datamodel";
 import {
   AxisConfig,
   AxisExpr,
@@ -566,17 +567,11 @@ function buildInvertedIndex(facetSpace: (string | null)[][]): Map<string, number
  * ```
  */
 
-export abstract class PivotTableDataModel {
+export abstract class PivotTableDataModel extends DataModel<PivotConfig, PivotDataViewModelParams> {
   static readonly SRC_COL_PREFIX = "__src__";
 
-  protected schema: DataSchema[];
-  protected table: string;
-  private schemaIndex: Map<string, number>;
-
-  constructor(schema: DataSchema[], table: string) {
-    this.schema = schema;
-    this.table = table;
-    this.schemaIndex = new Map(schema.map((s, i) => [s.name, i]));
+  constructor(schema: DataSchema[]) {
+    super(schema);
   }
 
   // Concat operations produce synthetic columns to track which branch each row belongs to.
@@ -678,9 +673,7 @@ export abstract class PivotTableDataModel {
    */
   buildAxisIR(expr: AxisExpr, fieldFilterMap: Map<string, ScalarFilter[]> = new Map(), tupleFilters: TupleFilter[] = []): AxisIR {
     if (typeof expr === "string") {
-      const col = this.schema[this.schemaIndex.get(expr)!];
-      if (!col) throw new Error(`Column name not found. You have added ${expr} in row/column config but it's not found in schema.`
-        + `Fields in schemas are ${Array.from(this.schemaIndex.keys()).join(", ")}. This is likely a typo.`);
+      const col = this.getColumn(expr);
       if (col.type === "measure") {
         // TODO instead of adding default aggregation funciton here - merge with default config on top level of execution
         const aggregation = col.aggregateFn ?? "sum";

@@ -4,12 +4,10 @@ import { DataSchema, DatePartScalarFilter, DomainValues, FlatTableConfig, GetRow
 
 export class SqlStandardTableDataModel extends StandardTableDataModel {
   protected table: string;
-  protected dataSchema: DataSchema[];
   protected dataSource: SqlDataSource;
 
   constructor(config: FlatTableConfig, dataSchema: DataSchema[], dataSource: SqlDataSource) {
-    super(config);
-    this.dataSchema = dataSchema;
+    super(dataSchema, config);
     this.dataSource = dataSource;
     this.table = dataSource.table;
   }

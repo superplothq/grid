@@ -98,11 +98,13 @@ export function schemaToSqlType(s: Schema): string {
 }
 
 export class SqlPivotTableDataModel extends PivotTableDataModel {
+  protected table: string;
   protected dataSource: SqlDataSource;
 
   constructor(schema: DataSchema[], dataSource: SqlDataSource) {
-    super(schema, dataSource.table);
+    super(schema);
     this.dataSource = dataSource;
+    this.table = dataSource.table;
   }
 
   private buildTupleFilterClause(tf: TupleFilter): string {

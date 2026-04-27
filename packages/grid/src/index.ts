@@ -1,5 +1,6 @@
 export type { DataSource } from "./datamodel/datasource";
 export type { SqlColumnType } from "./datamodel/datasource";
+export { DataModel } from "./datamodel/datamodel";
 export { SqlDataSource } from "./datamodel/sql-datasource";
 export type { ColumnMetadata } from "./datamodel/sql-datasource";
 export { GridError, GridErrorCode } from "./errors";

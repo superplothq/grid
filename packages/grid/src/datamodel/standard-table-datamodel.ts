@@ -7,6 +7,7 @@ import {
   PageNode,
   ExpandedGroup,
 } from "./types";
+import { DataModel } from "./datamodel";
 import { FlattenedDataViewModelParams, createRowMeta } from "../renderer/flattened-data-viewmodel";
 import { GridDataViewModelOptions } from "../renderer/types";
 
@@ -237,18 +238,17 @@ export function findContiguousPageBlocks(pages: PageNode[], cursor: TargetSlotPa
   return { blockStart: flatPages[startIdx].path, blockEnd: flatPages[endIdx].path };
 }
 
-export abstract class StandardTableDataModel {
+export abstract class StandardTableDataModel extends DataModel<GetRowsIR, FlattenedDataViewModelParams> {
   config: FlatTableConfig;
   pages: PageNode[] = [];
   topLevelRowCount = 0;
   private lastIR: GetRowsIR | null = null;
   private viewModelOptions?: GridDataViewModelOptions;
-  private schemaMap: Map<string, DataSchema>;
 
-  constructor(config: FlatTableConfig) {
+  constructor(schema: DataSchema[], config: FlatTableConfig) {
+    super(schema);
     // TODO[review] merge with default config
     this.config = config;
-    this.schemaMap = new Map(config.schema.map((s) => [s.name, s]));
   }
 
   abstract getData(ir: GetRowsIR): Promise<GetRowsResponse>;
@@ -268,7 +268,6 @@ export abstract class StandardTableDataModel {
 
   setConfig(config: FlatTableConfig): void {
     this.config = config;
-    this.schemaMap = new Map(config.schema.map((s) => [s.name, s]));
     this.pages = [];
     this.topLevelRowCount = 0;
   }
@@ -400,7 +399,7 @@ export abstract class StandardTableDataModel {
     const ir = this.lastIR!;
     const groupBySet = new Set(ir.groupBy);
     return ir.project.some((col) => {
-      const def = this.schemaMap.get(col);
+      const def = this.getColumn(col);
       return def && def.type === "dimension" && !groupBySet.has(col);
     });
   }
@@ -458,7 +457,7 @@ export abstract class StandardTableDataModel {
     const rowFacet: (string | null)[] | undefined = hasGroupBy ? [] : undefined;
     const rowMetaBytes: number[] | undefined = hasGroupBy ? [] : undefined;
     const hasOutsideFacetDims = this.hasOutsideFacetDims();
-    const columnDefs = ir.project.map((col) => this.schemaMap.get(col)!);
+    const columnDefs = ir.project.map((col) => this.getColumn(col));
 
     const totalRows = this.computeTotalLogicalRows();
     const clampedStart = Math.min(ir.startRow, Math.max(0, totalRows - 1));
@@ -466,7 +465,7 @@ export abstract class StandardTableDataModel {
 
     if (cursor.length === 0) {
       const columnFacets: (string | null)[][] = [ir.project.map((col) => {
-        const def = this.schemaMap.get(col);
+        const def = this.getColumn(col);
         return def?.displayName ?? col;
       })];
       const options: GridDataViewModelOptions = { ...this.viewModelOptions };
@@ -551,7 +550,7 @@ export abstract class StandardTableDataModel {
     const rowMeta = rowMetaBytes ? new Uint8Array(rowMetaBytes) : undefined;
 
     const columnFacets: (string | null)[][] = [ir.project.map((col) => {
-      const def = this.schemaMap.get(col);
+      const def = this.getColumn(col);
       return def?.displayName ?? col;
     })];
 
@@ -566,9 +565,9 @@ export abstract class StandardTableDataModel {
     const ir = this.lastIR!;
     const groupField = ir.groupBy[depth];
     const measureCols: string[] = [];
-    for (const [name, def] of this.schemaMap) {
+    for (const def of this.schema) {
       // TODO[now] aggregation function will always be present for measure columns
-      if (def.aggregateFn) measureCols.push(name);
+      if (def.aggregateFn) measureCols.push(def.name);
     }
     return [groupField, ...measureCols];
   }
