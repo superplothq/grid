@@ -2,7 +2,7 @@ import { expect } from "chai";
 import { getUnfetchedPagesByLogicalBoundary, findTargetSlotPath, findContiguousPageBlocks } from "./standard-table-datamodel";
 import { DuckDBDataSource } from "./duckdb-datasource";
 import { SqlStandardTableDataModel } from "./sql-standard-table-datamodel";
-import { DataSchema, DatePartScalarFilter, FlatTableConfig, GetRowsIR, GetRowsResponse, GridData, PageNode, ExpandedGroup } from "./types";
+import { DataSchema, DatePartScalarFilter, StandardTableConfig, GetRowsIR, GetRowsResponse, GridData, PageNode, ExpandedGroup } from "./types";
 import { FlattenedDataViewModel } from "../renderer/flattened-data-viewmodel";
 
 // 24 rows, 8 dimensions + 4 measures — same dataset as datamodel.data.test.ts
@@ -47,9 +47,8 @@ const flatSchema: DataSchema[] = [
   { name: "returns", displayName: "Returns", type: "measure", aggregateFn: "sum" },
 ];
 
-function makeConfig(overrides: Partial<FlatTableConfig> = {}): FlatTableConfig {
+function makeConfig(overrides: Partial<StandardTableConfig> = {}): StandardTableConfig {
   return {
-    schema: flatSchema,
     pageSize: 100,
     maxCacheSize: 20,
     ...overrides,
@@ -86,7 +85,7 @@ function withViewModelHelpers<T extends SqlStandardTableDataModel>(model: T) {
   });
 }
 
-async function makeModel(configOverrides: Partial<FlatTableConfig> = {}) {
+async function makeModel(configOverrides: Partial<StandardTableConfig> = {}) {
   const dataSchema: DataSchema[] = gridData.columns.map((col) => {
     if (typeof col === "string") {
       return { name: col, displayName: col, type: "dimension" as const };
@@ -697,7 +696,7 @@ describe("DatePartScalarFilter (real DuckDB)", () => {
     const ds = DuckDBDataSource.create();
     await ds.loadData({ table: "ts_data", schema: tsSchema, data: tsGridData.data });
     return withViewModelHelpers(new SqlStandardTableDataModel(
-      { schema: tsSchema, pageSize: 100, maxCacheSize: 20 },
+      { pageSize: 100, maxCacheSize: 20 },
       tsSchema,
       ds,
     ));
@@ -874,7 +873,7 @@ describe("getDomainValues (real DuckDB)", () => {
     };
     const ds = DuckDBDataSource.create();
     await ds.loadData({ table: "domain_ts", schema: tsSchema, data: tsGridData.data });
-    const model = new SqlStandardTableDataModel({ schema: tsSchema, pageSize: 100, maxCacheSize: 20 }, tsSchema, ds);
+    const model = new SqlStandardTableDataModel({ pageSize: 100, maxCacheSize: 20 }, tsSchema, ds);
     const result = await model.getDomainValues("created_at");
     expect(result.type).to.equal("temporal");
     if (result.type === "temporal") {

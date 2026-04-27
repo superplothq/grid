@@ -1,7 +1,7 @@
 import {
   DataSchema,
   DomainValues,
-  FlatTableConfig,
+  StandardTableConfig,
   GetRowsIR,
   GetRowsResponse,
   PageNode,
@@ -239,13 +239,13 @@ export function findContiguousPageBlocks(pages: PageNode[], cursor: TargetSlotPa
 }
 
 export abstract class StandardTableDataModel extends DataModel<GetRowsIR, FlattenedDataViewModelParams> {
-  config: FlatTableConfig;
+  config: StandardTableConfig;
   pages: PageNode[] = [];
   topLevelRowCount = 0;
   private lastIR: GetRowsIR | null = null;
   private viewModelOptions?: GridDataViewModelOptions;
 
-  constructor(schema: DataSchema[], config: FlatTableConfig) {
+  constructor(schema: DataSchema[], config: StandardTableConfig) {
     super(schema);
     // TODO[review] merge with default config
     this.config = config;
@@ -266,7 +266,7 @@ export abstract class StandardTableDataModel extends DataModel<GetRowsIR, Flatte
     this.viewModelOptions = options;
   }
 
-  setConfig(config: FlatTableConfig): void {
+  setConfig(config: StandardTableConfig): void {
     this.config = config;
     this.pages = [];
     this.topLevelRowCount = 0;

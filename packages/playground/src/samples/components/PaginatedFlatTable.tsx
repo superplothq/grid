@@ -1,7 +1,7 @@
 import React, {useCallback, useRef, useState} from "react";
 import "grid/dist/grid.css";
 import type {DataSchema, ColumnMetadata} from "grid/dist/index";
-import type {GetRowsIR, FlatTableConfig} from "grid/dist/index";
+import type {GetRowsIR, StandardTableConfig} from "grid/dist/index";
 import type {FacetCellProps} from "frameworks/dist/react";
 import {DataGrid, useFlatGrid, PageView, SkeletonGrid, GridErrOverlay, useDataModelContext} from "frameworks/dist/react";
 import {useDataSource} from "./DataSourceContext";
@@ -99,7 +99,7 @@ interface PaginatedFlatTableInnerProps {
 const PaginatedFlatTableInner: React.FC<PaginatedFlatTableInnerProps> = ({ds, columns, theme, height}) => {
   const schema = React.useMemo(() => buildSchema(columns), [columns]);
 
-  const config = React.useMemo<FlatTableConfig>(() => ({schema, pageSize: PAGE_SIZE}), [schema]);
+  const config = React.useMemo<StandardTableConfig>(() => ({pageSize: PAGE_SIZE}), []);
 
   const ir = React.useMemo<GetRowsIR>(() => ({
     startRow: 0,
@@ -109,7 +109,7 @@ const PaginatedFlatTableInner: React.FC<PaginatedFlatTableInnerProps> = ({ds, co
     project: [...schema.filter(s => s.type === "measure").map(s => s.name), ...schema.filter(s => s.type !== "measure").map(s => s.name)],
     sort: [],
     filter: [],
-  }), [schema]);
+  }), []);
 
   const {bindings, pageView, loading, error, fetchPage} = useFlatGrid({
     dataSource: ds,

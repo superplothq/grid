@@ -1,7 +1,7 @@
 import React, {useCallback} from "react";
 import "grid/dist/grid.css";
 import type {DataSchema, ColumnMetadata} from "grid/dist/index";
-import type {GetRowsIR, FlatTableConfig, FlattenedDataViewModelParams} from "grid/dist/index";
+import type {GetRowsIR, StandardTableConfig, FlattenedDataViewModelParams} from "grid/dist/index";
 import {
   DataGrid, useFlatGrid, SkeletonGrid, GridErrOverlay,
   type FacetCellProps, type CellProps, type ReactFacetDefs,
@@ -84,7 +84,7 @@ interface InnerProps {
 const SchemaInferenceGridInner: React.FC<InnerProps> = ({ds, columns, theme, height, showWarnings, showTemporalFormat}) => {
   const schema = React.useMemo(() => buildSchema(columns), [columns]);
 
-  const config = React.useMemo<FlatTableConfig>(() => ({schema, pageSize: 100}), [schema]);
+  const config = React.useMemo<StandardTableConfig>(() => ({pageSize: 100}), []);
 
   const ir = React.useMemo<GetRowsIR>(() => ({
     startRow: 0,
@@ -94,9 +94,9 @@ const SchemaInferenceGridInner: React.FC<InnerProps> = ({ds, columns, theme, hei
     project: schema.map((s) => s.name),
     sort: [],
     filter: [],
-  }), [schema]);
+  }), []);
 
-  const typeLabels = React.useMemo(() => buildTypeLabels(schema), [schema]);
+  const typeLabels = React.useMemo(() => buildTypeLabels(schema), []);
 
   const transformResult = useCallback((result: FlattenedDataViewModelParams): FlattenedDataViewModelParams => ({
     ...result,

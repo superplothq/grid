@@ -1,7 +1,7 @@
 import React, {useEffect, useRef, useState} from "react";
 import "grid/dist/grid.css";
 import Grid, {FlattenedDataViewModel, FacetCellRenderer, FacetDataContext, FacetRendererContext, GridDataViewModelOptions} from "grid/dist/renderer";
-import {DuckDBWasmDataSource, SqlStandardTableDataModel, GridData, DataSchema, FlatTableConfig, GetRowsIR, FlattenedDataViewModelParams} from "grid/dist/index";
+import {DuckDBWasmDataSource, SqlStandardTableDataModel, GridData, DataSchema, StandardTableConfig, GetRowsIR, FlattenedDataViewModelParams} from "grid/dist/index";
 import feather from "feather-icons";
 
 const L0_COUNT = 30;
@@ -194,8 +194,7 @@ const PaginationTestPlayground: React.FC = () => {
       setError(null);
 
       const gridData = generateGridData();
-      const config: FlatTableConfig = {
-        schema: flatSchema,
+      const config: StandardTableConfig = {
         pageSize: 20,
       };
 

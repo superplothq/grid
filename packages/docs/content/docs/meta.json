@@ -1,7 +1,10 @@
 {
   "pages": [
     "index",
+    "---Core Components---",
     "datasource",
+    "datamodel",
+    "---",
     "api-references"
   ]
 }

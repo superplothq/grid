@@ -1,7 +1,7 @@
 import React, {useCallback, useRef, useState} from "react";
 import "grid/dist/grid.css";
 import type {DataSchema, ColumnMetadata} from "grid/dist/index";
-import type {GetRowsIR, FlatTableConfig} from "grid/dist/index";
+import type {GetRowsIR, StandardTableConfig} from "grid/dist/index";
 import {FlattenedDataViewModel} from "grid/dist/renderer";
 import type {FacetCellProps} from "frameworks/dist/react";
 import {DataGrid, useFlatGrid, SkeletonGrid, GridErrOverlay, useDataModelContext} from "frameworks/dist/react";
@@ -102,7 +102,7 @@ interface FilteredGroupedTableInnerProps {
 
 const FilteredGroupedTableInner: React.FC<FilteredGroupedTableInnerProps> = ({ds, columns, theme, height}) => {
   const schema = React.useMemo(() => buildSchema(columns), [columns]);
-  const config = React.useMemo<FlatTableConfig>(() => ({schema, pageSize: 20}), [schema]);
+  const config = React.useMemo<StandardTableConfig>(() => ({pageSize: 20}), []);
 
   const ir = React.useMemo<GetRowsIR>(() => ({
     startRow: 0,
@@ -112,7 +112,7 @@ const FilteredGroupedTableInner: React.FC<FilteredGroupedTableInnerProps> = ({ds
     project: [...schema.filter(s => s.type === "measure").map(s => s.name), ...schema.filter(s => s.type !== "measure").map(s => s.name)],
     sort: [],
     filter: [],
-  }), [schema]);
+  }), []);
 
   const {bindings, loading, error, fetchPage} = useFlatGrid({
     dataSource: ds,

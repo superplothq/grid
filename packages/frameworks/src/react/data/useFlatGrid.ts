@@ -1,7 +1,7 @@
 import React, { useRef, useState, useEffect, useCallback, createElement, type FC, type ReactNode } from "react";
 import { FlattenedDataViewModel, type GridDataViewModelOptions, type VTrackDef } from "grid/dist/renderer";
 import type { FacetPredicate, SelectionProps, ColAutoSizeConfig } from "grid/dist/renderer";
-import { SqlStandardTableDataModel, type FlattenedDataViewModelParams, type GetRowsIR, type FlatTableConfig, type DataSchema, type SortEntry, type ScalarFilter, type DomainValues } from "grid/dist/index";
+import { SqlStandardTableDataModel, type FlattenedDataViewModelParams, type GetRowsIR, type StandardTableConfig, type DataSchema, type SortEntry, type ScalarFilter, type DomainValues } from "grid/dist/index";
 import type { SqlDataSource } from "grid/dist/index";
 import type { FacetDef } from "grid/dist/renderer";
 import { ReactCellAdapter } from "../renderer-adapter";
@@ -23,7 +23,7 @@ export interface SelectionDef {
 export interface UseFlatGridOptions {
   dataSource: SqlDataSource;
   schema: DataSchema[];
-  config: FlatTableConfig;
+  config: StandardTableConfig;
   ir: GetRowsIR;
   columns?: ColumnDef[];
   facetDefs?: ReactFacetDefs;

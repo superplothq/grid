@@ -12,5 +12,5 @@ export { cross, hierarchy, concat } from "./datamodel/pivot-table-datamodel";
 export type { GridData, Schema, DataSchema, PivotConfig, AxisExpr, AxisConfig, DimensionalProjectionPath, SortEntry, SortDirection, Filter, ScalarFilter, TupleFilter, DatePartScalarFilter, DatePart, DomainValues, FacetQuery } from "./datamodel/types";
 export { ProjectionState } from "./datamodel/types";
 export { StandardTableDataModel } from "./datamodel/standard-table-datamodel";
-export type { FlatTableConfig, GetRowsIR, GetRowsResponse, PageNode, ExpandedGroup } from "./datamodel/types";
+export type { StandardTableConfig, GetRowsIR, GetRowsResponse, PageNode, ExpandedGroup } from "./datamodel/types";
 export type { FlattenedDataViewModelParams } from "./renderer/flattened-data-viewmodel";

@@ -1,12 +1,12 @@
 import { StandardTableDataModel } from "./standard-table-datamodel";
 import { SqlDataSource } from "./sql-datasource";
-import { DataSchema, DatePartScalarFilter, DomainValues, FlatTableConfig, GetRowsIR, GetRowsResponse, ScalarFilter, SortEntry } from "./types";
+import { DataSchema, DatePartScalarFilter, DomainValues, StandardTableConfig, GetRowsIR, GetRowsResponse, ScalarFilter, SortEntry } from "./types";
 
 export class SqlStandardTableDataModel extends StandardTableDataModel {
   protected table: string;
   protected dataSource: SqlDataSource;
 
-  constructor(config: FlatTableConfig, dataSchema: DataSchema[], dataSource: SqlDataSource) {
+  constructor(config: StandardTableConfig, dataSchema: DataSchema[], dataSource: SqlDataSource) {
     super(dataSchema, config);
     this.dataSource = dataSource;
     this.table = dataSource.table;
@@ -27,7 +27,7 @@ export class SqlStandardTableDataModel extends StandardTableDataModel {
 
     const measureCols = ir.project.filter((p) => {
       if (p === groupField) return false;
-      const def = this.config.schema.find((d) => d.name === p);
+      const def = this.getColumn(p);
       return def && def.aggregateFn;
     });
     const outputColumns = isGroupLevel
@@ -40,8 +40,7 @@ export class SqlStandardTableDataModel extends StandardTableDataModel {
   }
 
   async getDomainValues(field: string): Promise<DomainValues> {
-    const schema = this.config.schema.find((s) => s.name === field);
-    if (!schema) throw new Error(`Field "${field}" not found in schema`);
+    const schema = this.getColumn(field);
 
     if (schema.type === "measure") {
       const sql = `SELECT MIN("${field}") AS min_val, MAX("${field}") AS max_val FROM "${this.table}"`;
@@ -85,8 +84,8 @@ export class SqlStandardTableDataModel extends StandardTableDataModel {
 
       for (const field of ir.project) {
         if (field === groupField) continue;
-        const def = this.config.schema.find((d) => d.name === field);
-        if (!def || !def.aggregateFn) continue;
+        const def = this.getColumn(field);
+        if (!def.aggregateFn) continue;
         const agg = def.aggregateFn!;
         measureExprs.push(`${agg.toUpperCase()}("${field}") AS "${field}"`);
       }
@@ -123,15 +122,15 @@ export class SqlStandardTableDataModel extends StandardTableDataModel {
     for (const s of sort) {
       if (s.direction === "noop") continue;
       if (isGroupLevel && s.by) {
-        const def = this.config.schema.find((d) => d.name === s.by);
-        const agg = def?.aggregateFn ?? "sum";
+        const def = this.getColumn(s.by);
+        const agg = def.aggregateFn ?? "sum";
         parts.push(`${agg.toUpperCase()}("${s.by}") ${s.direction.toUpperCase()}`);
       } else if (isGroupLevel) {
         if (s.field === groupField) {
           parts.push(`"${s.field}" ${s.direction.toUpperCase()}`);
         } else {
-          const def = this.config.schema.find((d) => d.name === s.field);
-          if (def?.aggregateFn) {
+          const def = this.getColumn(s.field);
+          if (def.aggregateFn) {
             parts.push(`${def.aggregateFn.toUpperCase()}("${s.field}") ${s.direction.toUpperCase()}`);
           }
         }

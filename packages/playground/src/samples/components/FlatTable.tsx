@@ -1,7 +1,7 @@
 import React from "react";
 import "grid/dist/grid.css";
 import type {DataSchema, ColumnMetadata} from "grid/dist/index";
-import type {GetRowsIR, FlatTableConfig} from "grid/dist/index";
+import type {GetRowsIR, StandardTableConfig} from "grid/dist/index";
 import {DataGrid, useFlatGrid, SkeletonGrid, GridErrOverlay} from "frameworks/dist/react";
 import {useDataSource} from "./DataSourceContext";
 import {useTheme} from "./ThemeContext";
@@ -40,7 +40,7 @@ interface FlatTableInnerProps {
 const FlatTableInner: React.FC<FlatTableInnerProps> = ({ds, columns, theme, height}) => {
   const schema = React.useMemo(() => buildSchema(columns), [columns]);
 
-  const config = React.useMemo<FlatTableConfig>(() => ({schema, pageSize: 100}), [schema]);
+  const config = React.useMemo<StandardTableConfig>(() => ({pageSize: 100}), []);
 
   const ir = React.useMemo<GetRowsIR>(() => ({
     startRow: 0,
@@ -50,7 +50,7 @@ const FlatTableInner: React.FC<FlatTableInnerProps> = ({ds, columns, theme, heig
     project: schema.map((s) => s.name),
     sort: [],
     filter: [],
-  }), [schema]);
+  }), []);
 
   const {bindings, loading, error, fetchPage} = useFlatGrid({
     dataSource: ds,

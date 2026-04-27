@@ -1,7 +1,7 @@
 import React, {useEffect, useMemo, useState} from "react";
 import "grid/dist/grid.css";
 import type {DataSchema, ColumnMetadata} from "grid/dist/index";
-import type {GetRowsIR, FlatTableConfig} from "grid/dist/index";
+import type {GetRowsIR, StandardTableConfig} from "grid/dist/index";
 import {
   DataGrid, useFlatGrid, SkeletonGrid, GridErrOverlay,
   type ColumnDef, type FacetCellProps, type ReactFacetDefs,
@@ -132,7 +132,7 @@ interface GridProps {
 const CurrencyConversionGrid: React.FC<GridProps> = ({ds, schema, theme, height}) => {
   const [globalMode, setGlobalMode] = useState(false);
 
-  const config = useMemo<FlatTableConfig>(() => ({schema, pageSize: 100}), [schema]);
+  const config = useMemo<StandardTableConfig>(() => ({pageSize: 100}), []);
 
   const ir = useMemo<GetRowsIR>(() => ({
     startRow: 0,
@@ -142,7 +142,7 @@ const CurrencyConversionGrid: React.FC<GridProps> = ({ds, schema, theme, height}
     project: schema.map((s) => s.name),
     sort: [],
     filter: [],
-  }), [schema]);
+  }), []);
 
   const measureIndices = useMemo(() => {
     const map = new Map<string, number>();
@@ -151,7 +151,7 @@ const CurrencyConversionGrid: React.FC<GridProps> = ({ds, schema, theme, height}
       if (MEASURE_COLUMNS.has(name)) map.set(name, i);
     });
     return map;
-  }, [schema]);
+  }, []);
 
   const selections = useMemo<SelectionDef[]>(() => [{
     predicate: MEASURE_PREDICATE,

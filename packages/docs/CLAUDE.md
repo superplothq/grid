@@ -72,7 +72,7 @@ content/docs/
       duckdb-wasm-datasource.mdx
 ```
 
-A folder's `meta.json` can include a `title` to override the sidebar label. Pages not listed in `pages` won't appear in the sidebar.
+A folder's `meta.json` can include a `title` to override the sidebar label. Pages not listed in `pages` won't appear in the sidebar. Use `"---"` for a plain separator or `"---Name---"` for a named section header.
 
 ## Sourcing API Docs from TypeScript (auto-type-table)
 

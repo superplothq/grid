@@ -2,7 +2,7 @@ import React, {useEffect, useRef, useState} from "react";
 import "grid/dist/grid.css";
 import {DuckDBWasmDataSource, DataSchema, ColumnMetadata} from "grid/dist/index";
 import type {SqlDataSource} from "grid/dist/index";
-import type {GetRowsIR, FlatTableConfig} from "grid/dist/index";
+import type {GetRowsIR, StandardTableConfig} from "grid/dist/index";
 import {
   DataGrid,
   useFlatGrid,
@@ -75,7 +75,7 @@ function slicePreprocess(data: unknown): unknown {
   return slicedData;
 }
 
-const FLAT_CONFIG: FlatTableConfig = {schema: SCHEMA, pageSize: 100};
+const FLAT_CONFIG: StandardTableConfig = {pageSize: 100};
 
 const COLUMNS: ColumnDef[] = SCHEMA.map((s) => {
   if (MONEY_COLUMNS.includes(s.name)) {

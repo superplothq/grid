@@ -200,8 +200,7 @@ export interface ColDefsForFacet {
   projectedValues: Set<string>;
 }
 
-export interface FlatTableConfig {
-  schema: DataSchema[];
+export interface StandardTableConfig {
   pageSize?: number;
   // TODO[review] rename numMaxPageSize
   maxCacheSize?: number;
