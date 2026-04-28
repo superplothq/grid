@@ -194,7 +194,7 @@ const PaginationTestPlayground: React.FC = () => {
       setError(null);
 
       const gridData = generateGridData();
-      const config: StandardTableConfig = {
+      const config: Partial<StandardTableConfig> = {
         pageSize: 20,
       };
 

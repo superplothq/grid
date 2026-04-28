@@ -1,7 +1,7 @@
 import React, { useCallback, useState, useRef } from "react";
 import { createPortal } from "react-dom";
 import type { GridDataViewModel } from "grid/dist/renderer";
-import type { DataSchema, ScalarFilter, DomainValues } from "grid/dist/index";
+import type { DataSchema, ScalarFilter, ColumnRangeValues } from "grid/dist/index";
 import { useDataModelContext } from "./DataModelContext";
 import { FilterDropdown } from "./FilterDropdown";
 
@@ -25,11 +25,11 @@ function hasActiveFilter(viewModel: GridDataViewModel, field: string): boolean {
 }
 
 export const Filter: React.FC<FilterProps> = ({ schema, viewModel, render }) => {
-  const { filterAction, getDomainValues, gridConfig } = useDataModelContext();
+  const { filterAction, getRangeOfColumn, gridConfig } = useDataModelContext();
   const field = schema.name;
   const isActive = hasActiveFilter(viewModel, field);
   const [open, setOpen] = useState(false);
-  const [domain, setDomain] = useState<DomainValues | null>(null);
+  const [domain, setDomain] = useState<ColumnRangeValues | null>(null);
   const iconRef = useRef<SVGSVGElement>(null);
   const [popoverPos, setPopoverPos] = useState<{ top: number; left: number }>({ top: 0, left: 0 });
 
@@ -57,10 +57,10 @@ export const Filter: React.FC<FilterProps> = ({ schema, viewModel, render }) => 
     }
     setOpen(true);
     setDomain(null);
-    if (getDomainValues && schema.type === "dimension" && schema.cardinality === "low") {
-      getDomainValues(field).then(setDomain);
+    if (getRangeOfColumn && schema.type === "dimension" && schema.cardinality === "low") {
+      getRangeOfColumn(field).then(setDomain);
     }
-  }, [open, getDomainValues, field, schema]);
+  }, [open, getRangeOfColumn, field, schema]);
 
   const currentFilters = getFilterEntries(viewModel).get(field) ?? [];
 

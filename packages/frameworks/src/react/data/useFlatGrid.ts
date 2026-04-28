@@ -1,7 +1,7 @@
 import React, { useRef, useState, useEffect, useCallback, createElement, type FC, type ReactNode } from "react";
 import { FlattenedDataViewModel, type GridDataViewModelOptions, type VTrackDef } from "grid/dist/renderer";
 import type { FacetPredicate, SelectionProps, ColAutoSizeConfig } from "grid/dist/renderer";
-import { SqlStandardTableDataModel, type FlattenedDataViewModelParams, type GetRowsIR, type StandardTableConfig, type DataSchema, type SortEntry, type ScalarFilter, type DomainValues } from "grid/dist/index";
+import { SqlStandardTableDataModel, type FlattenedDataViewModelParams, type GetRowsIR, type StandardTableConfig, type DataSchema, type SortEntry, type ScalarFilter, type ColumnRangeValues } from "grid/dist/index";
 import type { SqlDataSource } from "grid/dist/index";
 import type { FacetDef } from "grid/dist/renderer";
 import { ReactCellAdapter } from "../renderer-adapter";
@@ -23,7 +23,7 @@ export interface SelectionDef {
 export interface UseFlatGridOptions {
   dataSource: SqlDataSource;
   schema: DataSchema[];
-  config: StandardTableConfig;
+  config: Partial<StandardTableConfig>;
   ir: GetRowsIR;
   columns?: ColumnDef[];
   facetDefs?: ReactFacetDefs;
@@ -102,7 +102,7 @@ export function useFlatGrid(options: UseFlatGridOptions): UseFlatGridResult {
 
   const sortActionRef = useRef<(entries: SortEntry[]) => Promise<void>>(async () => {});
   const filterActionRef = useRef<(filters: ScalarFilter[]) => Promise<void>>(async () => {});
-  const getDomainValuesRef = useRef<(field: string) => Promise<DomainValues>>(async () => ({ type: "categorical" as const, values: [] }));
+  const getRangeOfColumnRef = useRef<(field: string) => Promise<ColumnRangeValues>>(async () => ({ type: "categorical" as const, values: [] }));
   const expandActionRef = useRef<(selectPath: string[]) => Promise<void>>(async () => {});
   const collapseActionRef = useRef<(selectPath: string[]) => Promise<void>>(async () => {});
 
@@ -118,7 +118,7 @@ export function useFlatGrid(options: UseFlatGridOptions): UseFlatGridResult {
       grid: gridRef.current!.grid,
       sortAction: (entries: SortEntry[]) => sortActionRef.current(entries),
       filterAction: (filters: ScalarFilter[]) => filterActionRef.current(filters),
-      getDomainValues: (field: string) => getDomainValuesRef.current(field),
+      getRangeOfColumn: (field: string) => getRangeOfColumnRef.current(field),
       expandAction: (selectPath: string[]) => expandActionRef.current(selectPath),
       collapseAction: (selectPath: string[]) => collapseActionRef.current(selectPath),
     } }, children);
@@ -295,7 +295,7 @@ export function useFlatGrid(options: UseFlatGridOptions): UseFlatGridResult {
     setError(null);
 
     const initialIR = enablePageView
-      ? { ...ir, startRow: 0, endRow: displayPageSize ?? model.pageSize }
+      ? { ...ir, startRow: 0, endRow: displayPageSize ?? model.config.pageSize }
       : ir;
 
     if (enablePageView) {
@@ -305,7 +305,7 @@ export function useFlatGrid(options: UseFlatGridOptions): UseFlatGridResult {
 
     model.getViewModelData(initialIR).then((result: FlattenedDataViewModelParams) => {
       if (cancelled) return;
-      applyResult(result, enablePageView ? { page: 0, size: displayPageSize ?? model.pageSize } : undefined);
+      applyResult(result, enablePageView ? { page: 0, size: displayPageSize ?? model.config.pageSize } : undefined);
       if (enablePageView) setDatasetTotalRows(model.computeTotalLogicalRows());
       setLoading(false);
     }).catch((err: unknown) => {
@@ -498,10 +498,10 @@ export function useFlatGrid(options: UseFlatGridOptions): UseFlatGridResult {
     }
   }, [applyResult, enablePageView]);
 
-  const getDomainValuesAction = useCallback(async (field: string): Promise<DomainValues> => {
+  const getRangeOfColumnAction = useCallback(async (field: string): Promise<ColumnRangeValues> => {
     const model = modelRef.current;
     if (!model) return { type: "categorical", values: [] };
-    return model.getDomainValues(field);
+    return model.getRangeOfColumn(field);
   }, []);
 
   const expandAction = useCallback(async (selectPath: string[]) => {
@@ -557,7 +557,7 @@ export function useFlatGrid(options: UseFlatGridOptions): UseFlatGridResult {
 
   sortActionRef.current = sortAction;
   filterActionRef.current = filterAction;
-  getDomainValuesRef.current = getDomainValuesAction;
+  getRangeOfColumnRef.current = getRangeOfColumnAction;
   expandActionRef.current = expandAction;
   collapseActionRef.current = collapseAction;
 

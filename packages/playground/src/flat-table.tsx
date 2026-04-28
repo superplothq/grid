@@ -152,9 +152,9 @@ const FlatTablePlayground: React.FC = () => {
       setError(null);
 
       const gridData = generateGridData();
-      const config: StandardTableConfig = {
+      const config: Partial<StandardTableConfig> = {
         pageSize: ps,
-        maxCacheSize: mcs,
+        maxNumPageBeforeEviction: mcs,
       };
 
       const dataSchema: DataSchema[] = gridData.columns.map((col) => {

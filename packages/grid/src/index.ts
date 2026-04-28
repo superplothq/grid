@@ -9,7 +9,7 @@ export type { DuckDBWasmBundles } from "./datamodel/duckdb-wasm-datasource";
 export { SqlPivotTableDataModel } from "./datamodel/sql-pivot-table-datamodel";
 export { SqlStandardTableDataModel } from "./datamodel/sql-standard-table-datamodel";
 export { cross, hierarchy, concat } from "./datamodel/pivot-table-datamodel";
-export type { GridData, Schema, DataSchema, PivotConfig, AxisExpr, AxisConfig, DimensionalProjectionPath, SortEntry, SortDirection, Filter, ScalarFilter, TupleFilter, DatePartScalarFilter, DatePart, DomainValues, FacetQuery } from "./datamodel/types";
+export type { GridData, Schema, DataSchema, PivotConfig, AxisExpr, AxisConfig, DimensionalProjectionPath, SortEntry, SortDirection, Filter, ScalarFilter, TupleFilter, DatePartScalarFilter, DatePart, ColumnRangeValues, FacetQuery } from "./datamodel/types";
 export { ProjectionState } from "./datamodel/types";
 export { StandardTableDataModel } from "./datamodel/standard-table-datamodel";
 export type { StandardTableConfig, GetRowsIR, GetRowsResponse, PageNode, ExpandedGroup } from "./datamodel/types";

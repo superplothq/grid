@@ -59,7 +59,7 @@ interface GridProps {
 
 const ExcludeColumnFacetsGrid: React.FC<GridProps> = ({ds, schema, theme, height, exclude}) => {
 
-  const config = React.useMemo<StandardTableConfig>(() => ({pageSize: 100}), []);
+  const config = React.useMemo<Partial<StandardTableConfig>>(() => ({pageSize: 100}), []);
 
   const ir = React.useMemo<GetRowsIR>(() => ({
     startRow: 0,

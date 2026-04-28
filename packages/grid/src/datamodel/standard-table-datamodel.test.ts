@@ -50,7 +50,7 @@ const flatSchema: DataSchema[] = [
 function makeConfig(overrides: Partial<StandardTableConfig> = {}): StandardTableConfig {
   return {
     pageSize: 100,
-    maxCacheSize: 20,
+    maxNumPageBeforeEviction: 20,
     ...overrides,
   };
 }
@@ -411,8 +411,8 @@ describe("StandardTableDataModel (real DuckDB)", () => {
   });
 
   it("should evict pages when cache is full", async () => {
-    // pageSize=1, maxCacheSize=2 → each group row is its own page
-    const model = await makeModel({ pageSize: 1, maxCacheSize: 2 });
+    // pageSize=1, maxNumPageBeforeEviction=2 → each group row is its own page
+    const model = await makeModel({ pageSize: 1, maxNumPageBeforeEviction: 2 });
 
     await model.getViewModel(makeIR({ startRow: 0, endRow: 1 }));
     expect(model.pages).to.have.length(2);
@@ -427,7 +427,7 @@ describe("StandardTableDataModel (real DuckDB)", () => {
     // Scroll back to startRow=0 before expanding
     await model.getViewModel(makeIR({ startRow: 0, endRow: 1 }));
 
-    // Expand Europe → fetches Germany child (3 fetched > maxCacheSize=2)
+    // Expand Europe → fetches Germany child (3 fetched > maxNumPageBeforeEviction=2)
     // Viewport at startRow=0 (near Europe). NA (farthest) should be evicted.
     await model.expandAndGetViewModel(["Europe"]);
     const europeGroup = model.pages[0].expandedRows.get(0)!;
@@ -696,7 +696,7 @@ describe("DatePartScalarFilter (real DuckDB)", () => {
     const ds = DuckDBDataSource.create();
     await ds.loadData({ table: "ts_data", schema: tsSchema, data: tsGridData.data });
     return withViewModelHelpers(new SqlStandardTableDataModel(
-      { pageSize: 100, maxCacheSize: 20 },
+      { pageSize: 100, maxNumPageBeforeEviction: 20 },
       tsSchema,
       ds,
     ));
@@ -834,10 +834,10 @@ describe("DatePartScalarFilter (real DuckDB)", () => {
   });
 });
 
-describe("getDomainValues (real DuckDB)", () => {
+describe("getRangeOfColumn (real DuckDB)", () => {
   it("should return categorical values for dimension fields", async () => {
     const model = await makeModel();
-    const result = await model.getDomainValues("region");
+    const result = await model.getRangeOfColumn("region");
     expect(result.type).to.equal("categorical");
     if (result.type === "categorical") {
       expect(result.values).to.include("Europe");
@@ -848,7 +848,7 @@ describe("getDomainValues (real DuckDB)", () => {
 
   it("should return range for measure fields", async () => {
     const model = await makeModel();
-    const result = await model.getDomainValues("revenue");
+    const result = await model.getRangeOfColumn("revenue");
     expect(result.type).to.equal("range");
     if (result.type === "range") {
       expect(result.min).to.equal(200);
@@ -873,8 +873,8 @@ describe("getDomainValues (real DuckDB)", () => {
     };
     const ds = DuckDBDataSource.create();
     await ds.loadData({ table: "domain_ts", schema: tsSchema, data: tsGridData.data });
-    const model = new SqlStandardTableDataModel({ pageSize: 100, maxCacheSize: 20 }, tsSchema, ds);
-    const result = await model.getDomainValues("created_at");
+    const model = new SqlStandardTableDataModel({ pageSize: 100, maxNumPageBeforeEviction: 20 }, tsSchema, ds);
+    const result = await model.getRangeOfColumn("created_at");
     expect(result.type).to.equal("temporal");
     if (result.type === "temporal") {
       expect(result.min).to.be.a("string");

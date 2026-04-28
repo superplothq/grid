@@ -75,7 +75,7 @@ function slicePreprocess(data: unknown): unknown {
   return slicedData;
 }
 
-const FLAT_CONFIG: StandardTableConfig = {pageSize: 100};
+const FLAT_CONFIG: Partial<StandardTableConfig> = {pageSize: 100};
 
 const COLUMNS: ColumnDef[] = SCHEMA.map((s) => {
   if (MONEY_COLUMNS.includes(s.name)) {

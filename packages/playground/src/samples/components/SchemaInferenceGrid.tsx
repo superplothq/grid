@@ -84,7 +84,7 @@ interface InnerProps {
 const SchemaInferenceGridInner: React.FC<InnerProps> = ({ds, columns, theme, height, showWarnings, showTemporalFormat}) => {
   const schema = React.useMemo(() => buildSchema(columns), [columns]);
 
-  const config = React.useMemo<StandardTableConfig>(() => ({pageSize: 100}), []);
+  const config = React.useMemo<Partial<StandardTableConfig>>(() => ({pageSize: 100}), []);
 
   const ir = React.useMemo<GetRowsIR>(() => ({
     startRow: 0,

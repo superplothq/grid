@@ -132,7 +132,7 @@ interface GridProps {
 const CurrencyConversionGrid: React.FC<GridProps> = ({ds, schema, theme, height}) => {
   const [globalMode, setGlobalMode] = useState(false);
 
-  const config = useMemo<StandardTableConfig>(() => ({pageSize: 100}), []);
+  const config = useMemo<Partial<StandardTableConfig>>(() => ({pageSize: 100}), []);
 
   const ir = useMemo<GetRowsIR>(() => ({
     startRow: 0,

@@ -99,7 +99,7 @@ interface PaginatedFlatTableInnerProps {
 const PaginatedFlatTableInner: React.FC<PaginatedFlatTableInnerProps> = ({ds, columns, theme, height}) => {
   const schema = React.useMemo(() => buildSchema(columns), [columns]);
 
-  const config = React.useMemo<StandardTableConfig>(() => ({pageSize: PAGE_SIZE}), []);
+  const config = React.useMemo<Partial<StandardTableConfig>>(() => ({pageSize: PAGE_SIZE}), []);
 
   const ir = React.useMemo<GetRowsIR>(() => ({
     startRow: 0,

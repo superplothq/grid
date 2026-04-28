@@ -1,10 +1,10 @@
 import React, { useState, useMemo } from "react";
-import type { DataSchema, ScalarFilter, DatePartScalarFilter, DomainValues, DatePart } from "grid/dist/index";
+import type { DataSchema, ScalarFilter, DatePartScalarFilter, ColumnRangeValues, DatePart } from "grid/dist/index";
 import { getTheme, type Theme } from "grid/dist/renderer";
 
 export interface FilterDropdownProps {
   schema: DataSchema;
-  domain: DomainValues | null;
+  domain: ColumnRangeValues | null;
   currentFilters: ScalarFilter[];
   onApply: (filters: ScalarFilter[]) => void;
   onClear: () => void;

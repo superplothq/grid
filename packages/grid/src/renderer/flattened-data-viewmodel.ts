@@ -15,14 +15,25 @@ export function createRowMeta(depth: number, isLeaf: boolean, isExpanded: boolea
   return ((depth << DEPTH_SHIFT) & DEPTH_MASK) | (isLeaf ? LEAF_MASK : 0) | (isExpanded ? EXPAND_MASK : 0);
 }
 
+/**
+ * The view model output produced by [`StandardTableDataModel`](/docs/datamodel/standard-table-datamodel). Contains the flattened row data ready for the renderer.
+ */
 export interface FlattenedDataViewModelParams {
+  /** Column-major data arrays for the visible rows. Each inner array holds all values for one column - e.g. 3 rows with columns `[name, age]` is `[["Alice", "Bob", "Carol"], [30, 25, 28]]`. This data is always contiguous (no gaps) - only pages that form a contiguous block around the current scroll position are included. Column-major layout supports large datasets efficiently as the renderer can access and iterate a single column array without touching other columns. */
   data: any[][];
+  /** Column header labels. The layout uses this to render hierarchical column headers - each level is an array of labels. For standard tables, there is only one level and all columns are leaf-level headers. */
   columnFacets: FacetData;
+  /** Row facet values. When `groupBy` is active, some rows are group rows (showing a group label like "USA") and others are data/leaf rows. Group rows have their group value here (e.g. `"USA"`); leaf/data rows have `null`. The renderer uses this to display group row labels in a separate facet column on the left, visually distinguishing group headers from data rows. Only present when `groupBy` is non-empty. */
   rowFacet?: (string | null)[];
+  /** Packed row metadata byte array encoding depth, isLeaf, and isExpanded per row. */
   rowMeta?: Uint8Array;
+  /** Renderer options forwarded from `setViewModelOptions`. */
   options?: GridDataViewModelOptions;
+  /** [`DataSchema`](/docs/api-references/type-references#dataschema) definitions. */
   schema?: DataSchema[];
+  /** Total number of rows the data source has, including expanded children. This is larger than the rows in `data` since pages are lazy loaded - only a contiguous subset is present in `data`. The renderer uses this for scrollbar sizing and virtual scroll calculations. */
   totalRows?: number;
+  /** Number of rows in the data source that precede the returned `data` block. Since pages are lazy loaded, the page cache can have holes - only a contiguous block around the current scroll position is included in `data`. `offsetTop` tells the renderer how many rows come before this block, so it can position the rendered rows correctly within the full virtual scroll area. */
   offsetTop?: number;
 }
 

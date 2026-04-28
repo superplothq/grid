@@ -39,7 +39,10 @@ export function remarkClassOutline({ basePath }: Options = {}) {
         ? path.resolve(basePath, props.path)
         : path.resolve(file.dirname ?? file.cwd, props.path);
 
-      const outline = generateOutline(filePath, props.name);
+      const exclude = props.exclude
+        ? props.exclude.split(",").map((s) => s.trim())
+        : [];
+      const outline = generateOutline(filePath, props.name, exclude);
       if (!outline) continue;
 
       const index = parent.children.indexOf(node);
@@ -56,7 +59,7 @@ export function remarkClassOutline({ basePath }: Options = {}) {
   };
 }
 
-function generateOutline(filePath: string, className: string): string | null {
+function generateOutline(filePath: string, className: string, exclude: string[] = []): string | null {
   const program = ts.createProgram([filePath], {
     target: ts.ScriptTarget.ESNext,
     module: ts.ModuleKind.ESNext,
@@ -82,14 +85,15 @@ function generateOutline(filePath: string, className: string): string | null {
   });
 
   const referencedTypes = new Map<string, string>();
+  const visited = new Set<string>(exclude);
   let outline: string;
 
   if (classDecl) {
     outline = buildClassOutline(classDecl, checker);
-    collectReferencedTypes(classDecl, checker, referencedTypes, new Set());
+    collectReferencedTypes(classDecl, checker, referencedTypes, visited);
   } else if (interfaceDecl) {
     outline = buildInterfaceOutline(interfaceDecl, checker);
-    collectTypeRefsFromDeclaration(interfaceDecl, checker, referencedTypes, new Set());
+    collectTypeRefsFromDeclaration(interfaceDecl, checker, referencedTypes, visited);
   } else {
     return null;
   }
@@ -126,6 +130,9 @@ function buildClassOutline(
     ? `<${classDecl.typeParameters.map((tp) => tp.name.text).join(", ")}>`
     : "";
   const modifiers = getModifierText(classDecl);
+  const heritage = classDecl.heritageClauses
+    ? " " + classDecl.heritageClauses.map((h) => h.getText()).join(" ")
+    : "";
 
   const members: string[] = [];
 
@@ -140,6 +147,7 @@ function buildClassOutline(
 
     const visibility = getMemberVisibility(member);
     if (visibility === "private") continue;
+    if (member.name?.getText().startsWith("#")) continue;
 
     if (ts.isPropertyDeclaration(member)) {
       const memberName = member.name.getText();
@@ -168,7 +176,7 @@ function buildClassOutline(
     }
   }
 
-  return `${modifiers}class ${name}${typeParams} {\n${joinMembers(members)}\n}`;
+  return `${modifiers}class ${name}${typeParams}${heritage} {\n${joinMembers(members)}\n}`;
 }
 
 function formatMemberPrefix(member: ts.ClassElement): string {
@@ -236,6 +244,7 @@ function collectReferencedTypes(
 
   for (const member of node.members) {
     if (getMemberVisibility(member) === "private") continue;
+    if (member.name?.getText().startsWith("#")) continue;
     collectTypeRefsFromNode(member, checker, typeRefs);
   }
 

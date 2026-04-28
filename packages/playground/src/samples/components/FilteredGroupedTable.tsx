@@ -102,7 +102,7 @@ interface FilteredGroupedTableInnerProps {
 
 const FilteredGroupedTableInner: React.FC<FilteredGroupedTableInnerProps> = ({ds, columns, theme, height}) => {
   const schema = React.useMemo(() => buildSchema(columns), [columns]);
-  const config = React.useMemo<StandardTableConfig>(() => ({pageSize: 20}), []);
+  const config = React.useMemo<Partial<StandardTableConfig>>(() => ({pageSize: 20}), []);
 
   const ir = React.useMemo<GetRowsIR>(() => ({
     startRow: 0,

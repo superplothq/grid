@@ -1,6 +1,6 @@
 import {
   DataSchema,
-  DomainValues,
+  ColumnRangeValues,
   StandardTableConfig,
   GetRowsIR,
   GetRowsResponse,
@@ -11,9 +11,10 @@ import { DataModel } from "./datamodel";
 import { FlattenedDataViewModelParams, createRowMeta } from "../renderer/flattened-data-viewmodel";
 import { GridDataViewModelOptions } from "../renderer/types";
 
-const DEFAULT_PAGE_SIZE = 10000;
-const DEFAULT_MAX_CACHE_SIZE = 3 * (10 ** 6);
-// const DEFAULT_MAX_CACHE_SIZE = 50;
+const defaultConfig: StandardTableConfig = {
+  pageSize: 10000,
+  maxNumPageBeforeEviction: 300,
+};
 
 export function getUnfetchedPagesByLogicalBoundary(
   pages: PageNode[],
@@ -239,53 +240,62 @@ export function findContiguousPageBlocks(pages: PageNode[], cursor: TargetSlotPa
 }
 
 export abstract class StandardTableDataModel extends DataModel<GetRowsIR, FlattenedDataViewModelParams> {
+  /**
+   * Resolved configuration after merging user-provided values with defaults. See [`StandardTableConfig`](/docs/api-references/type-references#standardtableconfig).
+   */
   config: StandardTableConfig;
+  /**
+   * The page cache tree. Each [`PageNode`](/docs/api-references/type-references#pagenode) holds a fixed slice of rows; `data` is `null` until fetched and populated on demand as the user scrolls. When `groupBy` is active, expanding a group row creates a nested subtree of child pages under that row's `expandedRows` entry - so the cache forms a tree mirroring the group hierarchy. Collapsing hides children but keeps them cached. Pages are evicted (furthest from the current scroll position first) when the total fetched page count exceeds `maxNumPageBeforeEviction`.
+   */
   pages: PageNode[] = [];
   topLevelRowCount = 0;
-  private lastIR: GetRowsIR | null = null;
-  private viewModelOptions?: GridDataViewModelOptions;
+  #lastIR: GetRowsIR | null = null;
+  #viewModelOptions?: GridDataViewModelOptions;
 
-  constructor(schema: DataSchema[], config: StandardTableConfig) {
+  constructor(schema: DataSchema[], config: Partial<StandardTableConfig> = {}) {
     super(schema);
-    // TODO[review] merge with default config
-    this.config = config;
+    this.config = { ...defaultConfig, ...config };
   }
 
+  /**
+   * Subclasses must implement this to fetch rows from the data source. The [`GetRowsIR`](/docs/api-references/type-references#getrowsir) (intermediate representation) drives data fetching and transformation at the source - the subclass converts it into a command for its backend. For example, `SqlStandardTableDataModel` generates SQL from the IR. Returns a [`GetRowsResponse`](/docs/api-references/type-references#getrowsresponse).
+   */
   abstract getData(ir: GetRowsIR): Promise<GetRowsResponse>;
-  abstract getDomainValues(field: string): Promise<DomainValues>;
-
-  get pageSize(): number {
-    return this.config.pageSize ?? DEFAULT_PAGE_SIZE;
-  }
-
-  get maxCacheSize(): number {
-    return this.config.maxCacheSize ?? DEFAULT_MAX_CACHE_SIZE;
-  }
+  /**
+   * Return the value range for a column. For dimensions (non-temporal), returns all distinct values. For measures and temporal dimensions, returns min/max. Used to populate filter UIs. Returns a [`ColumnRangeValues`](/docs/api-references/type-references#columnrangevalues).
+   */
+  abstract getRangeOfColumn(field: string): Promise<ColumnRangeValues>;
 
   setViewModelOptions(options: GridDataViewModelOptions): void {
-    this.viewModelOptions = options;
+    this.#viewModelOptions = options;
   }
 
-  setConfig(config: StandardTableConfig): void {
-    this.config = config;
+  /**
+   * Replace the config and reset the page cache. Accepts a partial config; omitted fields use defaults.
+   */
+  setConfig(config: Partial<StandardTableConfig>): void {
+    this.config = { ...defaultConfig, ...config };
     this.pages = [];
     this.topLevelRowCount = 0;
   }
 
+  /**
+   * Main entry point for fetching data. Takes a [`GetRowsIR`](/docs/api-references/type-references#getrowsir) describing the desired row range, grouping, projection, sort, and filter. Resets the page cache if the IR changed (groupBy, filter, project, or sort), fetches any missing pages in the requested range via `getData`, evicts distant pages if over the cache limit, then flattens the page tree into [`FlattenedDataViewModelParams`](/docs/api-references/type-references#flatteneddataviewmodelparams) for the renderer.
+   */
   async getViewModelData(ir: GetRowsIR): Promise<FlattenedDataViewModelParams> {
-    if (this.lastIR) {
+    if (this.#lastIR) {
       // TODO[review] is object equality check enough. this seems heavy
-      const groupByChanged = this.lastIR.groupBy.join(",") !== ir.groupBy.join(",");
-      const filterChanged = JSON.stringify(this.lastIR.filter) !== JSON.stringify(ir.filter);
-      const projectChanged = this.lastIR.project.join(",") !== ir.project.join(",");
-      const sortChanged = JSON.stringify(this.lastIR.sort) !== JSON.stringify(ir.sort);
+      const groupByChanged = this.#lastIR.groupBy.join(",") !== ir.groupBy.join(",");
+      const filterChanged = JSON.stringify(this.#lastIR.filter) !== JSON.stringify(ir.filter);
+      const projectChanged = this.#lastIR.project.join(",") !== ir.project.join(",");
+      const sortChanged = JSON.stringify(this.#lastIR.sort) !== JSON.stringify(ir.sort);
       if (groupByChanged || filterChanged || projectChanged || sortChanged) {
         this.pages = [];
         this.topLevelRowCount = 0;
       }
     }
 
-    this.lastIR = ir;
+    this.#lastIR = ir;
 
     // resolveLogicalRange needs page slots to walk. Page slots need totalRowCount,
     // which only comes from a getData call. Bootstrap by fetching the first page.
@@ -294,11 +304,11 @@ export abstract class StandardTableDataModel extends DataModel<GetRowsIR, Flatte
       const bootstrapIR: GetRowsIR = {
         ...ir,
         startRow: 0,
-        endRow: this.pageSize,
+        endRow: this.config.pageSize,
         groupPath: [],
       };
       const response = await this.getData(bootstrapIR);
-      this.pages = this.createPageSlots(response.totalRowCount, this.pageSize);
+      this.pages = this.#createPageSlots(response.totalRowCount, this.config.pageSize);
       this.topLevelRowCount = response.totalRowCount;
       // TODO always load the first page on the top level irrespective of where the user
       // set the startRow and endRow
@@ -320,8 +330,8 @@ export abstract class StandardTableDataModel extends DataModel<GetRowsIR, Flatte
       req.page.data = response.rowData;
     }));
 
-    this.evictIfNeeded();
-    return this.flatten();
+    this.#evictIfNeeded();
+    return this.#flatten();
   }
 
   // TODO when expand happens the IR is not updated, hence the IR does not know the upto date startRow
@@ -329,10 +339,15 @@ export abstract class StandardTableDataModel extends DataModel<GetRowsIR, Flatte
   //      startRow from last page load when it was at the very bottom of the page (no idea about scroll back up)
   //      Pass the startRow as parameter
   //      this might have an error for page eviction
+  /**
+   * Expand a group row to reveal its children. Requires `groupBy` to be set in the IR. Expansion is progressive - each call drills one level deeper into the hierarchy. For example, with `groupBy: ["country", "state", "city"]`: `expand(["USA"])` reveals states, then `expand(["USA", "California"])` reveals cities. Fetches child data on first expand; re-expanding a collapsed group is a cache hit. Returns updated [`FlattenedDataViewModelParams`](/docs/api-references/type-references#flatteneddataviewmodelparams).
+   *
+   * @param groupPath - Values identifying the group to expand (e.g. `["USA", "California"]`).
+   */
   async expand(groupPath: string[]): Promise<FlattenedDataViewModelParams> {
-    const result = this.findGroupRow(groupPath);
+    const result = this.#findGroupRow(groupPath);
     if (!result) {
-      return this.flatten();
+      return this.#flatten();
     }
 
     const { page, localRowIndex } = result;
@@ -342,12 +357,12 @@ export abstract class StandardTableDataModel extends DataModel<GetRowsIR, Flatte
     // Re-expanding is a cache hit — no getData call needed.
     if (existing && !existing.expanded) {
       existing.expanded = true;
-      return this.flatten();
+      return this.#flatten();
     }
 
-    const ir = this.lastIR!;
+    const ir = this.#lastIR!;
     const childGroupBy = ir.groupBy.slice(groupPath.length);
-    const hasOutsideFacetDims = this.hasOutsideFacetDims();
+    const hasOutsideFacetDims = this.#hasOutsideFacetDims();
     const isLeafFacet = childGroupBy.length === 0;
 
     if (isLeafFacet && !hasOutsideFacetDims) {
@@ -356,7 +371,7 @@ export abstract class StandardTableDataModel extends DataModel<GetRowsIR, Flatte
 
     const childIR: GetRowsIR = {
       startRow: 0,
-      endRow: this.pageSize,
+      endRow: this.config.pageSize,
       groupPath: groupPath,
       groupBy: ir.groupBy,
       project: ir.project,
@@ -365,7 +380,7 @@ export abstract class StandardTableDataModel extends DataModel<GetRowsIR, Flatte
     };
 
     const response = await this.getData(childIR);
-    const childPages = this.createPageSlots(response.totalRowCount, this.pageSize);
+    const childPages = this.#createPageSlots(response.totalRowCount, this.config.pageSize);
     // TODO always loaded in to first page. this should not be mandatory
     childPages[0].data = response.rowData;
 
@@ -376,14 +391,19 @@ export abstract class StandardTableDataModel extends DataModel<GetRowsIR, Flatte
     };
     page.expandedRows.set(localRowIndex, group);
 
-    this.evictIfNeeded();
-    return this.flatten();
+    this.#evictIfNeeded();
+    return this.#flatten();
   }
 
+  /**
+   * Collapse a group row. Requires `groupBy` to be set in the IR. Hides the children of the specified group but retains their data in cache, so re-expanding is instant without a `getData` call. Returns updated [`FlattenedDataViewModelParams`](/docs/api-references/type-references#flatteneddataviewmodelparams).
+   *
+   * @param groupPath - Values identifying the group to collapse (e.g. `["USA"]`).
+   */
   async collapse(groupPath: string[]): Promise<FlattenedDataViewModelParams> {
-    const result = this.findGroupRow(groupPath);
+    const result = this.#findGroupRow(groupPath);
     if (!result) {
-      return this.flatten();
+      return this.#flatten();
     }
 
     const { page, localRowIndex } = result;
@@ -392,11 +412,11 @@ export abstract class StandardTableDataModel extends DataModel<GetRowsIR, Flatte
       existing.expanded = false;
     }
 
-    return this.flatten();
+    return this.#flatten();
   }
 
-  private hasOutsideFacetDims(): boolean {
-    const ir = this.lastIR!;
+  #hasOutsideFacetDims(): boolean {
+    const ir = this.#lastIR!;
     const groupBySet = new Set(ir.groupBy);
     return ir.project.some((col) => {
       const def = this.getColumn(col);
@@ -404,7 +424,7 @@ export abstract class StandardTableDataModel extends DataModel<GetRowsIR, Flatte
     });
   }
 
-  createPageSlots(totalRowCount: number, pageSize: number): PageNode[] {
+  #createPageSlots(totalRowCount: number, pageSize: number): PageNode[] {
     const numSlots = Math.ceil(totalRowCount / pageSize);
     const slots: PageNode[] = [];
     for (let i = 0; i < numSlots; i++) {
@@ -418,7 +438,7 @@ export abstract class StandardTableDataModel extends DataModel<GetRowsIR, Flatte
     return slots;
   }
 
-  findGroupRow(select: string[]): { page: PageNode; localRowIndex: number } | null {
+  #findGroupRow(select: string[]): { page: PageNode; localRowIndex: number } | null {
     if (select.length === 0) return null;
 
     let currentPages = this.pages;
@@ -450,13 +470,13 @@ export abstract class StandardTableDataModel extends DataModel<GetRowsIR, Flatte
     return null;
   }
 
-  private flatten(): FlattenedDataViewModelParams {
-    const ir = this.lastIR!;
+  #flatten(): FlattenedDataViewModelParams {
+    const ir = this.#lastIR!;
     const data: any[][] = ir.project.map(() => []);
     const hasGroupBy = ir.groupBy.length > 0;
     const rowFacet: (string | null)[] | undefined = hasGroupBy ? [] : undefined;
     const rowMetaBytes: number[] | undefined = hasGroupBy ? [] : undefined;
-    const hasOutsideFacetDims = this.hasOutsideFacetDims();
+    const hasOutsideFacetDims = this.#hasOutsideFacetDims();
     const columnDefs = ir.project.map((col) => this.getColumn(col));
 
     const totalRows = this.computeTotalLogicalRows();
@@ -468,13 +488,13 @@ export abstract class StandardTableDataModel extends DataModel<GetRowsIR, Flatte
         const def = this.getColumn(col);
         return def?.displayName ?? col;
       })];
-      const options: GridDataViewModelOptions = { ...this.viewModelOptions };
+      const options: GridDataViewModelOptions = { ...this.#viewModelOptions };
       return { data, columnFacets, rowFacet, rowMeta: rowMetaBytes ? new Uint8Array(rowMetaBytes) : undefined, options, totalRows, offsetTop: 0 };
     }
 
     const { blockStart, blockEnd } = findContiguousPageBlocks(this.pages, cursor);
 
-    const offsetTop = this.computeOffsetTop(this.pages, blockStart, 0);
+    const offsetTop = this.#computeOffsetTop(this.pages, blockStart, 0);
 
     const pushFacetRow = (page: PageNode, rowIdx: number, depth: number, isExpanded: boolean, groupFieldProject: string[]) => {
       rowFacet!.push(page.data![0][rowIdx]);
@@ -505,7 +525,7 @@ export abstract class StandardTableDataModel extends DataModel<GetRowsIR, Flatte
     // Returns true if walked all pages at this level (reached natural end)
     const walkBlock = (pages: PageNode[], depth: number, start: TargetSlotPath, end: TargetSlotPath): boolean => {
       const isFacetLevel = depth < ir.groupBy.length;
-      const groupFieldProject = isFacetLevel ? this.buildProjectionForDepth(depth) : null;
+      const groupFieldProject = isFacetLevel ? this.#buildProjectionForDepth(depth) : null;
 
       const startPageIdx = start[0].pageIdx;
       const endPageIdx = end[0].pageIdx;
@@ -555,14 +575,14 @@ export abstract class StandardTableDataModel extends DataModel<GetRowsIR, Flatte
     })];
 
     const options: GridDataViewModelOptions = {
-      ...this.viewModelOptions,
+      ...this.#viewModelOptions,
     };
 
     return { data, columnFacets, rowFacet, rowMeta, options, totalRows, offsetTop };
   }
 
-  private buildProjectionForDepth(depth: number): string[] {
-    const ir = this.lastIR!;
+  #buildProjectionForDepth(depth: number): string[] {
+    const ir = this.#lastIR!;
     const groupField = ir.groupBy[depth];
     const measureCols: string[] = [];
     for (const def of this.schema) {
@@ -572,6 +592,9 @@ export abstract class StandardTableDataModel extends DataModel<GetRowsIR, Flatte
     return [groupField, ...measureCols];
   }
 
+  /**
+   * Returns the current expand state - all group paths that are currently expanded after any sequence of `expand`/`collapse` calls (e.g. `[["USA"], ["USA", "California"]]`).
+   */
   getExpandedPaths(): string[][] {
     const paths: string[][] = [];
     const walk = (pages: PageNode[], prefix: string[]): void => {
@@ -590,6 +613,9 @@ export abstract class StandardTableDataModel extends DataModel<GetRowsIR, Flatte
     return paths;
   }
 
+  /**
+   * Returns the total number of visible logical rows. Although pages are nested in a tree structure, the data is laid out flat for rendering. Each expanded group's `expanded` flag determines whether its nested children count toward the total. This walks the entire page tree and sums rows from all levels where `expanded` is `true`.
+   */
   computeTotalLogicalRows(): number {
     return computeForLevel(this.pages, this.topLevelRowCount);
   }
@@ -602,7 +628,7 @@ export abstract class StandardTableDataModel extends DataModel<GetRowsIR, Flatte
   //            recurse into row 1's expanded child pages at depth 1
   //   depth 1: sum logical rows for child pages before pageIdx=0 (none in this case)
   //            rowIdx=-1 means terminal — stop here
-  private computeOffsetTop(pages: PageNode[], blockStart: TargetSlotPath, depth: number): number {
+  #computeOffsetTop(pages: PageNode[], blockStart: TargetSlotPath, depth: number): number {
     const entry = blockStart[depth];
     if (!entry) return 0;
 
@@ -629,38 +655,38 @@ export abstract class StandardTableDataModel extends DataModel<GetRowsIR, Flatte
       // but count child rows before blockStart within its children
       const childExpanded = page.expandedRows.get(entry.rowIdx);
       if (childExpanded?.expanded) {
-        offset += this.computeOffsetTop(childExpanded.pages, blockStart, depth + 1);
+        offset += this.#computeOffsetTop(childExpanded.pages, blockStart, depth + 1);
       }
     }
 
     return offset;
   }
 
-  private countFetchedPages(): number {
-    return this.countFetchedPagesInTree(this.pages);
+  #countFetchedPages(): number {
+    return this.#countFetchedPagesInTree(this.pages);
   }
 
-  private countFetchedPagesInTree(pages: PageNode[]): number {
+  #countFetchedPagesInTree(pages: PageNode[]): number {
     let count = 0;
     for (const page of pages) {
       if (page.data !== null) count++;
       for (const [, expanded] of page.expandedRows) {
-        count += this.countFetchedPagesInTree(expanded.pages);
+        count += this.#countFetchedPagesInTree(expanded.pages);
       }
     }
     return count;
   }
 
-  private evictIfNeeded(): void {
-    while (this.countFetchedPages() > this.maxCacheSize) {
-      const farthest = this.findFarthestPage();
+  #evictIfNeeded(): void {
+    while (this.#countFetchedPages() > this.config.maxNumPageBeforeEviction) {
+      const farthest = this.#findFarthestPage();
       if (!farthest) break;
-      this.evictPage(farthest);
+      this.#evictPage(farthest);
     }
   }
 
-  private findFarthestPage(): PageNode | null {
-    const targetSlot = this.lastIR ? Math.floor(this.lastIR.startRow / this.pageSize) : 0;
+  #findFarthestPage(): PageNode | null {
+    const targetSlot = this.#lastIR ? Math.floor(this.#lastIR.startRow / this.config.pageSize) : 0;
     let farthest: PageNode | null = null;
     let maxDist = -1;
 
@@ -684,11 +710,11 @@ export abstract class StandardTableDataModel extends DataModel<GetRowsIR, Flatte
     return farthest;
   }
 
-  private evictPage(page: PageNode): void {
+  #evictPage(page: PageNode): void {
     page.data = null;
     for (const [, expanded] of page.expandedRows) {
       for (const childPage of expanded.pages) {
-        this.evictPage(childPage);
+        this.#evictPage(childPage);
       }
     }
   }

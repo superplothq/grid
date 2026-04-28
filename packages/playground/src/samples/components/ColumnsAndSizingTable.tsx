@@ -55,7 +55,7 @@ interface GridProps {
 }
 
 const ColumnsAndSizingGrid: React.FC<GridProps> = ({ds, schema, theme, height}) => {
-  const config = React.useMemo<StandardTableConfig>(() => ({pageSize: 100}), []);
+  const config = React.useMemo<Partial<StandardTableConfig>>(() => ({pageSize: 100}), []);
 
   const ir = React.useMemo<GetRowsIR>(() => ({
     startRow: 0,

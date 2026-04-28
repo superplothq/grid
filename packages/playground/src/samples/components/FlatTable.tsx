@@ -40,7 +40,7 @@ interface FlatTableInnerProps {
 const FlatTableInner: React.FC<FlatTableInnerProps> = ({ds, columns, theme, height}) => {
   const schema = React.useMemo(() => buildSchema(columns), [columns]);
 
-  const config = React.useMemo<StandardTableConfig>(() => ({pageSize: 100}), []);
+  const config = React.useMemo<Partial<StandardTableConfig>>(() => ({pageSize: 100}), []);
 
   const ir = React.useMemo<GetRowsIR>(() => ({
     startRow: 0,

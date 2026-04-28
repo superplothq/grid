@@ -1,6 +1,6 @@
 import { createContext, useContext } from "react";
 import type { StandardTableDataModel } from "grid/dist/index";
-import type { GetRowsIR, SortEntry, ScalarFilter, DomainValues } from "grid/dist/index";
+import type { GetRowsIR, SortEntry, ScalarFilter, ColumnRangeValues } from "grid/dist/index";
 import type Grid from "grid/dist/renderer";
 
 export interface GridConfig {
@@ -16,7 +16,7 @@ export interface DataModelContextValue {
   grid: Grid;
   sortAction?: (entries: SortEntry[]) => Promise<void>;
   filterAction?: (filters: ScalarFilter[]) => Promise<void>;
-  getDomainValues?: (field: string) => Promise<DomainValues>;
+  getRangeOfColumn?: (field: string) => Promise<ColumnRangeValues>;
   expandAction?: (selectPath: string[]) => Promise<void>;
   collapseAction?: (selectPath: string[]) => Promise<void>;
 }

@@ -1,12 +1,12 @@
 import { StandardTableDataModel } from "./standard-table-datamodel";
 import { SqlDataSource } from "./sql-datasource";
-import { DataSchema, DatePartScalarFilter, DomainValues, StandardTableConfig, GetRowsIR, GetRowsResponse, ScalarFilter, SortEntry } from "./types";
+import { DataSchema, DatePartScalarFilter, ColumnRangeValues, StandardTableConfig, GetRowsIR, GetRowsResponse, ScalarFilter, SortEntry } from "./types";
 
 export class SqlStandardTableDataModel extends StandardTableDataModel {
   protected table: string;
   protected dataSource: SqlDataSource;
 
-  constructor(config: StandardTableConfig, dataSchema: DataSchema[], dataSource: SqlDataSource) {
+  constructor(config: Partial<StandardTableConfig>, dataSchema: DataSchema[], dataSource: SqlDataSource) {
     super(dataSchema, config);
     this.dataSource = dataSource;
     this.table = dataSource.table;
@@ -39,7 +39,7 @@ export class SqlStandardTableDataModel extends StandardTableDataModel {
     return { rowData, totalRowCount };
   }
 
-  async getDomainValues(field: string): Promise<DomainValues> {
+  async getRangeOfColumn(field: string): Promise<ColumnRangeValues> {
     const schema = this.getColumn(field);
 
     if (schema.type === "measure") {
