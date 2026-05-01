@@ -6,7 +6,7 @@ export class SqlStandardTableDataModel extends StandardTableDataModel {
   protected table: string;
   protected dataSource: SqlDataSource;
 
-  constructor(config: Partial<StandardTableConfig>, dataSchema: DataSchema[], dataSource: SqlDataSource) {
+  constructor(dataSchema: DataSchema[], dataSource: SqlDataSource, config: Partial<StandardTableConfig> = {}) {
     super(dataSchema, config);
     this.dataSource = dataSource;
     this.table = dataSource.table;

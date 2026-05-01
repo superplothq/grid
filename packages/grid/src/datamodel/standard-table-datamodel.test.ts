@@ -94,7 +94,7 @@ async function makeModel(configOverrides: Partial<StandardTableConfig> = {}) {
   });
   const ds = DuckDBDataSource.create();
   await ds.loadData({ table: "data", schema: dataSchema, data: gridData.data });
-  const model = new SqlStandardTableDataModel(makeConfig(configOverrides), dataSchema, ds);
+  const model = new SqlStandardTableDataModel(dataSchema, ds, makeConfig(configOverrides));
   let getDataCallCount = 0;
   const origGetData = model.getData.bind(model);
   model.getData = async (ir: StandardDataFetchAndTransformIR): Promise<GetRowsResponse> => {
@@ -696,9 +696,9 @@ describe("DatePartScalarFilter (real DuckDB)", () => {
     const ds = DuckDBDataSource.create();
     await ds.loadData({ table: "ts_data", schema: tsSchema, data: tsGridData.data });
     return withViewModelHelpers(new SqlStandardTableDataModel(
-      { pageSize: 100, maxNumPageBeforeEviction: 20 },
       tsSchema,
       ds,
+      { pageSize: 100, maxNumPageBeforeEviction: 20 },
     ));
   }
 
@@ -873,7 +873,7 @@ describe("getRangeOfColumn (real DuckDB)", () => {
     };
     const ds = DuckDBDataSource.create();
     await ds.loadData({ table: "domain_ts", schema: tsSchema, data: tsGridData.data });
-    const model = new SqlStandardTableDataModel({ pageSize: 100, maxNumPageBeforeEviction: 20 }, tsSchema, ds);
+    const model = new SqlStandardTableDataModel(tsSchema, ds, { pageSize: 100, maxNumPageBeforeEviction: 20 });
     const result = await model.getRangeOfColumn("created_at");
     expect(result.type).to.equal("temporal");
     if (result.type === "temporal") {

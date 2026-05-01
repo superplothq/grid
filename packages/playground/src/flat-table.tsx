@@ -165,7 +165,7 @@ const FlatTablePlayground: React.FC = () => {
       });
       const ds = await DuckDBWasmDataSource.create();
       await ds.loadData({ schema: dataSchema, data: gridData.data });
-      const model = new SqlStandardTableDataModel(config, dataSchema, ds);
+      const model = new SqlStandardTableDataModel(dataSchema, ds, config);
 
       // Wrap getData with artificial delay
       const origGetData = model.getData.bind(model);

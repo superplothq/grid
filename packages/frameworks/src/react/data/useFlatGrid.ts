@@ -107,7 +107,7 @@ export function useFlatGrid(options: UseFlatGridOptions): UseFlatGridResult {
   const collapseActionRef = useRef<(selectPath: string[]) => Promise<void>>(async () => {});
 
   if (!modelRef.current) {
-    modelRef.current = new SqlStandardTableDataModel(config, schema, dataSource);
+    modelRef.current = new SqlStandardTableDataModel(schema, dataSource, config);
   }
 
   const resolvedWrapper = ({ children }: { children: ReactNode }) => {

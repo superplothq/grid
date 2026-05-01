@@ -206,7 +206,7 @@ const PaginationTestPlayground: React.FC = () => {
       });
       const ds = await DuckDBWasmDataSource.create();
       await ds.loadData({ schema: dataSchema, data: gridData.data });
-      const model = new SqlStandardTableDataModel(config, dataSchema, ds);
+      const model = new SqlStandardTableDataModel(dataSchema, ds, config);
 
       if (cancelled) return;
       modelRef.current = model;
