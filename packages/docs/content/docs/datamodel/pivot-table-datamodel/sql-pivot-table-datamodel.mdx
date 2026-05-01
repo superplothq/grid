@@ -1,0 +1,328 @@
+---
+title: SqlPivotTableDataModel
+description: SQL implementation of PivotTableDataModel that translates the DimSpec tree into CTEs and executes a single query against a SqlDataSource.
+---
+
+`SqlPivotTableDataModel` is the SQL implementation of [PivotTableDataModel](/docs/datamodel/pivot-table-datamodel). It takes a [`DataSchema[]`](/docs/api-references/type-references#dataschema) and a [`SqlDataSource`](/docs/datasource/sql-datasource) and translates the [`DimSpec`](/docs/datamodel/pivot-table-datamodel#dimspec) tree into SQL CTEs (Common Table Expressions) that run as a single query against the data source.
+
+This implementation targets in-browser WASM SQL engines (like [DuckDB WASM](/docs/datasource/sql-datasource/duckdb-wasm-datasource)) where the grid runs queries locally in the browser. If your data lives behind an API that connects to a full SQL server (Postgres, BigQuery, Redshift, Snowflake etc.), you can use this class as a reference for how to translate the `DimSpec` tree into SQL and build your own [`PivotTableDataModel`](/docs/datamodel/pivot-table-datamodel#implementing-a-pivottabledatamodel) subclass that generates server-compatible queries.
+
+<auto-class-outline path="packages/grid/src/datamodel/sql-pivot-table-datamodel.ts" name="SqlPivotTableDataModel" title="Outline" exclude="PivotTableDataModel" />
+
+## Constructor
+
+```ts
+import { SqlPivotTableDataModel } from "grid";
+
+const model = new SqlPivotTableDataModel(schema, dataSource);
+```
+
+- `schema` - [`DataSchema[]`](/docs/api-references/type-references#dataschema) describing each column's name, type, and subtype
+- `dataSource` - a [`SqlDataSource`](/docs/datasource/sql-datasource) instance (e.g. `DuckDBWasmDataSource`) with data already loaded
+
+The constructor reads the table name from `dataSource.table` and stores it for query generation.
+
+## From PivotConfig to IR
+
+Before looking at the SQL translation, here is an example of how a `PivotConfig` is lowered into the IR that `getData` receives. Given this config:
+
+```ts
+const config: PivotConfig = {
+  rows: hierarchy("region", "country"),
+  columns: cross("dept", "revenue"),
+  filter: [{ type: "scalar", field: "dept", op: "in", value: ["Elec", "App"] }],
+};
+```
+
+The parent class lowers it into this IR before calling `getData`:
+
+```ts
+{
+  dimSpec: {
+    type: "cross",
+    filter: [],
+    children: [
+      { type: "hierarchy", fields: ["region", "country"], filter: [] },
+      { type: "simple", field: "dept",
+        filter: [{ type: "scalar", field: "dept", op: "in", value: ["Elec", "App"] }] },
+    ],
+  },
+  measures: [{ field: "revenue", aggregation: "sum", filter: [] }],
+}
+```
+
+`"region"` and `"country"` stay as a `hierarchy` node. `"dept"` becomes a `simple` node with the filter attached. `"revenue"` is a measure column, so it is extracted out of the tree into the `measures` list.
+
+## How it translates DimSpec to SQL
+
+When `getData(ir)` is called, the model walks the `DimSpec` tree and produces a flat list of CTEs in dependency order - leaves first, root last. The root CTE is then LEFT JOINed with the source table to aggregate measures. This happens in a single SQL query.
+
+A plain string like `"region"` becomes a `simple` DimSpec node; the operators (`cross`, `concat`, `hierarchy`) keep their names. The table below shows what SQL each `DimSpec` node type produces:
+
+| DimSpec type | Produced from | SQL pattern |
+| --- | --- | --- |
+| `simple` | A plain string dimension field (e.g. `"region"`) | `SELECT field, MIN(rowid) AS __ord__ FROM T GROUP BY field` |
+| `hierarchy` | `hierarchy("region", "country")` | `SELECT f1, f2, MIN(rowid) AS __ord__ FROM T GROUP BY f1, f2`. With segments (from dimensional projection): one SELECT per segment at different GROUP BY depths, combined with `UNION ALL` |
+| `cross` | `cross(a, b)` | `SELECT * FROM child_cte_A CROSS JOIN child_cte_B` |
+| `concat` | `concat(a, b)` | `UNION ALL` of children with aliased columns (`__c__0`, `__c__1`, ...) and a `__src__` tracking column |
+
+### CTE composition
+
+CTEs are built bottom-up. Leaf nodes (`simple`, `hierarchy`) become CTEs that SELECT from the source table. Internal nodes (`cross`, `concat`) become CTEs that reference their children's CTEs. The final CTE is the complete dimension grid.
+
+The query then LEFT JOINs this grid with the source table and aggregates measures:
+
+```sql
+WITH <leaf CTEs>,
+     <internal CTEs>,
+     <root CTE>
+SELECT <dim fields>, <AGG(measure fields)>
+FROM <root CTE>
+LEFT JOIN T ON <join conditions>
+GROUP BY <dim fields>
+ORDER BY <ordering expressions>
+```
+
+The LEFT JOIN ensures that every dimension combination appears in the result, even if no source rows match - those cells get NULL values. This is the expected behavior for a pivot grid.
+
+### Example: cross with plain strings
+
+The simplest case. `cross("region", "dept")` with measure `revenue`:
+
+```ts
+const config: PivotConfig = {
+  rows: "region",
+  columns: cross("dept", "revenue"),
+};
+```
+
+The `AxisExpr` is lowered to a DimSpec tree where `"region"` and `"dept"` each become `simple` nodes, and `"revenue"` (a measure) is extracted into the measures list. The combined DimSpec is `cross(simple("region"), simple("dept"))`. The equivalent SQL (formatted for readability; actual output is single-line per clause):
+
+```sql
+WITH __d__0 AS (
+       SELECT "region", MIN(rowid) AS "__ord__0"
+       FROM "sales"
+       GROUP BY "region"
+     ),
+     __d__1 AS (
+       SELECT "dept", MIN(rowid) AS "__ord__1"
+       FROM "sales"
+       GROUP BY "dept"
+     ),
+     __d__2 AS (
+       SELECT *
+       FROM __d__0 CROSS JOIN __d__1
+     )
+SELECT __d__2."region", __d__2."dept", SUM(T."revenue") AS "revenue"
+FROM __d__2
+LEFT JOIN "sales" T ON T."region" = __d__2."region" AND T."dept" = __d__2."dept"
+GROUP BY __d__2."region", __d__2."dept"
+ORDER BY MIN(__d__2."__ord__0"), MIN(__d__2."__ord__1")
+```
+
+Leaf CTEs (`__d__0`, `__d__1`) select from the real table name (`"sales"`). Only the final LEFT JOIN aliases it as `T` for the aggregation query.
+
+Step by step:
+
+1. `__d__0` extracts distinct regions from the source table
+2. `__d__1` extracts distinct departments
+3. `__d__2` cross-joins them to produce every region-department combination
+4. The final SELECT left-joins this grid back to the source table and aggregates revenue per combination
+
+### Example: cross with hierarchy
+
+`cross(hierarchy("region", "country"), "dept")` with measure `revenue`:
+
+```ts
+const config: PivotConfig = {
+  rows: hierarchy("region", "country"),
+  columns: cross("dept", "revenue"),
+};
+```
+
+The DimSpec tree is `cross(hierarchy("region", "country"), simple("dept"))`. The hierarchy becomes a single leaf CTE that groups by both fields:
+
+```sql
+WITH __d__0 AS (
+       SELECT "region", "country", MIN(rowid) AS "__ord__0"
+       FROM "sales"
+       GROUP BY "region", "country"
+     ),
+     __d__1 AS (
+       SELECT "dept", MIN(rowid) AS "__ord__1"
+       FROM "sales"
+       GROUP BY "dept"
+     ),
+     __d__2 AS (
+       SELECT *
+       FROM __d__0 CROSS JOIN __d__1
+     )
+SELECT __d__2."region", __d__2."country", __d__2."dept",
+       SUM(T."revenue") AS "revenue"
+FROM __d__2
+LEFT JOIN "sales" T ON T."region" = __d__2."region"
+           AND T."country" = __d__2."country"
+           AND T."dept" = __d__2."dept"
+GROUP BY __d__2."region", __d__2."country", __d__2."dept"
+ORDER BY MIN(__d__2."__ord__0"), MIN(__d__2."__ord__1")
+```
+
+The hierarchy CTE (`__d__0`) only produces region-country pairs that actually exist in the data. The cross join then pairs every observed region-country with every department.
+
+### Example: concat
+
+`concat("dept", "channel")` with measure `revenue`:
+
+```ts
+const config: PivotConfig = {
+  rows: concat("dept", "channel"),
+  columns: "revenue",
+};
+```
+
+The DimSpec is `concat(simple("dept"), simple("channel"))`. Each child's field is aliased to a shared column name, and a `__src__` column tracks which branch each row came from:
+
+```sql
+WITH __d__0 AS (
+       SELECT "dept", MIN(rowid) AS "__ord__0"
+       FROM "sales"
+       GROUP BY "dept"
+     ),
+     __d__1 AS (
+       SELECT "channel", MIN(rowid) AS "__ord__1"
+       FROM "sales"
+       GROUP BY "channel"
+     ),
+     __d__2 AS (
+       SELECT '0:dept' AS "__src__0",
+              __d__0."dept" AS "__c__0",
+              "__ord__0" AS "__cord__0_0"
+       FROM __d__0
+       UNION ALL
+       SELECT '1:channel' AS "__src__0",
+              __d__1."channel" AS "__c__0",
+              "__ord__1" AS "__cord__0_0"
+       FROM __d__1
+     )
+SELECT __d__2."__c__0", SUM(T."revenue") AS "revenue"
+FROM __d__2
+LEFT JOIN "sales" T ON (__d__2."__src__0" = '0:dept' AND T."dept" = __d__2."__c__0")
+            OR (__d__2."__src__0" = '1:channel' AND T."channel" = __d__2."__c__0")
+            OR __d__2."__src__0" IS NULL
+GROUP BY __d__2."__c__0", __d__2."__src__0"
+ORDER BY __d__2."__src__0", MIN(__d__2."__cord__0_0")
+```
+
+The `__src__0` column ensures dept values and channel values are kept separate in the result even if they have overlapping names. The JOIN condition is branched on `__src__0` so each branch joins on the correct original field.
+
+## Ordering strategy
+
+Each leaf CTE captures `MIN(rowid)` as an `__ord__` column. This preserves insertion order from the source data - the first region that appears in the data sorts first in the output. The final `ORDER BY` wraps these in `MIN()` because they are not in the GROUP BY.
+
+For concat, an additional `__src__` column tracks which branch each row came from. The ORDER BY uses the `__src__` column directly (it is in the GROUP BY) followed by `__cord__` columns for ordering within each branch:
+
+```sql
+ORDER BY __d__4."__src__0", MIN(__d__4."__cord__0_0")
+```
+
+This ensures concat branches appear in definition order (the order you passed children to `concat()`), and values within each branch preserve their data-insertion order.
+
+## How concat works
+
+With `cross` and `hierarchy`, every child shares the same field names - the CTE outputs real column names and the JOIN is a straightforward equality. Concat is different: its children can have completely different fields. Consider `concat(hierarchy("region", "country"), "dept")`:
+
+- Branch 0 produces two columns: `region` and `country`
+- Branch 1 produces one column: `dept`
+
+These branches must be combined with `UNION ALL`, but UNION ALL requires the same number of columns with the same names. You can't UNION a 2-column result with a 1-column result, and even if the column count matched, the field names differ - `region` and `dept` are not the same column. The JOIN back to the source table also becomes ambiguous: column `__c__0` means `region` for one row and `dept` for another, so a single `T."region" = grid."__c__0"` would be wrong for dept rows.
+
+The model solves this with three synthetic column types:
+
+**Aliased columns (`__c__`)** - children's fields are renamed to shared column names (`__c__0`, `__c__1`, ...). Shorter branches get NULL-padded to match the longest branch. For example, `concat(hierarchy("region", "country"), simple("dept"))`:
+
+```sql
+-- hierarchy branch (2 fields)
+SELECT "region" AS "__c__0", "country" AS "__c__1", ...
+-- simple branch (1 field, NULL-padded)
+SELECT "dept" AS "__c__0", CAST(NULL AS VARCHAR) AS "__c__1", ...
+```
+
+**Source column (`__src__`)** - a synthetic column that tags each row with which branch it came from. The value encodes the branch index and its field names: `'0:region,country'` for the first branch, `'1:dept'` for the second.
+
+**Ordering columns (`__cord__`)** - carry the `__ord__` values from child CTEs through the UNION ALL so that ordering is preserved.
+
+### Concat JOIN conditions
+
+Because different branches map different source fields to the same alias, the LEFT JOIN must be conditional on the `__src__` column:
+
+```sql
+ON (__d__3."__src__0" = '0:region,country'
+    AND T."region" = __d__3."__c__0"
+    AND T."country" = __d__3."__c__1")
+OR (__d__3."__src__0" = '1:dept'
+    AND T."dept" = __d__3."__c__0")
+```
+
+Each branch of the OR matches only rows from that concat branch, joining on the correct original field for each alias.
+
+## Cross segments with gating filters
+
+When dimensional projection is applied to a `cross` node, the model receives `CrossSegment[]` on the DimSpec. Cross segments partition the dimension grid into tiers - each tier makes a different number of children visible, gated by filter conditions.
+
+For example, `cross(hierarchy("region", "country", "city"), hierarchy("dept", "product"))` with projection that opens Europe > UK > London:
+
+**Segment 1** (all children visible, filter: `region IN ('Europe') AND country IN ('UK') AND city IN ('London')`):
+- Rows matching the filter get CROSS JOINed with dept/product
+- Only London sees the second hierarchy
+
+**Segment 2** (only first child visible, filter: NOT matching):
+- All other region/country/city combinations have dept and product as NULL
+
+The segments are combined with UNION ALL. The actual generated SQL is more involved - it qualifies filter fields with child CTE names, pads hidden children's fields and ordering columns with NULLs/zeros, and uses `COALESCE(..., FALSE)` for negated filters. The simplified structure looks like this:
+
+```sql
+-- Segment 1: full cross join, gated by filter
+SELECT child0.*, child1.*
+FROM child0 CROSS JOIN child1
+WHERE child0."region" IN ('Europe') AND child0."country" IN ('UK')
+  AND child0."city" IN ('London')
+
+UNION ALL
+
+-- Segment 2: only child0, child1 fields padded with NULL
+SELECT child0.*, CAST(NULL AS VARCHAR) AS "dept",
+       CAST(NULL AS VARCHAR) AS "product", 0 AS "__ord__1"
+FROM child0
+WHERE NOT (COALESCE(child0."region" IN ('Europe'), FALSE)
+       AND COALESCE(child0."country" IN ('UK'), FALSE)
+       AND COALESCE(child0."city" IN ('London'), FALSE))
+```
+
+## `getData` implementation
+
+`getData` receives a [`PivotDataFetchAndTransformIR`](/docs/api-references/type-references#pivotdatafetchandtransformir) containing a `DimSpec` tree and `Measure[]`. It:
+
+1. Handles the `none` DimSpec case (measure-only, no dimensions) with a simple `SELECT AGG(field) FROM "table"`
+2. For all other cases, recursively generates CTEs from the DimSpec tree
+3. Builds the SELECT clause with dimension fields from the root CTE and `AGG(T.field)` for each measure
+4. Builds JOIN conditions based on the DimSpec structure (simple equality for regular fields, conditional OR for concat branches)
+5. Adds GROUP BY for all dimension fields
+6. Adds ORDER BY based on either explicit sort entries or the natural `__ord__`/`__src__` ordering
+7. If any measures have filters, wraps the query in an additional CTE and applies WHERE after aggregation
+8. Executes the query via `dataSource.execute()` and returns column-major data
+
+The return value is a [`PivotRawDataFromSource`](/docs/api-references/type-references#pivotrawdatafromsource) with dimension columns first, then measure columns, then any `__src__` columns.
+
+## `resolveFacetValues` implementation
+
+`resolveFacetValues` takes a [`PivotFilterQuery`](/docs/api-references/type-references#pivotfilterquery) and returns distinct or grouped values for the requested fields:
+
+- **`distinct` mode** - runs one query per field: `SELECT field FROM "table" GROUP BY field ORDER BY MIN(rowid)`. Returns independent lists of unique values per field.
+- **`group` mode** - runs a single query grouping all fields together: `SELECT f1, f2 FROM "table" GROUP BY f1, f2 ORDER BY MIN(rowid)`. Returns observed combinations across fields.
+
+Both modes respect optional filters passed in `query.filters`.
+
+## API Reference
+
+Extends [PivotTableDataModel](/docs/datamodel/pivot-table-datamodel#api-reference).
+
