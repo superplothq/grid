@@ -1,7 +1,7 @@
 import React, {useCallback} from "react";
 import "grid/dist/grid.css";
 import type {DataSchema, ColumnMetadata} from "grid/dist/index";
-import type {GetRowsIR, StandardTableConfig, FlattenedDataViewModelParams} from "grid/dist/index";
+import type {StandardDataFetchAndTransformIR, StandardTableConfig, FlattenedDataViewModelParams} from "grid/dist/index";
 import {
   DataGrid, useFlatGrid, SkeletonGrid, GridErrOverlay,
   type FacetCellProps, type CellProps, type ReactFacetDefs,
@@ -86,7 +86,7 @@ const SchemaInferenceGridInner: React.FC<InnerProps> = ({ds, columns, theme, hei
 
   const config = React.useMemo<Partial<StandardTableConfig>>(() => ({pageSize: 100}), []);
 
-  const ir = React.useMemo<GetRowsIR>(() => ({
+  const ir = React.useMemo<StandardDataFetchAndTransformIR>(() => ({
     startRow: 0,
     endRow: 100,
     groupPath: [],

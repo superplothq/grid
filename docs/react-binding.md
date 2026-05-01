@@ -684,7 +684,7 @@ The grid's data pipeline has three layers:
 
 ```
 DataSource (SQL engine, async)
-  → DataModel (schema + query logic: PivotConfig or GetRowsIR → data)
+  → DataModel (schema + query logic: PivotConfig or StandardDataFetchAndTransformIR → data)
     → ViewModel (column-major data + facets, bridge to renderer)
       → Grid (renders via getSlice)
 ```
@@ -801,7 +801,7 @@ function usePivotData(
 // For flat tables
 function useFlatData(
   model: SqlFlatTableDataModel | null,
-  ir: GetRowsIR,
+  ir: StandardDataFetchAndTransformIR,
   options?: { facetDefs?: GridDataViewModelOptions["facetDefs"]; vTrackDefs?: VTrackDef[] }
 ): {
   viewModel: FlattenedDataViewModel | null;
@@ -969,7 +969,7 @@ function MyGrid() {
 ```tsx
 function PaginatedTable() {
   const model = useFlatModel({ schema, pageSize: 100 });
-  const [ir, setIR] = useState<GetRowsIR>({
+  const [ir, setIR] = useState<StandardDataFetchAndTransformIR>({
     startRow: 0, endRow: 100,
     groupPath: [], groupBy: ["group"], project: ["value"],
     sort: [], filter: [],

@@ -2,7 +2,7 @@ import React, {useEffect, useRef, useState} from "react";
 import "grid/dist/grid.css";
 import {DuckDBWasmDataSource, DataSchema, ColumnMetadata} from "grid/dist/index";
 import type {SqlDataSource} from "grid/dist/index";
-import type {GetRowsIR, StandardTableConfig} from "grid/dist/index";
+import type {StandardDataFetchAndTransformIR, StandardTableConfig} from "grid/dist/index";
 import {
   DataGrid,
   useFlatGrid,
@@ -84,7 +84,7 @@ const COLUMNS: ColumnDef[] = SCHEMA.map((s) => {
   return {};
 });
 
-const IR: GetRowsIR = {
+const IR: StandardDataFetchAndTransformIR = {
   startRow: 0,
   endRow: 100,
   groupPath: [],

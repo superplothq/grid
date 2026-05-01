@@ -25,9 +25,9 @@ Extends [Schema](#schema).
 { "file": "packages/grid/src/datamodel/types.ts#aggregate-fn", "codeblock": { "lang": "ts" } }
 ```
 
-## GetRowsIR
+## StandardDataFetchAndTransformIR
 
-<auto-type-table path="packages/grid/src/datamodel/types.ts" name="GetRowsIR" />
+<auto-type-table path="packages/grid/src/datamodel/types.ts" name="StandardDataFetchAndTransformIR" />
 
 ## SortEntry
 
@@ -77,6 +77,58 @@ Extends [ScalarFilter](#scalarfilter).
 { "file": "packages/grid/src/datamodel/types.ts#domain-values", "codeblock": { "lang": "ts" } }
 ```
 
-## FlattenedDataViewModelParams
+## PivotConfig
+
+<auto-type-table path="packages/grid/src/datamodel/types.ts" name="PivotConfig" />
+
+## AxisExpr
+
+```ts
+type AxisExpr =
+  | string
+  | { type: "cross"; children: AxisExpr[] }
+  | { type: "concat"; children: AxisExpr[] }
+  | { type: "hierarchy"; fields: string[] };
+```
+
+A plain string is a column name. `cross`, `concat`, and `hierarchy` are table algebra operators used to compose pivot axes. See [PivotTableDataModel](/docs/datamodel/pivot-table-datamodel#table-algebra-operators) for usage and visual examples.
+
+## AxisConfig
+
+```ts
+type AxisConfig = { expr: AxisExpr; projection?: DimensionalProjectionPath[] };
+```
+
+Wraps an `AxisExpr` with optional [dimensional projection](/docs/datamodel/pivot-table-datamodel#dimensional-projection) to control which values are expanded.
+
+## DimensionalProjectionPath
+
+<auto-type-table path="packages/grid/src/datamodel/types.ts" name="DimensionalProjectionPath" />
+
+## PivotDataFetchAndTransformIR
+
+<auto-type-table path="packages/grid/src/datamodel/types.ts" name="PivotDataFetchAndTransformIR" />
+
+## Measure
+
+<auto-type-table path="packages/grid/src/datamodel/types.ts" name="Measure" />
+
+## PivotRawDataFromSource
+
+<auto-type-table path="packages/grid/src/datamodel/types.ts" name="PivotRawDataFromSource" />
+
+## PivotFilterQuery
+
+<auto-type-table path="packages/grid/src/datamodel/types.ts" name="PivotFilterQuery" />
+
+## TupleFilter
+
+<auto-type-table path="packages/grid/src/datamodel/types.ts" name="TupleFilter" />
+
+## PivotDataViewModelParams
+
+<auto-type-table path="packages/grid/src/renderer/pivot-data-viewmodel.ts" name="PivotDataViewModelParams" />
+
+## FlattenedDataViewModelParams.
 
 <auto-type-table path="packages/grid/src/renderer/flattened-data-viewmodel.ts" name="FlattenedDataViewModelParams" />

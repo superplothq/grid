@@ -1,7 +1,7 @@
 import React, {useCallback, useRef, useState} from "react";
 import "grid/dist/grid.css";
 import type {DataSchema, ColumnMetadata} from "grid/dist/index";
-import type {GetRowsIR, StandardTableConfig} from "grid/dist/index";
+import type {StandardDataFetchAndTransformIR, StandardTableConfig} from "grid/dist/index";
 import type {FacetCellProps} from "frameworks/dist/react";
 import {DataGrid, useFlatGrid, PageView, SkeletonGrid, GridErrOverlay, useDataModelContext} from "frameworks/dist/react";
 import {useDataSource} from "./DataSourceContext";
@@ -101,7 +101,7 @@ const PaginatedFlatTableInner: React.FC<PaginatedFlatTableInnerProps> = ({ds, co
 
   const config = React.useMemo<Partial<StandardTableConfig>>(() => ({pageSize: PAGE_SIZE}), []);
 
-  const ir = React.useMemo<GetRowsIR>(() => ({
+  const ir = React.useMemo<StandardDataFetchAndTransformIR>(() => ({
     startRow: 0,
     endRow: PAGE_SIZE,
     groupPath: [],

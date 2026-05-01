@@ -179,13 +179,18 @@ function buildClassOutline(
   return `${modifiers}class ${name}${typeParams}${heritage} {\n${joinMembers(members)}\n}`;
 }
 
+function getModifiersOf(node: ts.Node): readonly ts.Modifier[] | undefined {
+  return ts.canHaveModifiers(node) ? ts.getModifiers(node) : undefined;
+}
+
 function formatMemberPrefix(member: ts.ClassElement): string {
   const parts: string[] = [];
   const visibility = getMemberVisibility(member);
   if (visibility === "protected") parts.push("protected");
 
-  if (member.modifiers) {
-    for (const mod of member.modifiers) {
+  const modifiers = getModifiersOf(member);
+  if (modifiers) {
+    for (const mod of modifiers) {
       if (mod.kind === ts.SyntaxKind.AbstractKeyword) parts.push("abstract");
       if (mod.kind === ts.SyntaxKind.ReadonlyKeyword) parts.push("readonly");
       if (mod.kind === ts.SyntaxKind.StaticKeyword) parts.push("static");
@@ -196,8 +201,9 @@ function formatMemberPrefix(member: ts.ClassElement): string {
 }
 
 function getMemberVisibility(member: ts.ClassElement): string {
-  if (member.modifiers) {
-    for (const mod of member.modifiers) {
+  const modifiers = getModifiersOf(member);
+  if (modifiers) {
+    for (const mod of modifiers) {
       if (mod.kind === ts.SyntaxKind.PrivateKeyword) return "private";
       if (mod.kind === ts.SyntaxKind.ProtectedKeyword) return "protected";
       if (mod.kind === ts.SyntaxKind.PublicKeyword) return "public";
@@ -208,8 +214,9 @@ function getMemberVisibility(member: ts.ClassElement): string {
 
 function getModifierText(classDecl: ts.ClassDeclaration): string {
   const parts: string[] = [];
-  if (classDecl.modifiers) {
-    for (const mod of classDecl.modifiers) {
+  const modifiers = getModifiersOf(classDecl);
+  if (modifiers) {
+    for (const mod of modifiers) {
       if (mod.kind === ts.SyntaxKind.AbstractKeyword) parts.push("abstract");
       if (mod.kind === ts.SyntaxKind.ExportKeyword) continue;
       if (mod.kind === ts.SyntaxKind.DefaultKeyword) continue;
@@ -242,14 +249,47 @@ function collectReferencedTypes(
 ): void {
   const typeRefs = new Set<ts.Type>();
 
+  if (node.heritageClauses) {
+    for (const clause of node.heritageClauses) {
+      collectTypeRefsFromNode(clause, checker, typeRefs);
+    }
+  }
+
   for (const member of node.members) {
     if (getMemberVisibility(member) === "private") continue;
     if (member.name?.getText().startsWith("#")) continue;
-    collectTypeRefsFromNode(member, checker, typeRefs);
+    collectMemberSignatureTypeRefs(member, checker, typeRefs);
   }
 
   for (const typeRef of typeRefs) {
     resolveAndCollect(typeRef, checker, collected, visited);
+  }
+}
+
+function collectMemberSignatureTypeRefs(
+  member: ts.ClassElement,
+  checker: ts.TypeChecker,
+  refs: Set<ts.Type>,
+): void {
+  if (ts.isPropertyDeclaration(member)) {
+    if (member.type) collectTypeRefsFromNode(member.type, checker, refs);
+    return;
+  }
+  if (ts.isMethodDeclaration(member) || ts.isConstructorDeclaration(member)) {
+    for (const param of member.parameters) {
+      if (param.type) collectTypeRefsFromNode(param.type, checker, refs);
+    }
+    if (ts.isMethodDeclaration(member) && member.type) {
+      collectTypeRefsFromNode(member.type, checker, refs);
+    }
+    return;
+  }
+  if (ts.isGetAccessorDeclaration(member) || ts.isSetAccessorDeclaration(member)) {
+    if (member.type) collectTypeRefsFromNode(member.type, checker, refs);
+    for (const param of member.parameters) {
+      if (param.type) collectTypeRefsFromNode(param.type, checker, refs);
+    }
+    return;
   }
 }
 

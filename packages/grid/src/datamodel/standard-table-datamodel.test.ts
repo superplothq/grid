@@ -2,7 +2,7 @@ import { expect } from "chai";
 import { getUnfetchedPagesByLogicalBoundary, findTargetSlotPath, findContiguousPageBlocks } from "./standard-table-datamodel";
 import { DuckDBDataSource } from "./duckdb-datasource";
 import { SqlStandardTableDataModel } from "./sql-standard-table-datamodel";
-import { DataSchema, DatePartScalarFilter, StandardTableConfig, GetRowsIR, GetRowsResponse, GridData, PageNode, ExpandedGroup } from "./types";
+import { DataSchema, DatePartScalarFilter, StandardTableConfig, StandardDataFetchAndTransformIR, GetRowsResponse, GridData, PageNode, ExpandedGroup } from "./types";
 import { FlattenedDataViewModel } from "../renderer/flattened-data-viewmodel";
 
 // 24 rows, 8 dimensions + 4 measures — same dataset as datamodel.data.test.ts
@@ -55,7 +55,7 @@ function makeConfig(overrides: Partial<StandardTableConfig> = {}): StandardTable
   };
 }
 
-function makeIR(overrides: Partial<GetRowsIR> = {}): GetRowsIR {
+function makeIR(overrides: Partial<StandardDataFetchAndTransformIR> = {}): StandardDataFetchAndTransformIR {
   return {
     startRow: 0,
     endRow: 100,
@@ -70,7 +70,7 @@ function makeIR(overrides: Partial<GetRowsIR> = {}): GetRowsIR {
 
 function withViewModelHelpers<T extends SqlStandardTableDataModel>(model: T) {
   return Object.assign(model, {
-    async getViewModel(ir: GetRowsIR) {
+    async getViewModel(ir: StandardDataFetchAndTransformIR) {
       const args = await model.getViewModelData(ir);
       return new FlattenedDataViewModel(args);
     },
@@ -97,7 +97,7 @@ async function makeModel(configOverrides: Partial<StandardTableConfig> = {}) {
   const model = new SqlStandardTableDataModel(makeConfig(configOverrides), dataSchema, ds);
   let getDataCallCount = 0;
   const origGetData = model.getData.bind(model);
-  model.getData = async (ir: GetRowsIR): Promise<GetRowsResponse> => {
+  model.getData = async (ir: StandardDataFetchAndTransformIR): Promise<GetRowsResponse> => {
     getDataCallCount++;
     return origGetData(ir);
   };
@@ -702,7 +702,7 @@ describe("DatePartScalarFilter (real DuckDB)", () => {
     ));
   }
 
-  function makeTsIR(overrides: Partial<GetRowsIR> = {}): GetRowsIR {
+  function makeTsIR(overrides: Partial<StandardDataFetchAndTransformIR> = {}): StandardDataFetchAndTransformIR {
     return {
       startRow: 0,
       endRow: 100,

@@ -1,7 +1,7 @@
 import React, {useEffect, useRef, useState} from "react";
 import "grid/dist/grid.css";
 import Grid, {FlattenedDataViewModel, FacetCellRenderer, FacetDataContext, FacetRendererContext, GridDataViewModelOptions} from "grid/dist/renderer";
-import {DuckDBWasmDataSource, SqlStandardTableDataModel, GridData, DataSchema, StandardTableConfig, GetRowsIR, FlattenedDataViewModelParams} from "grid/dist/index";
+import {DuckDBWasmDataSource, SqlStandardTableDataModel, GridData, DataSchema, StandardTableConfig, StandardDataFetchAndTransformIR, FlattenedDataViewModelParams} from "grid/dist/index";
 import feather from "feather-icons";
 
 const L0_COUNT = 30;
@@ -80,7 +80,7 @@ function makeFacetRenderer(
   modelRef: React.MutableRefObject<SqlStandardTableDataModel | null>,
   viewModelRef: React.MutableRefObject<FlattenedDataViewModel | null>,
   gridRef: React.MutableRefObject<Grid | null>,
-  lastIRRef: React.MutableRefObject<GetRowsIR | null>,
+  lastIRRef: React.MutableRefObject<StandardDataFetchAndTransformIR | null>,
 ): FacetCellRenderer {
   return (data: string, dataCtx: FacetDataContext, rCtx: FacetRendererContext) => {
     const flatMeta = dataCtx.flatMeta;
@@ -179,7 +179,7 @@ const PaginationTestPlayground: React.FC = () => {
   const gridRef = useRef<Grid | null>(null);
   const modelRef = useRef<SqlStandardTableDataModel | null>(null);
   const viewModelRef = useRef<FlattenedDataViewModel | null>(null);
-  const lastIRRef = useRef<GetRowsIR | null>(null);
+  const lastIRRef = useRef<StandardDataFetchAndTransformIR | null>(null);
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -211,7 +211,7 @@ const PaginationTestPlayground: React.FC = () => {
       if (cancelled) return;
       modelRef.current = model;
 
-      const ir: GetRowsIR = {
+      const ir: StandardDataFetchAndTransformIR = {
         startRow: 0,
         endRow: 20,
         groupPath: [],
@@ -250,7 +250,7 @@ const PaginationTestPlayground: React.FC = () => {
       grid.on("viewDataEmpty", async (vp) => {
         console.log('>>> vp', vp.startRow, vp.endRow);
         setFetchingPage(true);
-        const newIR: GetRowsIR = {
+        const newIR: StandardDataFetchAndTransformIR = {
           ...lastIRRef.current!,
           startRow: vp.startRow,
           endRow: vp.endRow,

@@ -17,6 +17,9 @@ const jetbrainsMono = JetBrains_Mono({
 export default function Layout({ children }: LayoutProps<'/'>) {
   return (
     <html lang="en" className={`${googleSans.variable} ${jetbrainsMono.variable}`} suppressHydrationWarning>
+      <head>
+        <meta name="format-detection" content="telephone=no, date=no, email=no, address=no" />
+      </head>
       <body className="flex flex-col min-h-screen">
         <Provider>{children}</Provider>
       </body>

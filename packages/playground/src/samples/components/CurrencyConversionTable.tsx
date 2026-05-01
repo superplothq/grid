@@ -1,7 +1,7 @@
 import React, {useEffect, useMemo, useState} from "react";
 import "grid/dist/grid.css";
 import type {DataSchema, ColumnMetadata} from "grid/dist/index";
-import type {GetRowsIR, StandardTableConfig} from "grid/dist/index";
+import type {StandardDataFetchAndTransformIR, StandardTableConfig} from "grid/dist/index";
 import {
   DataGrid, useFlatGrid, SkeletonGrid, GridErrOverlay,
   type ColumnDef, type FacetCellProps, type ReactFacetDefs,
@@ -134,7 +134,7 @@ const CurrencyConversionGrid: React.FC<GridProps> = ({ds, schema, theme, height}
 
   const config = useMemo<Partial<StandardTableConfig>>(() => ({pageSize: 100}), []);
 
-  const ir = useMemo<GetRowsIR>(() => ({
+  const ir = useMemo<StandardDataFetchAndTransformIR>(() => ({
     startRow: 0,
     endRow: 100,
     groupPath: [],

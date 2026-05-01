@@ -7,13 +7,13 @@ import {
   DataSchema,
   DimSpec,
   DimensionalProjectionPath,
-  FacetQuery,
+  PivotFilterQuery,
   Filter,
   HierarchySegment,
-  IR,
+  PivotDataFetchAndTransformIR,
   Measure,
   PivotConfig,
-  RawDataFromIR,
+  PivotRawDataFromSource,
   ScalarFilter,
   ColDefsForFacet,
   ProjectionState,
@@ -567,42 +567,42 @@ function buildInvertedIndex(facetSpace: (string | null)[][]): Map<string, number
  * ```
  */
 
+/**
+ * Abstract class that reshapes flat query results into a 2D pivot grid with row facets, column facets, and aggregated data cells.
+ *
+ * Takes a [`PivotConfig`](/docs/datamodel/pivot-table-datamodel#pivotconfig) describing which fields go on rows, columns, and values.
+ * Internally converts the config into a [`PivotDataFetchAndTransformIR`](/docs/api-references/type-references#pivotdatafetchandtransformir),
+ * delegates data fetching to `getData` (implemented by subclasses), then reshapes the flat result into a 2D grid.
+ *
+ * Subclasses must implement `getData` and `resolveFacetValues`.
+ */
 export abstract class PivotTableDataModel extends DataModel<PivotConfig, PivotDataViewModelParams> {
-  static readonly SRC_COL_PREFIX = "__src__";
+  private static readonly SRC_COL_PREFIX = "__src__";
 
   constructor(schema: DataSchema[]) {
     super(schema);
   }
 
-  // Concat operations produce synthetic columns to track which branch each row belongs to.
-  // Given a source table:
-  //
-  //   dept        | channel | revenue
-  //   ------------|---------|--------
-  //   Electronics | Online  | 100
-  //   Apparel     | Retail  | 200
-  //
-  // concat(simple("dept"), simple("channel")) produces:
-  //
-  //   __src__0 | __c__0
-  //   ---------|------------
-  //   dept     | Electronics
-  //   dept     | Apparel
-  //   channel  | Online
-  //   channel  | Retail
-  //
-  // __src__0 disambiguates rows so that values from different branches are not mixed up
-  // during facet extraction. Override in subclasses to customize the naming.
+  /**
+   * Returns the name of the synthetic source column at index `n`. Concat operations produce these columns (`__src__0`, `__src__1`, ...) to track which branch each row belongs to, preventing values from different branches from being mixed during facet extraction. Override in subclasses to customize the naming.
+   *
+   * @param n - The branch index.
+   */
   protected srcColName(n: number): string {
     return `${PivotTableDataModel.SRC_COL_PREFIX}${n}`;
   }
 
+  /**
+   * Returns `true` if the column name is a synthetic source column produced by concat operations (starts with `__src__`).
+   *
+   * @param name - The column name to check.
+   */
   protected isSrcCol(name: string): boolean {
     return name.startsWith(PivotTableDataModel.SRC_COL_PREFIX);
   }
 
   private extractFacetSpace(
-    result: RawDataFromIR,
+    result: PivotRawDataFromSource,
     startCol: number,
     count: number,
     numResultRows: number,
@@ -633,26 +633,21 @@ export abstract class PivotTableDataModel extends DataModel<PivotConfig, PivotDa
     return facets;
   }
 
-  abstract resolveFacetValues(query: FacetQuery): Promise<string[][]>;
-
-  /*
-   * Subclasses interpret the IR to fetch aggregated data. A SQL-based subclass generates CTEs from
-   * the DimSpec tree and runs a single query; an in-memory subclass could evaluate the same IR
-   * using array operations.
+  /**
+   * Subclasses must implement this to return distinct or grouped values for the requested fields. Used by filter UIs to populate dropdowns with available values for a dimension column. See [`PivotFilterQuery`](/docs/api-references/type-references#pivotfilterquery).
    *
-   * The returned RawDataFromIR must be in column-major format: `data[i]` is the full column array
-   * for `columns[i]`. Dimension columns come first (in tree-traversal order of the DimSpec),
-   * followed by measure columns. Rows must be ordered by the DimSpec's natural ordering so that
-   * the caller can extract facet spaces directly from the result.
+   * Returns `string[][]` - one inner array per field in `query.fields`. Each inner array contains the distinct values for that field. For example, `query.fields: ["region", "country"]` with `mode: "distinct"` returns `[["NA", "EU", "APAC"], ["USA", "Canada", "UK", "Germany"]]`.
    *
-   *   { columns: ["region", "department", "revenue"],
-   *     data: [
-   *       ["NA", "NA", "EU", "EU"],         // region
-   *       ["Elec", "App", "Elec", "App"],   // department
-   *       [8150, 1670, 5650, 1730]           // revenue (measure)
-   *     ] }
+   * @param query - Describes which fields to query and whether to return distinct values or grouped combinations.
    */
-  abstract getData(ir: IR): Promise<RawDataFromIR>;
+  abstract resolveFacetValues(query: PivotFilterQuery): Promise<string[][]>;
+
+  /**
+   * Subclasses must implement this to interpret the [`PivotDataFetchAndTransformIR`](/docs/api-references/type-references#pivotdatafetchandtransformir) and fetch aggregated data. A SQL-based subclass generates CTEs from the DimSpec tree and runs a single query; an in-memory subclass could evaluate the same IR using array operations. Returns [`PivotRawDataFromSource`](/docs/api-references/type-references#pivotrawdatafromsource) in column-major format: `data[i]` is the full column array for `columns[i]`. Dimension columns come first (in tree-traversal order of the DimSpec), followed by measure columns. Rows must be ordered by the DimSpec's natural ordering so that the caller can extract facet spaces directly from the result.
+   *
+   * @param ir - The intermediate representation containing a `DimSpec` tree and `Measure[]`.
+   */
+  abstract getData(ir: PivotDataFetchAndTransformIR): Promise<PivotRawDataFromSource>;
 
   /*
    * Transforms a user-facing AxisExpr tree into an axis-agnostic AxisIR (DimSpec + Measure[]).
@@ -671,7 +666,7 @@ export abstract class PivotTableDataModel extends DataModel<PivotConfig, PivotDa
    * The DimSpec tree drives SQL generation / in memory data operation: The upstrem needs to support how to decode the
    * table algebra operator like concat, cross, hierarchy etc.
    */
-  buildAxisIR(expr: AxisExpr, fieldFilterMap: Map<string, ScalarFilter[]> = new Map(), tupleFilters: TupleFilter[] = []): AxisIR {
+  private buildAxisIR(expr: AxisExpr, fieldFilterMap: Map<string, ScalarFilter[]> = new Map(), tupleFilters: TupleFilter[] = []): AxisIR {
     if (typeof expr === "string") {
       const col = this.getColumn(expr);
       if (col.type === "measure") {
@@ -740,8 +735,8 @@ export abstract class PivotTableDataModel extends DataModel<PivotConfig, PivotDa
     return { dimSpec, measures };
   }
 
-  getIR(config: PivotConfig): {
-    merged: IR,
+  private getIR(config: PivotConfig): {
+    merged: PivotDataFetchAndTransformIR,
     colIR: AxisIR,
     rowIR: AxisIR,
     measures: Measure[],
@@ -809,7 +804,7 @@ export abstract class PivotTableDataModel extends DataModel<PivotConfig, PivotDa
       });
     }
 
-    const merged: IR = { dimSpec: combinedDimSpec, measures };
+    const merged: PivotDataFetchAndTransformIR = { dimSpec: combinedDimSpec, measures };
     if (resolvedSort) merged.sort = resolvedSort;
 
     return {
@@ -822,6 +817,11 @@ export abstract class PivotTableDataModel extends DataModel<PivotConfig, PivotDa
     };
   }
 
+  /**
+   * Main entry point. Takes a [`PivotConfig`](/docs/datamodel/pivot-table-datamodel#pivotconfig) and returns a [`PivotDataViewModelParams`](/docs/api-references/type-references#pivotdataviewmodelparams) - a fully reshaped 2D pivot grid ready for the renderer. Internally builds an IR from the config, applies dimensional projection, merges row and column axes into a single query, calls `getData` to fetch results, extracts row/column facet spaces, and reshapes the flat data into a 2D grid.
+   *
+   * @param config - Describes the row axis, column axis, filters, and sort.
+   */
   async getViewModelData(config: PivotConfig): Promise<PivotDataViewModelParams> {
     const ir = this.getIR(config);
     const [colDimCount, rowDimCount] = [ir.colIR, ir.rowIR].map(ir => dimSpecFields(ir.dimSpec).length);
@@ -940,5 +940,4 @@ export abstract class PivotTableDataModel extends DataModel<PivotConfig, PivotDa
       },
     };
   }
-
 }

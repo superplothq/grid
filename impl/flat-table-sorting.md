@@ -2,7 +2,7 @@
 
 ## Overview
 
-Add sorting support to the flat table (DataGrid) pipeline. The data layer already handles sorting — `SqlFlatTableDataModel.buildOrderClause()` generates SQL ORDER BY, `GetRowsIR.sort` flows through the pipeline, and cache invalidation on sort change works. This plan covers the UI layer: showing sort icons in column headers, handling user interaction, and wiring sort changes back to the data.
+Add sorting support to the flat table (DataGrid) pipeline. The data layer already handles sorting — `SqlFlatTableDataModel.buildOrderClause()` generates SQL ORDER BY, `StandardDataFetchAndTransformIR.sort` flows through the pipeline, and cache invalidation on sort change works. This plan covers the UI layer: showing sort icons in column headers, handling user interaction, and wiring sort changes back to the data.
 
 ---
 
@@ -36,7 +36,7 @@ User clicks sort icon in column header (track renderer)
 | Component | File | Status |
 |-----------|------|--------|
 | `SortEntry` type | `grid/src/datamodel/types.ts` | Done |
-| `GetRowsIR.sort` field | `grid/src/datamodel/types.ts` | Done |
+| `StandardDataFetchAndTransformIR.sort` field | `grid/src/datamodel/types.ts` | Done |
 | `SqlFlatTableDataModel.buildOrderClause()` | `grid/src/datamodel/sql-flat-table-datamodel.ts` | Done |
 | Cache invalidation on sort change | `grid/src/datamodel/flat-table-datamodel.ts:85-96` | Done |
 | `useFlatGrid` reacts to IR changes | `frameworks/src/react/data/useFlatGrid.ts:143-162` | Done |
@@ -76,11 +76,11 @@ A general-purpose React context that provides access to the datamodel and curren
 ```typescript
 import { createContext } from "react";
 import type { FlatTableDataModel } from "grid/dist/index";
-import type { GetRowsIR } from "grid/dist/index";
+import type { StandardDataFetchAndTransformIR } from "grid/dist/index";
 
 export interface DataModelContextValue {
   model: FlatTableDataModel;
-  ir: GetRowsIR;
+  ir: StandardDataFetchAndTransformIR;
 }
 
 export const DataModelContext = createContext<DataModelContextValue | null>(null);

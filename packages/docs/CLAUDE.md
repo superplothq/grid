@@ -92,7 +92,7 @@ Use `<auto-type-table>` to generate a property/method table from a TypeScript in
   - To show only specific members: `type="Pick<ClassName, 'method1' | 'method2'>"` with `origname="ClassName"`
 - For static methods, use `typeof`: `type="Omit<typeof ClassName, 'prototype'>"` (filters out the `prototype` noise)
 - JSDoc in source files must use markdown links (`[Text](/path)`), not `{@link}` syntax - the remark plugin parses JSDoc as markdown
-- If changes to JSDoc in source files don't appear, clear `.next` cache (`rm -rf packages/docs/.next`) and restart the dev server
+- If changes to JSDoc in source files don't appear, clear `.next` cache (`rm -rf packages/docs/.next`) and restart the dev server. Do this ops only if needed as it disrupts already running devserver.
 
 ## Sourcing Code Snippets from Files (doc-gen:file)
 

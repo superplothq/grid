@@ -338,10 +338,10 @@ OR (__src__0 = '1:channel' AND T."channel" = grid."__c__0")
 
 ## Stage 3: Data Return Format
 
-`getData()` must return a `RawDataFromIR`:
+`getData()` must return a `PivotRawDataFromSource`:
 
 ```typescript
-interface RawDataFromIR {
+interface PivotRawDataFromSource {
   columns: string[];   // column names
   data: any[][];       // column-major: data[columnIndex][rowIndex]
 }

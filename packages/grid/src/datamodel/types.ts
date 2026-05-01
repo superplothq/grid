@@ -11,7 +11,7 @@ export type SortDirection = "asc" | "desc" | "noop";
 // #endregion sort-direction
 
 /**
- * A single sort instruction. The `sort` array in [`GetRowsIR`](/docs/api-references/type-references#getrowsir) is ordered - earlier entries take priority (multi-sort).
+ * A single sort instruction. The `sort` array in [`StandardDataFetchAndTransformIR`](/docs/api-references/type-references#getrowsir) is ordered - earlier entries take priority (multi-sort).
  */
 export interface SortEntry {
   /** Column to sort by. */
@@ -88,17 +88,29 @@ export type AxisExpr =
   | { type: "concat"; children: AxisExpr[] }
   | { type: "hierarchy"; fields: string[] };
 
+/**
+ * Controls which values are expanded at a single level of a [dimensional projection](/docs/datamodel/pivot-table-datamodel#dimensional-projection). Forms a linked list - each node describes one level, and `next` points to the projection for the level below.
+ */
 export interface DimensionalProjectionPath {
+  /** Values to expand at this level. `"*"` expands all values; an array expands only the listed values. */
   open: string[] | "*";
+  /** Projection for the next level down. Only applies to values matched by `open`. If absent, expansion stops at this level. */
   next?: DimensionalProjectionPath;
 }
 
 export type AxisConfig = { expr: AxisExpr; projection?: DimensionalProjectionPath[] };
 
+/**
+ * Input to [`PivotTableDataModel.getViewModelData`](/docs/datamodel/pivot-table-datamodel#how-it-works). Describes which fields go on the row axis, column axis, and how to filter and sort the data.
+ */
 export interface PivotConfig {
+  /** Defines the row axis. Pass a plain string, an operator tree ([`AxisExpr`](/docs/api-references/type-references#axisexpr)), or an [`AxisConfig`](/docs/api-references/type-references#axisconfig) to include [dimensional projection](/docs/datamodel/pivot-table-datamodel#dimensional-projection). */
   rows: AxisExpr | AxisConfig;
+  /** Defines the column axis. Same types as `rows`. */
   columns: AxisExpr | AxisConfig;
+  /** Filters applied globally to both axes before aggregation. Supports [`ScalarFilter`](/docs/api-references/type-references#scalarfilter) and [`TupleFilter`](/docs/api-references/type-references#tuplefilter). Multiple filters are combined with AND. */
   filter?: Filter[];
+  /** Controls the ordering of row facet values. Each [`SortEntry`](/docs/api-references/type-references#sortentry) can sort by the dimension value itself (`by` absent) or by a measure's aggregated value (`by` set to a measure field). `direction: "noop"` keeps the natural order. */
   sort?: SortEntry[];
 }
 
@@ -118,7 +130,7 @@ export interface CrossSegment {
 }
 
 /**
- * A single filter condition on one column. The `filter` array in [`GetRowsIR`](/docs/api-references/type-references#getrowsir) combines entries with AND - all filters must match for a row to be included.
+ * A single filter condition on one column. The `filter` array in [`StandardDataFetchAndTransformIR`](/docs/api-references/type-references#getrowsir) combines entries with AND - all filters must match for a row to be included.
  */
 export interface ScalarFilter {
   /** Always `"scalar"` for scalar filters. */
@@ -159,25 +171,57 @@ export type ColumnRangeValues =
   | { type: "temporal"; min: string; max: string };
 // #endregion domain-values
 
+/**
+ * Filters on combinations of multiple columns. Each entry in `value` is a tuple that must match across all `fields`. For example, `fields: ["region", "country"], op: "in", value: [["Europe", "Germany"], ["Europe", "France"]]` includes only rows where region/country is one of those exact pairs.
+ */
 export interface TupleFilter {
+  /** Always `"tuple"` for tuple filters. */
   type: "tuple";
+  /** Columns that form the tuple (e.g. `["region", "country"]`). */
   fields: string[];
+  /** `"in"` includes matching tuples; `"not_in"` excludes them. */
   op: "in" | "not_in";
+  /** Array of tuples to match. Each inner array has one value per field, in the same order as `fields`. */
   value: (string | number)[][];
 }
 
 export type Filter = ScalarFilter | TupleFilter;
 
-export interface FacetQuery {
+/**
+ * Query passed to [`PivotTableDataModel.resolveFacetValues`](/docs/datamodel/pivot-table-datamodel#api-reference) to retrieve available values for filter UIs. Returns one array of values per field.
+ *
+ * Example: fetch distinct regions and countries for filter dropdowns:
+ *
+ * ```
+ * const query: PivotFilterQuery = {
+ *   type: "facet",
+ *   fields: ["region", "country"],
+ *   mode: "distinct",
+ * };
+ * const result = await model.resolveFacetValues(query);
+ * // result: [["NA", "EU", "APAC"], ["USA", "Canada", "UK", "Germany"]]
+ * ```
+ */
+export interface PivotFilterQuery {
+  /** Always `"facet"`. */
   type: "facet";
+  /** Column names to query values for. */
   fields: string[];
+  /** `"distinct"` returns unique values per field independently. `"group"` returns observed combinations across fields. */
   mode: "distinct" | "group";
+  /** Optional pre-filters to narrow the values returned (e.g. only show countries within a selected region). */
   filters?: ScalarFilter[];
 }
 
+/**
+ * A measure to aggregate in the pivot query. Extracted from the [`AxisExpr`](/docs/api-references/type-references#axisexpr) during IR building - any field whose schema type is `"measure"` becomes a `Measure` entry.
+ */
 export interface Measure {
+  /** Column name of the measure field. */
   field: string;
+  /** Aggregation function to apply. See [AggregateFn](/docs/api-references/type-references#aggregatefn). Defaults to `"sum"` if not specified in the schema. */
   aggregation: AggregateFn;
+  /** Optional [`ScalarFilter`](/docs/api-references/type-references#scalarfilter)s applied to this measure before aggregation. */
   filter: ScalarFilter[];
 }
 
@@ -191,14 +235,38 @@ export type DimSpec =
   | { type: "cross"; children: DimSpec[]; segments?: CrossSegment[]; filter: Filter[] }
   | { type: "concat"; children: DimSpec[] };
 
-export interface IR {
+/**
+ * Intermediate representation passed to [`PivotTableDataModel.getData`](/docs/datamodel/pivot-table-datamodel#api-reference). Contains the dimensional structure and measures to aggregate. The subclass interprets this to produce grouped, aggregated data.
+ */
+export interface PivotDataFetchAndTransformIR {
+  /** Tree describing the dimensional grouping structure. See [DimSpec](/docs/datamodel/pivot-table-datamodel#dimspec). */
   dimSpec: DimSpec;
+  /** Flat list of measures to aggregate. Each has a field, aggregation function, and optional filters. */
   measures: Measure[];
+  /** Sort instructions for row dimension values. When present, only covers row dimension fields. */
   sort?: SortEntry[];
 }
 
-export interface RawDataFromIR {
+/**
+ * The return type of [`PivotTableDataModel.getData`](/docs/datamodel/pivot-table-datamodel#api-reference). Column-major format: `data[i]` is the full value array for `columns[i]`. Dimension columns come first (in tree-traversal order of the DimSpec), followed by measure columns.
+ *
+ * Example for `cross("region", "department")` with measure `revenue`:
+ *
+ * ```
+ * {
+ *   columns: ["region", "department", "revenue"],
+ *   data: [
+ *     ["NA", "NA", "EU", "EU"],         // region (dimension)
+ *     ["Elec", "App", "Elec", "App"],   // department (dimension)
+ *     [8150, 1670, 5650, 1730],         // revenue (measure)
+ *   ],
+ * }
+ * ```
+ */
+export interface PivotRawDataFromSource {
+  /** Column names in order: dimension columns first, then measure columns. */
   columns: string[];
+  /** Column-major data. `data[i]` holds all values for `columns[i]`. All inner arrays have the same length (the row count). */
   data: any[][];
 }
 
@@ -238,7 +306,7 @@ export interface StandardTableConfig {
 /**
  * Intermediate representation describing which rows to fetch. [`StandardTableDataModel`](/docs/datamodel/standard-table-datamodel) passes this to `getData`; the subclass converts it into a backend command (e.g. SQL).
  */
-export interface GetRowsIR {
+export interface StandardDataFetchAndTransformIR {
   /** Start row index in the data source (inclusive). The caller is responsible for converting any logical row to a row index in the data source. All pages overlapping the `[startRow, endRow)` range that are not already cached are fetched in parallel. */
   startRow: number;
   /** End row index in the data source (exclusive). */

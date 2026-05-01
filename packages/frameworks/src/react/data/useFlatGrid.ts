@@ -1,7 +1,7 @@
 import React, { useRef, useState, useEffect, useCallback, createElement, type FC, type ReactNode } from "react";
 import { FlattenedDataViewModel, type GridDataViewModelOptions, type VTrackDef } from "grid/dist/renderer";
 import type { FacetPredicate, SelectionProps, ColAutoSizeConfig } from "grid/dist/renderer";
-import { SqlStandardTableDataModel, type FlattenedDataViewModelParams, type GetRowsIR, type StandardTableConfig, type DataSchema, type SortEntry, type ScalarFilter, type ColumnRangeValues } from "grid/dist/index";
+import { SqlStandardTableDataModel, type FlattenedDataViewModelParams, type StandardDataFetchAndTransformIR, type StandardTableConfig, type DataSchema, type SortEntry, type ScalarFilter, type ColumnRangeValues } from "grid/dist/index";
 import type { SqlDataSource } from "grid/dist/index";
 import type { FacetDef } from "grid/dist/renderer";
 import { ReactCellAdapter } from "../renderer-adapter";
@@ -24,7 +24,7 @@ export interface UseFlatGridOptions {
   dataSource: SqlDataSource;
   schema: DataSchema[];
   config: Partial<StandardTableConfig>;
-  ir: GetRowsIR;
+  ir: StandardDataFetchAndTransformIR;
   columns?: ColumnDef[];
   facetDefs?: ReactFacetDefs;
   selections?: SelectionDef[];
@@ -97,7 +97,7 @@ export function useFlatGrid(options: UseFlatGridOptions): UseFlatGridResult {
   // The "active IR" accumulates runtime modifications (sort, filter, etc.) on top of
   // the prop IR. All page-view operations read from this so that page navigation,
   // expand, and collapse preserve sort/filter state across fetches.
-  const activeIRRef = useRef<GetRowsIR>(ir);
+  const activeIRRef = useRef<StandardDataFetchAndTransformIR>(ir);
   activeIRRef.current = { ...ir, sort: activeIRRef.current.sort, filter: activeIRRef.current.filter };
 
   const sortActionRef = useRef<(entries: SortEntry[]) => Promise<void>>(async () => {});
@@ -344,7 +344,7 @@ export function useFlatGrid(options: UseFlatGridOptions): UseFlatGridResult {
     if (enablePageView) return;
     const model = modelRef.current;
     if (!model || !irRef.current) return;
-    const pageIR: GetRowsIR = { ...activeIRRef.current, startRow, endRow };
+    const pageIR: StandardDataFetchAndTransformIR = { ...activeIRRef.current, startRow, endRow };
     inFlightCountRef.current++;
     setPageLoadingInProgress(true);
     try {
@@ -399,7 +399,7 @@ export function useFlatGrid(options: UseFlatGridOptions): UseFlatGridResult {
     setPageLoadingInProgress(true);
     try {
       const pw = { page, size: pgSize };
-      const pageIR: GetRowsIR = { ...activeIRRef.current, startRow, endRow };
+      const pageIR: StandardDataFetchAndTransformIR = { ...activeIRRef.current, startRow, endRow };
       const result = await model.getViewModelData(pageIR);
       applyResult(result, pw);
       setDatasetTotalRows(model.computeTotalLogicalRows());
@@ -438,7 +438,7 @@ export function useFlatGrid(options: UseFlatGridOptions): UseFlatGridResult {
     inFlightCountRef.current++;
     setPageLoadingInProgress(true);
     try {
-      const sortIR: GetRowsIR = { ...activeIRRef.current, startRow, endRow };
+      const sortIR: StandardDataFetchAndTransformIR = { ...activeIRRef.current, startRow, endRow };
       const result = await model.getViewModelData(sortIR);
       applyResult(result, enablePageView ? { page: 0, size: activePageSizeRef.current } : undefined);
       if (enablePageView) {
@@ -471,7 +471,7 @@ export function useFlatGrid(options: UseFlatGridOptions): UseFlatGridResult {
     inFlightCountRef.current++;
     setPageLoadingInProgress(true);
     try {
-      const filterIR: GetRowsIR = { ...activeIRRef.current, startRow, endRow };
+      const filterIR: StandardDataFetchAndTransformIR = { ...activeIRRef.current, startRow, endRow };
       const result = await model.getViewModelData(filterIR);
 
       // Re-expand previously expanded paths (parents before children)
@@ -517,7 +517,7 @@ export function useFlatGrid(options: UseFlatGridOptions): UseFlatGridResult {
       const sz = activePageSizeRef.current;
       const startRow = pg * sz;
       const endRow = Math.min(startRow + sz, total);
-      const pageIR: GetRowsIR = { ...activeIRRef.current, startRow, endRow };
+      const pageIR: StandardDataFetchAndTransformIR = { ...activeIRRef.current, startRow, endRow };
       const pageResult = await model.getViewModelData(pageIR);
       applyResult(pageResult, { page: pg, size: sz });
     } else {
@@ -545,7 +545,7 @@ export function useFlatGrid(options: UseFlatGridOptions): UseFlatGridResult {
       }
       const startRow = clampedPage * sz;
       const endRow = Math.min(startRow + sz, total);
-      const pageIR: GetRowsIR = { ...activeIRRef.current, startRow, endRow };
+      const pageIR: StandardDataFetchAndTransformIR = { ...activeIRRef.current, startRow, endRow };
       const pageResult = await model.getViewModelData(pageIR);
       applyResult(pageResult, { page: clampedPage, size: sz });
     } else {

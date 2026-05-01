@@ -7,7 +7,7 @@ description: Produces flat rows with optional row grouping, expand/collapse, and
 
 <auto-class-outline path="packages/grid/src/datamodel/standard-table-datamodel.ts" name="StandardTableDataModel" title="Outline" exclude="GridDataViewModelOptions" />
 
-- `TInput` is fixed to `GetRowsIR` - a query describing which rows to fetch (range, grouping, projection, sort, filter)
+- `TInput` is fixed to `StandardDataFetchAndTransformIR` - a query describing which rows to fetch (range, grouping, projection, sort, filter)
 - `TViewModelData` is fixed to `FlattenedDataViewModelParams` - the flat row structure the renderer expects
 
 ## How it works
@@ -60,12 +60,12 @@ The constructor and `setConfig()` accept `Partial<StandardTableConfig>` - any fi
 
 StandardTableDataModel is abstract. You must implement two methods:
 
-- `getData(ir: GetRowsIR)` - fetches rows from your data source
+- `getData(ir: StandardDataFetchAndTransformIR)` - fetches rows from your data source
 - `getRangeOfColumn(field: string)` - returns the distinct values or range for a column (used for filtering)
 
 ```ts
 import { StandardTableDataModel } from "grid";
-import { DataSchema, StandardTableConfig, GetRowsIR, GetRowsResponse, ColumnRangeValues } from "grid";
+import { DataSchema, StandardTableConfig, StandardDataFetchAndTransformIR, GetRowsResponse, ColumnRangeValues } from "grid";
 
 class MyTableDataModel extends StandardTableDataModel {
   private dataSource: MyDataSource;
@@ -75,7 +75,7 @@ class MyTableDataModel extends StandardTableDataModel {
     this.dataSource = dataSource;
   }
 
-  async getData(ir: GetRowsIR): Promise<GetRowsResponse> {
+  async getData(ir: StandardDataFetchAndTransformIR): Promise<GetRowsResponse> {
     // Fetch rows from your data source using the IR
     const result = await this.dataSource.query({
       startRow: ir.startRow,
@@ -96,12 +96,12 @@ class MyTableDataModel extends StandardTableDataModel {
 }
 ```
 
-## GetRowsIR
+## StandardDataFetchAndTransformIR
 
 The input query that describes what data to fetch:
 
 ```ts
-interface GetRowsIR {
+interface StandardDataFetchAndTransformIR {
   startRow: number;      // first row index to fetch (inclusive)
   endRow: number;        // last row index to fetch (exclusive)
   groupBy: string[];     // columns to group by (e.g. ["country", "state"])

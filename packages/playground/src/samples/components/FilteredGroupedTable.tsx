@@ -1,7 +1,7 @@
 import React, {useCallback, useRef, useState} from "react";
 import "grid/dist/grid.css";
 import type {DataSchema, ColumnMetadata} from "grid/dist/index";
-import type {GetRowsIR, StandardTableConfig} from "grid/dist/index";
+import type {StandardDataFetchAndTransformIR, StandardTableConfig} from "grid/dist/index";
 import {FlattenedDataViewModel} from "grid/dist/renderer";
 import type {FacetCellProps} from "frameworks/dist/react";
 import {DataGrid, useFlatGrid, SkeletonGrid, GridErrOverlay, useDataModelContext} from "frameworks/dist/react";
@@ -104,7 +104,7 @@ const FilteredGroupedTableInner: React.FC<FilteredGroupedTableInnerProps> = ({ds
   const schema = React.useMemo(() => buildSchema(columns), [columns]);
   const config = React.useMemo<Partial<StandardTableConfig>>(() => ({pageSize: 20}), []);
 
-  const ir = React.useMemo<GetRowsIR>(() => ({
+  const ir = React.useMemo<StandardDataFetchAndTransformIR>(() => ({
     startRow: 0,
     endRow: 20,
     groupPath: [],

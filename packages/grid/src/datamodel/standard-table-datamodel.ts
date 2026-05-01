@@ -2,7 +2,7 @@ import {
   DataSchema,
   ColumnRangeValues,
   StandardTableConfig,
-  GetRowsIR,
+  StandardDataFetchAndTransformIR,
   GetRowsResponse,
   PageNode,
   ExpandedGroup,
@@ -239,7 +239,7 @@ export function findContiguousPageBlocks(pages: PageNode[], cursor: TargetSlotPa
   return { blockStart: flatPages[startIdx].path, blockEnd: flatPages[endIdx].path };
 }
 
-export abstract class StandardTableDataModel extends DataModel<GetRowsIR, FlattenedDataViewModelParams> {
+export abstract class StandardTableDataModel extends DataModel<StandardDataFetchAndTransformIR, FlattenedDataViewModelParams> {
   /**
    * Resolved configuration after merging user-provided values with defaults. See [`StandardTableConfig`](/docs/api-references/type-references#standardtableconfig).
    */
@@ -249,7 +249,7 @@ export abstract class StandardTableDataModel extends DataModel<GetRowsIR, Flatte
    */
   pages: PageNode[] = [];
   topLevelRowCount = 0;
-  #lastIR: GetRowsIR | null = null;
+  #lastIR: StandardDataFetchAndTransformIR | null = null;
   #viewModelOptions?: GridDataViewModelOptions;
 
   constructor(schema: DataSchema[], config: Partial<StandardTableConfig> = {}) {
@@ -258,9 +258,9 @@ export abstract class StandardTableDataModel extends DataModel<GetRowsIR, Flatte
   }
 
   /**
-   * Subclasses must implement this to fetch rows from the data source. The [`GetRowsIR`](/docs/api-references/type-references#getrowsir) (intermediate representation) drives data fetching and transformation at the source - the subclass converts it into a command for its backend. For example, `SqlStandardTableDataModel` generates SQL from the IR. Returns a [`GetRowsResponse`](/docs/api-references/type-references#getrowsresponse).
+   * Subclasses must implement this to fetch rows from the data source. The [`StandardDataFetchAndTransformIR`](/docs/api-references/type-references#getrowsir) (intermediate representation) drives data fetching and transformation at the source - the subclass converts it into a command for its backend. For example, `SqlStandardTableDataModel` generates SQL from the IR. Returns a [`GetRowsResponse`](/docs/api-references/type-references#getrowsresponse).
    */
-  abstract getData(ir: GetRowsIR): Promise<GetRowsResponse>;
+  abstract getData(ir: StandardDataFetchAndTransformIR): Promise<GetRowsResponse>;
   /**
    * Return the value range for a column. For dimensions (non-temporal), returns all distinct values. For measures and temporal dimensions, returns min/max. Used to populate filter UIs. Returns a [`ColumnRangeValues`](/docs/api-references/type-references#columnrangevalues).
    */
@@ -280,9 +280,9 @@ export abstract class StandardTableDataModel extends DataModel<GetRowsIR, Flatte
   }
 
   /**
-   * Main entry point for fetching data. Takes a [`GetRowsIR`](/docs/api-references/type-references#getrowsir) describing the desired row range, grouping, projection, sort, and filter. Resets the page cache if the IR changed (groupBy, filter, project, or sort), fetches any missing pages in the requested range via `getData`, evicts distant pages if over the cache limit, then flattens the page tree into [`FlattenedDataViewModelParams`](/docs/api-references/type-references#flatteneddataviewmodelparams) for the renderer.
+   * Main entry point for fetching data. Takes a [`StandardDataFetchAndTransformIR`](/docs/api-references/type-references#getrowsir) describing the desired row range, grouping, projection, sort, and filter. Resets the page cache if the IR changed (groupBy, filter, project, or sort), fetches any missing pages in the requested range via `getData`, evicts distant pages if over the cache limit, then flattens the page tree into [`FlattenedDataViewModelParams`](/docs/api-references/type-references#flatteneddataviewmodelparams) for the renderer.
    */
-  async getViewModelData(ir: GetRowsIR): Promise<FlattenedDataViewModelParams> {
+  async getViewModelData(ir: StandardDataFetchAndTransformIR): Promise<FlattenedDataViewModelParams> {
     if (this.#lastIR) {
       // TODO[review] is object equality check enough. this seems heavy
       const groupByChanged = this.#lastIR.groupBy.join(",") !== ir.groupBy.join(",");
@@ -301,7 +301,7 @@ export abstract class StandardTableDataModel extends DataModel<GetRowsIR, Flatte
     // which only comes from a getData call. Bootstrap by fetching the first page.
     // TODO: this always requires first page even if the has mentioned different startRow
     if (this.pages.length === 0) {
-      const bootstrapIR: GetRowsIR = {
+      const bootstrapIR: StandardDataFetchAndTransformIR = {
         ...ir,
         startRow: 0,
         endRow: this.config.pageSize,
@@ -320,7 +320,7 @@ export abstract class StandardTableDataModel extends DataModel<GetRowsIR, Flatte
     const pagesToFetch = getUnfetchedPagesByLogicalBoundary(this.pages, ir.startRow, ir.endRow);
 
     await Promise.all(pagesToFetch.map(async (req) => {
-      const fetchIR: GetRowsIR = {
+      const fetchIR: StandardDataFetchAndTransformIR = {
         ...ir,
         groupPath: req.selectPath,
         startRow: req.page.physicalStart,
@@ -369,7 +369,7 @@ export abstract class StandardTableDataModel extends DataModel<GetRowsIR, Flatte
       throw new Error("Cannot expand a leaf row with no outside facet dimensions");
     }
 
-    const childIR: GetRowsIR = {
+    const childIR: StandardDataFetchAndTransformIR = {
       startRow: 0,
       endRow: this.config.pageSize,
       groupPath: groupPath,

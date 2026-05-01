@@ -221,7 +221,7 @@ const goToPageWithSize = useCallback(async (page: number, pgSize: number) => {
   inFlightCountRef.current++;
   setPageLoadingInProgress(true);
   try {
-    const pageIR: GetRowsIR = { ...irRef.current, startRow, endRow };
+    const pageIR: StandardDataFetchAndTransformIR = { ...irRef.current, startRow, endRow };
     const result = await model.getViewModelData(pageIR);
     applyResult(result);
     setDatasetTotalRows(model.computeTotalLogicalRows());
@@ -282,7 +282,7 @@ const sortAction = useCallback(async (newSortEntries: SortEntry[]) => {
   inFlightCountRef.current++;
   setPageLoadingInProgress(true);
   try {
-    const sortIR: GetRowsIR = { ...irRef.current, sort: newSortEntries, startRow, endRow };
+    const sortIR: StandardDataFetchAndTransformIR = { ...irRef.current, sort: newSortEntries, startRow, endRow };
     const result = await model.getViewModelData(sortIR);
     applyResult(result);
     if (enablePageView) setDatasetTotalRows(model.computeTotalLogicalRows());
@@ -300,7 +300,7 @@ Add `sortAction` to `DataModelContext`:
 // DataModelContext.tsx
 export interface DataModelContextValue {
   model: FlatTableDataModel;
-  ir: GetRowsIR;
+  ir: StandardDataFetchAndTransformIR;
   gridConfig: GridConfig;
   grid: Grid;
   sortAction?: (entries: SortEntry[]) => Promise<void>; // NEW
@@ -356,7 +356,7 @@ const expandAction = useCallback(async (selectPath: string[]) => {
     setDatasetTotalRows(total);
     const startRow = currentPage * activePageSize;
     const endRow = Math.min(startRow + activePageSize, total);
-    const pageIR: GetRowsIR = { ...irRef.current!, startRow, endRow };
+    const pageIR: StandardDataFetchAndTransformIR = { ...irRef.current!, startRow, endRow };
     const pageResult = await model.getViewModelData(pageIR);
     applyResult(pageResult);
   } else {
@@ -384,7 +384,7 @@ const collapseAction = useCallback(async (selectPath: string[]) => {
     }
     const startRow = clampedPage * activePageSize;
     const endRow = Math.min(startRow + activePageSize, total);
-    const pageIR: GetRowsIR = { ...irRef.current!, startRow, endRow };
+    const pageIR: StandardDataFetchAndTransformIR = { ...irRef.current!, startRow, endRow };
     const pageResult = await model.getViewModelData(pageIR);
     applyResult(pageResult);
   } else {
@@ -400,7 +400,7 @@ Add to `DataModelContext`:
 ```typescript
 export interface DataModelContextValue {
   model: FlatTableDataModel;
-  ir: GetRowsIR;
+  ir: StandardDataFetchAndTransformIR;
   gridConfig: GridConfig;
   grid: Grid;
   sortAction?: (entries: SortEntry[]) => Promise<void>;
@@ -627,7 +627,7 @@ export { PageView, type PageViewProps } from "./components/PageView";
 
 ```tsx
 const config: FlatTableConfig = { schema, pageSize: 50 };
-const ir: GetRowsIR = {
+const ir: StandardDataFetchAndTransformIR = {
   startRow: 0,
   endRow: 50,
   groupPath: [],

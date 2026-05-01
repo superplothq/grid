@@ -4,10 +4,10 @@ import {
   CrossSegment,
   DataSchema,
   DimSpec,
-  FacetQuery,
+  PivotFilterQuery,
   Filter,
-  IR,
-  RawDataFromIR,
+  PivotDataFetchAndTransformIR,
+  PivotRawDataFromSource,
   ScalarFilter,
   Schema,
   SegmentFilter,
@@ -173,7 +173,7 @@ export class SqlPivotTableDataModel extends PivotTableDataModel {
     return " WHERE " + fieldClauses.join(" AND ");
   }
 
-  async resolveFacetValues(query: FacetQuery): Promise<string[][]> {
+  async resolveFacetValues(query: PivotFilterQuery): Promise<string[][]> {
     const where = this.buildWhereClause(query.filters);
 
     if (query.mode === "distinct") {
@@ -193,7 +193,7 @@ export class SqlPivotTableDataModel extends PivotTableDataModel {
     return query.fields.map(f => rows.map(r => String(r[f])));
   }
 
-  async getData(branch: IR): Promise<RawDataFromIR> {
+  async getData(branch: PivotDataFetchAndTransformIR): Promise<PivotRawDataFromSource> {
     const { dimSpec, measures } = branch;
 
     const measureFilters = measures.filter(m => m.filter.length > 0);

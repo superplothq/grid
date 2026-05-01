@@ -3,14 +3,14 @@ import { DataSourceProvider } from "./components/DataSourceContext";
 
 # Row Grouping
 
-The flat table supports hierarchical row grouping via the `groupBy` field in `GetRowsIR`. Rows are nested under expandable group headers, letting users drill down through multiple levels.
+The flat table supports hierarchical row grouping via the `groupBy` field in `StandardDataFetchAndTransformIR`. Rows are nested under expandable group headers, letting users drill down through multiple levels.
 
 ## Configuring groupBy
 
 Pass an array of column names to `groupBy` in the IR. The order defines the nesting hierarchy — here we group by Agency Name, then Work Location Borough, then Leave Status:
 
 ```ts
-const ir: GetRowsIR = {
+const ir: StandardDataFetchAndTransformIR = {
   startRow: 0,
   endRow: 100,
   groupPath: [],

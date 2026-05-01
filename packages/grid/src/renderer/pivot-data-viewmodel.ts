@@ -2,11 +2,19 @@ import { PivotSliceResult, GridDataViewModelOptions, FacetData } from "./types";
 import { GridDataViewModel } from "./grid-data-viewmodel";
 import type { DataSchema } from "../datamodel/types";
 
+/**
+ * Output of [`PivotTableDataModel.getViewModelData`](/docs/datamodel/pivot-table-datamodel#how-it-works). A fully reshaped 2D pivot grid ready for the renderer.
+ */
 export interface PivotDataViewModelParams {
+  /** 2D grid of aggregated values. `data[col][row]` holds the value at column position `col` and row position `row`. `null` means no data exists for that cell (the combination was not observed in the source data). */
   data: any[][];
+  /** Column facet levels. Each inner array holds values for one facet level. For `cross("quarter", concat("revenue", "cost"))`, this has two dimension levels (quarter) plus a measure-name level. */
   columnFacets: FacetData;
+  /** Row facet levels. Same structure as `columnFacets` but for the row axis. Absent when the row axis has no dimensions. */
   rowFacets?: FacetData;
+  /** Facet metadata such as projection state for each facet level. */
   options?: GridDataViewModelOptions;
+  /** The original schema passed to the data model. */
   schema?: DataSchema[];
 }
 

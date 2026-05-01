@@ -1,6 +1,6 @@
 import { StandardTableDataModel } from "./standard-table-datamodel";
 import { SqlDataSource } from "./sql-datasource";
-import { DataSchema, DatePartScalarFilter, ColumnRangeValues, StandardTableConfig, GetRowsIR, GetRowsResponse, ScalarFilter, SortEntry } from "./types";
+import { DataSchema, DatePartScalarFilter, ColumnRangeValues, StandardTableConfig, StandardDataFetchAndTransformIR, GetRowsResponse, ScalarFilter, SortEntry } from "./types";
 
 export class SqlStandardTableDataModel extends StandardTableDataModel {
   protected table: string;
@@ -12,7 +12,7 @@ export class SqlStandardTableDataModel extends StandardTableDataModel {
     this.table = dataSource.table;
   }
 
-  async getData(ir: GetRowsIR): Promise<GetRowsResponse> {
+  async getData(ir: StandardDataFetchAndTransformIR): Promise<GetRowsResponse> {
     const sql = this.buildSQL(ir);
     const rows = await this.dataSource.execute(sql);
 
@@ -59,7 +59,7 @@ export class SqlStandardTableDataModel extends StandardTableDataModel {
     return { type: "categorical", values: rows.map((r) => String(r[field])) };
   }
 
-  private buildSQL(ir: GetRowsIR): string {
+  private buildSQL(ir: StandardDataFetchAndTransformIR): string {
     const depth = ir.groupPath.length;
     const isGroupLevel = depth < ir.groupBy.length;
     const whereClauses: string[] = [];
