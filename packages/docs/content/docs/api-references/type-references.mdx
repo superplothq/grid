@@ -187,6 +187,88 @@ Extends [VTrackDef](#vtrackdef). The resolved form after the viewmodel normalize
 
 <auto-type-table path="packages/grid/src/renderer/types.ts" name="FacetDef" />
 
+### GridConfig
+
+<auto-type-table path="packages/grid/src/renderer/grid-config.ts" name="GridConfig" />
+
+### LayoutEvents
+
+Events emitted by the layout engine and forwarded through the [Grid](/docs/renderer) instance.
+
+```ts
+type LayoutEvents = {
+  renderComplete: { x0: number; y0: number; x1: number; y1: number };
+  viewDataEmpty: { startRow: number; endRow: number };
+  viewModelDataChanged: { x0: number; y0: number; x1: number; y1: number };
+  "debug_perf:metrics": {
+    timeToRender: number;
+    renderCount: number;
+    nodesActive: number;
+    nodesAppendedInThisFrame: number;
+    nodesDeletedInThisFrame: number;
+    contentCellRerenderCount: number;
+    poolSize: number;
+  };
+};
+```
+
+### GridEvents
+
+Extends [LayoutEvents](#layoutevents) with selection events. This is the event map for the `Grid` class.
+
+```ts
+type GridEvents = LayoutEvents & {
+  selectionAdded: { hash: string; fromRow: number; fromCol: number; toRow: number; toCol: number };
+  selectionRemoved: { hash: string; fromRow: number; fromCol: number; toRow: number; toCol: number };
+};
+```
+
+### SelectionRule
+
+```ts
+interface SelectionRule {
+  id: number;
+  predicates: PredicateNode[];
+  terminal: TerminalOp;
+}
+```
+
+### PredicateNode
+
+```ts
+type PredicateNode =
+  | { type: "facet"; predicate: FacetPredicate }
+  | { type: "cell"; predicate: CellPredicate };
+```
+
+### FacetPredicate
+
+```ts
+type FacetPredicate = (dim: string, dimVal: string | null, path: [string, string | null][]) => boolean;
+```
+
+A function that tests whether a facet cell matches. `dim` is the dimension name, `dimVal` is the cell's value, and `path` is the ancestor facet values as `[dimName, dimValue]` pairs.
+
+### CellPredicate
+
+```ts
+type CellPredicate = (value: any) => boolean;
+```
+
+A function that tests whether a data cell's value matches.
+
+### TerminalOp
+
+```ts
+type TerminalOp =
+  | { type: "prop"; props: SelectionProps }
+  | { type: "style"; fn: (container: HTMLElement) => void };
+```
+
+### SelectionProps
+
+<auto-type-table path="packages/grid/src/renderer/types.ts" name="SelectionProps" />
+
 ## PivotDataViewModelParams
 
 <auto-type-table path="packages/grid/src/renderer/pivot-data-viewmodel.ts" name="PivotDataViewModelParams" />

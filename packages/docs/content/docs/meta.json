@@ -5,6 +5,7 @@
     "datasource",
     "datamodel",
     "viewmodel",
+    "renderer",
     "---",
     "api-references"
   ]

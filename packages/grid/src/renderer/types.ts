@@ -132,6 +132,7 @@ export interface VTrackDef<T = any> {
 
 type El = HTMLElement | HTMLElement[] | string;
 
+// #region facet-cell-renderer
 export interface FacetRendererContext {
   render: (viewModel: GridDataViewModel) => void;
   cell: HTMLElement;
@@ -160,7 +161,9 @@ export type FacetCellRenderer<T = string> = (
   dataCtx: FacetDataContext,
   ctx: FacetRendererContext
 ) => FacetCellContent | El | void;
+// #endregion facet-cell-renderer
 
+// #region facet-header-renderer
 export interface HeaderCellContext {
   viewModel: GridDataViewModel;
   level: number;
@@ -176,6 +179,7 @@ export type FacetHeaderRenderer = (
   text: string,
   ctx: HeaderCellContext
 ) => FacetCellContent | string | HTMLElement | HTMLElement[] | void;
+// #endregion facet-header-renderer
 
 export interface FacetMeta {
   projectionState: ProjectionState;

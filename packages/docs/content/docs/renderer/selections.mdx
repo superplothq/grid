@@ -1,0 +1,147 @@
+---
+title: Selection Rules
+description: The selectAll API selects cells by predicate - matching on facet dimension, facet value, or cell data - and applies attributes to them. Attributes include CSS styles, renderer overrides, column sizing, and data grouping tags.
+---
+
+The selection rules API lets you apply styles or override renderers for cells that match a predicate. Rules target facet cells (headers) by dimension name and value, or data cells by their value. Multiple rules can stack - all matching rules are applied in order.
+
+This is separate from the cell/row/column selection API (`selectCellByDataIndex`, etc.) which highlights individual cells. The `selectAll` API is for bulk conditional formatting.
+
+## Creating rules
+
+Start with `grid.selectAll(predicate)` to create a `Selection` builder. The predicate matches facet cells.
+
+```ts
+const selection = grid.selectAll((dim, dimVal, path) => {
+  return dim === "Region" && dimVal === "USA";
+});
+```
+
+The predicate receives three arguments:
+
+- `dim` - the dimension name (from `FacetDef.facetField` or `FacetDef.text`)
+- `dimVal` - the facet cell's value, or `null` for merged/spanned cells
+- `path` - ancestor facet values as `[dimName, dimValue][]` pairs, from the outermost level down to (but not including) the current level
+
+The predicate is called for each facet level. It returns `true` if the cell matches.
+
+## Chaining predicates
+
+Chain `.selectAll()` to add more facet predicates. All predicates are AND-ed - a cell must match all of them.
+
+```ts
+grid
+  .selectAll((dim, dimVal) => dim === "Quarter" && dimVal === "Q1")
+  .selectAll((dim, dimVal) => dim === "Measure" && dimVal === "Revenue")
+  .style((el) => { el.style.fontWeight = "bold"; });
+```
+
+This targets cells where Quarter is Q1 **and** Measure is Revenue.
+
+## Applying styles
+
+Use `.style(fn)` to apply CSS to matching cells. The function receives the cell's DOM element.
+
+```ts
+grid
+  .selectAll((dim, dimVal) => dim === "Region" && dimVal === "USA")
+  .style((el) => {
+    el.style.backgroundColor = "#e3f2fd";
+    el.style.fontWeight = "600";
+  });
+```
+
+## Overriding renderers
+
+Use `.prop(props)` to override the renderer or column sizing for matching cells.
+
+```ts
+import { SelectionProps } from "grid";
+
+grid
+  .selectAll((dim, dimVal) => dim === "Measure" && dimVal === "Trend")
+  .prop({
+    trackRenderer: myCustomFacetRenderer,
+    colSize: { strategy: "fixed-width", widthInPx: 120 },
+  });
+```
+
+`SelectionProps` fields:
+
+```ts
+interface SelectionProps {
+  cellRenderer?: CellRenderer<any>;    // override data cell renderer
+  trackRenderer?: FacetCellRenderer;   // override facet cell renderer
+  colSize?: ColAutoSizeConfig;         // override column sizing
+}
+```
+
+## Data cell predicates
+
+Use `.selectAllCell(predicate)` to target data cells by value. Cell predicates only apply to data cells (not facet cells). Combine with facet predicates to narrow the scope.
+
+```ts
+grid
+  .selectAll((dim, dimVal) => dim === "Measure" && dimVal === "Revenue")
+  .selectAllCell((value) => value > 10000)
+  .style((el) => { el.style.color = "green"; });
+```
+
+This highlights data cells where Revenue exceeds 10,000.
+
+## Grouping
+
+Use `.group(value, name?)` to tag matching cells with a data attribute. This is a convenience wrapper around `.style()` that sets `data-sel-grp-{name}="{value}"` on matching cells.
+
+```ts
+grid
+  .selectAll((dim) => dim === "Region")
+  .group("highlight", "region");
+// Sets data-sel-grp-region="highlight" on matching cells
+```
+
+## Removing rules
+
+Every `.style()`, `.prop()`, and `.group()` call returns the selection builder. Call `.undo()` to remove all rules added through that builder.
+
+```ts
+const sel = grid
+  .selectAll((dim, dimVal) => dim === "Region" && dimVal === "USA")
+  .style((el) => { el.style.backgroundColor = "#e3f2fd"; });
+
+// Later: remove the styling
+sel.undo();
+```
+
+Removing rules triggers a re-render automatically.
+
+## How rules are evaluated
+
+During each render cycle, the layout evaluates rules for every rendered cell:
+
+- **Facet cells**: the layout calls `evaluateRulesForFacetCell` with the cell's facet path (the values at each facet level) and the facet definitions. Rules that contain cell predicates are skipped. Matching rules can override the `trackRenderer`.
+- **Data cells**: the layout calls `evaluateRulesForDataCell` with the cell's row facet path, column facet path, facet definitions, and cell value. Both facet and cell predicates must match. Matching rules can override the `cellRenderer`.
+
+Rules are evaluated in insertion order. When multiple rules match and set a renderer override, the last one wins. Style functions from all matching rules are applied in order.
+
+## SelectionRule internals
+
+Internally, each rule is stored as a `SelectionRule`:
+
+```ts
+interface SelectionRule {
+  id: number;
+  predicates: PredicateNode[];
+  terminal: TerminalOp;
+}
+
+type PredicateNode =
+  | { type: "facet"; predicate: FacetPredicate }
+  | { type: "cell"; predicate: CellPredicate };
+
+type TerminalOp =
+  | { type: "prop"; props: SelectionProps }
+  | { type: "style"; fn: (container: HTMLElement) => void };
+```
+
+A rule's `predicates` are AND-ed. The `terminal` is either a property override or a style function. Each `.style()` or `.prop()` call on a `Selection` adds one rule to the store.

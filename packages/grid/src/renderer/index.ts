@@ -93,6 +93,11 @@ function fastHash(str: string): string {
   return (hash >>> 0).toString(36);
 }
 
+/**
+ * The public entry point for the grid renderer. Wraps a layout engine (`StandardLayout` or `GroupedRowLayout`),
+ * a cell pool, and a selection rule store. Set a [GridDataViewModel](/docs/viewmodel) via the `data` setter, then
+ * call `draw()` to render. The Grid forwards all [layout events](/docs/renderer/events) and adds selection events.
+ */
 export default class Grid extends GridWithEvents {
   #config: GridConfig;
   #data: GridDataViewModel | undefined;
@@ -291,15 +296,18 @@ export default class Grid extends GridWithEvents {
 
   #scheduleDrawPending = false;
 
+  /** Sets the viewmodel that provides data for rendering. After setting, call `draw()` to trigger the first render. Reassign after `updateData()` to push new data into the grid. */
   set data(value: GridDataViewModel) {
     this.#data = value;
     this.#layout.setData(value);
   }
 
+  /** Returns the current viewmodel, or `undefined` if none has been set. */
   get data(): GridDataViewModel | undefined {
     return this.#data;
   }
 
+  /** Schedules a draw on the next animation frame. Multiple calls before the frame fires are coalesced into a single render. */
   scheduleDraw(): void {
     if (this.#scheduleDrawPending) return;
     this.#scheduleDrawPending = true;
@@ -309,10 +317,12 @@ export default class Grid extends GridWithEvents {
     });
   }
 
+  /** Creates a [Selection](/docs/renderer/selections) builder that targets facet cells matching the predicate. Chain `.selectAll()` to add more predicates, then `.style()` or `.prop()` to apply effects. */
   selectAll(predicate: FacetPredicate): Selection {
     return new Selection(this.#ruleStore, [{ type: "facet", predicate }]);
   }
 
+  /** Triggers a synchronous render cycle: calculates the viewport, fetches the data slice, renders cells, auto-sizes columns, and emits `renderComplete`. Throws if `data` has not been set. */
   draw(): void {
     const startTime = performance.now();
     this.#renderCount++;
@@ -390,6 +400,7 @@ export default class Grid extends GridWithEvents {
     this.#layout.viewModelProposal({ selections: selectionsArray });
   }
 
+  /** Selects a single cell by its data row and column index. Returns `[hash, unsub]` where `hash` identifies the selection and `unsub()` removes it. Returns `null` if the cell is already selected. Emits `selectionAdded`; calling `unsub()` emits `selectionRemoved`. */
   selectCellByDataIndex(row: number, col: number): SelectionResult {
     const result = this.#resolveConflictsAndAddSelection(row, col, row, col);
     if (result.isDuplicate) return null;
@@ -407,6 +418,7 @@ export default class Grid extends GridWithEvents {
     }];
   }
 
+  /** Selects a rectangular range of cells. Coordinates are normalized (min/max) internally. A range selection clears all previous selections. Returns `[hash, unsub]` or `null` if already selected. */
   selectRangeByDataIndex(fromRow: number, fromCol: number, toRow: number, toCol: number): SelectionResult {
     // Normalize to ensure from <= to
     const normFromRow = Math.min(fromRow, toRow);
@@ -430,6 +442,7 @@ export default class Grid extends GridWithEvents {
     }];
   }
 
+  /** Selects an entire column by its data index (all rows from 0 to Infinity). Column selections accumulate; adding a non-column selection clears them. Returns `[hash, unsub]` or `null` if already selected. */
   selectColumnByDataIndex(colIndex: number): SelectionResult {
     const result = this.#resolveConflictsAndAddSelection(0, colIndex, Infinity, colIndex);
     if (result.isDuplicate) return null;
@@ -447,6 +460,7 @@ export default class Grid extends GridWithEvents {
     }];
   }
 
+  /** Selects an entire row by its data index (all columns from 0 to Infinity). Row selections accumulate; adding a non-row selection clears them. Returns `[hash, unsub]` or `null` if already selected. */
   selectRowByDataIndex(rowIndex: number): SelectionResult {
     const result = this.#resolveConflictsAndAddSelection(rowIndex, 0, rowIndex, Infinity);
     if (result.isDuplicate) return null;
@@ -464,6 +478,7 @@ export default class Grid extends GridWithEvents {
     }];
   }
 
+  /** Programmatically scrolls to a row or column by its absolute index. For columns, retries up to 5 times to handle auto-sizing geometry changes. Throws if `data` has not been set. */
   scrollTo(axis: "row" | "column", absoluteIndex: number): void {
     if (!this.#data) throw new Error("Data is not set!");
     if (axis === "row") {
@@ -473,6 +488,7 @@ export default class Grid extends GridWithEvents {
     }
   }
 
+  /** Removes all active cell/row/column/range selections and triggers a re-render. */
   clearAllSelections(): void {
     this.#selections.clear();
     this.#syncSelectionsToLayout();

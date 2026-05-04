@@ -38,14 +38,18 @@ export default abstract class PFixture {
   };
 }
 
+// #region vertical-fixture
 export abstract class PVerticalFixture extends WithCellPlacement(PFixture) {
   #colSize: ColAutoSizeConfig = { strategy: "max-cell" };
   get colSize(): ColAutoSizeConfig { return this.#colSize; }
   set colSize(value: ColAutoSizeConfig) { this.#colSize = value; }
   abstract headerCell(ctx: HeaderCellContext): HTMLElement | HTMLElement[] | string | null;
 }
+// #endregion vertical-fixture
 
+// #region horizontal-fixture
 export abstract class PHorizontalFixture extends WithCellPlacement(PFixture) {
   abstract getHeight(): number;
   headerCell(_ctx: HeaderCellContext): HTMLElement | HTMLElement[] | string | null | undefined { return undefined; }
 }
+// #endregion horizontal-fixture
