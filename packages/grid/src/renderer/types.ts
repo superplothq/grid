@@ -33,24 +33,67 @@ export interface FlatRowMeta {
   isExpanded: boolean;
 }
 
+/**
+ * Data required for the viewport defined by x0-x1 (columns) and y0-y1 (rows). The viewmodel decides which data to include. This is called a slice.
+ */
 export interface BaseSliceResult {
+  /** Total number of rows in the viewmodel (not just the slice). */
   numRows: number;
+  /** Total number of columns in the viewmodel (not just the slice). */
   numCols: number;
+  /** Number of rows in this slice. */
   sliceNumRows: number;
+  /** Number of columns in this slice. */
   sliceNumCols: number;
+  /**
+   * Column facet values for the sliced columns, transposed from the viewmodel's storage. The viewmodel stores facets as `colFacets[level][colIndex]`; the slice transposes them to `columnFacets[colIndex][level]` (grouped per column).
+   *
+   * Example - viewmodel with 2 levels, 4 columns:
+   * ```
+   * colFacets = [["Q1","Q1","Q2","Q2"], ["revenue","cost","revenue","cost"]]
+   * ```
+   * Slice for columns 1-2:
+   * ```
+   * columnFacets = [["Q1","cost"], ["Q2","revenue"]]
+   * ```
+   *
+   * Absent when the slice is empty.
+   */
   columnFacets?: (string | null)[][];
+  /** Column-major data for the sliced range: `data[colIndex][rowIndex]`. Absent when the slice is empty. */
   data?: any[][];
 }
 
+/**
+ * Slice result for pivot grids. Extends [`BaseSliceResult`](/docs/api-references/type-references#basesliceresult) with multi-level row facets.
+ */
 export interface PivotSliceResult extends BaseSliceResult {
+  /**
+   * Row facet values for the sliced rows, transposed from the viewmodel's storage. The viewmodel stores row facets as `rowFacets[level][rowIndex]`; the slice transposes them to `rowFacets[rowIndex][level]` (grouped per row). `null` means the value is the same as the row above (for merge/span rendering).
+   *
+   * Example - viewmodel with 2 levels, 3 rows:
+   * ```
+   * rowFacets = [["Europe",null,"North America"], ["Germany","France",null]]
+   * ```
+   * Slice for rows 0-2:
+   * ```
+   * rowFacets = [["Europe","Germany"], [null,"France"], ["North America",null]]
+   * ```
+   */
   rowFacets: (string | null)[][];
 }
 
+/**
+ * Slice result for flat/standard tables. Extends [`BaseSliceResult`](/docs/api-references/type-references#basesliceresult) with single-level row facets and per-row metadata.
+ */
 export interface FlatSliceResult extends BaseSliceResult {
+  /** Row facet values for the sliced rows. Group rows have a string label (e.g. `"USA"`); data/leaf rows have `null`. Single level, so no transposition - same shape as the viewmodel's storage. */
   rowFacets: (string | null)[];
+  /** Unpacked row metadata for the sliced rows. See [`FlatRowMeta`](/docs/api-references/type-references#flatrowmeta). */
   rowMeta: FlatRowMeta[];
 }
 
+// #region col-auto-size-config
 export interface IColAutoSize {
   strategy: "max-cell" | "fixed-width" | "static";
   excludeColumnFacets?: boolean;
@@ -78,6 +121,7 @@ export type ColAutoSizeConfig =
   | IColAutoSizeStrategyMaxCell
   | IColAutoSizeStrategyFixedWidth
   | IColAutoSizeStrategyStatic;
+// #endregion col-auto-size-config
 
 export interface VTrackDef<T = any> {
   renderer?: CellRenderer<T>;

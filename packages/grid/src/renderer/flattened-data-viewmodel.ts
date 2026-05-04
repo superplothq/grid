@@ -11,6 +11,13 @@ function getDepth(bits: number): number {
   return (bits & DEPTH_MASK) >> DEPTH_SHIFT;
 }
 
+/**
+ * Packs depth, isLeaf, and isExpanded into a single byte. Bits 7-4: depth (0-15), bit 3: isLeaf, bit 2: isExpanded.
+ * @param depth - Nesting depth (0 = root group level, max 15).
+ * @param isLeaf - `true` for leaf/data rows that cannot be expanded further.
+ * @param isExpanded - `true` if this group row is currently expanded.
+ * @returns A single byte encoding all three fields.
+ */
 export function createRowMeta(depth: number, isLeaf: boolean, isExpanded: boolean): number {
   return ((depth << DEPTH_SHIFT) & DEPTH_MASK) | (isLeaf ? LEAF_MASK : 0) | (isExpanded ? EXPAND_MASK : 0);
 }
@@ -48,10 +55,16 @@ export interface FlattenedDataViewModelParams {
 //
 // ColumnFacets: the last level holds the original column names/labels. Any nesting or
 //     grouping is done by building additional layers on top.
+/**
+ * ViewModel for flat/standard tables. Adds a single-level row facet for group labels and packed per-row metadata (`Uint8Array`) for hierarchical grouping with expand/collapse. Supports pagination via `totalRows` and `offsetTop`.
+ */
 export class FlattenedDataViewModel extends GridDataViewModel {
   #rowFacet?: (string | null)[];
   #rowMeta?: Uint8Array;
 
+  /**
+   * @param params - [`FlattenedDataViewModelParams`](/docs/api-references/type-references#flatteneddataviewmodelparams) containing flat row data, optional grouping metadata, and pagination state.
+   */
   constructor(params: FlattenedDataViewModelParams) {
     super(params.data, params.columnFacets);
     this.#rowFacet = params.rowFacet;
@@ -61,26 +74,44 @@ export class FlattenedDataViewModel extends GridDataViewModel {
     this.updatePagination(params.totalRows, params.offsetTop);
   }
 
+  /** Always 1 when `rowFacet` is provided, 0 otherwise. Unlike pivot viewmodels, flat tables have at most one row facet level - depth is encoded in the row metadata instead. */
   get numRowFacetLevels(): number {
     return this.#rowFacet ? 1 : 0;
   }
 
+  /** Row facet wrapped in level-major format: `[rowFacet]` (single level). Returns `[]` when no `rowFacet` was provided. */
   get rowFacets(): FacetData {
     return this.#rowFacet ? [this.#rowFacet] : [];
   }
 
+  /**
+   * Sets the expand bit in the metadata byte. Viewmodel-level only - does not fetch children.
+   * @param rowIndex - The row index to expand.
+   */
   expand(rowIndex: number): void {
     this.#rowMeta![rowIndex] = this.#rowMeta![rowIndex] | EXPAND_MASK;
   }
 
+  /**
+   * Clears the expand bit in the metadata byte. Viewmodel-level only - does not remove children.
+   * @param rowIndex - The row index to collapse.
+   */
   collapse(rowIndex: number): void {
     this.#rowMeta![rowIndex] = this.#rowMeta![rowIndex] & ~EXPAND_MASK;
   }
 
+  /**
+   * Flips the expand bit in the metadata byte. Viewmodel-level only - does not fetch or remove children.
+   * @param rowIndex - The row index to toggle.
+   */
   toggleExpand(rowIndex: number): void {
     this.#rowMeta![rowIndex] = this.#rowMeta![rowIndex] ^ EXPAND_MASK;
   }
 
+  /**
+   * Swaps internal data arrays, row facet, row metadata, and pagination state without constructing a new instance. `metaState` is preserved.
+   * @param params - New [`FlattenedDataViewModelParams`](/docs/api-references/type-references#flatteneddataviewmodelparams).
+   */
   updateData(params: FlattenedDataViewModelParams): void {
     this.updateBase(params.data, params.columnFacets);
     this.#rowFacet = params.rowFacet;
@@ -88,6 +119,11 @@ export class FlattenedDataViewModel extends GridDataViewModel {
     this.updatePagination(params.totalRows, params.offsetTop);
   }
 
+  /**
+   * Walks backward through row metadata to reconstruct the full group path from root to the given row. Used to identify which group was clicked (e.g. for expand/collapse).
+   * @param rowIndex - The row index to build the path for.
+   * @returns Array of group values from root to the target row, e.g. `["Europe", "Germany"]`.
+   */
   getSelectPath(rowIndex: number): string[] {
     const meta = this.#rowMeta!;
     const facet = this.#rowFacet!;
@@ -113,6 +149,14 @@ export class FlattenedDataViewModel extends GridDataViewModel {
     };
   }
 
+  /**
+   * Returns a [`FlatSliceResult`](/docs/api-references/type-references#flatsliceresult) for the given range. Extends the base slice with single-level `rowFacets` and unpacked `rowMeta` ([`FlatRowMeta`](/docs/api-references/type-references#flatrowmeta) objects) for the visible rows.
+   * @param x0 - Start column index (inclusive).
+   * @param y0 - Start row index (inclusive).
+   * @param x1 - End column index (exclusive).
+   * @param y1 - End row index (exclusive).
+   * @returns Slice data with `rowFacets` and `rowMeta` for the visible rows.
+   */
   getSlice(x0: number, y0: number, x1: number, y1: number): FlatSliceResult {
     const result = { ...this.sliceBase(x0, y0, x1, y1), rowFacets: [] as (string | null)[], rowMeta: [] as FlatRowMeta[] };
     if (x0 === x1 && y0 === y1) {

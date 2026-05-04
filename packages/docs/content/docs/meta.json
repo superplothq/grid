@@ -4,6 +4,7 @@
     "---Core Components---",
     "datasource",
     "datamodel",
+    "viewmodel",
     "---",
     "api-references"
   ]

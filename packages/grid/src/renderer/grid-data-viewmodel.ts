@@ -10,9 +10,13 @@ export interface ViewModelCallbacks {
   viewportDataChange: (viewport: DataViewport) => void;
 }
 
+/**
+ * Namespaced key-value store attached to the viewmodel. Persists across data updates and any lifecycle changes in the grid - use it as a general-purpose grid store. The namespace is typically the calling component's name, preventing key collisions when multiple components store state in the same metaState instance.
+ */
 export class MetaState {
   #store: Map<string, Record<string, any>> = new Map();
 
+  /** Sets a value under `namespace` and `key`. */
   set(namespace: string, key: string, value: any): void {
     let ns = this.#store.get(namespace);
     if (!ns) {
@@ -22,10 +26,12 @@ export class MetaState {
     ns[key] = value;
   }
 
+  /** Returns all key-value pairs under `namespace`, or `undefined` if the namespace does not exist. */
   get(namespace: string): Record<string, any> | undefined {
     return this.#store.get(namespace);
   }
 
+  /** Clears a single `key` within `namespace`, or the entire namespace if `key` is omitted. */
   clear(namespace: string, key?: string): void {
     if (key === undefined) {
       this.#store.delete(namespace);
@@ -57,6 +63,9 @@ export class MetaState {
 //
 //   TODO pagination offsettop etc supported only for flat table not for pivot,
 //   but all these are present in GridDataViewModel
+/**
+ * Stores column-major data arrays (`data[col][row]`), column facets, and rendering configuration (VTrackDefs, FacetDefs). Subclasses must implement `numRowFacetLevels`, `rowFacets`, and `getSlice()` to provide row-axis data. The renderer calls `getViewportData()` each render cycle to get a slice of the visible data.
+ */
 export abstract class GridDataViewModel {
   #numRows: number;
   #numCols: number;
@@ -73,7 +82,9 @@ export abstract class GridDataViewModel {
   };
   #lastCallbackViewport: DataViewport | null = null;
   #viewportCallbackTimer: ReturnType<typeof setTimeout> | null = null;
+  /** [`DataSchema`](/docs/api-references/type-references#dataschema) definitions for the columns in `data`. */
   schema?: DataSchema[];
+  /** Namespaced key-value store for arbitrary state that persists across `updateData` calls. See [`MetaState`](/docs/api-references/type-references#metastate). */
   readonly metaState: MetaState = new MetaState();
 
   constructor(data: any[][], columnFacets: FacetData) {
@@ -83,6 +94,11 @@ export abstract class GridDataViewModel {
     this.data = data;
   }
 
+  /**
+   * Replaces the internal data arrays and column facets. Called by subclass `updateData` methods.
+   * @param data - Column-major data arrays. `data[col][row]`.
+   * @param columnFacets - Column header values. `columnFacets[level][colIndex]`.
+   */
   protected updateBase(data: any[][], columnFacets: FacetData): void {
     this.#lastCallbackViewport = null;
     this.#numCols = data.length;
@@ -91,11 +107,20 @@ export abstract class GridDataViewModel {
     this.data = data;
   }
 
+  /**
+   * Updates pagination state. Called by subclass `updateData` methods.
+   * @param totalRows - Total rows in the full dataset, or `undefined` to default to `numRows`.
+   * @param offsetTop - Number of rows before the loaded contiguous block, or `undefined` to default to `0`.
+   */
   protected updatePagination(totalRows: number | undefined, offsetTop: number | undefined): void {
     this.#totalRows = totalRows;
     this.#offsetTop = offsetTop;
   }
 
+  /**
+   * Resolves [`GridDataViewModelOptions`](/docs/api-references/type-references#griddataviewmodeloptions) into `vTrackDefs` and `facetDefs`. Propagates static sizing strategy to all columns/facets if any column or facet uses it. Called by subclass constructors and `updateData` methods.
+   * @param options - Rendering options, or `undefined` to use defaults (textRenderer, max-cell sizing).
+   */
   protected init(options: GridDataViewModelOptions | undefined): void {
     const resolved = this.normalizeOptions(options);
     this.#resolvedVTrackDefs = resolved.vTrackDefs;
@@ -165,56 +190,86 @@ export abstract class GridDataViewModel {
     return defs;
   }
 
+  /** Resolved per-column rendering configuration. One entry per column in `data`. */
   get vTrackDefs(): ResolvedVTrackDef[] {
     return this.#resolvedVTrackDefs;
   }
 
+  /** Resolved facet rendering configuration for row and column facet levels. */
   get facetDefs(): { row: FacetDef[]; col: FacetDef[]; axis: "row" | "col" } {
     return this.#facetDefs;
   }
 
+  /** `true` if any column or facet uses `"static"` sizing strategy. When true, all columns/facets use static sizing. */
   get hasStaticStrategy(): boolean {
     return this.#staticStrategy;
   }
 
+  /**
+   * Overrides the column sizing strategy for a single column.
+   * @param colIndex - The column index to update.
+   * @param colSize - The new [`ColAutoSizeConfig`](/docs/api-references/type-references#colautosizeconfig) to apply.
+   */
   setColSize(colIndex: number, colSize: ResolvedVTrackDef["colSize"]): void {
     this.#resolvedVTrackDefs[colIndex].colSize = colSize;
   }
 
+  /** Number of row facet levels. Subclasses implement this as this class does not handle row facets. */
   abstract get numRowFacetLevels(): number;
 
+  /** Number of column facet levels (header rows above data). */
   get numColFacetLevels() {
     return this.#colFacets.length;
   }
 
+  /** Number of rows in the loaded `data[][]` arrays. */
   get numRows() {
     return this.#numRows;
   }
 
+  /** Number of columns in the loaded `data[][]` arrays. */
   get numCols() {
     return this.#numCols;
   }
 
+  /** Total rows in the full dataset. Used by the renderer for scrollbar sizing. Defaults to `numRows` when not set. */
   get totalRows(): number {
     return this.#totalRows ?? this.#numRows;
   }
 
+  /** Number of rows before the contiguous data block loaded in the viewmodel. The viewmodel can only hold one contiguous block of rows; `offsetTop` tells the renderer where that block sits within the full dataset. Defaults to `0`. */
   get offsetTop(): number {
     return this.#offsetTop ?? 0;
   }
 
+  /**
+   * Returns the column facet value at the given level and column index.
+   * @param level - The facet level (0 = topmost header row).
+   * @param colIndex - The column index.
+   * @returns The facet value, `null` if merged with the previous column, or `undefined` if out of bounds.
+   */
   getColFacetValue(level: number, colIndex: number): string | null | undefined {
     return this.#colFacets[level][colIndex];
   }
 
+  /** All column facet levels. `columnFacets[level][colIndex]` is the facet value. */
   get columnFacets(): FacetData {
     return this.#colFacets;
   }
 
+  /** All row facet levels. Subclasses implement this as this class does not handle row facets. */
   abstract get rowFacets(): FacetData;
 
   // TODO this can be optimized since this sits in the hot path of every render cycle
   //      we can operate using just pointers.
+  /**
+   * Slices the base data and column facets for the given viewport range. Subclass `getSlice` implementations call this and extend the result with row-specific data.
+   * @param x0 - Start column index (inclusive).
+   * @param y0 - Start row index (inclusive).
+   * @param x1 - End column index (exclusive).
+   * @param y1 - End row index (exclusive).
+   * @returns A [`BaseSliceResult`](/docs/api-references/type-references#basesliceresult) with `data` in column-major format and `columnFacets` transposed to `[colIndex][level]`.
+   */
   protected sliceBase(x0: number, y0: number, x1: number, y1: number): BaseSliceResult {
     if (x0 === x1 && y0 === y1) {
       return {
@@ -253,8 +308,24 @@ export abstract class GridDataViewModel {
     };
   }
 
+  /**
+   * Returns a slice of data for the given range. Subclasses override to add row facets and row metadata.
+   * @param x0 - Start column index (inclusive).
+   * @param y0 - Start row index (inclusive).
+   * @param x1 - End column index (exclusive).
+   * @param y1 - End row index (exclusive).
+   * @returns A subclass-specific slice result ([`PivotSliceResult`](/docs/api-references/type-references#pivotsliceresult) or [`FlatSliceResult`](/docs/api-references/type-references#flatsliceresult)).
+   */
   abstract getSlice(x0: number, y0: number, x1: number, y1: number): BaseSliceResult;
 
+  /**
+   * Called by the renderer each render cycle. Returns a [`BaseSliceResult`](/docs/api-references/type-references#basesliceresult) for the visible range and fires a debounced `viewportDataChange` callback when the viewport changes.
+   * @param x0 - Start column index (inclusive).
+   * @param y0 - Start row index (inclusive).
+   * @param x1 - End column index (exclusive).
+   * @param y1 - End row index (exclusive).
+   * @returns The slice result from `getSlice`.
+   */
   getViewportData(x0: number, y0: number, x1: number, y1: number): BaseSliceResult {
     this.#viewport = { x0, y0, x1, y1 };
     const result = this.getSlice(x0, y0, x1, y1);
@@ -275,10 +346,17 @@ export abstract class GridDataViewModel {
     return result;
   }
 
+  /** The most recent viewport bounds passed to `getViewportData`. */
   get viewport(): DataViewport {
     return this.#viewport;
   }
 
+  /**
+   * Registers a callback for viewmodel events (e.g. `"viewportDataChange"`).
+   * @param name - The event name.
+   * @param callback - The callback function.
+   * @returns An unsubscribe function that removes the callback.
+   */
   register<K extends keyof ViewModelCallbacks>(name: K, callback: ViewModelCallbacks[K]): () => void {
     this.#callbacks[name].add(callback);
     return () => { this.#callbacks[name].delete(callback); };

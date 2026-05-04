@@ -125,10 +125,72 @@ Wraps an `AxisExpr` with optional [dimensional projection](/docs/datamodel/pivot
 
 <auto-type-table path="packages/grid/src/datamodel/types.ts" name="TupleFilter" />
 
+## Renderer
+
+### BaseSliceResult
+
+<auto-type-table path="packages/grid/src/renderer/types.ts" name="BaseSliceResult" />
+
+### PivotSliceResult
+
+Extends [BaseSliceResult](#basesliceresult).
+
+<auto-type-table path="packages/grid/src/renderer/types.ts" type="Omit<PivotSliceResult, keyof BaseSliceResult>" origname="PivotSliceResult" />
+
+### FlatSliceResult
+
+Extends [BaseSliceResult](#basesliceresult).
+
+<auto-type-table path="packages/grid/src/renderer/types.ts" type="Omit<FlatSliceResult, keyof BaseSliceResult>" origname="FlatSliceResult" />
+
+### DataViewport
+
+<auto-type-table path="packages/grid/src/renderer/types.ts" name="DataViewport" />
+
+### FacetData
+
+```ts
+type FacetData = (string | null)[][];
+```
+
+An array of facet levels. Each level is an array of values across all columns (for column facets) or all rows (for row facets). `null` means the value is the same as the previous cell at that level (used for merge/span rendering).
+
+### FlatRowMeta
+
+<auto-type-table path="packages/grid/src/renderer/types.ts" name="FlatRowMeta" />
+
+### GridDataViewModelOptions
+
+<auto-type-table path="packages/grid/src/renderer/types.ts" name="GridDataViewModelOptions" />
+
+### VTrackDef
+
+<auto-type-table path="packages/grid/src/renderer/types.ts" name="VTrackDef" />
+
+### ResolvedVTrackDef
+
+Extends [VTrackDef](#vtrackdef). The resolved form after the viewmodel normalizes options - `renderer` and `colSize` are guaranteed present.
+
+<auto-type-table path="packages/grid/src/renderer/types.ts" type="Omit<ResolvedVTrackDef, keyof VTrackDef>" origname="ResolvedVTrackDef" />
+
+### MetaState
+
+<auto-type-table path="packages/grid/src/renderer/grid-data-viewmodel.ts" name="MetaState" />
+
+### ColAutoSizeConfig
+
+```json doc-gen:file
+{ "file": "packages/grid/src/renderer/types.ts#col-auto-size-config", "codeblock": { "lang": "ts" } }
+```
+
+### FacetDef
+
+<auto-type-table path="packages/grid/src/renderer/types.ts" name="FacetDef" />
+
 ## PivotDataViewModelParams
 
 <auto-type-table path="packages/grid/src/renderer/pivot-data-viewmodel.ts" name="PivotDataViewModelParams" />
 
-## FlattenedDataViewModelParams.
+## FlattenedDataViewModelParams
 
 <auto-type-table path="packages/grid/src/renderer/flattened-data-viewmodel.ts" name="FlattenedDataViewModelParams" />

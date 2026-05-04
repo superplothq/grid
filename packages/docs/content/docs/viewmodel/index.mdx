@@ -1,0 +1,322 @@
+---
+title: GridDataViewModel
+description: The source of data for the layout (renderer). The datamodel produces viewmodel data; the renderer consumes it. Holds column-major data arrays and facet metadata for virtualized rendering.
+---
+
+`GridDataViewModel` is the abstract base class that connects data models to the renderer. It holds column-major data arrays, column facets, and rendering configuration. The renderer never touches the datamodel directly - it only calls `getViewportData()` on the viewmodel to fetch data for the current viewport.
+
+<auto-class-outline path="packages/grid/src/renderer/grid-data-viewmodel.ts" name="GridDataViewModel" title="Outline" />
+
+## Role in the pipeline
+
+The grid pipeline is: **[DataSource](/docs/datasource) → [DataModel](/docs/datamodel) → ViewModel → Renderer**.
+
+The ViewModel is the data the renderer (layout) needs to draw a grid. The DataModel produces `*Params` objects ([`PivotDataViewModelParams`](/docs/api-references/type-references#pivotdataviewmodelparams) or [`FlattenedDataViewModelParams`](/docs/api-references/type-references#flatteneddataviewmodelparams)) that are fed into the ViewModel constructor. However, you can skip the DataModel entirely and push data directly into a ViewModel - useful when you already have the full data and want to handle transformations yourself.
+
+The viewmodel-to-renderer path is designed to be fast (under ~2ms) - it performs memory reads and array slicing with no computation. Resetting or updating the viewmodel is the recommended way to push new data into the grid.
+
+## Unidirectional data flow
+
+Data flows one way: **ViewModel → Renderer**. The renderer never mutates the viewmodel's data.
+
+The cycle works like this:
+
+1. Create or update a viewmodel with your data
+2. Feed it to the renderer via `grid.data = viewModel`
+3. On interaction or data update, recreate/update the viewmodel and set it on the renderer again
+
+```ts
+// Initial render
+const viewModel = new PivotDataViewModel(params);
+grid.data = viewModel;
+
+// On data update - update viewmodel and reset on renderer
+const newParams = await dataModel.getViewModelData(config);
+viewModel.updateData(newParams);
+grid.data = viewModel;
+```
+
+This unidirectional cycle is cheap to perform because viewmodel updates are fast memory operations - swapping array references and re-resolving options.
+
+## Data layout
+
+Data is stored in column-major format: `data[col][row]`. Each inner array holds all values for one column across all rows.
+
+```ts
+// 3 rows, 2 columns (name, age):
+const data = [
+  ["Alice", "Bob", "Carol"],  // column 0: name
+  [30, 25, 28],               // column 1: age
+];
+
+// Column facets - header labels for the columns.
+// Each inner array is one facet level across all columns.
+const columnFacets: FacetData = [
+  ["name", "age"],  // level 0
+];
+```
+
+Column facets can have multiple levels for nested column headers. Each level is an array of labels; the layout renders them as stacked header rows:
+
+```ts
+// 4 data columns with 2 levels of column headers:
+const columnFacets: FacetData = [
+  ["Q1", "Q1", "Q2", "Q2"],              // level 0 (top)
+  ["revenue", "cost", "revenue", "cost"], // level 1 (bottom)
+];
+```
+
+Key dimensions:
+- `numRows` / `numCols` - dimensions of the loaded `data[][]` arrays
+- `totalRows` - total rows in the full dataset (used for scrollbar sizing). Relevant for paginated flat tables; for pivots, `totalRows === numRows`
+- `offsetTop` - number of rows before the loaded block (used for scroll positioning). Relevant for paginated flat tables; for pivots, `offsetTop === 0`
+
+See [FlattenedDataViewModel](/docs/viewmodel/flattened-data-viewmodel#pagination-totalrows-and-offsettop) for the full pagination explanation.
+
+## getViewportData
+
+```ts
+getViewportData(x0: number, y0: number, x1: number, y1: number): BaseSliceResult
+```
+
+The renderer calls `getViewportData` on every render cycle with the visible cell range (plus overscan).
+
+It returns a [`BaseSliceResult`](/docs/api-references/type-references#basesliceresult) - a window into the viewmodel's data for the requested range. The `data` in the slice stays column-major (same as the viewmodel), but `columnFacets` are transposed - the viewmodel stores facets as `colFacets[level][colIndex]`, but the slice returns them as `columnFacets[colIndex][level]` (grouped per column).
+
+Example: given a viewmodel with 3 columns (Name, Revenue, Trend) and 5 rows, requesting the slice `(1, 0, 3, 2)` (columns 1-2, rows 0-1):
+
+```ts
+const slice = viewModel.getViewportData(1, 0, 3, 2);
+
+slice.numRows;       // 5 (full viewmodel)
+slice.numCols;       // 3 (full viewmodel)
+slice.sliceNumRows;  // 2 (rows 0-1)
+slice.sliceNumCols;  // 2 (columns 1-2)
+
+slice.data;
+// [
+//   [8150, 5650],   // column 1 (Revenue), rows 0-1
+//   [~~~, ~~~],     // column 2 (Trend), rows 0-1
+// ]
+
+slice.columnFacets;
+// [
+//   ["Revenue"],    // column 1: facet values across levels
+//   ["Trend"],      // column 2: facet values across levels
+// ]
+```
+
+Internally it:
+
+1. Calls `getSlice(x0, y0, x1, y1)` - which subclasses override to add row facets and row metadata
+2. Fires a debounced `viewportDataChange` callback (50ms debounce) when the viewport bounds change
+
+Subscribe to this callback to perform lazy operations on data that is currently in view - for example, fetching expanded row children only when the user scrolls them into the viewport.
+
+```ts
+const unsubscribe = viewModel.register("viewportDataChange", (viewport) => {
+  // viewport: { x0, y0, x1, y1 }
+});
+
+// Later: unsubscribe()
+```
+
+## VTrackDefs and FacetDefs
+
+A grid is composed of vertical tracks (columns of data cells) and facet tracks (header rows/columns). [`GridDataViewModelOptions`](/docs/api-references/type-references#griddataviewmodeloptions) lets you configure how each of these is rendered.
+
+```ts
+interface GridDataViewModelOptions {
+  vTrackDefs?: VTrackDef[];
+  facetDefs?: {
+    row: Partial<FacetDef>[];
+    col: Partial<FacetDef>[];
+    axis: "row" | "col";
+  };
+}
+```
+
+### Vertical tracks (VTrackDef)
+
+Each column of data cells is a vertical track. A [`VTrackDef`](/docs/api-references/type-references#vtrackdef) configures one vertical track - its cell renderer, cell height, and column sizing strategy. The `vTrackDefs` array is indexed by column position: `vTrackDefs[0]` configures column 0, `vTrackDefs[1]` configures column 1, and so on.
+
+Consider a simple table with 3 columns - Name, Revenue, and Trend:
+
+<div style={{ display: 'inline-grid', gridTemplateColumns: 'auto auto auto', gap: '1px', padding: '1px', background: 'color-mix(in srgb, var(--color-fd-foreground) 20%, var(--color-fd-background))', borderRadius: '6px', width: 'fit-content', fontSize: '13px' }}>
+  <div style={{ padding: '6px 24px', background: 'color-mix(in srgb, var(--color-fd-foreground) 3%, var(--color-fd-background))', textAlign: 'center', fontWeight: 600 }}>Name</div>
+  <div data-highlight="vertical-track" style={{ padding: '6px 24px', background: 'light-dark(#dbeafe, #1e2a3a)', textAlign: 'center', fontWeight: 600 }}>Revenue</div>
+  <div style={{ padding: '6px 24px', background: 'color-mix(in srgb, var(--color-fd-foreground) 3%, var(--color-fd-background))', textAlign: 'center', fontWeight: 600 }}>Trend</div>
+  <div style={{ padding: '6px 24px', background: 'color-mix(in srgb, var(--color-fd-foreground) 3%, var(--color-fd-background))', textAlign: 'center' }}>Alice</div>
+  <div data-highlight="vertical-track" style={{ padding: '6px 24px', background: 'light-dark(#dbeafe, #1e2a3a)', textAlign: 'center' }}>8150</div>
+  <div style={{ padding: '6px 24px', background: 'color-mix(in srgb, var(--color-fd-foreground) 3%, var(--color-fd-background))', textAlign: 'center' }}>~~~</div>
+  <div style={{ padding: '6px 24px', background: 'color-mix(in srgb, var(--color-fd-foreground) 3%, var(--color-fd-background))', textAlign: 'center' }}>Bob</div>
+  <div data-highlight="vertical-track" style={{ padding: '6px 24px', background: 'light-dark(#dbeafe, #1e2a3a)', textAlign: 'center' }}>5650</div>
+  <div style={{ padding: '6px 24px', background: 'color-mix(in srgb, var(--color-fd-foreground) 3%, var(--color-fd-background))', textAlign: 'center' }}>~~~</div>
+  <div style={{ padding: '6px 24px', background: 'color-mix(in srgb, var(--color-fd-foreground) 3%, var(--color-fd-background))', textAlign: 'center' }}>Carol</div>
+  <div data-highlight="vertical-track" style={{ padding: '6px 24px', background: 'light-dark(#dbeafe, #1e2a3a)', textAlign: 'center' }}>1730</div>
+  <div style={{ padding: '6px 24px', background: 'color-mix(in srgb, var(--color-fd-foreground) 3%, var(--color-fd-background))', textAlign: 'center' }}>~~~</div>
+</div>
+
+<p style={{ fontSize: '12px', color: 'var(--color-fd-muted-foreground)', marginTop: '4px' }}>The blue-highlighted column is one vertical track, configured by <code>vTrackDefs[1]</code>. Each column in the grid is a vertical track.</p>
+
+Name and Revenue use the default `textRenderer`; Trend uses a custom sparkline renderer with a fixed cell height:
+
+```ts
+interface VTrackDef<T = any> {
+  renderer?: CellRenderer<T>;
+  cellHeight?: number;
+  sampleData?: T;
+  colSize?: ColAutoSizeConfig;
+}
+```
+
+```ts
+const options: GridDataViewModelOptions = {
+  vTrackDefs: [
+    undefined,  // column 0 (Name): default textRenderer
+    undefined,  // column 1 (Revenue): default textRenderer
+    {           // column 2 (Trend): custom sparkline
+      renderer: sparklineRenderer,
+      cellHeight: 40,
+      colSize: { strategy: "static", width: 2, unit: "fr" },
+    },
+  ],
+};
+```
+
+Columns without a [`VTrackDef`](/docs/api-references/type-references#vtrackdef) (or with no `renderer` set) get the default `textRenderer`.
+
+### Facet tracks (FacetDef)
+
+When columns are nested (grouped), the header area has multiple levels. Each level is populated by a field's values and rendered as a horizontal facet track. A [`FacetDef`](/docs/api-references/type-references#facetdef) configures one facet level - its track renderer (draws the facet cell), header renderer (draws the level label), display text, and optional metadata.
+
+Consider a table with columns grouped by Quarter, each containing Revenue and Cost:
+
+<div style={{ display: 'inline-grid', gridTemplateColumns: 'auto auto auto auto', gap: '1px', padding: '1px', background: 'color-mix(in srgb, var(--color-fd-foreground) 20%, var(--color-fd-background))', borderRadius: '6px', width: 'fit-content', fontSize: '13px' }}>
+  <div data-highlight="facet-track" style={{ padding: '6px 24px', background: 'light-dark(#fef3c7, #3d3520)', textAlign: 'center', fontWeight: 600, gridColumn: 'span 2' }}>Q1</div>
+  <div data-highlight="facet-track" style={{ padding: '6px 24px', background: 'light-dark(#fef3c7, #3d3520)', textAlign: 'center', fontWeight: 600, gridColumn: 'span 2' }}>Q2</div>
+  <div data-highlight="facet-track" style={{ padding: '6px 24px', background: 'light-dark(#fef3c7, #3d3520)', textAlign: 'center' }}>Revenue</div>
+  <div data-highlight="facet-track+vertical-track" style={{ padding: '6px 24px', background: 'light-dark(#d4e3f5, #253040)', textAlign: 'center' }}>Cost</div>
+  <div data-highlight="facet-track" style={{ padding: '6px 24px', background: 'light-dark(#fef3c7, #3d3520)', textAlign: 'center' }}>Revenue</div>
+  <div data-highlight="facet-track" style={{ padding: '6px 24px', background: 'light-dark(#fef3c7, #3d3520)', textAlign: 'center' }}>Cost</div>
+  <div style={{ padding: '6px 24px', background: 'color-mix(in srgb, var(--color-fd-foreground) 3%, var(--color-fd-background))', textAlign: 'center' }}>8150</div>
+  <div data-highlight="vertical-track" style={{ padding: '6px 24px', background: 'light-dark(#dbeafe, #1e2a3a)', textAlign: 'center' }}>3200</div>
+  <div style={{ padding: '6px 24px', background: 'color-mix(in srgb, var(--color-fd-foreground) 3%, var(--color-fd-background))', textAlign: 'center' }}>5650</div>
+  <div style={{ padding: '6px 24px', background: 'color-mix(in srgb, var(--color-fd-foreground) 3%, var(--color-fd-background))', textAlign: 'center' }}>2100</div>
+  <div style={{ padding: '6px 24px', background: 'color-mix(in srgb, var(--color-fd-foreground) 3%, var(--color-fd-background))', textAlign: 'center' }}>7200</div>
+  <div data-highlight="vertical-track" style={{ padding: '6px 24px', background: 'light-dark(#dbeafe, #1e2a3a)', textAlign: 'center' }}>2800</div>
+  <div style={{ padding: '6px 24px', background: 'color-mix(in srgb, var(--color-fd-foreground) 3%, var(--color-fd-background))', textAlign: 'center' }}>6100</div>
+  <div style={{ padding: '6px 24px', background: 'color-mix(in srgb, var(--color-fd-foreground) 3%, var(--color-fd-background))', textAlign: 'center' }}>2400</div>
+</div>
+
+<p style={{ fontSize: '12px', color: 'var(--color-fd-muted-foreground)', marginTop: '4px' }}>Yellow rows are facet tracks (column facets) - the top row (Q1, Q2) is facet level 0, the second row (Revenue, Cost) is facet level 1. The blue column is one vertical track (<code>vTrackDefs[1]</code>).</p>
+
+The header has two facet levels - level 0 is the Quarter field, level 1 is the measure names. Each facet level is a horizontal track configured by a `FacetDef`:
+
+```ts
+interface FacetDef {
+  text: string;
+  facetField?: string | null;
+  headerRenderer: FacetHeaderRenderer;
+  trackRenderer: FacetCellRenderer;
+  meta?: FacetMeta;
+  pseudo?: boolean;
+  colSize?: ColAutoSizeConfig;      // row facets only
+  groupSchema?: DataSchema[];
+}
+```
+
+The same concept applies to row facets. When rows are grouped (e.g. by region), the row facet column on the left is a facet track:
+
+<div style={{ display: 'inline-grid', gridTemplateColumns: 'auto auto auto', gap: '1px', padding: '1px', background: 'color-mix(in srgb, var(--color-fd-foreground) 20%, var(--color-fd-background))', borderRadius: '6px', width: 'fit-content', fontSize: '13px' }}>
+  <div data-highlight="facet-header" style={{ padding: '6px 24px', background: 'color-mix(in srgb, var(--color-fd-foreground) 8%, var(--color-fd-background))', textAlign: 'center', fontWeight: 600 }}>Name</div>
+  <div data-highlight="facet-track" style={{ padding: '6px 24px', background: 'light-dark(#fef3c7, #3d3520)', textAlign: 'center', fontWeight: 600 }}>Alice</div>
+  <div data-highlight="facet-track" style={{ padding: '6px 24px', background: 'light-dark(#fef3c7, #3d3520)', textAlign: 'center', fontWeight: 600 }}>Bob</div>
+  <div data-highlight="facet-header" style={{ padding: '6px 24px', background: 'color-mix(in srgb, var(--color-fd-foreground) 8%, var(--color-fd-background))', textAlign: 'center', fontWeight: 600 }}>Region</div>
+  <div data-highlight="facet-track+vertical-track" style={{ padding: '6px 24px', background: 'light-dark(#d4e3f5, #253040)', textAlign: 'center', fontWeight: 600 }}>Revenue</div>
+  <div data-highlight="facet-track" style={{ padding: '6px 24px', background: 'light-dark(#fef3c7, #3d3520)', textAlign: 'center', fontWeight: 600 }}>Revenue</div>
+  <div data-highlight="row-facet-track" style={{ padding: '6px 24px', background: 'light-dark(#fef3c7, #3d3520)', textAlign: 'center' }}>▼ USA</div>
+  <div data-highlight="vertical-track" style={{ padding: '6px 24px', background: 'light-dark(#dbeafe, #1e2a3a)', textAlign: 'center' }}>8150</div>
+  <div style={{ padding: '6px 24px', background: 'var(--color-fd-background)', textAlign: 'center' }}>5650</div>
+  <div data-highlight="row-facet-track" style={{ padding: '6px 24px', background: 'light-dark(#fef3c7, #3d3520)', textAlign: 'center' }}>▼ Germany</div>
+  <div data-highlight="vertical-track" style={{ padding: '6px 24px', background: 'light-dark(#dbeafe, #1e2a3a)', textAlign: 'center' }}>3200</div>
+  <div style={{ padding: '6px 24px', background: 'var(--color-fd-background)', textAlign: 'center' }}>2100</div>
+  <div data-highlight="row-facet-track" style={{ padding: '6px 24px', background: 'light-dark(#fef3c7, #3d3520)', textAlign: 'center' }}>▶ France</div>
+  <div data-highlight="vertical-track" style={{ padding: '6px 24px', background: 'light-dark(#dbeafe, #1e2a3a)', textAlign: 'center' }}></div>
+  <div style={{ padding: '6px 24px', background: 'var(--color-fd-background)', textAlign: 'center' }}></div>
+</div>
+
+<p style={{ fontSize: '12px', color: 'var(--color-fd-muted-foreground)', marginTop: '4px' }}>Yellow cells are facet tracks - the top row (Alice, Bob) is a column facet track, and the left column (USA, Germany, France) is a row facet track. The blue column is a vertical track (<code>vTrackDefs[0]</code>). The gray "Name" and "Region" cells are facet headers (rendered by <code>headerRenderer</code>).</p>
+
+A FacetDef has two renderers:
+- **`trackRenderer`** - draws each facet cell (e.g. the "Alice", "Revenue" cells in the yellow facet track above). This is the per-cell renderer for the facet track.
+- **`headerRenderer`** - draws the level label (e.g. the gray "Name" and "Region" cells above). This is called once per level.
+
+```ts
+const options: GridDataViewModelOptions = {
+  facetDefs: {
+    row: [
+      {
+        text: "Region",
+        trackRenderer: myGroupFacetRenderer,
+        headerRenderer: defaultFacetHeaderRenderer,
+        meta: { projectionState: "expanded", projectedValues: new Set(["Europe"]) },
+      },
+    ],
+    col: [
+      { text: "Quarter", trackRenderer: defaultFacetRenderer, headerRenderer: defaultFacetHeaderRenderer },
+      { text: "Measure", trackRenderer: defaultFacetRenderer, headerRenderer: defaultFacetHeaderRenderer },
+    ],
+    axis: "col",
+  },
+};
+```
+
+### ColAutoSizeConfig - column sizing strategies
+
+[`ColAutoSizeConfig`](/docs/api-references/type-references#colautosizeconfig) supports three strategies:
+
+- **`"max-cell"`** (default) - auto-sizes the column to the widest cell content
+- **`"fixed-width"`** - fixed width in pixels, with optional min/max bounds
+- **`"static"`** - fixed width in `fr`, `%`, or `px` units
+
+All strategies accept `excludeColumnFacets?: boolean` - when `true`, column facet cells are excluded from auto-size measurement.
+
+```ts
+// Auto-size to content (default)
+{ strategy: "max-cell" }
+
+// Fixed pixel width with min/max bounds
+{ strategy: "fixed-width", widthInPx: 200, minWidthInPx: 100, maxWidthInPx: 400 }
+
+// Fixed 2fr width
+{ strategy: "static", width: 2, unit: "fr" }
+```
+
+When any column or facet uses `"static"` strategy, the viewmodel propagates static strategy to all columns and facets. Mixed strategies are not supported - it is all-or-nothing.
+
+## MetaState
+
+[`MetaState`](/docs/api-references/type-references#metastate) is a namespaced key-value store attached to each viewmodel instance. You can store any data here and use it as a general-purpose grid store - it survives viewmodel data updates (the data arrays get swapped, but metaState persists).
+
+Only one viewmodel instance lives for the lifetime of a grid (or layout). When `updateData` is called, the data arrays are swapped but the `metaState` persists - so the renderer does not lose its transient state across data refreshes.
+
+```ts
+// Store state
+viewModel.metaState.set("scroll", "x", 150);
+viewModel.metaState.set("scroll", "y", 300);
+
+// Read state
+const scrollState = viewModel.metaState.get("scroll");
+// { x: 150, y: 300 }
+
+// Clear a single key
+viewModel.metaState.clear("scroll", "x");
+
+// Clear entire namespace
+viewModel.metaState.clear("scroll");
+```
+
+## API Reference
+
+<auto-type-table path="packages/grid/src/renderer/grid-data-viewmodel.ts" name="GridDataViewModel" />
