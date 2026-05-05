@@ -1,0 +1,435 @@
+---
+title: Dataflow
+description: How data flows through the pipeline that is part of the grid's lifecycle - from raw storage through transformation and viewmodel construction to DOM rendering. Each layer has a single responsibility and communicates with the next through a defined interface.
+---
+
+The grid is built as four layers, each with a single responsibility. This is a headless library - it requires a layer above (your code) to tie all these components together. This allows great extensibility and composability.
+
+## Patterns
+
+The four layers are: **DataSource**, **DataModel**, **DataViewModel**, and **Renderer**. Your code acts as the headless manager that orchestrates them. If the interfaces are adhered to, the dataflow just works.
+
+- **DataSource** connects to the actual data storage (a WASM database in the browser, an API server, in-memory data) and forwards config/queries to it. It does not know what the queries mean - it just sends them to the source and returns results. Example: a SQL string against a WASM DuckDB instance, or a JSON payload to an API server.
+- **DataModel** accepts a config describing what transformation to apply (group by, sort, window, reshape) and asks the DataSource to execute it. It receives raw results back and reshapes them into params ready for the ViewModel. Your code calls the DataModel and receives these params.
+- **DataViewModel** is a thin, fast, ready-to-render structure. Your code takes the params from the DataModel, applies any local transforms or formatting hooks, and feeds them into the ViewModel. The ViewModel knows nothing about where the data came from.
+- **Renderer** (the Grid instance) receives the ViewModel via `grid.data = viewModel` and renders cells into the DOM. It subscribes to events on the Renderer (scroll, interaction, `viewDataEmpty`) and uses those events to drive the next cycle - asking the DataModel for new data and feeding it back through the pipeline.
+
+Each layer is an interface or abstract class, so you can replace any layer without touching the others.
+
+### New grid creation
+
+The example below uses `DuckDBWasmDataSource` (to connect to a WASM SQL database in the browser) and `SqlPivotTableDataModel` (to model data using SQL syntax) - these are opinionated subclasses that ship with the library. You can substitute any class that implements `DataSource<T>` or extends `DataModel`.
+
+```ts
+// 1. Create a DataSource and load data into it
+const ds = await DuckDBWasmDataSource.create();
+await ds.loadData({
+  schema: [
+    { name: "region", type: "dimension" },
+    { name: "quarter", type: "dimension" },
+    { name: "revenue", type: "measure", subtype: "integer", aggregateFn: "sum" },
+  ],
+  data: [
+    ["USA", "USA", "Germany", "Germany"],   // region
+    ["Q1", "Q2", "Q1", "Q2"],              // quarter
+    [8150, 5650, 3200, 2100],              // revenue
+  ],
+});
+
+// 2. Create a DataModel - it holds a reference to the DataSource
+const model = new SqlPivotTableDataModel(ds.schema, ds);
+
+// 3. Ask the DataModel to transform data based on a config
+//    Internally, the DataModel generates SQL, sends it to the DataSource,
+//    and reshapes the raw result into params ready for the ViewModel.
+const params = await model.getViewModelData({
+  rows: "region",
+  columns: cross("quarter", "revenue"),
+});
+
+// 4. Create a ViewModel from the params
+//    Any local transforms or formatting hooks go here, between
+//    receiving params and constructing the ViewModel.
+const viewModel = new PivotDataViewModel(params);
+
+// 5. Create the Renderer, set the ViewModel, and draw
+const grid = new Grid({}, mountEl);
+grid.data = viewModel;
+grid.draw();
+```
+
+### Data update on scroll
+
+When the grid scrolls, the Renderer calls `viewModel.getViewportData(x0, y0, x1, y1)` with the updated viewport. This is the hot path with fast render performance. If the ViewModel has the data for the requested range, it returns it immediately.
+
+But the ViewModel only holds a contiguous block of data. The full dataset may be larger. When the Renderer needs data that the ViewModel does not have, it emits a `viewDataEmpty` event with `{ startRow, endRow }`.
+
+Your code subscribes to this event and asks the DataModel to fetch the page. The DataModel checks its page cache - if the page is already cached, it assembles a contiguous block of data from adjacent cached pages (not just the single requested page) and returns it. If the page is not cached, the DataModel fetches it from the DataSource and evicts distant pages if necessary to prevent the browser from running out of memory.
+
+```ts
+grid.on("viewDataEmpty", async ({ startRow, endRow }) => {
+  // 1. Ask the DataModel to fetch the page
+  //    The DataModel checks its cache, fetches from the DataSource if needed,
+  //    evicts distant pages if over the cache limit, and assembles a
+  //    contiguous block of adjacent pages into params.
+  const newParams = await model.getViewModelData({ ...ir, startRow, endRow });
+
+  // 2. Update the ViewModel with the new contiguous block and re-render
+  viewModel.updateData(newParams);
+  grid.data = viewModel;
+  grid.draw();
+});
+```
+
+### Data update from a cell interaction
+
+A custom cell renderer can render any DOM element - including interactive ones like buttons. When the user clicks, your code runs the same update flow: ask the DataModel for new data, update the ViewModel, re-draw.
+
+```ts
+// A cell renderer that renders a "Refresh" button
+const buttonRenderer: CellRenderer<unknown> = (data, ctx) => {
+  const btn = document.createElement("button");
+  btn.textContent = "Refresh";
+  btn.onclick = async () => {
+    // 1. Ask the DataModel for fresh data from the DataSource
+    const newParams = await model.getViewModelData(config);
+
+    // 2. Feed the new params into the existing ViewModel
+    viewModel.updateData(newParams);
+
+    // 3. Set the updated ViewModel on the Renderer and re-draw
+    grid.data = viewModel;
+    grid.draw();
+  };
+  return btn;
+};
+```
+
+The renderer has no opinion about what happens on click. It just renders the DOM element; your code decides what the interaction does and drives the data pipeline.
+
+## DataSource
+
+The DataSource owns raw data and executes queries against it. It knows nothing about pivots, grouping, or rendering - it only runs commands and returns results.
+
+The generic `DataSource<T>` interface takes a query of type `T` and returns rows:
+
+```ts
+interface DataSource<T> {
+  execute(req: T): Promise<Record<string, any>[]>;
+  addRef(): void;
+  release(): Promise<void>;
+}
+```
+
+The caller decides what query to send. The DataSource just executes it and returns the result.
+
+### Ref counting
+
+Multiple consumers can share one DataSource. For example, a pivot grid and a flat table can both use the same DataSource to avoid loading data twice. `addRef()` increments the reference count; `release()` decrements it. When the count reaches zero, underlying resources (connections, WASM instances) are freed.
+
+```ts
+// Two models share one datasource
+const ds = await DuckDBWasmDataSource.create();
+await ds.loadData({ schema, data });
+
+const pivotModel = new SqlPivotTableDataModel(schema, ds);
+ds.addRef(); // pivotModel is consumer #1, flatModel will be #2
+
+const flatModel = new SqlStandardTableDataModel(schema, ds);
+
+// Later, when the flat table is destroyed:
+await ds.release(); // count drops to 1 - datasource stays alive for pivotModel
+```
+
+### SqlDataSource
+
+`SqlDataSource` narrows the generic `DataSource<T>` to `DataSource<string>` - the query is always a SQL string. It adds `loadData()` for ingesting column-major data into a WASM SQL engine (DuckDB):
+
+```ts
+await ds.loadData({
+  schema: [
+    { name: "city", type: "dimension" },
+    { name: "revenue", type: "measure", subtype: "integer" },
+  ],
+  data: [
+    ["NYC", "LA", "London"],  // column 0: city values
+    [100, 200, 150],          // column 1: revenue values
+  ],
+});
+
+// Now you can query the data with SQL
+const result = await ds.execute("SELECT city, revenue FROM __ds__0 WHERE revenue > 120");
+```
+
+Data is column-major: `data[i]` is the array of values for `schema[i]`. After `loadData()`, the data lives in a SQL table and any SQL query can run against it.
+
+### Adding a new DataSource
+
+A new DataSource can be added by implementing the `DataSource<T>` interface. The rest of the pipeline does not need to change:
+
+```ts
+class MyApiDataSource implements DataSource<ApiRequest> {
+  async execute(req: ApiRequest): Promise<Record<string, any>[]> {
+    const response = await fetch(req.url, { method: "POST", body: JSON.stringify(req.payload) });
+    return response.json();
+  }
+  addRef() { /* track count */ }
+  async release() { /* close connections */ }
+}
+```
+
+## DataModel
+
+The DataModel accepts a config describing what transformation to apply on raw data (group by, window functions, sort, reshape, or any custom transformation), fetches the transformed data from the DataSource, and produces params that the ViewModel consumes directly.
+
+```ts
+abstract class DataModel<TInput, TViewModelData> {
+  abstract getViewModelData(input: TInput): Promise<TViewModelData>;
+}
+```
+
+The DataModel is where business logic lives - pivoting, grouping, aggregation, pagination. It knows nothing about DOM or rendering. Two pipelines exist:
+
+### PivotTableDataModel
+
+Takes a `PivotConfig` with table algebra operators (`cross`, `hierarchy`, `concat`), generates queries against the DataSource, reshapes flat query results into a 2D pivot grid, and produces `PivotDataViewModelParams`.
+
+```ts
+import { cross, hierarchy } from "grid";
+
+const config: PivotConfig = {
+  // Nested hierarchy on rows: region > country (only observed combinations appear)
+  rows: {
+    expr: hierarchy("region", "country"),
+    // Dimensional projection: expand all regions, but only expand "USA" to show its countries
+    projection: [{ open: "*", next: { open: ["USA"] } }],
+  },
+  // Cartesian product on columns: every quarter × every measure (revenue, cost)
+  columns: cross("quarter", concat("revenue", "cost")),
+  // Filter to 2024 data only
+  filter: [{ field: "year", op: "eq", value: "2024" }],
+  // Sort regions by aggregated revenue descending, then alphabetically as tiebreaker
+  sort: [
+    { field: "region", direction: "desc", by: "revenue" },
+    { field: "region", direction: "asc" },
+  ],
+};
+
+const params = await pivotModel.getViewModelData(config);
+
+// params.rowFacets - row headers at each level:
+// [
+//   ["USA", "USA", "USA", "Germany", "France"],  // level 0: region
+//   [null, "California", "New York", null, null], // level 1: country (null = collapsed/no children)
+// ]
+
+// params.columnFacets - column headers at each level:
+// [
+//   ["Q1", "Q1", "Q2", "Q2"],              // level 0: quarter
+//   ["revenue", "cost", "revenue", "cost"], // level 1: measures
+// ]
+
+// params.data - 2D aggregated values (column-major):
+// [
+//   [8150, 3200, 1200, 4100, 2700],  // Q1 revenue (one value per row facet combination)
+//   [5000, 2100, 800, 3000, 1900],   // Q1 cost
+//   [5650, 2800, 900, 3500, 2100],   // Q2 revenue
+//   [3200, 1500, 600, 2000, 1200],   // Q2 cost
+// ]
+```
+
+### StandardTableDataModel
+
+Generates queries for grouped and paginated rows. Produces `FlattenedDataViewModelParams` for the flat table renderer. Handles pagination internally - it caches pages, fetches missing ones on demand, and evicts distant pages when memory limits are reached.
+
+```ts
+const ir: StandardDataFetchAndTransformIR = {
+  // Fetch the first page of 10,000 rows
+  startRow: 0,
+  endRow: 10000,
+  // Top-level groups (empty path); ["USA"] would fetch children of the USA group
+  groupPath: [],
+  // Two-level grouping hierarchy: country > state
+  groupBy: ["country", "state"],
+  // Columns to include in the output
+  project: ["country", "state", "city", "revenue"],
+  // Multi-sort: primary by revenue descending, secondary alphabetical by city
+  sort: [
+    { field: "revenue", direction: "desc" },
+    { field: "city", direction: "asc" },
+  ],
+  // Only rows where revenue > 1000
+  filter: [{ field: "revenue", op: "gt", value: 1000 }],
+};
+
+const params = await flatModel.getViewModelData(ir);
+```
+
+### Both take a DataSource
+
+Both `SqlPivotTableDataModel` and `SqlStandardTableDataModel` accept a `SqlDataSource` in their constructor. They generate SQL from their respective configs and call `dataSource.execute(sql)` to get results:
+
+```ts
+const ds = await DuckDBWasmDataSource.create();
+await ds.loadData({ schema, data });
+
+const pivotModel = new SqlPivotTableDataModel(schema, ds);
+const flatModel = new SqlStandardTableDataModel(schema, ds);
+```
+
+## DataViewModel
+
+The bridge between data and rendering. A thin, fast, ready-to-render structure that holds column-major data arrays, facet metadata, track definitions, and rendering options.
+
+The DataModel prepares data that can be fed to a ViewModel directly, or after local transformation/formatting. The ViewModel is designed to be fast to read (under ~2ms) - the Renderer calls `getViewportData()` on every frame. No computation happens during reads; it is pure memory access and array slicing.
+
+Two subclasses:
+
+- **PivotDataViewModel** - multi-level row/column facets with aggregated data cells. Used with `StandardLayout`.
+- **FlattenedDataViewModel** - single-level row facet with packed row metadata (`Uint8Array` encoding depth, leaf, and expanded bits per row). Used with `GroupedRowLayout`.
+
+```ts
+// Pivot
+const viewModel = new PivotDataViewModel(params);
+
+// Flat table
+const viewModel = new FlattenedDataViewModel(params);
+```
+
+The ViewModel knows nothing about DOM. It only knows data shapes - arrays, facet labels, track configs. The Renderer pulls what it needs via `getViewportData(x0, y0, x1, y1)` which returns only the slice of data visible in the current scroll position.
+
+## Renderer
+
+The `Grid` class receives a ViewModel via `grid.data = viewModel`, calculates the viewport (which rows and columns are visible), and renders cells into the DOM. It picks a layout engine based on type:
+
+- `"pivot"` (default) - uses `StandardLayout` for multi-level row/column facets with merge/span
+- `"flat"` - uses `GroupedRowLayout` for single-level row facets with depth-based indentation
+
+```ts
+const grid = new Grid({ overscan: 3 }, mountEl, "pivot");
+grid.data = viewModel;
+grid.draw();
+```
+
+The Renderer knows nothing about SQL, pivoting, or data storage. Its responsibilities:
+
+- **Viewport calculation** - determines which rows/columns are visible based on scroll position
+- **Virtualization** - only renders cells that are in the viewport (plus overscan)
+- **DOM element reuse** - recycles DOM elements via a cell pool to avoid churn during scrolling
+- **Column auto-sizing** - measures rendered cells and adjusts column widths
+- **Scroll handling** - translates wheel events into viewport row/column indices
+
+On each render frame, the Renderer calls `viewModel.getViewportData(x0, y0, x1, y1)` to get only the data needed for visible cells. Scrolling by a few rows only creates cells for newly visible rows while recycling cells that scrolled out of view.
+
+## Swapping layers
+
+Each layer communicates through an interface. You can replace any layer without touching the others.
+
+### Skip the DataModel
+
+Push data directly into a ViewModel when you already have the final shape. Use case: you receive pre-aggregated data from a server API and do not need client-side pivoting or grouping.
+
+```ts
+// Data already in the right shape - skip the DataModel entirely
+const params: PivotDataViewModelParams = {
+  data: [
+    [8150, 5650, 1730],  // column 0 values
+    [3200, 2100, 900],   // column 1 values
+  ],
+  columnFacets: [["Q1", "Q1", "Q2"], ["Revenue", "Cost", "Revenue"]],
+  rowFacets: [["USA", "Germany", "France"]],
+  options: { vTrackDefs: [] },
+};
+
+const viewModel = new PivotDataViewModel(params);
+grid.data = viewModel;
+grid.draw();
+```
+
+### Swap the DataSource
+
+The SQL-based DataModels require a `SqlDataSource`. We pack DuckDB by default, but this is not the only option. Any WASM SQL database works - you just extend `SqlDataSource` and implement `execute` and `insertArrowTable` for your engine. Use case: you prefer PGlite (Postgres WASM) over DuckDB.
+
+```ts
+import { PGlite } from "@electric-sql/pglite";
+
+class PGliteDataSource extends SqlDataSource {
+  #db: PGlite;
+
+  constructor(db: PGlite) {
+    super();
+    this.#db = db;
+  }
+
+  async execute(sql: string): Promise<Record<string, any>[]> {
+    const result = await this.#db.query(sql);
+    return result.rows;
+  }
+
+  protected async insertArrowTable(table: arrow.Table, name: string) {
+    // Convert Arrow table to row inserts for PGlite
+  }
+
+  async release() {
+    this.refCount--;
+    if (this.refCount <= 0) await this.#db.close();
+  }
+}
+
+// Use with the same SqlPivotTableDataModel - it generates SQL the same way
+const db = new PGlite();
+const ds = new PGliteDataSource(db);
+await ds.loadData({ schema, data });
+const model = new SqlPivotTableDataModel(schema, ds);
+```
+
+### Share a DataSource
+
+Multiple grids can share one DataSource via ref counting. Use case: a dashboard with a pivot summary and a detail table both showing the same dataset - load the data once, query it from both models.
+
+```ts
+const ds = await DuckDBWasmDataSource.create();
+await ds.loadData({ schema, data });
+
+// Pivot grid
+const pivotModel = new SqlPivotTableDataModel(schema, ds);
+ds.addRef();
+
+// Flat detail table (same data, different view)
+const flatModel = new SqlStandardTableDataModel(schema, ds);
+
+// When pivot grid is destroyed
+await ds.release(); // flat table still uses ds
+
+// When flat table is destroyed
+await ds.release(); // count reaches 0, resources freed
+```
+
+### Custom ViewModel
+
+Construct a ViewModel manually from any data source without using a DataModel at all. Use case: you have a custom data format (e.g. a spreadsheet library, a WebSocket stream) and want to render it in the grid without fitting it into the DataModel abstraction.
+
+```ts
+import { FlattenedDataViewModel, createRowMeta } from "grid";
+
+// Build params from your own data source
+const params: FlattenedDataViewModelParams = {
+  data: [
+    ["USA", "Germany", "France"],  // column 0: country
+    [8150, 3200, 1730],            // column 1: revenue
+  ],
+  columnFacets: [["Country", "Revenue"]],  // one header level
+  totalRows: 3,
+  offsetTop: 0,
+  // createRowMeta(depth, isLeaf, isExpanded) packs one byte per row
+  rowMeta: new Uint8Array([
+    createRowMeta(0, true, false),  // row 0: depth 0, leaf, collapsed
+    createRowMeta(0, true, false),  // row 1: depth 0, leaf, collapsed
+    createRowMeta(0, true, false),  // row 2: depth 0, leaf, collapsed
+  ]),
+};
+
+const viewModel = new FlattenedDataViewModel(params);
+grid.data = viewModel;
+grid.draw();
+```

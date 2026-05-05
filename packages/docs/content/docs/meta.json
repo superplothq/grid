@@ -1,6 +1,8 @@
 {
   "pages": [
     "index",
+    "---Concepts---",
+    "dataflow",
     "---Core Components---",
     "datasource",
     "datamodel",
