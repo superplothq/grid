@@ -20,8 +20,10 @@ import {
   SegmentFilter,
   SortEntry,
   TupleFilter,
+  PivotMetadataPlumber,
+  PivotMetadataResolver,
 } from "./types";
-import { FacetDef } from "../renderer/types";
+import { FacetDef, ViewModelMetadata } from "../renderer/types";
 
 /*
  * Cartesian product (×). Each child becomes a facet level; all combinations are enumerated.
@@ -578,9 +580,11 @@ function buildInvertedIndex(facetSpace: (string | null)[][]): Map<string, number
  */
 export abstract class PivotTableDataModel extends DataModel<PivotConfig, PivotDataViewModelParams> {
   private static readonly SRC_COL_PREFIX = "__src__";
+  private metadataPlumber?: PivotMetadataPlumber;
 
-  constructor(schema: DataSchema[]) {
+  constructor(schema: DataSchema[], metadataPlumber?: PivotMetadataPlumber) {
     super(schema);
+    this.metadataPlumber = metadataPlumber;
   }
 
   /**
@@ -647,7 +651,7 @@ export abstract class PivotTableDataModel extends DataModel<PivotConfig, PivotDa
    *
    * @param ir - The intermediate representation containing a `DimSpec` tree and `Measure[]`.
    */
-  abstract getData(ir: PivotDataFetchAndTransformIR): Promise<PivotRawDataFromSource>;
+  abstract getData(ir: PivotDataFetchAndTransformIR, metadataResolver?: PivotMetadataResolver<unknown>): Promise<PivotRawDataFromSource>;
 
   /*
    * Transforms a user-facing AxisExpr tree into an axis-agnostic AxisIR (DimSpec + Measure[]).
@@ -823,6 +827,7 @@ export abstract class PivotTableDataModel extends DataModel<PivotConfig, PivotDa
    * @param config - Describes the row axis, column axis, filters, and sort.
    */
   async getViewModelData(config: PivotConfig): Promise<PivotDataViewModelParams> {
+    const plumbing = this.metadataPlumber?.(config);
     const ir = this.getIR(config);
     const [colDimCount, rowDimCount] = [ir.colIR, ir.rowIR].map(ir => dimSpecFields(ir.dimSpec).length);
     const totalDimCount = rowDimCount + colDimCount;
@@ -833,7 +838,7 @@ export abstract class PivotTableDataModel extends DataModel<PivotConfig, PivotDa
     // NOTE: when sort is absent, the main query's default ORDER BY includes __ord__ columns for
     // column dims too (since the combined dimSpec merges row+col). This is redundant — only row
     // ordering matters here — but harmless. When sort is present it only covers row dims already.
-    const mainDataPromise = this.getData(ir.merged);
+    const mainDataPromise = this.getData(ir.merged, plumbing?.resolver);
     const colFacetPromise = colDimCount > 0
       ? this.getData({ dimSpec: ir.colIR.dimSpec, measures: [] })
       : undefined;
@@ -927,6 +932,23 @@ export abstract class PivotTableDataModel extends DataModel<PivotConfig, PivotDa
     const toPartialFacetDefs = (defs: ColDefsForFacet[]): Partial<FacetDef>[] =>
       defs.map(d => ({ meta: { projectionState: d.projectionState, projectedValues: d.projectedValues } }));
 
+    let metadata: Partial<ViewModelMetadata> | undefined;
+    if (plumbing?.reshaper) {
+      metadata = {};
+      plumbing.reshaper.reshape({
+        config,
+        raw: result,
+        data,
+        rowIndex,
+        colIndex,
+        rowFacets: fullRowFacets,
+        colFacets: fullColFacets,
+        measures: ir.measures,
+        rowDimCount,
+        colDimCount,
+      }, metadata);
+    }
+
     return {
       data,
       columnFacets: fullColFacets,
@@ -938,6 +960,7 @@ export abstract class PivotTableDataModel extends DataModel<PivotConfig, PivotDa
           axis: ir.rowIR.measures.length > 0 ? "row" : "col",
         },
       },
+      metadata,
     };
   }
 }

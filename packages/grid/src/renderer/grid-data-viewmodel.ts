@@ -1,4 +1,4 @@
-import { BaseSliceResult, DataViewport, GridDataViewModelOptions, ResolvedVTrackDef, ColAutoSizeConfig, IColAutoSizeStrategyStatic, FacetDef, FacetData } from "./types";
+import { BaseSliceResult, DataViewport, GridDataViewModelOptions, ResolvedVTrackDef, ColAutoSizeConfig, IColAutoSizeStrategyStatic, FacetDef, FacetData, ViewModelMetadata, MetadataValue } from "./types";
 import { textRenderer, defaultFacetRenderer, defaultFacetHeaderRenderer } from "./cell-renderers";
 import { DataSchema } from "../datamodel/types";
 
@@ -86,12 +86,61 @@ export abstract class GridDataViewModel {
   schema?: DataSchema[];
   /** Namespaced key-value store for arbitrary state that persists across `updateData` calls. See [`MetaState`](/docs/api-references/type-references#metastate). */
   readonly metaState: MetaState = new MetaState();
+  /** Metadata for value cells, facets, and headers. Accessor methods are initialized once and survive merges via spread. */
+  metadata: ViewModelMetadata;
+
+  #valueCellIndex: Map<string, MetadataValue> = new Map();
+  #valueColumnIndex: Map<number, MetadataValue> = new Map();
+  #valueRowIndex: Map<number, MetadataValue> = new Map();
+  #columnFacetIndex: Map<string, MetadataValue> = new Map();
+  #rowFacetIndex: Map<string, MetadataValue> = new Map();
+  #headerIndex: Map<string, MetadataValue> = new Map();
 
   constructor(data: any[][], columnFacets: FacetData) {
     this.#numCols = data.length;
     this.#numRows = data[0].length;
     this.#colFacets = columnFacets;
     this.data = data;
+    this.metadata = {
+      getValueCellMeta: (col, row) => this.#valueCellIndex.get(`${col}:${row}`),
+      getValueColumnMeta: (col) => this.#valueColumnIndex.get(col),
+      getValueRowMeta: (row) => this.#valueRowIndex.get(row),
+      getColumnFacetMeta: (level, index) => this.#columnFacetIndex.get(`${level}:${index}`),
+      getRowFacetMeta: (level, index) => this.#rowFacetIndex.get(`${level}:${index}`),
+      getHeaderMeta: (axis, level) => this.#headerIndex.get(`${axis}:${level}`),
+    };
+  }
+
+  protected mergeMetadata(incoming: Partial<ViewModelMetadata>): void {
+    this.metadata = { ...this.metadata, ...incoming };
+    this.#rebuildMetadataIndexes();
+  }
+
+  #rebuildMetadataIndexes(): void {
+    this.#valueCellIndex.clear();
+    for (const entry of this.metadata.valueCells ?? []) {
+      this.#valueCellIndex.set(`${entry.colIndex}:${entry.rowIndex}`, entry.meta);
+    }
+    this.#valueColumnIndex.clear();
+    for (const entry of this.metadata.valueColumns ?? []) {
+      this.#valueColumnIndex.set(entry.colIndex, entry.meta);
+    }
+    this.#valueRowIndex.clear();
+    for (const entry of this.metadata.valueRows ?? []) {
+      this.#valueRowIndex.set(entry.rowIndex, entry.meta);
+    }
+    this.#columnFacetIndex.clear();
+    for (const entry of this.metadata.columnFacets ?? []) {
+      this.#columnFacetIndex.set(`${entry.level}:${entry.index}`, entry.meta);
+    }
+    this.#rowFacetIndex.clear();
+    for (const entry of this.metadata.rowFacets ?? []) {
+      this.#rowFacetIndex.set(`${entry.level}:${entry.index}`, entry.meta);
+    }
+    this.#headerIndex.clear();
+    for (const entry of this.metadata.headers ?? []) {
+      this.#headerIndex.set(`${entry.axis}:${entry.level}`, entry.meta);
+    }
   }
 
   /**

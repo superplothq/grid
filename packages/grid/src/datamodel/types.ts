@@ -1,4 +1,5 @@
-import { VTrackDef } from "../renderer/types";
+import { VTrackDef, ViewModelMetadata } from "../renderer/types";
+import type { FacetData } from "../renderer/types";
 
 // TODO [Later] remember there might be custom aggregate function as well
 //   (those functions will be registered separately and the name will be used here)
@@ -112,6 +113,8 @@ export interface PivotConfig {
   filter?: Filter[];
   /** Controls the ordering of row facet values. Each [`SortEntry`](/docs/api-references/type-references#sortentry) can sort by the dimension value itself (`by` absent) or by a measure's aggregated value (`by` set to a measure field). `direction: "noop"` keeps the natural order. */
   sort?: SortEntry[];
+  /** Agent-defined metadata configuration. Core does not interpret this field — it passes it through to the metadata plumber's resolver and reshaper. */
+  metadata?: unknown;
 }
 
 export interface SegmentFilter {
@@ -268,6 +271,8 @@ export interface PivotRawDataFromSource {
   columns: string[];
   /** Column-major data. `data[i]` holds all values for `columns[i]`. All inner arrays have the same length (the row count). */
   data: any[][];
+  /** Metadata columns extracted separately from the main data. Keys are metadata aliases (e.g. `"__meta__profit_pct"`), values are column-major arrays aligned with the main data rows. */
+  metadata?: Record<string, any[]>;
 }
 
 export interface ViewModelDataTransformationConfig {
@@ -358,3 +363,54 @@ export interface ExpandedGroup {
   /** Child [`PageNode`](/docs/api-references/type-references#pagenode)s holding the group's row data. */
   pages: PageNode[];
 }
+
+// #region pivot-metadata
+
+export interface PivotMetadataResolverInput {
+  ir: PivotDataFetchAndTransformIR;
+  schema: DataSchema[];
+}
+
+export interface PivotMetadataResolver<T> {
+  resolve(input: PivotMetadataResolverInput): T[];
+}
+
+export interface SqlPivotMetadataResolverInput extends PivotMetadataResolverInput {
+  gridCte: string;
+  tableAlias: string;
+}
+
+export interface SqlSelectExpression {
+  alias: string;
+  sql: string;
+}
+
+export interface SqlPivotMetadataResolver extends PivotMetadataResolver<SqlSelectExpression> {
+  resolve(input: SqlPivotMetadataResolverInput): SqlSelectExpression[];
+}
+
+export interface PivotMetadataReshapeInput {
+  config: PivotConfig;
+  raw: PivotRawDataFromSource;
+  data: any[][];
+  rowIndex: Map<string, number>;
+  colIndex: Map<string, number>;
+  rowFacets: FacetData;
+  colFacets: FacetData;
+  measures: Measure[];
+  rowDimCount: number;
+  colDimCount: number;
+}
+
+export interface PivotMetadataReshaper {
+  reshape(input: PivotMetadataReshapeInput, metadata: Partial<ViewModelMetadata>): void;
+}
+
+export interface PivotMetadataPlumbing<T> {
+  resolver?: PivotMetadataResolver<T>;
+  reshaper: PivotMetadataReshaper;
+}
+
+export type PivotMetadataPlumber<T = unknown> = (config: PivotConfig) => PivotMetadataPlumbing<T>;
+
+// #endregion pivot-metadata

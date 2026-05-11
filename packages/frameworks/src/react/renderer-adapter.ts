@@ -5,7 +5,7 @@
 import { createElement, type FC, type ReactNode } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { flushSync } from "react-dom";
-import type { CellRenderer, RendererContext } from "grid/dist/renderer";
+import type { CellRenderer, RendererContext, ValueCellDataContext } from "grid/dist/renderer";
 import type { FacetCellRenderer, FacetHeaderRenderer, FacetDataContext, FacetRendererContext, FacetHeaderContext } from "grid/dist/renderer";
 import type { CellProps, FacetCellProps, FacetHeaderProps } from "./types";
 
@@ -34,9 +34,15 @@ export class ReactCellAdapter {
   }
 
   createNativeDataCellRenderer(Component: FC<CellProps>): CellRenderer<any> {
-    return (data: any, ctx: RendererContext) => {
+    return (data: any, dataCtx: ValueCellDataContext, ctx: RendererContext) => {
       const root = this.#getOrCreateRoot(ctx.key, ctx.container);
-      const wrapped = this.#wrap(createElement(Component, { value: data, cell: ctx.container }));
+      const wrapped = this.#wrap(createElement(Component, {
+        value: data,
+        cell: ctx.container,
+        viewModel: dataCtx.viewModel,
+        rowIndex: dataCtx.rowIndex,
+        colIndex: dataCtx.colIndex,
+      }));
       this.#pendingRenders.push(() => root.render(wrapped));
     };
   }

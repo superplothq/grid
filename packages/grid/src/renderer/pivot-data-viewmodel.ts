@@ -1,4 +1,4 @@
-import { PivotSliceResult, GridDataViewModelOptions, FacetData } from "./types";
+import { PivotSliceResult, GridDataViewModelOptions, FacetData, ViewModelMetadata } from "./types";
 import { GridDataViewModel } from "./grid-data-viewmodel";
 import type { DataSchema } from "../datamodel/types";
 
@@ -16,6 +16,8 @@ export interface PivotDataViewModelParams {
   options?: GridDataViewModelOptions;
   /** The original schema passed to the data model. */
   schema?: DataSchema[];
+  /** Metadata for value cells, facets, and headers. Merged into the ViewModel on construction and `updateData`. */
+  metadata?: Partial<ViewModelMetadata>;
 }
 
 // Invariants:
@@ -37,6 +39,7 @@ export class PivotDataViewModel extends GridDataViewModel {
     this.#rowFacets = params.rowFacets;
     this.schema = params.schema;
     this.init(params.options);
+    if (params.metadata) this.mergeMetadata(params.metadata);
   }
 
   /** Number of row facet levels. For `hierarchy("region", "country")` on the row axis, returns 2. Returns 0 when there are no row dimensions. */
@@ -58,6 +61,7 @@ export class PivotDataViewModel extends GridDataViewModel {
     this.#rowFacets = params.rowFacets;
     if (params.schema !== undefined) this.schema = params.schema;
     this.init(params.options);
+    if (params.metadata) this.mergeMetadata(params.metadata);
   }
 
   /**

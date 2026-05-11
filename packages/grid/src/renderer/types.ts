@@ -227,6 +227,66 @@ export interface LayoutFixtureClasses {
   right: PFixtureCls[];
 }
 
+// #region metadata-types
+export type MetadataValue = Record<string, unknown>;
+
+export interface ColumnFacetMetadata {
+  level: number;
+  index: number;
+  meta: MetadataValue;
+}
+
+export interface RowFacetMetadata {
+  level: number;
+  index: number;
+  meta: MetadataValue;
+}
+
+export interface HeaderMetadata {
+  axis: "row" | "column";
+  level: number;
+  meta: MetadataValue;
+}
+
+export interface ValueColumnMetadata {
+  colIndex: number;
+  meta: MetadataValue;
+}
+
+export interface ValueRowMetadata {
+  rowIndex: number;
+  meta: MetadataValue;
+}
+
+export interface ValueCellMetadata {
+  colIndex: number;
+  rowIndex: number;
+  meta: MetadataValue;
+}
+
+export interface ViewModelMetadata {
+  columnFacets?: ColumnFacetMetadata[];
+  rowFacets?: RowFacetMetadata[];
+  headers?: HeaderMetadata[];
+  valueColumns?: ValueColumnMetadata[];
+  valueRows?: ValueRowMetadata[];
+  valueCells?: ValueCellMetadata[];
+
+  getValueCellMeta(colIndex: number, rowIndex: number): MetadataValue | undefined;
+  getValueColumnMeta(colIndex: number): MetadataValue | undefined;
+  getValueRowMeta(rowIndex: number): MetadataValue | undefined;
+  getColumnFacetMeta(level: number, index: number): MetadataValue | undefined;
+  getRowFacetMeta(level: number, index: number): MetadataValue | undefined;
+  getHeaderMeta(axis: "row" | "column", level: number): MetadataValue | undefined;
+}
+
+export interface ValueCellDataContext {
+  viewModel: GridDataViewModel;
+  rowIndex: number;
+  colIndex: number;
+}
+// #endregion metadata-types
+
 export type FacetPredicate = (dim: string, dimVal: string | null, path: [string, string | null][]) => boolean;
 export type CellPredicate = (value: any) => boolean;
 

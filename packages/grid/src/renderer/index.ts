@@ -42,6 +42,15 @@ export type {
   FacetPredicate,
   CellPredicate,
   SelectionProps,
+  ViewModelMetadata,
+  MetadataValue,
+  ColumnFacetMetadata,
+  RowFacetMetadata,
+  HeaderMetadata,
+  ValueColumnMetadata,
+  ValueRowMetadata,
+  ValueCellMetadata,
+  ValueCellDataContext,
 } from "./types";
 export { Selection, CellSelection } from "./select-all";
 export { registerTheme, getTheme } from "./registry";

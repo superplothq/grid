@@ -17,6 +17,9 @@ export type { CellRenderer };
 export interface CellProps<T = any> {
   value: T;
   cell: HTMLElement;
+  viewModel: GridDataViewModel;
+  rowIndex: number;
+  colIndex: number;
 }
 
 export interface FacetCellProps {

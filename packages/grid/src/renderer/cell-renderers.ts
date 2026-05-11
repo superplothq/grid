@@ -1,6 +1,6 @@
 import { scaleLinear } from "d3-scale";
 import { line, curveCatmullRom } from "d3-shape";
-import { FacetCellRenderer, FacetHeaderRenderer } from "./types";
+import { FacetCellRenderer, FacetHeaderRenderer, ValueCellDataContext } from "./types";
 
 // #region cell-renderer
 export interface RendererContext {
@@ -10,7 +10,7 @@ export interface RendererContext {
 
 // when the renderer takes ownership of the container element (framework like react createRoot rendering)
 // it returns undefined (void) from the renderer
-export type CellRenderer<T> = (data: T, ctx: RendererContext) => string | HTMLElement | HTMLElement[] | void;
+export type CellRenderer<T> = (data: T, dataCtx: ValueCellDataContext, ctx: RendererContext) => string | HTMLElement | HTMLElement[] | void;
 // #endregion cell-renderer
 
 export const defaultFacetRenderer: FacetCellRenderer = (data) => {
@@ -21,7 +21,7 @@ export const defaultFacetHeaderRenderer: FacetHeaderRenderer = (text) => {
   return text ?? "";
 };
 
-export const textRenderer: CellRenderer<unknown> = (data, ctx) => {
+export const textRenderer: CellRenderer<unknown> = (data, _dataCtx, ctx) => {
   ctx.container.style.display = "inline-block";
   ctx.container.style.overflow = "hidden";
   ctx.container.style.textOverflow = "ellipsis";
@@ -56,7 +56,7 @@ export const createChartRenderer: CellWithConfigRenderer<ChartConfig, number[]> 
   const { chartType, minWidth, minHeight, padding, color, strokeWidth } = mergedConfig;
 
   // Separate bar / line etc rendering
-  return (data: number[]): string => {
+  return (data: number[], _dataCtx: ValueCellDataContext): string => {
     if (!data || data.length === 0) return "";
 
     const width = minWidth;

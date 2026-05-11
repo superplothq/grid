@@ -1,4 +1,4 @@
-import { FlatSliceResult, GridDataViewModelOptions, FacetData, FlatRowMeta } from "./types";
+import { FlatSliceResult, GridDataViewModelOptions, FacetData, FlatRowMeta, ViewModelMetadata } from "./types";
 import { GridDataViewModel } from "./grid-data-viewmodel";
 import type { DataSchema } from "../datamodel/types";
 
@@ -42,6 +42,8 @@ export interface FlattenedDataViewModelParams {
   totalRows?: number;
   /** Number of rows in the data source that precede the returned `data` block. Since pages are lazy loaded, the page cache can have holes - only a contiguous block around the current scroll position is included in `data`. `offsetTop` tells the renderer how many rows come before this block, so it can position the rendered rows correctly within the full virtual scroll area. */
   offsetTop?: number;
+  /** Metadata for value cells, facets, and headers. Merged into the ViewModel on construction and `updateData`. */
+  metadata?: Partial<ViewModelMetadata>;
 }
 
 // Invariants:
@@ -72,6 +74,7 @@ export class FlattenedDataViewModel extends GridDataViewModel {
     this.schema = params.schema;
     this.init(params.options);
     this.updatePagination(params.totalRows, params.offsetTop);
+    if (params.metadata) this.mergeMetadata(params.metadata);
   }
 
   /** Always 1 when `rowFacet` is provided, 0 otherwise. Unlike pivot viewmodels, flat tables have at most one row facet level - depth is encoded in the row metadata instead. */
@@ -117,6 +120,7 @@ export class FlattenedDataViewModel extends GridDataViewModel {
     this.#rowFacet = params.rowFacet;
     this.#rowMeta = params.rowMeta;
     this.updatePagination(params.totalRows, params.offsetTop);
+    if (params.metadata) this.mergeMetadata(params.metadata);
   }
 
   /**

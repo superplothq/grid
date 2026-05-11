@@ -8,10 +8,13 @@ import {
   Filter,
   PivotDataFetchAndTransformIR,
   PivotRawDataFromSource,
+  PivotMetadataResolver,
+  PivotMetadataPlumber,
   ScalarFilter,
   Schema,
   SegmentFilter,
   SortEntry,
+  SqlPivotMetadataResolver,
   TupleFilter,
 } from "./types";
 
@@ -101,8 +104,8 @@ export class SqlPivotTableDataModel extends PivotTableDataModel {
   protected table: string;
   protected dataSource: SqlDataSource;
 
-  constructor(schema: DataSchema[], dataSource: SqlDataSource) {
-    super(schema);
+  constructor(schema: DataSchema[], dataSource: SqlDataSource, metadataPlumber?: PivotMetadataPlumber) {
+    super(schema, metadataPlumber);
     this.dataSource = dataSource;
     this.table = dataSource.table;
   }
@@ -193,7 +196,7 @@ export class SqlPivotTableDataModel extends PivotTableDataModel {
     return query.fields.map(f => rows.map(r => String(r[f])));
   }
 
-  async getData(branch: PivotDataFetchAndTransformIR): Promise<PivotRawDataFromSource> {
+  async getData(branch: PivotDataFetchAndTransformIR, metadataResolver?: PivotMetadataResolver<unknown>): Promise<PivotRawDataFromSource> {
     const { dimSpec, measures } = branch;
 
     const measureFilters = measures.filter(m => m.filter.length > 0);
@@ -232,7 +235,13 @@ export class SqlPivotTableDataModel extends PivotTableDataModel {
       return `${agg}(T."${m.field}") AS "${m.field}"`;
     });
 
-    const selectClause = [...dimSelect, ...measureSelect].join(", ");
+    const sqlResolver = metadataResolver as SqlPivotMetadataResolver | undefined;
+    const metadataContributions = sqlResolver?.resolve({
+      ir: branch, schema: this.schema, gridCte, tableAlias: "T",
+    }) ?? [];
+    const metadataSelectParts = metadataContributions.map(s => `${s.sql} AS "${s.alias}"`);
+
+    const selectClause = [...dimSelect, ...measureSelect, ...metadataSelectParts].join(", ");
 
     const joinConditions = this.buildJoinConditions(dimSpec, gridCte, cteResult);
     const joinClause = joinConditions.length > 0 ? ` ON ${joinConditions.join(" AND ")}` : " ON 1=1";
@@ -286,7 +295,13 @@ export class SqlPivotTableDataModel extends PivotTableDataModel {
       return rows.map(r => r[col]);
     });
 
-    return { columns, data };
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const metadata: Record<string, any[]> | undefined =
+      metadataContributions.length > 0
+        ? Object.fromEntries(metadataContributions.map(c => [c.alias, rows.map(r => r[c.alias])]))
+        : undefined;
+
+    return { columns, data, ...(metadata && { metadata }) };
   }
 
   private buildSortOrderParts(sort: SortEntry[], gridCte: string, cteResult: CTEResult): string[] {
