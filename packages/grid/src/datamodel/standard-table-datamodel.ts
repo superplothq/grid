@@ -6,10 +6,16 @@ import {
   GetRowsResponse,
   PageNode,
   ExpandedGroup,
+  StandardMetadataResolver,
+  StandardMetadataPlumber,
+  StandardMetadataPlumbing,
+  StandardColumnMetadata,
+  StandardMetadataResolverInput,
+  PageMetadata,
 } from "./types";
 import { DataModel } from "./datamodel";
 import { FlattenedDataViewModelParams, createRowMeta } from "../renderer/flattened-data-viewmodel";
-import { GridDataViewModelOptions } from "../renderer/types";
+import { GridDataViewModelOptions, ViewModelMetadata, ValueRowMetadata, ValueCellMetadata } from "../renderer/types";
 
 const defaultConfig: StandardTableConfig = {
   pageSize: 10000,
@@ -251,16 +257,19 @@ export abstract class StandardTableDataModel extends DataModel<StandardDataFetch
   topLevelRowCount = 0;
   #lastIR: StandardDataFetchAndTransformIR | null = null;
   #viewModelOptions?: GridDataViewModelOptions;
+  #metadataPlumber?: StandardMetadataPlumber;
+  columnMetadata?: StandardColumnMetadata[];
 
-  constructor(schema: DataSchema[], config: Partial<StandardTableConfig> = {}) {
+  constructor(schema: DataSchema[], config: Partial<StandardTableConfig> = {}, metadataPlumber?: StandardMetadataPlumber) {
     super(schema);
     this.config = { ...defaultConfig, ...config };
+    this.#metadataPlumber = metadataPlumber;
   }
 
   /**
    * Subclasses must implement this to fetch rows from the data source. The [`StandardDataFetchAndTransformIR`](/docs/api-references/type-references#getrowsir) (intermediate representation) drives data fetching and transformation at the source - the subclass converts it into a command for its backend. For example, `SqlStandardTableDataModel` generates SQL from the IR. Returns a [`GetRowsResponse`](/docs/api-references/type-references#getrowsresponse).
    */
-  abstract getData(ir: StandardDataFetchAndTransformIR): Promise<GetRowsResponse>;
+  abstract getData(ir: StandardDataFetchAndTransformIR, metadataResolver?: StandardMetadataResolver<unknown>): Promise<GetRowsResponse>;
   /**
    * Return the value range for a column. For dimensions (non-temporal), returns all distinct values. For measures and temporal dimensions, returns min/max. Used to populate filter UIs. Returns a [`ColumnRangeValues`](/docs/api-references/type-references#columnrangevalues).
    */
@@ -277,6 +286,7 @@ export abstract class StandardTableDataModel extends DataModel<StandardDataFetch
     this.config = { ...defaultConfig, ...config };
     this.pages = [];
     this.topLevelRowCount = 0;
+    this.columnMetadata = undefined;
   }
 
   /**
@@ -292,10 +302,13 @@ export abstract class StandardTableDataModel extends DataModel<StandardDataFetch
       if (groupByChanged || filterChanged || projectChanged || sortChanged) {
         this.pages = [];
         this.topLevelRowCount = 0;
+        this.columnMetadata = undefined;
       }
     }
 
     this.#lastIR = ir;
+
+    const plumbing = this.#metadataPlumber?.(ir);
 
     // resolveLogicalRange needs page slots to walk. Page slots need totalRowCount,
     // which only comes from a getData call. Bootstrap by fetching the first page.
@@ -307,28 +320,38 @@ export abstract class StandardTableDataModel extends DataModel<StandardDataFetch
         endRow: this.config.pageSize,
         groupPath: [],
       };
-      const response = await this.getData(bootstrapIR);
+      const response = await this.getData(bootstrapIR, plumbing?.pageWise?.resolver);
       this.pages = this.#createPageSlots(response.totalRowCount, this.config.pageSize);
       this.topLevelRowCount = response.totalRowCount;
       // TODO always load the first page on the top level irrespective of where the user
       // set the startRow and endRow
       if (this.pages.length > 0) {
         this.pages[0].data = response.rowData;
+        this.pages[0].metadata = this.#reshapePageMetadata(plumbing, bootstrapIR, response);
       }
     }
 
+    const columnMetadataPromise =
+      plumbing?.global && !this.columnMetadata
+        ? this.#resolveGlobalMetadata(ir, plumbing)
+        : undefined;
+
     const pagesToFetch = getUnfetchedPagesByLogicalBoundary(this.pages, ir.startRow, ir.endRow);
 
-    await Promise.all(pagesToFetch.map(async (req) => {
-      const fetchIR: StandardDataFetchAndTransformIR = {
-        ...ir,
-        groupPath: req.selectPath,
-        startRow: req.page.physicalStart,
-        endRow: req.page.physicalStart + req.page.rowCount,
-      };
-      const response = await this.getData(fetchIR);
-      req.page.data = response.rowData;
-    }));
+    await Promise.all([
+      columnMetadataPromise?.then(cols => { this.columnMetadata = cols; }),
+      ...pagesToFetch.map(async (req) => {
+        const fetchIR: StandardDataFetchAndTransformIR = {
+          ...ir,
+          groupPath: req.selectPath,
+          startRow: req.page.physicalStart,
+          endRow: req.page.physicalStart + req.page.rowCount,
+        };
+        const response = await this.getData(fetchIR, plumbing?.pageWise?.resolver);
+        req.page.data = response.rowData;
+        req.page.metadata = this.#reshapePageMetadata(plumbing, fetchIR, response);
+      }),
+    ]);
 
     this.#evictIfNeeded();
     return this.#flatten();
@@ -377,12 +400,15 @@ export abstract class StandardTableDataModel extends DataModel<StandardDataFetch
       project: ir.project,
       sort: ir.sort,
       filter: ir.filter,
+      metadata: ir.metadata,
     };
 
-    const response = await this.getData(childIR);
+    const plumbing = this.#metadataPlumber?.(childIR);
+    const response = await this.getData(childIR, plumbing?.pageWise?.resolver);
     const childPages = this.#createPageSlots(response.totalRowCount, this.config.pageSize);
     // TODO always loaded in to first page. this should not be mandatory
     childPages[0].data = response.rowData;
+    childPages[0].metadata = this.#reshapePageMetadata(plumbing, childIR, response);
 
     const group: ExpandedGroup = {
       expanded: true,
@@ -496,6 +522,23 @@ export abstract class StandardTableDataModel extends DataModel<StandardDataFetch
 
     const offsetTop = this.#computeOffsetTop(this.pages, blockStart, 0);
 
+    const metadataValueRows: ValueRowMetadata[] = [];
+    const metadataValueCells: ValueCellMetadata[] = [];
+
+    const collectPageMetadata = (page: PageNode) => {
+      const offset = data[0].length;
+      if (page.metadata?.rows) {
+        for (const row of page.metadata.rows) {
+          metadataValueRows.push({ rowIndex: offset + row.rowIdx, meta: row.meta });
+        }
+      }
+      if (page.metadata?.cells) {
+        for (const cell of page.metadata.cells) {
+          metadataValueCells.push({ colIndex: cell.colIdx, rowIndex: offset + cell.rowIdx, meta: cell.meta });
+        }
+      }
+    };
+
     const pushFacetRow = (page: PageNode, rowIdx: number, depth: number, isExpanded: boolean, groupFieldProject: string[]) => {
       rowFacet!.push(page.data![0][rowIdx]);
       const isLeaf = (depth === ir.groupBy.length - 1) && !hasOutsideFacetDims;
@@ -535,6 +578,7 @@ export abstract class StandardTableDataModel extends DataModel<StandardDataFetch
       for (let i = startPageIdx; i <= endPageIdx; i++) {
         const page = pages[i];
         if (!page.data) return false;
+        collectPageMetadata(page);
         const isFirstPage = i === startPageIdx;
         const isLastPage = i === endPageIdx;
 
@@ -578,7 +622,13 @@ export abstract class StandardTableDataModel extends DataModel<StandardDataFetch
       ...this.#viewModelOptions,
     };
 
-    return { data, columnFacets, rowFacet, rowMeta, options, totalRows, offsetTop };
+    const metadata: Partial<ViewModelMetadata> = {
+      valueColumns: (this.columnMetadata ?? []).map(col => ({ colIndex: col.colIdx, meta: col.meta })),
+      valueRows: metadataValueRows,
+      valueCells: metadataValueCells,
+    };
+
+    return { data, columnFacets, rowFacet, rowMeta, options, totalRows, offsetTop, metadata };
   }
 
   #buildProjectionForDepth(depth: number): string[] {
@@ -590,6 +640,23 @@ export abstract class StandardTableDataModel extends DataModel<StandardDataFetch
       if (def.aggregateFn) measureCols.push(def.name);
     }
     return [groupField, ...measureCols];
+  }
+
+  #reshapePageMetadata(plumbing: StandardMetadataPlumbing | undefined, ir: StandardDataFetchAndTransformIR, response: GetRowsResponse): PageMetadata | undefined {
+    if (!plumbing?.pageWise) return undefined;
+    return plumbing.pageWise.reshaper.reshape({ ir, pageMetadata: response.metadata ?? {}, rowData: response.rowData, schema: this.schema });
+  }
+
+  async #resolveGlobalMetadata(
+    ir: StandardDataFetchAndTransformIR,
+    plumbing: StandardMetadataPlumbing,
+  ): Promise<StandardColumnMetadata[]> {
+    const raw = await plumbing.global!.resolver.resolve(this.buildResolverInput(ir));
+    return plumbing.global!.reshaper.reshape({ ir, raw, schema: this.schema });
+  }
+
+  protected buildResolverInput(ir: StandardDataFetchAndTransformIR): StandardMetadataResolverInput {
+    return { ir, schema: this.schema };
   }
 
   /**
@@ -712,6 +779,7 @@ export abstract class StandardTableDataModel extends DataModel<StandardDataFetch
 
   #evictPage(page: PageNode): void {
     page.data = null;
+    page.metadata = undefined;
     for (const [, expanded] of page.expandedRows) {
       for (const childPage of expanded.pages) {
         this.#evictPage(childPage);

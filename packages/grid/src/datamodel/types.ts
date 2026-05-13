@@ -1,5 +1,6 @@
-import { VTrackDef, ViewModelMetadata } from "../renderer/types";
+import { VTrackDef, ViewModelMetadata, MetadataValue } from "../renderer/types";
 import type { FacetData } from "../renderer/types";
+import type { DataSource } from "./datasource";
 
 // TODO [Later] remember there might be custom aggregate function as well
 //   (those functions will be registered separately and the name will be used here)
@@ -326,6 +327,8 @@ export interface StandardDataFetchAndTransformIR {
   sort: SortEntry[];
   /** Filter conditions. Multiple filters are combined with AND - all must match. See [`ScalarFilter`](/docs/api-references/type-references#scalarfilter). */
   filter: ScalarFilter[];
+  /** Agent-defined metadata configuration. Core does not interpret this field — it passes it through to the metadata plumber. */
+  metadata?: unknown;
 }
 
 /**
@@ -336,6 +339,8 @@ export interface GetRowsResponse {
   rowData: any[][];
   /** Total number of rows. */
   totalRowCount: number;
+  /** Raw metadata columns extracted from the query. Keys are metadata aliases (e.g. `"__meta__email__null"`), values are column-major arrays aligned with `rowData` rows. Populated when a metadata resolver contributes expressions to the getData query. */
+  metadata?: Record<string, any[]>;
 }
 
 /**
@@ -350,6 +355,8 @@ export interface PageNode {
   rowCount: number;
   /** Map from local row index to its [`ExpandedGroup`](/docs/api-references/type-references#expandedgroup). When `expand(groupPath)` is called, an entry is added here for that row with `expanded: true` and child pages populated. When `collapse(groupPath)` is called, `expanded` is set to `false` but the entry and its child data remain cached for fast re-expansion. */
   expandedRows: Map<number, ExpandedGroup>;
+  /** Page-scoped metadata (rows + cells) in page-local coordinates. Evicted with data when the page is evicted. */
+  metadata?: PageMetadata;
 }
 
 /**
@@ -414,3 +421,82 @@ export interface PivotMetadataPlumbing<T> {
 export type PivotMetadataPlumber<T = unknown> = (config: PivotConfig) => PivotMetadataPlumbing<T>;
 
 // #endregion pivot-metadata
+
+// #region standard-table-metadata
+
+export interface StandardRawMetadata {
+  [key: string]: unknown;
+}
+
+export interface StandardMetadataResolverInput {
+  ir: StandardDataFetchAndTransformIR;
+  schema: DataSchema[];
+  dataSource?: DataSource<any>;
+}
+
+export interface StandardGlobalMetadataResolver {
+  resolve(input: StandardMetadataResolverInput): Promise<StandardRawMetadata>;
+}
+
+export interface StandardMetadataResolver<T> {
+  resolve(input: StandardMetadataResolverInput): T[];
+}
+
+export interface SqlStandardMetadataResolverInput extends StandardMetadataResolverInput {
+  table: string;
+}
+
+export interface SqlStandardMetadataResolver extends StandardMetadataResolver<SqlSelectExpression> {
+  resolve(input: SqlStandardMetadataResolverInput): SqlSelectExpression[];
+}
+
+export interface StandardColumnMetadata {
+  colIdx: number;
+  meta: MetadataValue;
+}
+
+export interface StandardPageRowMetadata {
+  rowIdx: number;
+  meta: MetadataValue;
+}
+
+export interface StandardPageCellMetadata {
+  rowIdx: number;
+  colIdx: number;
+  meta: MetadataValue;
+}
+
+export interface PageMetadata {
+  rows?: StandardPageRowMetadata[];
+  cells?: StandardPageCellMetadata[];
+}
+
+export interface StandardGlobalMetadataReshaperInput {
+  ir: StandardDataFetchAndTransformIR;
+  raw: StandardRawMetadata;
+  schema: DataSchema[];
+}
+
+export interface StandardGlobalMetadataReshaper {
+  reshape(input: StandardGlobalMetadataReshaperInput): StandardColumnMetadata[];
+}
+
+export interface StandardMetadataReshaperInput {
+  ir: StandardDataFetchAndTransformIR;
+  pageMetadata: Record<string, any[]>;
+  rowData: any[][];
+  schema: DataSchema[];
+}
+
+export interface StandardMetadataReshaper {
+  reshape(input: StandardMetadataReshaperInput): PageMetadata;
+}
+
+export interface StandardMetadataPlumbing {
+  global?: { resolver: StandardGlobalMetadataResolver; reshaper: StandardGlobalMetadataReshaper };
+  pageWise?: { resolver: StandardMetadataResolver<unknown>; reshaper: StandardMetadataReshaper };
+}
+
+export type StandardMetadataPlumber = (ir: StandardDataFetchAndTransformIR) => StandardMetadataPlumbing;
+
+// #endregion standard-table-metadata

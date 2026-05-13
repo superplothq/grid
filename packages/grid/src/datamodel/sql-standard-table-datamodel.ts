@@ -1,20 +1,35 @@
 import { StandardTableDataModel } from "./standard-table-datamodel";
 import { SqlDataSource } from "./sql-datasource";
-import { DataSchema, DatePartScalarFilter, ColumnRangeValues, StandardTableConfig, StandardDataFetchAndTransformIR, GetRowsResponse, ScalarFilter, SortEntry } from "./types";
+import { DataSchema, DatePartScalarFilter, ColumnRangeValues, StandardTableConfig, StandardDataFetchAndTransformIR, GetRowsResponse, ScalarFilter, SortEntry, StandardMetadataResolver, SqlStandardMetadataResolver, SqlStandardMetadataResolverInput, StandardMetadataPlumber, StandardMetadataResolverInput } from "./types";
 
 export class SqlStandardTableDataModel extends StandardTableDataModel {
   protected table: string;
   protected dataSource: SqlDataSource;
 
-  constructor(dataSchema: DataSchema[], dataSource: SqlDataSource, config: Partial<StandardTableConfig> = {}) {
-    super(dataSchema, config);
+  constructor(dataSchema: DataSchema[], dataSource: SqlDataSource, config: Partial<StandardTableConfig> = {}, metadataPlumber?: StandardMetadataPlumber) {
+    super(dataSchema, config, metadataPlumber);
     this.dataSource = dataSource;
     this.table = dataSource.table;
   }
 
-  async getData(ir: StandardDataFetchAndTransformIR): Promise<GetRowsResponse> {
+  protected buildResolverInput(ir: StandardDataFetchAndTransformIR): StandardMetadataResolverInput {
+    return { ir, schema: this.schema, dataSource: this.dataSource };
+  }
+
+  async getData(ir: StandardDataFetchAndTransformIR, metadataResolver?: StandardMetadataResolver<unknown>): Promise<GetRowsResponse> {
     const sql = this.buildSQL(ir);
-    const rows = await this.dataSource.execute(sql);
+
+    const sqlResolver = metadataResolver as SqlStandardMetadataResolver | undefined;
+    const metadataContributions = sqlResolver?.resolve({
+      ir, schema: this.schema, table: this.table, dataSource: this.dataSource,
+    } as SqlStandardMetadataResolverInput) ?? [];
+    const metadataSelect = metadataContributions.map(s => `${s.sql} AS "${s.alias}"`);
+
+    const fullSql = metadataSelect.length > 0
+      ? this.injectMetadataSelect(sql, metadataSelect)
+      : sql;
+
+    const rows = await this.dataSource.execute(fullSql);
 
     if (rows.length === 0) {
       return { rowData: ir.project.map(() => []), totalRowCount: 0 };
@@ -36,7 +51,20 @@ export class SqlStandardTableDataModel extends StandardTableDataModel {
 
     const rowData = this.toColumnMajor(rows, outputColumns);
 
-    return { rowData, totalRowCount };
+    const metadata: Record<string, any[]> | undefined =
+      metadataContributions.length > 0
+        ? Object.fromEntries(metadataContributions.map(c => [c.alias, rows.map(r => r[c.alias])]))
+        : undefined;
+
+    return { rowData, totalRowCount, ...(metadata && { metadata }) };
+  }
+
+  private injectMetadataSelect(sql: string, metadataSelect: string[]): string {
+    const selectIdx = sql.indexOf("SELECT ") + 7;
+    const fromIdx = sql.indexOf(" FROM ");
+    const originalSelect = sql.substring(selectIdx, fromIdx);
+    const rest = sql.substring(fromIdx);
+    return `SELECT ${originalSelect}, ${metadataSelect.join(", ")}${rest}`;
   }
 
   async getRangeOfColumn(field: string): Promise<ColumnRangeValues> {
