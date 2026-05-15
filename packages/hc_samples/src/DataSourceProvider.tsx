@@ -16,7 +16,7 @@ const DataSourceContext = createContext<DataSourceState>({ status: "loading" });
 
 export const useDataSource = (): DataSourceState => useContext(DataSourceContext);
 
-const DATA_URL = "/Citywide_Payroll_Data_20260306_FY2025_no_fiscalyear_midinit.csv";
+const DATA_URL = "/Citywide_Payroll_Data_FY2025_filtered.csv";
 
 const CLEAN_SCHEMA: DataSchema[] = [
   { name: "Payroll Number", type: "dimension" },

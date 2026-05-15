@@ -1,9 +1,9 @@
 import React, { useEffect, useRef, useState, useCallback, useMemo } from "react";
 import { registerSample } from "./registry";
 import { useDataSource } from "../DataSourceProvider";
-import { SqlPivotTableDataModel, cross, concat, hierarchy, ProjectionState, DimensionalProjectionPath, SortEntry, AxisConfig, AxisExpr, ScalarFilter, Filter } from "grid";
+import { SqlPivotTableDataModel, cross, concat, hierarchy, ProjectionState, DimensionalProjectionPath, SortEntry, AxisConfig, AxisExpr, ScalarFilter, Filter, PivotMetadataPlumber, SqlPivotMetadataResolver, PivotMetadataReshaper } from "grid";
 import Grid, { PivotDataViewModel, FacetCellRenderer, FacetDataContext, FacetRendererContext, FacetHeaderRenderer, FacetHeaderContext, GridDataViewModelOptions, PHorizontalFixture } from "grid/dist/renderer";
-import type { BaseFixtureViewModel, BaseViewModel, BaseSliceResult } from "grid/dist/renderer";
+import type { BaseFixtureViewModel, BaseViewModel, BaseSliceResult, CellRenderer, ValueCellDataContext, RendererContext } from "grid/dist/renderer";
 import "grid/dist/grid.css";
 import { formatDecimals } from "../lib/format";
 
@@ -216,6 +216,98 @@ function svgFilterIcon(size = 11): HTMLElement {
 }
 
 // #endregion svg-icons
+
+// #region cell-renderer
+
+function formatInt(val: number): string {
+  return Math.round(val).toLocaleString();
+}
+
+function toTitleCase(str: string): string {
+  return str.toLowerCase().replace(/\b\w/g, c => c.toUpperCase());
+}
+
+const baseSalaryCellRenderer: CellRenderer<unknown> = (data, dataCtx, ctx) => {
+  if (data == null) return "";
+
+  ctx.container.replaceChildren();
+  ctx.container.style.display = "flex";
+  ctx.container.style.alignItems = "center";
+  ctx.container.style.justifyContent = "space-between";
+  ctx.container.style.gap = "6px";
+  ctx.container.style.padding = "0 4px";
+  ctx.container.title = "";
+
+  const colMeta = dataCtx.viewModel.metadata?.getValueColumnMeta(dataCtx.colIndex);
+  const avg = colMeta?.avg as number | undefined;
+  const value = Number(data);
+  const formatted = formatInt(value);
+
+  const pctSpan = document.createElement("span");
+  pctSpan.style.cssText = "font-size:9px;font-weight:600;white-space:nowrap;";
+  if (avg != null && !isNaN(value) && avg > 0 && value > avg) {
+    const pctAbove = Math.round(((value - avg) / avg) * 100);
+    if (pctAbove > 0) {
+      const intensity = Math.min(pctAbove / 100, 1);
+      const green = Math.round(120 + intensity * 60);
+      pctSpan.style.color = `rgb(22,${green},44)`;
+      pctSpan.textContent = `${pctAbove}%`;
+      ctx.container.title = `Value: ${formatted} $\nColumn avg: ${formatInt(avg)} $\n${pctAbove}% above average`;
+    }
+  }
+  ctx.container.appendChild(pctSpan);
+
+  const valueRow = document.createElement("span");
+  const numSpan = document.createElement("span");
+  numSpan.textContent = formatted;
+  const dollarSpan = document.createElement("span");
+  dollarSpan.style.cssText = "font-size:9px;color:#9ca3af;margin-left:3px;";
+  dollarSpan.textContent = "$";
+  valueRow.appendChild(numSpan);
+  valueRow.appendChild(dollarSpan);
+  ctx.container.appendChild(valueRow);
+
+  return;
+};
+
+const regularHoursCellRenderer: CellRenderer<unknown> = (data, _dataCtx, ctx) => {
+  if (data == null) return "";
+  ctx.container.replaceChildren();
+  ctx.container.style.display = "flex";
+  ctx.container.style.alignItems = "center";
+  ctx.container.style.justifyContent = "flex-end";
+  ctx.container.style.gap = "6px";
+  ctx.container.style.padding = "0 4px";
+
+  const valueRow = document.createElement("span");
+  const numSpan = document.createElement("span");
+  numSpan.textContent = formatInt(Number(data));
+  const hrsSpan = document.createElement("span");
+  hrsSpan.style.cssText = "font-size:9px;color:#9ca3af;margin-left:3px;";
+  hrsSpan.textContent = "hrs";
+  valueRow.appendChild(numSpan);
+  valueRow.appendChild(hrsSpan);
+  ctx.container.appendChild(valueRow);
+
+  return;
+};
+
+function buildVTrackDefs(columnFacets: (string | null)[][], frLayout = false): GridDataViewModelOptions["vTrackDefs"] {
+  const measureLevel = columnFacets[columnFacets.length - 1];
+  if (!measureLevel) return undefined;
+  const colSize = frLayout ? { strategy: "static" as const, width: 1, unit: "fr" as const } : undefined;
+  return measureLevel.map(measure => {
+    if (measure === "Base Salary") {
+      return { renderer: baseSalaryCellRenderer, cellHeight: 40, colSize };
+    }
+    if (measure === "Regular Hours") {
+      return { renderer: regularHoursCellRenderer, cellHeight: 40, colSize };
+    }
+    return { cellHeight: 40, colSize };
+  });
+}
+
+// #endregion cell-renderer
 
 // #region shared-ui
 
@@ -495,6 +587,13 @@ const SetFilterDropdown: React.FC<{
     }
     return new Set(distinctValues ?? []);
   });
+  const initializedRef = useRef(!!existingSetFilter || !!distinctValues);
+  useEffect(() => {
+    if (!initializedRef.current && distinctValues) {
+      initializedRef.current = true;
+      setSelectedValues(new Set(distinctValues));
+    }
+  }, [distinctValues]);
   const [searchText, setSearchText] = useState("");
 
   const filteredValues = useMemo(() => {
@@ -593,15 +692,17 @@ const SetFilterDropdown: React.FC<{
           </button>
           <button
             onClick={handleApply}
+            disabled={selectedValues.size === 0}
             style={{
               border: `1px solid ${BORDER}`,
               borderRadius: 3,
               padding: "4px 14px",
               fontSize: 12,
               color: "#fff",
-              background: TEXT_SECONDARY,
-              cursor: "pointer",
+              background: selectedValues.size === 0 ? "#b0b4bc" : TEXT_SECONDARY,
+              cursor: selectedValues.size === 0 ? "not-allowed" : "pointer",
               fontWeight: 500,
+              opacity: selectedValues.size === 0 ? 0.6 : 1,
             }}
           >
             Apply
@@ -619,6 +720,7 @@ const SetFilterDropdown: React.FC<{
 function mergeRenderers(
   options: GridDataViewModelOptions | undefined,
   viewModel: PivotDataViewModel,
+  vTrackDefsOverride?: GridDataViewModelOptions["vTrackDefs"],
 ): GridDataViewModelOptions {
   const existingRow = viewModel.facetDefs.row;
   const existingCol = viewModel.facetDefs.col;
@@ -626,6 +728,7 @@ function mergeRenderers(
   const newCol = options?.facetDefs?.col ?? [];
   return {
     ...options,
+    ...(vTrackDefsOverride && { vTrackDefs: vTrackDefsOverride }),
     facetDefs: {
       ...options?.facetDefs!,
       row: newRow.map((d, i) => ({ ...d, trackRenderer: existingRow[i]?.trackRenderer, headerRenderer: existingRow[i]?.headerRenderer, text: existingRow[i]?.text })),
@@ -695,18 +798,24 @@ class AggregateFooterFixture extends PHorizontalFixture {
       });
 
       if (contentDirty) {
-        cell.style.cssText += "font-size:11px;padding:2px 4px;font-weight:500;color:#4c4f69;text-align:right;";
+        cell.style.cssText += "font-size:11px;padding:0 4px;font-weight:500;color:#4c4f69;display:flex;align-items:center;justify-content:flex-end;";
         const measureName = measureLevel?.[colIndex];
         const slice = pivotVm.getSlice(colIndex, 0, colIndex + 1, numRows);
         const colData = slice.data?.[0];
-        let text = "";
 
+        cell.replaceChildren();
         if (colData && measureName === "Base Salary") {
           let sum = 0;
           for (const val of colData) {
             if (val != null && typeof val === "number") sum += val;
           }
-          text = (Math.round(sum * 100) / 100).toLocaleString();
+          const numSpan = document.createElement("span");
+          numSpan.textContent = formatInt(sum);
+          const unit = document.createElement("span");
+          unit.style.cssText = "font-size:9px;color:#9ca3af;margin-left:3px;";
+          unit.textContent = "$";
+          cell.appendChild(numSpan);
+          cell.appendChild(unit);
         } else if (colData && measureName === "Regular Hours") {
           let sum = 0;
           let count = 0;
@@ -716,10 +825,16 @@ class AggregateFooterFixture extends PHorizontalFixture {
               count++;
             }
           }
-          text = count > 0 ? (Math.round((sum / count) * 100) / 100).toLocaleString() : "";
+          if (count > 0) {
+            const numSpan = document.createElement("span");
+            numSpan.textContent = formatInt(sum / count);
+            const unit = document.createElement("span");
+            unit.style.cssText = "font-size:9px;color:#9ca3af;margin-left:3px;";
+            unit.textContent = "hrs";
+            cell.appendChild(numSpan);
+            cell.appendChild(unit);
+          }
         }
-
-        cell.textContent = text;
       }
 
       if (needAppend) nodesToAppend.push(cell);
@@ -749,8 +864,29 @@ function makeFacetRenderer(
     const globalRowMeta = dataCtx.viewModel.metaState.get(GLOBAL_ROW_NS);
     const isGlobalRowLoading = globalRowMeta?.["loading"] === true;
 
-    if (projectionDisabledRef.current || isGlobalRowLoading) {
-      return String(data ?? "");
+    const buildContent = (): string | HTMLElement => {
+      const displayName = data != null ? toTitleCase(String(data)) : "";
+      if (isLeaf || data == null) return displayName;
+      const facetMeta = dataCtx.viewModel.metadata?.getRowFacetMeta(dataCtx.level, dataCtx.index);
+      const agencyCount = facetMeta?.agencyCount as number | undefined;
+      if (agencyCount == null) return displayName;
+      const wrapper = document.createElement("div");
+      wrapper.style.display = "flex";
+      wrapper.style.flexDirection = "column";
+      wrapper.style.lineHeight = "1.3";
+      const nameEl = document.createElement("span");
+      nameEl.textContent = displayName;
+      const countEl = document.createElement("span");
+      countEl.style.fontSize = "10px";
+      countEl.style.color = "#9ca3af";
+      countEl.textContent = `${agencyCount} ${agencyCount === 1 ? "agency" : "agencies"}`;
+      wrapper.appendChild(nameEl);
+      wrapper.appendChild(countEl);
+      return wrapper;
+    };
+
+    if (isGlobalRowLoading) {
+      return buildContent();
     }
 
     const ns = `row-${dataCtx.level}-${dataCtx.index}`;
@@ -760,19 +896,21 @@ function makeFacetRenderer(
     if (isLoading) {
       return {
         left: svgSpinner(11),
-        content: String(data ?? ""),
+        content: buildContent(),
       };
     }
 
     if (isLeaf || data == null) {
-      return String(data ?? "");
+      return projectionDisabledRef.current ? buildContent() : String(data ?? "");
     }
 
     const facetDef = dataCtx.viewModel.facetDefs.row[dataCtx.level];
     const levelMeta = facetDef?.meta;
 
     let direction: "right" | "down" = "right";
-    if (levelMeta) {
+    if (projectionDisabledRef.current) {
+      direction = "down";
+    } else if (levelMeta) {
       const ps = levelMeta.projectionState;
       if (ps === ProjectionState.PROJECTED) {
         direction = "down";
@@ -791,6 +929,14 @@ function makeFacetRenderer(
       dataCtx.viewModel.metaState.set(ns, "loading", true);
       rCtx.render(viewModel);
 
+      if (projectionDisabledRef.current) {
+        projectionDisabledRef.current = false;
+        projectionTreeRef.current = {};
+        const levelValues = dataCtx.viewModel.rowFacets[dataCtx.level];
+        for (const v of levelValues) {
+          if (v != null) projectionTreeRef.current[v] = {};
+        }
+      }
       projectionTreeRef.current = toggleProjection(projectionTreeRef.current, dataCtx.path, dataCtx.level);
 
       const config = buildConfig();
@@ -798,8 +944,7 @@ function makeFacetRenderer(
 
       formatDecimals(result.data, result.data.map((_, i) => i));
 
-      viewModel.updateData({ data: result.data, columnFacets: result.columnFacets, rowFacets: result.rowFacets, options: mergeRenderers(result.options, viewModel) });
-
+      viewModel.updateData({ data: result.data, columnFacets: result.columnFacets, rowFacets: result.rowFacets, options: mergeRenderers(result.options, viewModel, buildVTrackDefs(result.columnFacets)), metadata: result.metadata });
 
       dataCtx.viewModel.metaState.clear(ns);
       rCtx.render(viewModel);
@@ -807,7 +952,7 @@ function makeFacetRenderer(
 
     return {
       left: icon,
-      content: String(data ?? ""),
+      content: buildContent(),
     };
   };
 }
@@ -868,15 +1013,77 @@ function getRowExpansionState(projectionDisabled: boolean, tree: ProjectionTree)
 
 // #endregion state-helpers
 
+// #region metadata-plumber
+
+const agencyCountPlumber: PivotMetadataPlumber = () => ({
+  resolver: {
+    resolve({ gridCte, tableAlias }) {
+      return [{
+        alias: "__meta__agency_count",
+        sql: `SUM(CASE WHEN COUNT(${tableAlias}."Agency Name") > 0 THEN 1 ELSE 0 END) OVER (PARTITION BY ${gridCte}."Work Location Borough")`,
+      }];
+    },
+  } as SqlPivotMetadataResolver,
+  reshaper: {
+    reshape({ raw, rowIndex, rowDimCount, data, colFacets }, metadata) {
+      const agencyCount = raw.metadata?.["__meta__agency_count"];
+      if (agencyCount) {
+        const numRows = raw.data[0]?.length ?? 0;
+        const seen = new Set<number>();
+
+        metadata.rowFacets = [];
+        for (let r = 0; r < numRows; r++) {
+          const rowKey = [];
+          for (let d = 0; d < rowDimCount; d++) rowKey.push(raw.data[d][r] ?? null);
+          const rowIdx = rowIndex.get(rowKey.join("\0"));
+          if (rowIdx === undefined || seen.has(rowIdx)) continue;
+          seen.add(rowIdx);
+
+          metadata.rowFacets.push({
+            level: 0,
+            index: rowIdx,
+            meta: { agencyCount: agencyCount[r] },
+          });
+        }
+      }
+
+      const measureLevel = colFacets[colFacets.length - 1];
+      if (measureLevel && data.length > 0) {
+        metadata.valueColumns = [];
+        for (let colIdx = 0; colIdx < data.length; colIdx++) {
+          if (measureLevel[colIdx] !== "Base Salary") continue;
+          const col = data[colIdx];
+          let sum = 0;
+          let count = 0;
+          for (const val of col) {
+            if (val != null && typeof val === "number") {
+              sum += val;
+              count++;
+            }
+          }
+          if (count > 0) {
+            metadata.valueColumns.push({
+              colIndex: colIdx,
+              meta: { avg: Math.round((sum / count) * 100) / 100 },
+            });
+          }
+        }
+      }
+    },
+  } as PivotMetadataReshaper,
+});
+
+// #endregion metadata-plumber
+
 // #region component
 
 type PivotBuildConfig = { rows: AxisExpr | AxisConfig; columns: AxisExpr | AxisConfig; sort?: SortEntry[]; filter?: Filter[] };
 
-function PivotGrid() {
+export function PivotGrid() {
   const containerRef = useRef<HTMLDivElement>(null);
   const data = useDataSource();
   const rowProjectionRef = useRef<ProjectionTree>({});
-  const projectionDisabledRef = useRef(false);
+  const projectionDisabledRef = useRef(true);
   const agencyCollapsedRef = useRef(false);
   const modelRef = useRef<SqlPivotTableDataModel | null>(null);
   const viewModelRef = useRef<PivotDataViewModel | null>(null);
@@ -942,7 +1149,8 @@ function PivotGrid() {
       }
     }
 
-    viewModel.updateData({ data: result.data, columnFacets, rowFacets: result.rowFacets, options: mergeRenderers(options, viewModel) });
+    viewModel.updateData({ data: result.data, columnFacets, rowFacets: result.rowFacets, options: mergeRenderers(options, viewModel, buildVTrackDefs(columnFacets, agencyCollapsedRef.current)), metadata: result.metadata });
+    grid.data = viewModel;
     grid.draw();
   }, []);
 
@@ -1195,7 +1403,7 @@ function PivotGrid() {
       aggregateFn: c.aggregateFn,
     }));
 
-    const model = new SqlPivotTableDataModel(schema, ds);
+    const model = new SqlPivotTableDataModel(schema, ds, agencyCountPlumber);
     modelRef.current = model;
 
     const buildConfig = (): PivotBuildConfig => {
@@ -1236,12 +1444,14 @@ function PivotGrid() {
       facetDefs.row[0] = { ...facetDefs.row[0], text: "Location", trackRenderer: facetRenderer, headerRenderer: rowHeaderRenderer0 };
       facetDefs.row[1] = { ...facetDefs.row[1], text: ROW_HEADER_LABELS[1], headerRenderer: rowHeaderRenderer1 };
       facetDefs.col[0] = { ...facetDefs.col[0], text: "Agency Name", headerRenderer: colHeaderRenderer0 };
+      options.vTrackDefs = buildVTrackDefs(result.columnFacets);
 
       const viewModel = new PivotDataViewModel({
         data: result.data,
         columnFacets: result.columnFacets,
         rowFacets: result.rowFacets,
         options,
+        metadata: result.metadata,
       });
       viewModelRef.current = viewModel;
 
