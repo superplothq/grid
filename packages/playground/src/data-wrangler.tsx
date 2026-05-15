@@ -11,6 +11,8 @@ import Grid, {
   GridDataViewModelOptions,
   ValueCellDataContext,
   RendererContext,
+  registerTheme,
+  getTheme,
 } from "grid/dist/renderer";
 import {
   DuckDBWasmDataSource,
@@ -52,19 +54,8 @@ const CLEAN_SCHEMA: DataSchema[] = [
 const MONEY_COLUMNS = ["Base Salary", "Regular Gross Paid", "Total OT Paid", "Total Other Pay"];
 const NUMERIC_COLUMNS = ["Regular Hours", "OT Hours"];
 
-// Columns to randomly dirty and their miss rates
-const NULL_RATES: Record<string, number> = {
-  "Work Location Borough": 0.08,
-  "Leave Status as of June 30": 0.12,
-  "Base Salary": 0.05,
-  "OT Hours": 0.15,
-  "Total OT Paid": 0.10,
-  "Total Other Pay": 0.07,
-  "First Name": 0.03,
-  "Regular Hours": 0.06,
-  "Title Description": 0.04,
-  "Agency Start Date": 0.06,
-};
+const NULL_ROW_RATE = 0.01;
+const NULL_COL_RATE = 0.30;
 
 function buildReplaceMap(): Map<string, Map<string, string>> {
   const replace = new Map<string, Map<string, string>>();
@@ -91,14 +82,23 @@ function makePreprocess(targetRows: number) {
 // --- Colors ---
 
 const C = {
-  valid: "#2bc4bd",
+  valid: "#03A9F4",
   missing: "#e8636e",
   missingCell: "rgba(232,99,110,0.12)",
   missingDot: "#e8636e",
-  validDot: "#2bc4bd",
+  validDot: "#03A9F4",
+  distBar: "#607D8B",
   muted: "#999",
   text: "#333",
 };
+
+registerTheme("data-wrangler", {
+  ...getTheme("light")!,
+  facetHeaderBackgroundColor: "#e1f5fe",
+  verticalBorderColor: "#4fc3f7",
+  horizontalBorderColor: "#f1f1f1",
+  dataTopBorderColor: "#03A9F4",
+});
 
 const DEFAULT_ROW_COUNT = 50000;
 const NUM_BINS = 8;
@@ -368,13 +368,57 @@ function createDataQualityPlumber(): StandardMetadataPlumber {
 
 // --- Cell Renderer ---
 
+const TEMPORAL_COLS = new Set(CLEAN_SCHEMA.filter(s => s.subtype === "temporal").map(s => s.name));
+const numberFmt = new Intl.NumberFormat();
+const COL_UNITS: Record<string, string> = {
+  "Base Salary": "$",
+  "Regular Gross Paid": "$",
+  "Total OT Paid": "$",
+  "Total Other Pay": "$",
+  "Regular Hours": "hrs",
+  "OT Hours": "hrs",
+};
+
+function formatCellValue(data: any, colMeta: Record<string, unknown> | undefined): string {
+  const schemaType = colMeta?.schemaType as string | undefined;
+  const fieldName = colMeta?.fieldName as string | undefined;
+
+  if (TEMPORAL_COLS.has(fieldName ?? "")) {
+    const d = new Date(data);
+    if (!isNaN(d.getTime())) {
+      const y = d.getFullYear();
+      const m = String(d.getMonth() + 1).padStart(2, "0");
+      const day = String(d.getDate()).padStart(2, "0");
+      return `${y}-${m}-${day}`;
+    }
+  }
+
+  if (schemaType === "measure") {
+    const n = Number(data);
+    if (!isNaN(n)) return numberFmt.format(Math.round(n));
+  }
+
+  return String(data);
+}
+
 const qualityCellRenderer: CellRenderer<any> = (data: any, dataCtx: ValueCellDataContext, ctx: RendererContext) => {
   const meta = dataCtx.viewModel.metadata.getValueCellMeta(dataCtx.colIndex, dataCtx.rowIndex);
+  const colMeta = dataCtx.viewModel.metadata.getValueColumnMeta(dataCtx.colIndex);
+  const schemaType = (colMeta?.schemaType as string) ?? "dimension";
+  const fieldName = (colMeta?.fieldName as string) ?? "";
+  const unit = COL_UNITS[fieldName];
   ctx.container.style.backgroundColor = meta?.quality === "missing" ? C.missingCell : "";
+  ctx.container.style.padding = "8px 6px";
+  ctx.container.style.justifyContent = unit ? "space-between" : schemaType === "measure" ? "flex-end" : "flex-start";
   if (data == null || data === "") {
     return `<span style="color:${C.missing};font-style:italic;font-size:11px">null</span>`;
   }
-  return `<span style="font-size:12px">${data}</span>`;
+  const formatted = formatCellValue(data, colMeta);
+  if (unit) {
+    const unitSize = unit === "hrs" ? "9px" : "11px";
+    return `<span style="color:${C.muted};font-size:${unitSize}">${unit}</span><span style="font-size:12px">${formatted}</span>`;
+  }
+  return `<span style="font-size:12px">${formatted}</span>`;
 };
 
 // --- Utility ---
@@ -390,7 +434,7 @@ function fmtNum(n: number): string {
 
 class QualityBarFixture extends PHorizontalFixture {
   viewModelKey(): string { return "quality-bar"; }
-  getHeight(): number { return 20; }
+  getHeight(): number { return 12; }
 
   headerCell(): HTMLElement {
     const el = document.createElement("div");
@@ -424,20 +468,20 @@ class QualityBarFixture extends PHorizontalFixture {
         const meta = this.data!.metadata.getValueColumnMeta(colIndex);
         const total = (meta?.total as number) || 1;
         const missing = (meta?.missing as number) || 0;
-        const validPct = ((total - missing) / total) * 100;
-        const missingPct = 100 - validPct;
+        const missingPct = (missing / total) * 100;
 
-        cell.style.padding = "2px 4px";
+        cell.style.padding = "0";
         cell.style.overflow = "hidden";
         cell.style.borderRight = "1px solid var(--vertical-border-color)";
+        cell.style.alignItems = "stretch";
+        cell.title = `Valid records: ${(total - missing).toLocaleString()}\nNull records: ${missing.toLocaleString()}`;
 
-        const barH = 6;
+        const minMissingPx = missing > 0 ? 4 : 0;
         cell.innerHTML =
-          `<div style="display:flex;height:${barH}px;border-radius:2px;overflow:hidden">` +
-          `<div style="width:${validPct}%;background:${C.valid}"></div>` +
-          `<div style="width:${missingPct}%;background:${C.missing}"></div>` +
-          `</div>` +
-          `<div style="font-size:9px;color:${C.muted};margin-top:1px;text-align:center">${validPct.toFixed(0)}% valid</div>`;
+          `<div style="display:flex;flex:1;overflow:hidden">` +
+          `<div style="flex:1;background:${C.valid}"></div>` +
+          (missing > 0 ? `<div style="width:${missingPct}%;min-width:${minMissingPx}px;background:${C.missing}"></div>` : "") +
+          `</div>`;
       }
       if (needAppend) nodesToAppend.push(cell);
     }
@@ -498,20 +542,25 @@ class HistogramFixture extends PHorizontalFixture {
       : scaleLinear().domain([0, maxCnt]).range([0, 100]);
 
     const wrap = document.createElement("div");
-    wrap.style.cssText = "display:flex;flex-direction:column;gap:1px;height:100%;justify-content:center;padding:2px 4px;box-sizing:border-box;";
+    wrap.style.cssText = "display:flex;flex-direction:column;gap:1px;flex:1;height:100%;justify-content:flex-start;padding:2px 4px;box-sizing:border-box;min-width:0;";
 
-    for (const entry of topValues.slice(0, 6)) {
+    const header = document.createElement("div");
+    header.style.cssText = `font-size:8px;color:#616161;margin-bottom:2px;`;
+    header.textContent = `Top ${topValues.length} values`;
+    wrap.appendChild(header);
+
+    for (const entry of topValues) {
       const row = document.createElement("div");
-      row.style.cssText = "display:flex;align-items:center;gap:3px;height:14px;";
-      row.title = `${entry.val}: ${entry.cnt.toLocaleString()}`;
+      row.style.cssText = "display:flex;align-items:center;gap:3px;height:14px;width:100%;";
+      row.title = `Count: ${entry.cnt.toLocaleString()}\nValue: ${entry.val}`;
 
       const bar = document.createElement("div");
       const w = Math.max(2, scale(entry.cnt));
-      bar.style.cssText = `height:10px;width:${w}%;background:${C.valid};border-radius:1px;flex-shrink:0;`;
+      bar.style.cssText = `height:10px;width:${w}%;max-width:45%;background:${C.distBar};border-radius:1px;flex-shrink:0;`;
 
       const label = document.createElement("span");
-      label.style.cssText = `overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:9px;color:${C.muted};max-width:55%;`;
-      label.textContent = entry.val.length > 14 ? entry.val.slice(0, 14) + "…" : entry.val;
+      label.style.cssText = `overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:9px;color:#616161;flex:1;min-width:0;`;
+      label.textContent = entry.val;
 
       row.appendChild(bar);
       row.appendChild(label);
@@ -546,15 +595,15 @@ class HistogramFixture extends PHorizontalFixture {
 
       const col = document.createElement("div");
       const h = Math.max(2, scale(entry.cnt));
-      col.style.cssText = `flex:1;height:${h}%;background:${C.valid};min-width:0;`;
-      col.title = `${fmtNum(entry.binMin)} – ${fmtNum(entry.binMax)}: ${entry.cnt.toLocaleString()}`;
+      col.style.cssText = `flex:1;height:${h}%;background:${C.distBar};min-width:0;`;
+      col.title = `Count: ${entry.cnt.toLocaleString()}\nValue: ${fmtNum(entry.binMin)} – ${fmtNum(entry.binMax)}`;
       barsRow.appendChild(col);
 
       const tick = document.createElement("div");
       tick.style.cssText = "flex:1;min-width:0;overflow:visible;position:relative;height:100%;";
       if (i % 2 === 0 || i === bins.length - 1) {
         const lbl = document.createElement("span");
-        lbl.style.cssText = `position:absolute;top:0;left:0;font-size:7px;color:${C.muted};white-space:nowrap;transform:rotate(45deg);transform-origin:top left;`;
+        lbl.style.cssText = `position:absolute;top:0;left:0;font-size:7px;color:#616161;white-space:nowrap;transform:rotate(45deg);transform-origin:top left;`;
         lbl.textContent = fmtNum(min + binStep * i);
         tick.appendChild(lbl);
       }
@@ -600,7 +649,8 @@ class RowNumberFixture extends PVerticalFixture {
       });
 
       if (contentDirty) {
-        cell.textContent = String(rowIndex + 1);
+        const offsetTop = this.data!.offsetTop;
+        cell.textContent = String(offsetTop + rowIndex + 1);
         cell.style.fontSize = "11px";
         cell.style.color = C.muted;
         cell.style.textAlign = "right";
@@ -644,16 +694,20 @@ class QualityDotFixture extends PVerticalFixture {
       });
 
       if (contentDirty) {
-        let hasMissing = false;
+        const nullCols: string[] = [];
         for (let c = 0; c < numCols; c++) {
           const cellMeta = this.data!.metadata.getValueCellMeta(c, rowIndex);
-          if (cellMeta?.quality === "missing") { hasMissing = true; break; }
+          if (cellMeta?.quality === "missing") {
+            const colMeta = this.data!.metadata.getValueColumnMeta(c);
+            nullCols.push((colMeta?.fieldName as string) ?? `col ${c}`);
+          }
         }
-        const color = hasMissing ? C.missingDot : C.validDot;
+        const color = nullCols.length > 0 ? C.missingDot : C.validDot;
         cell.style.display = "flex";
         cell.style.alignItems = "center";
         cell.style.justifyContent = "center";
-        cell.innerHTML = `<div style="width:6px;height:6px;border-radius:50%;background:${color}"></div>`;
+        cell.title = nullCols.length > 0 ? `${nullCols.length} null value${nullCols.length > 1 ? "s" : ""}\n${nullCols.join("\n")}` : "";
+        cell.innerHTML = `<div style="width:6px;height:10px;border-radius:1px;background:${color}"></div>`;
       }
       if (needAppend) nodesToAppend.push(cell);
     }
@@ -661,71 +715,112 @@ class QualityDotFixture extends PVerticalFixture {
   }
 }
 
+let minimapGridRef: Grid | null = null;
+
 class MinimapFixture extends PVerticalFixture {
   viewModelKey(): string { return "minimap"; }
 
   headerCell(): HTMLElement {
     const el = document.createElement("span");
-    el.style.cssText = `font-size:8px;color:${C.muted};white-space:nowrap;`;
-    el.textContent = "Map";
+    el.style.cssText = "display:block;width:8px;";
     return el;
   }
 
-  get colSize() { return {strategy: "fixed-width" as const, widthInPx: 14, minWidthInPx: 14}; }
+  get colSize() { return {strategy: "fixed-width" as const, widthInPx: 8, minWidthInPx: 8}; }
 
   getCellsToRender(viewModel: BaseViewModel, fixtureViewModel: BaseFixtureViewModel, sliceData: BaseSliceResult) {
     const nodesToAppend: HTMLElement[] = [];
     const numColFacetLevels = this.data!.numColFacetLevels;
     const fixturesTopLen = (viewModel as any).fixtures?.top?.length ?? 0;
 
+    const [cell, needAppend] = this.placeCellInDom({
+      key: "mm-canvas",
+      gridRow: fixturesTopLen + numColFacetLevels + 1,
+      gridCol: fixtureViewModel.track,
+      hintContentDirty: true,
+      cls: `${fixtureViewModel.suggestedCls.join(" ")} data first last`,
+      extraStyles: {right: fixtureViewModel.offset, rowspan: sliceData.sliceNumRows},
+    });
+
+    cell.style.padding = "0";
+    cell.style.overflow = "hidden";
+
+    const totalRows = this.data!.totalRows;
+    const height = sliceData.sliceNumRows * 28;
+    const width = 8;
+    const markerH = 3;
+
+    let canvas = cell.querySelector("canvas") as HTMLCanvasElement | null;
+    if (!canvas) {
+      canvas = document.createElement("canvas");
+      canvas.style.cssText = "display:block;width:100%;height:100%;cursor:pointer;";
+      canvas.addEventListener("click", (e: MouseEvent) => {
+        const rect = canvas!.getBoundingClientRect();
+        const clickY = e.clientY - rect.top;
+        const clickFrac = clickY / rect.height;
+        const targetRow = Math.floor(clickFrac * totalRows);
+        minimapGridRef?.scrollTo("row", targetRow);
+      });
+      cell.replaceChildren(canvas);
+    }
+
+    const offsetY = (viewModel as any).offsetY ?? 0;
+    canvas.style.transform = offsetY !== 0 ? `translateY(${offsetY}px)` : "";
+
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = canvas.getContext("2d")!;
+    ctx.clearRect(0, 0, width, height);
+
     const minimap = this.data!.metadata.getValueColumnMeta(0)?.minimap as
       Array<{bucket: number; nullCount: number; totalCount: number}> | undefined;
+    if (!minimap || minimap.length === 0) {
+      if (needAppend) nodesToAppend.push(cell);
+      return {nodesToAppend};
+    }
 
-    // Precompute density range for relative scaling
-    let maxDensity = 0;
+    const pxPerRow = height / totalRows;
+    const rowsPerBlock = Math.max(1, Math.ceil(markerH / pxPerRow));
+    const numBlocks = Math.ceil(totalRows / rowsPerBlock);
+    const rowsPerBucket = totalRows / minimap.length;
+
+    // First pass: compute per-block densities
+    const blockDensities = new Float64Array(numBlocks);
     let minDensity = 1;
-    if (minimap) {
-      for (const b of minimap) {
-        const d = b.nullCount / b.totalCount;
-        if (d > maxDensity) maxDensity = d;
-        if (d > 0 && d < minDensity) minDensity = d;
+    let maxDensity = 0;
+    for (let b = 0; b < numBlocks; b++) {
+      const blockStartRow = b * rowsPerBlock;
+      const blockEndRow = Math.min(totalRows, blockStartRow + rowsPerBlock);
+      let nullCount = 0;
+      let totalCount = 0;
+      const bucketStart = Math.floor(blockStartRow / rowsPerBucket);
+      const bucketEnd = Math.min(minimap.length - 1, Math.floor((blockEndRow - 1) / rowsPerBucket));
+      for (let bi = bucketStart; bi <= bucketEnd; bi++) {
+        nullCount += minimap[bi].nullCount;
+        totalCount += minimap[bi].totalCount;
       }
+      const d = totalCount > 0 ? nullCount / totalCount : 0;
+      blockDensities[b] = d;
+      if (d > 0 && d < minDensity) minDensity = d;
+      if (d > maxDensity) maxDensity = d;
     }
     const densityRange = maxDensity - minDensity;
-    const totalBuckets = minimap?.length || 1;
 
-    for (let j = 0; j < sliceData.sliceNumRows; j++) {
-      const key = `mm-${j}`;
-      const startEndCellCls = `${j === 0 ? " first" : ""}${j === sliceData.sliceNumRows - 1 ? " last" : ""}`;
-
-      const [cell, needAppend, contentDirty] = this.placeCellInDom({
-        key,
-        gridRow: fixturesTopLen + numColFacetLevels + j + 1,
-        gridCol: fixtureViewModel.track,
-        hintContentDirty: true,
-        cls: `${fixtureViewModel.suggestedCls.join(" ")} data${startEndCellCls}`,
-        extraStyles: {right: fixtureViewModel.offset},
-      });
-
-      if (contentDirty) {
-        const bucketIdx = Math.min(Math.floor(j * totalBuckets / sliceData.sliceNumRows), totalBuckets - 1);
-        const bucket = minimap?.[bucketIdx];
-        const density = bucket ? bucket.nullCount / bucket.totalCount : 0;
-
-        if (density > 0 && densityRange > 0) {
-          const normalized = (density - minDensity) / densityRange;
-          const alpha = 0.15 + normalized * 0.85;
-          cell.style.backgroundColor = `rgba(232,99,110,${alpha.toFixed(2)})`;
-        } else if (density > 0) {
-          cell.style.backgroundColor = `rgba(232,99,110,0.5)`;
-        } else {
-          cell.style.backgroundColor = "";
-        }
-        cell.style.padding = "0";
-        cell.innerHTML = "";
+    // Second pass: render with normalized intensity
+    for (let b = 0; b < numBlocks; b++) {
+      const y = Math.round(b * markerH);
+      const d = blockDensities[b];
+      if (d > 0) {
+        const normalized = densityRange > 0 ? (d - minDensity) / densityRange : 1;
+        const alpha = 0.2 + normalized * 0.8;
+        ctx.fillStyle = `rgba(232,99,110,${alpha.toFixed(2)})`;
+      } else {
+        ctx.fillStyle = C.validDot;
       }
-      if (needAppend) nodesToAppend.push(cell);
+      ctx.fillRect(0, y, width, markerH);
     }
+
+    if (needAppend) nodesToAppend.push(cell);
     return {nodesToAppend};
   }
 }
@@ -774,20 +869,20 @@ class SummaryFixture extends PHorizontalFixture {
       cell.style.fontSize = "12px";
       cell.style.padding = "4px 12px";
       cell.style.whiteSpace = "nowrap";
-      cell.style.display = "flex";
-      cell.style.gap = "8px";
-      cell.style.alignItems = "center";
-      cell.innerHTML = [
-        `<span style="color:${C.valid};font-weight:700;font-size:14px">${validPct}%</span>`,
-        `<span style="color:${C.muted};font-size:11px">valid</span>`,
-        `<span style="margin-left:8px;color:${C.missing};font-weight:700;font-size:14px">${missingPct}%</span>`,
-        `<span style="color:${C.muted};font-size:11px">missing</span>`,
-        `<span style="margin-left:16px;font-weight:600">${numCols}</span>`,
-        `<span style="color:${C.muted};font-size:11px">columns</span>`,
-        `<span style="margin-left:8px;font-weight:600">${totalRows.toLocaleString()}</span>`,
-        `<span style="color:${C.muted};font-size:11px">rows</span>`,
-      ].join("");
+      cell.innerHTML =
+        `<div style="display:flex;gap:8px;align-items:center">` +
+        `<span style="font-weight:700;font-size:14px">${validPct}%</span>` +
+        `<span style="color:${C.muted};font-size:11px">valid</span>` +
+        `<span style="margin-left:8px;font-weight:700;font-size:14px">${missingPct}%</span>` +
+        `<span style="color:${C.muted};font-size:11px">missing</span>` +
+        `<span style="margin-left:16px;font-weight:600">${numCols}</span>` +
+        `<span style="color:${C.muted};font-size:11px">columns</span>` +
+        `<span style="margin-left:8px;font-weight:600">${totalRows.toLocaleString()}</span>` +
+        `<span style="color:${C.muted};font-size:11px">rows</span>` +
+        `</div>`;
     }
+    const offsetX = (vm as any).offsetX ?? 0;
+    (cell.firstElementChild as HTMLElement).style.transform = offsetX !== 0 ? `translateX(${offsetX}px)` : "";
     if (needAppend) {
       cell.dataset.bottomFixtureNodeType = "h-sticky";
       nodesToAppend.push(cell);
@@ -828,10 +923,14 @@ const DataWrangler: React.FC = () => {
       });
       if (cancelled) return;
 
-      // Introduce random nulls so data quality is visible
-      for (const [col, rate] of Object.entries(NULL_RATES)) {
-        await ds.execute(`UPDATE "${ds.table}" SET "${col}" = NULL WHERE random() < ${rate}`);
+      // Mark 10% of rows as dirty, then null out 30% of columns in those rows
+      await ds.execute(`ALTER TABLE "${ds.table}" ADD COLUMN __dirty__ BOOLEAN DEFAULT FALSE`);
+      await ds.execute(`UPDATE "${ds.table}" SET __dirty__ = random() < ${NULL_ROW_RATE}`);
+      const nullableCols = CLEAN_SCHEMA.map(s => s.name).filter(n => n !== "Payroll Number" && n !== "Agency Name");
+      for (const col of nullableCols) {
+        await ds.execute(`UPDATE "${ds.table}" SET "${col}" = NULL WHERE __dirty__ AND random() < ${NULL_COL_RATE}`);
       }
+      await ds.execute(`ALTER TABLE "${ds.table}" DROP COLUMN __dirty__`);
 
       const plumber = createDataQualityPlumber();
       const model = new SqlStandardTableDataModel(CLEAN_SCHEMA, ds, {
@@ -889,14 +988,16 @@ const DataWrangler: React.FC = () => {
       if (!containerRef.current) return;
 
       const grid = new Grid({
+        theme: "data-wrangler",
         fixtures: {
-          top: [QualityBarFixture, HistogramFixture],
+          top: [HistogramFixture, QualityBarFixture],
           left: [RowNumberFixture],
           bottom: [SummaryFixture],
           right: [QualityDotFixture, MinimapFixture],
         },
       }, containerRef.current, "flat");
       gridRef.current = grid;
+      minimapGridRef = grid;
       grid.data = viewModel;
       grid.draw();
 
@@ -966,7 +1067,7 @@ const DataWrangler: React.FC = () => {
       }
     });
 
-    return () => { cancelled = true; onHistogramSelectionChange = null; };
+    return () => { cancelled = true; onHistogramSelectionChange = null; minimapGridRef = null; };
   }, [rowCount]);
 
   return (
