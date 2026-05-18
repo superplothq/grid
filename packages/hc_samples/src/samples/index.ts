@@ -1,7 +1,7 @@
 import "./pivot-table";
-import "./basic-pivot";
-import "./basic-flat-table";
-import "./pivot-grid";
-import "./pivot-grid-conversation";
+import "./standard-table";
+import "./headless-architecture";
+import "./fullstack-grid";
+import "./table-algebra";
 
 export { getSamples, getSampleById } from "./registry";

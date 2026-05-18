@@ -1,5 +1,4 @@
 import React, { useEffect, useRef, useState, useCallback, useMemo } from "react";
-import { registerSample } from "./registry";
 import { useDataSource } from "../DataSourceProvider";
 import { SqlPivotTableDataModel, cross, concat, hierarchy, ProjectionState, DimensionalProjectionPath, SortEntry, AxisConfig, AxisExpr, ScalarFilter, Filter, PivotMetadataPlumber, SqlPivotMetadataResolver, PivotMetadataReshaper } from "grid";
 import Grid, { PivotDataViewModel, FacetCellRenderer, FacetDataContext, FacetRendererContext, FacetHeaderRenderer, FacetHeaderContext, GridDataViewModelOptions, PHorizontalFixture } from "grid/dist/renderer";
@@ -1559,9 +1558,3 @@ export function PivotGrid() {
 }
 
 // #endregion component
-
-registerSample({
-  id: "pivot-grid",
-  title: "Pivot Grid",
-  component: PivotGrid,
-});

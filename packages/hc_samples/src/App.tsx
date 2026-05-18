@@ -1,6 +1,6 @@
 import { getSamples, getSampleById } from "./samples";
 import { cn } from "./lib/utils";
-import { LayoutGrid, Table, Grid3X3, MessageSquare, TableProperties } from "lucide-react";
+import { LayoutGrid, Table, Grid3X3, TableProperties, BookOpen, Layers, Sigma } from "lucide-react";
 
 function getActiveSampleId(): string {
   const hash = window.location.hash.replace(/^#\/?/, "").replace(/\/$/, "");
@@ -13,12 +13,13 @@ function getActiveSampleId(): string {
 
 const sampleIcons: Record<string, typeof LayoutGrid> = {
   "pivot-table": TableProperties,
-  "basic-pivot": LayoutGrid,
-  "basic-flat-table": Table,
-  "pivot-grid-conversation": MessageSquare,
+  "standard-table": Table,
+  "headless-architecture": BookOpen,
+  "fullstack-grid": Layers,
+  "table-algebra": Sigma,
 };
 
-const firstTabIds = new Set(["pivot-table"]);
+const docIds = new Set(["headless-architecture", "fullstack-grid", "table-algebra"]);
 
 function SidebarLink({ sample, activeSampleId }: { sample: { id: string; title: string }; activeSampleId: string }) {
   const Icon = sampleIcons[sample.id] ?? LayoutGrid;
@@ -75,13 +76,11 @@ export function App() {
         <div style={{ height: 1, background: "#d1d5db", margin: "0 16px" }} />
 
         <nav className="flex-1 overflow-y-auto" style={{ padding: "16px 12px" }}>
-          {samples.filter((s) => firstTabIds.has(s.id)).map((sample) => (
+          {samples.filter((s) => !docIds.has(s.id)).map((sample) => (
             <SidebarLink key={sample.id} sample={sample} activeSampleId={activeSampleId} />
           ))}
-          <div style={{ fontSize: 11, fontWeight: 600, color: "#9ca3af", letterSpacing: "0.05em", padding: "12px 12px 6px", textTransform: "uppercase" }}>
-            In Progress
-          </div>
-          {samples.filter((s) => !firstTabIds.has(s.id)).map((sample) => (
+          <div style={{ height: 1, background: "#d1d5db", margin: "12px 4px" }} />
+          {samples.filter((s) => docIds.has(s.id)).map((sample) => (
             <SidebarLink key={sample.id} sample={sample} activeSampleId={activeSampleId} />
           ))}
         </nav>
