@@ -438,14 +438,14 @@ export default class StandardLayout extends StandardLayoutBase {
     return handle;
   }
 
-  protected buildAndPlaceFacetCell(cell: HTMLElement, facetDefs: FacetDef[], merge: MergeState, facets: (string | null)[][], key: string, opts?: { rendererOverride?: FacetCellRenderer; resizeHandle?: boolean }): void {
+  protected buildAndPlaceFacetCell(cell: HTMLElement, facetDefs: FacetDef[], merge: MergeState, facets: (string | null)[][], key: string, opts?: { rendererOverride?: FacetCellRenderer; resizeHandle?: boolean; absoluteIndex?: number }): void {
     const renderer = opts?.rendererOverride ?? facetDefs[merge.level].trackRenderer;
     const container = this.createFacetContainer(cell);
     const dataCtx: FacetDataContext = {
       viewModel: this.data!,
       path: facets[merge.start],
       level: merge.level,
-      index: merge.start,
+      index: opts?.absoluteIndex ?? merge.start,
       key,
     };
     const rendererCtx: FacetRendererContext = {
@@ -1217,7 +1217,7 @@ export default class StandardLayout extends StandardLayoutBase {
       });
       if (contentDirty) {
         const { trackRenderer: colTrackRenderer, styleFns: colStyleFns } = this.resolveFacetOverrides([sliceData.columnFacets![merge.start][merge.level]], [this.data!.facetDefs.col[merge.level]]);
-        this.buildAndPlaceFacetCell(cell, this.data!.facetDefs.col, merge, sliceData.columnFacets!, key, { rendererOverride: colTrackRenderer, resizeHandle: true });
+        this.buildAndPlaceFacetCell(cell, this.data!.facetDefs.col, merge, sliceData.columnFacets!, key, { rendererOverride: colTrackRenderer, resizeHandle: true, absoluteIndex: viewModel.x0 + merge.start });
         for (const fn of colStyleFns) fn(cell);
       }
       if (!isLeafLevel) {
@@ -1739,7 +1739,7 @@ export default class StandardLayout extends StandardLayoutBase {
       });
       if (contentDirty) {
         const { trackRenderer: rowTrackRenderer, styleFns: rowStyleFns } = this.resolveFacetOverrides([sliceData.rowFacets![merge.start][merge.level]], [this.data!.facetDefs.row[merge.level]]);
-        this.buildAndPlaceFacetCell(cell, this.data!.facetDefs.row, merge, sliceData.rowFacets!, key, { rendererOverride: rowTrackRenderer });
+        this.buildAndPlaceFacetCell(cell, this.data!.facetDefs.row, merge, sliceData.rowFacets!, key, { rendererOverride: rowTrackRenderer, absoluteIndex: viewModel.y0 + merge.start });
         for (const fn of rowStyleFns) fn(cell);
       }
       if (!isLeaf) {

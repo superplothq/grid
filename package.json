@@ -10,6 +10,10 @@
     "grid:build": "yarn workspace grid build && yarn workspace grid build:css && yarn workspace frameworks build",
     "docs:start": "yarn workspace docs dev",
     "docs:build": "yarn workspace docs build",
+    "web:start": "yarn workspace web dev",
+    "web:build": "yarn workspace web build",
+    "samples:start": "yarn workspace hc_samples start",
+    "samples:build": "yarn workspace hc_samples build",
     "lint": "yarn workspaces run lint",
     "clean": "yarn workspaces run clean"
   },

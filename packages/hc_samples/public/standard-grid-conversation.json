@@ -1,0 +1,80 @@
+[
+  {
+    "user": "Create a new sample `standard-grid.tsx` with a barebone flat grid. Load the NYC Payroll CSV into a **separate** in browser datasource, take the schema definition from existing pivot grid in samples, downsample to 50K rows as preprocessing step, and inject clustered nulls (1% of rows dirty, 30% of columns nulled - skip Payroll Number and Agency Name). Render a basic grid with defaults",
+    "claude": "Created `standard-grid.tsx` with a self-contained dirty datasource:\n- `useDirtyDataSource()` hook — creates an independent `DataSource`, loads CSV with `CLEAN_SCHEMA` (15 columns: dimensions + measures with temporal/decimal subtypes), applies `buildReplaceMap()` for cleaning `$`, `,`, `''`, and `makePreprocess(50000)` for downsampling\n- Null injection: marks ~1% rows dirty via `random() < 0.01`, nulls ~30% of columns in dirty rows, drops temp `__dirty__` column\n- `StandardGrid` component using `SqlStandardTableDataModel` + `FlattenedDataViewModel`, initial fetch of 10K rows, `viewDataEmpty` handler for scroll pagination\n- Registered sample in `index.ts`",
+    "grid_state": "s1",
+    "concept_used": "Headless Grid Architecture",
+    "state_desc": "Barebone flat grid with 50K downsampled rows and clustered null injection"
+  },
+  {
+    "user": "Add a custom cell renderer that:\n- Highlights null cells with a light red background and shows \"null\" in red italic\n- Left-aligns dimensions, right-aligns measures\n- Rounds numbers and formats with locale separators\n- Shows dates as `yyyy-mm-dd`\n- Shows `$` prefix for salary/pay columns and `hrs` prefix for hour columns using a `space-between` layout; make prefix text smaller and faded",
+    "claude": "Added `qualityCellRenderer: CellRenderer<unknown>` with per-column formatting:\n- Uses `CLEAN_SCHEMA[dataCtx.colIndex]` to determine column type\n- **Nulls**: `backgroundColor: rgba(232,99,110,0.12)`, red italic \"null\" text\n- **Alignment**: `ctx.container.style.justifyContent` — `flex-start` for dimensions, `flex-end` for measures, `space-between` when unit prefix is present\n- **Formatting**: `formatCellValue` helper — `Intl.NumberFormat` for measures, manual `yyyy-mm-dd` for temporals\n- **Unit prefixes**: `getUnit()` returns `$` for money columns (Base Salary, Regular Gross Paid, Total OT Paid, Total Other Pay) and `hrs` for hour columns (Regular Hours, OT Hours)\n- Wired via `GridDataViewModelOptions.vTrackDefs` — one `{ renderer: qualityCellRenderer }` per column",
+    "grid_state": "s2",
+    "concept_used": "Grid Config API",
+    "state_desc": "Custom cell renderer with null highlighting, alignment, number formatting, and unit prefixes"
+  },
+  {
+    "user": "Add a left vertical fixture that shows the absolute row number. Style it with muted color, right-aligned, 11px font.",
+    "claude": "Added `RowNumberFixture extends PVerticalFixture`:\n- `viewModelKey()`: `\"row-num\"`\n- `headerCell()`: bold `#` label\n- `getCellsToRender()`: shows 1-based row number accounting for `offsetTop` from pagination. Styled: `fontSize: 11px`, `color: #999`, `textAlign: right`, `paddingRight: 6px`\n- Wired into `Grid` config: `fixtures.left: [RowNumberFixture]`",
+    "grid_state": "s3",
+    "concept_used": "Headless Grid Architecture; Fixtures",
+    "state_desc": "Left fixture showing absolute row numbers in muted style"
+  },
+  {
+    "user": "Add a top horizontal fixture - a thin stacked bar per column showing valid (bluish) vs missing (redish) proportions. [Shreenshot attached]. Use zero padding, no border radius, and ensure the missing segment has a minimum 4px width so even 1% is visible. Show valid/missing counts on hover tooltip.\n\nAdd a metadata plumber that computes this information.",
+    "claude": "Added metadata plumbing and quality bar fixture:\n- `createQualityPlumber(): StandardMetadataPlumber` — global resolver runs `COUNT(*) - COUNT(\"field\")` SQL per column to get missing counts, reshaper maps into per-column `{ total, missing }` metadata\n- `QualityBarFixture extends PHorizontalFixture` — 12px tall, reads `metadata.getValueColumnMeta(colIndex)` for total/missing. Each cell: flex row with blue (`#03A9F4`) valid segment and red (`#e8636e`) missing segment. Missing has `min-width: 4px`. Tooltip: \"Valid: N\\nMissing: N\"\n- Passed plumber to `SqlStandardTableDataModel` constructor, added `metadata` to `FlattenedDataViewModel` and `updateData` calls",
+    "grid_state": "s4",
+    "concept_used": "Fixtures; Metadata Layer",
+    "state_desc": "Top fixture with per-column valid/missing stacked bars powered by metadata plumbing"
+  },
+  {
+    "user": "Add another top horizontal fixture above the quality bar. [Screenshot attached]. For dimension columns, show a horizontal bar chart of top 8 values with a \"Top N values\" header. For measure columns, show a vertical histogram with axis tick labels. Add tooltips showing Count and Value on hover.\n\nAdd a metadata plumber that computes the statistics/distribution.",
+    "claude": "Extended the metadata plumber and added `HistogramFixture`:\n- **Plumber extension**: global resolver now also queries `GROUP BY ... ORDER BY cnt DESC LIMIT 8` for dimension top values, and bucketed `MIN/MAX/FLOOR` histogram SQL for measure distributions (8 bins). Reshaper stores `topValues`, `histBins`, `min`, `max`, `schemaType`, `fieldName` per column\n- `HistogramFixture extends PHorizontalFixture` — 138px tall, positioned above `QualityBarFixture` in `fixtures.top`\n  - **Dimension columns**: `renderDimensionBars()` — horizontal bars with \"Top N values\" header, bars sized proportionally via flex, labels with ellipsis, tooltips with Count and Value\n  - **Measure columns**: `renderMeasureBars()` — vertical bars aligned to bottom, even tick labels rotated 45deg, tooltips with Count and Value range\n- Added `C_DIST_BAR = \"#607D8B\"`, `NUM_BINS = 8`, `fmtNum()` for compact number formatting",
+    "grid_state": "s5",
+    "concept_used": "Fixtures; Metadata Layer",
+    "state_desc": "Distribution fixture with dimension bar charts and measure histograms"
+  },
+  {
+    "user": "Can you use log scale for the measure histograms? Also add some spacing between the dimension distribution chart and the quality bar below.",
+    "claude": "Two changes:\n1. **Log scale**: when `maxCnt / minCnt > 10`, bar heights use `log(cnt)` scaled between `log(minCnt)` and `log(maxCnt)`. Falls back to linear when counts are close together\n2. **Bottom spacing**: added `padding-bottom: 8px` to dimension bar wrapper, set `cell.style.alignItems = \"flex-start\"` so wrapper sizes to content, bumped fixture height from 130 to 138px",
+    "grid_state": "s6",
+    "concept_used": "Fixtures",
+    "state_desc": "Log-scale histograms for measures, spacing between distribution and quality fixtures"
+  },
+  {
+    "user": "Add drag-to-select interaction on measure histograms. Clicking and dragging creates a range selection overlay with resize handles and a close button. The selection filters the data by adding `gte`/`lte` filter predicates to the IR and re-fetching. Cache original column metadata so histograms stay stable when filters change. [Screenshot attached].",
+    "claude": "Added interactive histogram filtering:\n- **Selection state** (module-level): `histogramSelections: Map<number, HistogramRange>` tracks `{field, valMin, valMax}` per column, `originalColMeta` caches first-fetch metadata so histograms render from original distribution\n- **Drag interaction** (`setupHistogramDrag`): mousedown on histogram cell — creates range on drag, pans overlay on existing selection, resize via left/right edge handles, close button (×) removes selection. Tiny selections (<0.5% of range) discarded\n- **Selection overlay** (`renderSelectionOverlay`): positioned via CSS `calc()` for correct rendering even on virtualization re-create. Semi-transparent box with resize handles and close button\n- **Filtering**: `onHistogramSelectionChange` callback builds `gte`/`lte` `ScalarFilter` predicates, re-fetches via `getViewModelData` with updated IR. `viewDataEmpty` handler also carries histogram filters\n- `HistogramFixture.renderMeasureBars` now calls `setupHistogramDrag` and `renderSelectionOverlay` at end, reads from `originalColMeta` when available",
+    "grid_state": "s7",
+    "concept_used": "Headless Grid Architecture; Fixtures; Metadata Layer",
+    "state_desc": "Drag-to-select range filter on measure histograms with cached metadata"
+  },
+  {
+    "user": "Add a right vertical fixture that shows a small colored rectangle per row - red if the row has any null, green otherwise. On hover, show a tooltip listing the null column names with count separated by newline. [Screenshot attached]",
+    "claude": "Added page-wise metadata and quality dot fixture:\n- **Page-wise plumber**: resolver emits `CASE WHEN \"field\" IS NULL THEN 1 ELSE 0 END` SQL expression per column via `SqlSelectExpression`. Reshaper maps null flags into per-cell `{ quality: \"missing\" }` via `StandardPageCellMetadata`\n- `QualityDotFixture extends PVerticalFixture` — right fixture:\n  - Header: \"Q\" with tooltip \"Row data quality\"\n  - Each row: 6×10px rectangle — red (`#e8636e`) if any column has null (checked via `metadata.getValueCellMeta(c, rowIndex)`), green (`#03A9F4`) otherwise\n  - Tooltip on red dots: \"N null values\\nBase Salary\\nOT Hours\\n...\" listing null column names from `metadata.getValueColumnMeta(c).fieldName`",
+    "concept_used": "Headless Grid Architecture; Fixtures; Metadata Layer"
+  },
+  {
+    "user": "Add a right vertical fixture using a canvas element. It should span all visible rows as a single cell. Use the global minimap metadata (300 buckets) to paint bands - red intensity proportional to null density (normalized min-max), green if clean. Clicking the canvas should scroll to the corresponding row. [Screenshot attached]",
+    "claude": "Added minimap metadata and canvas fixture:\n- **Plumber extension**: global resolver now runs a bucketed SQL query (300 buckets) counting rows with any null per bucket. Stored on first column's metadata as `minimap: Array<{ bucket, nullCount, totalCount }>`\n- `MinimapFixture extends PVerticalFixture` — fixed 8px wide via `get colSize()`, renders a single `<canvas>` spanning all visible rows:\n  - Each of 300 minimap buckets maps directly to a pixel band (`bandH = height / minimap.length`)\n  - Clean buckets: `C_VALID` (#03A9F4 blue)\n  - Dirty buckets: `rgba(232,99,110, alpha)` where alpha is normalized density (0.2–0.8 range)\n  - Click handler: calculates `targetRow` from click fraction, calls `minimapGridRef.scrollTo(\"row\", targetRow)`\n  - Applies `canvas.style.transform = translateY(offsetY)` to counteract scroll jitter\n- Set `minimapGridRef` after grid creation, cleaned up on unmount",
+    "concept_used": "Headless Grid Architecture; Fixtures; Metadata Layer"
+  },
+  {
+    "user": "Add a bottom horizontal fixture that spans all columns, showing overall stats: valid %, missing %, column count, row count. [Screenshot attached]",
+    "claude": "Added `SummaryFixture extends PHorizontalFixture` — 32px tall bottom fixture:\n- Spans all columns via `colspan: numRowFacetLevels + sliceData.sliceNumCols`\n- Computes stats from column metadata: `totalRows`, `totalMissing`, `validPct`, `missingPct`, `numCols`\n- Content: flex row with bold percentages + muted labels (\"valid\", \"missing\", \"columns\", \"rows\")\n- Child `<div>` gets `transform: translateX(offsetX)` on every render for horizontal scroll stability\n- Uses `h-fixed` class and `bottomFixtureNodeType = \"h-sticky\"` for proper pinning",
+    "concept_used": "Headless Grid Architecture; Fixtures; Metadata Layer"
+  },
+  {
+    "user": "Register a custom theme extending the light theme: header background `#e1f5fe`, vertical borders `#4fc3f7`, horizontal borders `#f1f1f1`, data-top border `#03A9F4`.",
+    "claude": "Added `registerTheme(\"data-wrangler\", { ...getTheme(\"light\")!, ... })` with specified colors. Imported `registerTheme` and `getTheme` from `grid/dist/renderer`. Passed `theme: \"data-wrangler\"` to the `Grid` constructor.",
+    "grid_state": "s8",
+    "concept_used": "Grid Config API",
+    "state_desc": "Custom theme with blue header and border colors with all fixtures"
+  },
+  {
+    "user": "Add interactivity to dimension distribution bars:\n- Click a bar to toggle filter (selected values use `IN()` predicate)\n- Multiple bars can be selected across columns (AND logic with histogram filters)\n- Selected bars: highlighted blue with border, bold label; unselected bars dimmed\n- Show a filter icon in column facet header for dimension columns with active filters\n- Filter icon opens a popover showing active filter values as pills with × remove buttons\n- Popover has Clear (removes all + refetches), Cancel (closes), and Apply (commits changes + refetches) CTAs\n- Theme: background `#42A5F5`, color white, border `#0288D1`, buttons white with `#42A5F5` text",
+    "claude": "Major feature adding dimension filtering:\n- **Selection state**: `dimensionSelections: Map<string, Set<string>>`, `DIMENSION_FIELDS_WITH_HIST` set, `buildAllFilters()` helper combining histogram `gte/lte` and dimension `IN()` into `ScalarFilter[]`\n- **Bar toggle** (`renderDimensionBars`): click handler toggles value in `dimensionSelections`, calls `applyDimensionBarStyles()` for immediate visual feedback (data attributes `data-dim-val`, `data-dim-bar`, `data-dim-label` on DOM elements). Selected: blue `#42A5F5` bar + `#0288D1` border + bold label. Unselected when filter active: `opacity: 0.35`\n- **Column header** (`colTrackRenderer: FacetCellRenderer`): for dimension columns with active filters, returns `{ content: data, right: filterIcon }` — funnel SVG icon with blue highlight background, click opens popover via `setFilterPopoverRef`\n- **`DimensionFilterPopover`** React component: fixed-positioned below icon, shows filter value pills with × remove, Clear/Cancel/Apply buttons. Clear removes all + refetches + closes. Apply commits remaining values + refetches + closes\n- **Shared refetch** (`refetchAndDraw` callback): centralized data fetch using `buildAllFilters()`, used by both `onHistogramSelectionChange` and `onDimensionSelectionChange`\n- Added `modelRef`, `viewModelRef`, `irRef` to component for shared access across callbacks",
+    "grid_state": "s9",
+    "concept_used": "Headless Grid Architecture; Grid Config API;",
+    "state_desc": "Interactive dimension bar filters with popover management and combined filter predicates"
+  }
+]

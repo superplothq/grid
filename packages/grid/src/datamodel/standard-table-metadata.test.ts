@@ -278,10 +278,10 @@ describe("Standard Table Metadata", () => {
                   for (let rowIdx = 0; rowIdx < nullCounts.length; rowIdx++) {
                     if (Number(nullCounts[rowIdx]) > 0) {
                       cells.push({ rowIdx, colIdx, meta: { nullCount: Number(nullCounts[rowIdx]) } });
+                    }
                   }
                 }
-              }
-              return { cells };
+                return { cells };
               },
             },
           },
