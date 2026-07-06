@@ -1,0 +1,109 @@
+@import 'tailwindcss';
+
+@theme {
+  --font-sans: var(--font-body), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-title), ui-monospace, 'JetBrains Mono', monospace;
+
+  --color-canvas: #06070a;
+  --color-surface: #0c0e14;
+  --color-surface-2: #11141c;
+  --color-surface-3: #171b26;
+  --color-border: #1e2430;
+  --color-border-strong: #2b3342;
+  --color-ink: #f4f6fb;
+  --color-ink-muted: #a4adbe;
+  --color-ink-faint: #6b7385;
+  --color-accent: #6d8bff;
+  --color-accent-strong: #8aa0ff;
+  --color-accent-soft: #1a2140;
+  --color-positive: #3ecf8e;
+  --color-warning: #f4b740;
+  --color-danger: #ff6b6b;
+}
+
+@layer base {
+  :root {
+    color-scheme: dark;
+  }
+
+  * {
+    border-color: var(--color-border);
+  }
+
+  html {
+    scrollbar-gutter: stable;
+    scroll-behavior: smooth;
+    background-color: var(--color-canvas);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  body {
+    background-color: var(--color-canvas);
+    color: var(--color-ink);
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-family: var(--font-mono);
+    letter-spacing: -0.02em;
+  }
+
+  /* Offset anchor targets so sticky header doesn't cover them */
+  section[id] {
+    scroll-margin-top: 5.5rem;
+  }
+}
+
+/* ---- Demo preview themes ---- */
+[data-demo-theme='operator'] {
+  --demo-bg: #0b0d13;
+  --demo-panel: #10131c;
+  --demo-row: #0e111a;
+  --demo-row-alt: #0b0e16;
+  --demo-border: #1d2331;
+  --demo-head: #151a26;
+  --demo-ink: #eef1f7;
+  --demo-muted: #9aa3b5;
+  --demo-accent: #6d8bff;
+}
+
+[data-demo-theme='studio'] {
+  --demo-bg: #f7f8fb;
+  --demo-panel: #ffffff;
+  --demo-row: #ffffff;
+  --demo-row-alt: #f3f5f9;
+  --demo-border: #e3e7ef;
+  --demo-head: #eef1f7;
+  --demo-ink: #12151d;
+  --demo-muted: #5b6472;
+  --demo-accent: #3355e6;
+}
+
+[data-demo-theme='contrast'] {
+  --demo-bg: #05060a;
+  --demo-panel: #0a0b10;
+  --demo-row: #0a0b10;
+  --demo-row-alt: #05060a;
+  --demo-border: #333a4a;
+  --demo-head: #12141c;
+  --demo-ink: #ffffff;
+  --demo-muted: #b8c0d0;
+  --demo-accent: #8aa0ff;
+}
+
+@keyframes fade-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.animate-fade-in {
+  animation: fade-in 0.18s ease-out;
+}
+
+.grid-noise {
+  background-image:
+    linear-gradient(to right, rgba(255, 255, 255, 0.03) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
+  background-size: 44px 44px;
+}

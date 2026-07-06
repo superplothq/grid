@@ -6,9 +6,35 @@ Add sorting support to the flat table (DataGrid) pipeline. The data layer alread
 
 ---
 
-## Architecture
+## <!-- p-cmt thread_1782129158543_md00ah -->Architecture<!-- /p-cmt -->
 
-Column headers in the flat table are rendered by the **column facet track renderer** (`FacetCellRenderer` / `FC<FacetCellProps>`). The corner cells are rendered by the header renderer — sort icons do NOT go there.
+Column headers in the flat table are rendered by the <!-- p-cmt thread_1781867330098_25ikvu -->**column facet track renderer** (`FacetCellRenderer` / `FC<FacetCellProps>`).<!-- /p-cmt --> The corner cells are rendered by the header renderer — sort icons do NOT go there.
+
+```mermaid
+flowchart TD
+  UseFlatGrid["useFlatGrid"]
+  NativeFacetDefs["facetDefs.col"]
+  Adapter["ReactCellAdapter.createNativeFacetRenderer"]
+  TrackRenderer["SortableColumnRenderer or custom FacetCellProps component"]
+  SortComponent["Sort component"]
+  MetaState["viewModel.metaState"]
+  DataModelContext["DataModelContext"]
+  SortAction["sortAction(entries)"]
+  DataModel["SqlStandardTableDataModel.getViewModelData"]
+  ViewModel["FlattenedDataViewModel"]
+  Grid["Grid scheduleDraw / render"]
+
+  UseFlatGrid --> NativeFacetDefs
+  NativeFacetDefs --> Adapter
+  Adapter --> TrackRenderer
+  TrackRenderer --> SortComponent
+  SortComponent --> MetaState
+  SortComponent --> DataModelContext
+  DataModelContext --> SortAction
+  SortAction --> DataModel
+  DataModel --> ViewModel
+  ViewModel --> Grid
+```
 
 ```
 User clicks sort icon in column header (track renderer)
@@ -22,11 +48,17 @@ User clicks sort icon in column header (track renderer)
 ```
 
 **Key design decisions:**
+
 - Sort icon is placed in the column facet **track renderer** (not header renderer)
+
 - `FacetCellProps` already has `viewModel` + `render` — no core type changes needed for sorting
+
 - Sort visual state lives in `viewModel.metaState`
+
 - `model` + `ir` are provided via a general-purpose `DataModelContext` (not sort-specific — reusable for filtering, etc.)
+
 - `enableSorting` on `UseFlatGridOptions` controls whether the default sort track renderer is installed
+
 - `schema` is derivable from `viewModel.schema` + `index` in the track renderer — no new props needed on `FacetCellProps`
 
 ---
@@ -34,11 +66,11 @@ User clicks sort icon in column header (track renderer)
 ## What Already Exists
 
 | Component | File | Status |
-|-----------|------|--------|
+| --- | --- | --- |
 | `SortEntry` type | `grid/src/datamodel/types.ts` | Done |
 | `StandardDataFetchAndTransformIR.sort` field | `grid/src/datamodel/types.ts` | Done |
 | `SqlFlatTableDataModel.buildOrderClause()` | `grid/src/datamodel/sql-flat-table-datamodel.ts` | Done |
-| Cache invalidation on sort change | `grid/src/datamodel/flat-table-datamodel.ts:85-96` | Done |
+| <!-- p-cmt thread_1782119155283_eyhic9 -->Cache invalidation on sort change<!-- /p-cmt --> | `grid/src/datamodel/standard-table-datamodel.ts:296-306` | Done (implementation); needs regression test |
 | `useFlatGrid` reacts to IR changes | `frameworks/src/react/data/useFlatGrid.ts:143-162` | Done |
 | Expanded child rows inherit sort | `flat-table-datamodel.ts:173` (`sort: ir.sort`) | Done |
 | `FacetCellProps` has `viewModel` + `render` | `frameworks/src/react/types.ts` | Done |
@@ -93,7 +125,9 @@ The consumer provides `DataModelContext.Provider` via the existing `contextWrapp
 ### Step 3: `<Sort />` component + default column track renderer
 
 **Files:**
+
 - New file `packages/frameworks/src/react/components/Sort.tsx`
+
 - New file `packages/frameworks/src/react/components/SortableColumnRenderer.tsx`
 
 #### `<Sort />` — composable building block
@@ -111,23 +145,37 @@ interface SortProps {
 ```
 
 - `schema` — column metadata (passed explicitly by the parent, not derived internally)
+
 - `viewModel` — for reading/writing sort state in `metaState`
+
 - `render` — to trigger re-render after sort change
+
 - Gets `model` + `ir` from `DataModelContext`
 
 **Behavior:**
+
 - Reads current sort state from `viewModel.metaState`
+
 - Renders sort direction indicator (asc/desc/none)
+
 - On click:
+
   1. Computes new sort entries
+
   2. Writes new sort to `viewModel.metaState`
+
   3. Calls `model.getViewModelData({...ir, sort: newSort})`
+
   4. Calls `viewModel.updateData(result)`
+
   5. Calls `render(viewModel)`
 
 **Sort behavior rules:**
+
 - **Column not in groupBy (or no groupBy):** Simple sort — asc/desc by the field itself. No `by` needed.
+
 - **Column in groupBy (dimension):** Can sort alphabetically (no `by`) or by a measure (`by: "revenue"`). Multi-sort stacking allowed.
+
 - **Measure column:** Sort by the measure value. Cannot stack with other measure sorts at the same level (replaces existing measure sort).
 
 #### `SortableColumnRenderer` — default column renderer
@@ -229,22 +277,28 @@ The consumer provides `DataModelContext` via `contextWrapper`. The default `Sort
 
 ---
 
-## Implementation Order
+### Step 8: Add cache invalidation regression test
 
-1. **Step 1** — Pass schema to viewmodel in `useFlatGrid` (one-liner).
-2. **Step 2** — Create `DataModelContext`.
-3. **Step 3** — Build `<Sort />` component + `SortableColumnRenderer`.
-4. **Step 4 + 5** — Add `enableSorting` to `UseFlatGridOptions` and wire default track renderer.
-5. **Step 6** — Exports.
-6. **Step 7** — Update playground sample.
+**Files:** `packages/grid/src/datamodel/standard-table-datamodel.test.ts`
 
-Steps 1 and 2 are independent and can be done in parallel.
+Add a direct test for sort-change cache invalidation. The implementation already compares `#lastIR.sort` with the incoming `ir.sort` in `StandardTableDataModel.getViewModelData()` and clears `pages`, `topLevelRowCount`, and `columnMetadata` when the sort array changes. The test should make that behavior explicit:
+
+1. Create a model with a small `pageSize`.
+
+2. Fetch an initial page with one sort order.
+
+3. Fetch again with the same grouping/projection/filter but a different `sort`.
+
+4. Assert the resulting rows follow the new sort order and stale cached page data is not reused.
 
 ---
 
 ## Edge Cases
 
-- **Sort + pagination:** When sort changes, `FlatTableDataModel` already clears cached pages (line 85-96). Next `getViewModelData` fetches fresh sorted data. Works correctly.
+- **Sort + pagination:** When sort changes, `StandardTableDataModel` already clears cached pages (`standard-table-datamodel.ts:296-306`). Next `getViewModelData` fetches fresh sorted data. Add the Step 8 regression test so this remains covered.
+
 - **Sort + expand/collapse:** Expanded child rows inherit sort from `lastIR.sort` (line 173). On sort change, cache is cleared so expanded state resets. Correct behavior.
+
 - **Empty sort array:** `buildOrderClause` falls back to groupField ordering (or no ORDER BY for ungrouped). No special handling needed.
+
 - **Column not in schema:** Should not happen — track renderer only renders schema columns. No defensive code needed.

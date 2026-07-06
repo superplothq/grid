@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 560 120" fill="none">
+  <rect width="560" height="120" rx="8" fill="#000000"/>
+  <image href="/icon.png" x="10" y="10" width="100" height="100"/>
+  <text y="82" fill="white">
+    <tspan x="120" font-family="'Inter', 'Helvetica Neue', Arial, sans-serif" font-size="70" font-weight="700" letter-spacing="-1">Super</tspan><tspan font-family="'JetBrains Mono', 'SF Mono', 'Fira Code', monospace" font-size="70" font-weight="700" letter-spacing="-1">Plot</tspan>
+  </text>
+</svg>

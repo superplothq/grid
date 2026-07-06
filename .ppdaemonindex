@@ -1,0 +1,15 @@
+{
+  "v": 1,
+  "sessionId": "ws_tmgknwcrx8",
+  "user": "admin",
+  "createdAt": 1783332377544,
+  "projectHome": "/Users/admin/dataflow/nebula",
+  "uiServerHost": "http://localhost:8765",
+  "callbackHost": "http://localhost:53977",
+  "userProps": {},
+  "llmAgentClis": "codex;claude",
+  "proposalsDir": "impl",
+  "gitWorktreeName": "nebula",
+  "lastGitBranch": "samples-for-highcharts",
+  "lastGitShortSha": "4d1bda3"
+}
