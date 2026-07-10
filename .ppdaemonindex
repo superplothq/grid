@@ -1,0 +1,15 @@
+{
+  "v": 1,
+  "sessionId": "ws_1kr2ccc9hy",
+  "user": "admin",
+  "createdAt": 1783367831681,
+  "projectHome": "/Users/admin/dataflow/nebula",
+  "uiServerHost": "http://localhost:8765",
+  "callbackHost": "http://localhost:60116",
+  "userProps": {},
+  "llmAgentClis": "codex;claude",
+  "proposalsDir": "impl",
+  "gitWorktreeName": "nebula",
+  "lastGitBranch": "docs",
+  "lastGitShortSha": "c81890b"
+}
