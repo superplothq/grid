@@ -1,4 +1,5 @@
-export type SampleRow = Record<string, string | number>;
+export type SampleValue = string | number | null | undefined;
+export type SampleRow = Record<string, SampleValue>;
 
 export interface SampleContext {
   loadDataset(name: string): Promise<SampleRow[]>;
