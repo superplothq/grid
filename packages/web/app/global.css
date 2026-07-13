@@ -201,12 +201,43 @@ code {
   text-decoration: none;
 }
 
-.top-nav-mark {
-  width: 1.05rem;
-  height: 1.05rem;
-  border-radius: 4px;
-  background: linear-gradient(135deg, var(--accent) 0%, color-mix(in srgb, var(--accent) 45%, var(--text)) 100%);
-  box-shadow: 0 0 12px var(--accent-glow);
+.brand-logo {
+  height: 1.35rem;
+  width: auto;
+}
+
+.site-footer-name {
+  display: inline-flex;
+}
+
+.site-footer-name .brand-logo {
+  height: 1.5rem;
+}
+
+.brand-logo-light {
+  display: block;
+}
+
+.brand-logo-dark {
+  display: none;
+}
+
+html[data-theme='dark'] .brand-logo-light {
+  display: none;
+}
+
+html[data-theme='dark'] .brand-logo-dark {
+  display: block;
+}
+
+@media (prefers-color-scheme: dark) {
+  html:not([data-theme='light']) .brand-logo-light {
+    display: none;
+  }
+
+  html:not([data-theme='light']) .brand-logo-dark {
+    display: block;
+  }
 }
 
 .top-nav-links {

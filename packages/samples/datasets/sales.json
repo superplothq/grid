@@ -1,0 +1,20 @@
+[
+  { "region": "North", "city": "New York", "department": "Sales", "revenue": 1200, "cost": 600 },
+  { "region": "North", "city": "New York", "department": "Engineering", "revenue": 750, "cost": 375 },
+  { "region": "North", "city": "New York", "department": "Marketing", "revenue": 870, "cost": 435 },
+  { "region": "North", "city": "Chicago", "department": "Sales", "revenue": 800, "cost": 400 },
+  { "region": "North", "city": "Chicago", "department": "Engineering", "revenue": 680, "cost": 340 },
+  { "region": "North", "city": "Chicago", "department": "Marketing", "revenue": 630, "cost": 315 },
+  { "region": "South", "city": "Atlanta", "department": "Sales", "revenue": 950, "cost": 475 },
+  { "region": "South", "city": "Atlanta", "department": "Engineering", "revenue": 920, "cost": 460 },
+  { "region": "South", "city": "Atlanta", "department": "Marketing", "revenue": 960, "cost": 480 },
+  { "region": "South", "city": "Miami", "department": "Sales", "revenue": 1100, "cost": 550 },
+  { "region": "South", "city": "Miami", "department": "Engineering", "revenue": 840, "cost": 420 },
+  { "region": "South", "city": "Miami", "department": "Marketing", "revenue": 780, "cost": 390 },
+  { "region": "East", "city": "Boston", "department": "Sales", "revenue": 870, "cost": 435 },
+  { "region": "East", "city": "Boston", "department": "Engineering", "revenue": 630, "cost": 315 },
+  { "region": "East", "city": "Boston", "department": "Marketing", "revenue": 1050, "cost": 525 },
+  { "region": "East", "city": "Philadelphia", "department": "Sales", "revenue": 760, "cost": 380 },
+  { "region": "East", "city": "Philadelphia", "department": "Engineering", "revenue": 710, "cost": 355 },
+  { "region": "East", "city": "Philadelphia", "department": "Marketing", "revenue": 890, "cost": 445 }
+]

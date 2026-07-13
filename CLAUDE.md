@@ -9,17 +9,25 @@ This is a yarn workspace with following packages:
 - **packages/grid**: High performant Grid / pivot table implementation — headless core that exposes APIs for data modeling, viewmodel construction, and rendering
 - **packages/frameworks**: Framework-specific bindings (currently React 18) that wrap the headless grid core into components
 - **packages/playground**: React web application that creates playground where samples of grid can get created during development / demo
+- **packages/web**: SuperPlot public site (Next.js 16 static export, React 19, dev port 3334). Owns its own `/docs` route: fumadocs is wired directly into this app (`source.config.ts`, `app/docs/`, `lib/docs-source.ts`). Samples render at `/docs/samples`.
+- **packages/docs**: Standalone fumadocs documentation site (dev port 3333, has its own CLAUDE.md). **Unrelated to web's `/docs` route** — never implement web `/docs` features here or merge its output into web.
+- **packages/samples**: Self-contained grid samples consumed by web's `/docs` via a fumadocs collection. Each sample is one directory (`src/samples/<id>/`) holding `index.mdx` (page + frontmatter), `sample.ts` (`mount(el, ctx) => cleanup`, headless core + in-memory viewmodels — no DuckDB), `conversation.json` (human/agent transcript), and optional `thumbnail.*`. Shared helpers are hoisted to `src/runtime/`; samples never import from sibling samples. Datasets live in `datasets/`.
 
 ### Technology Stack
 - **grid**: TypeScript, ESLint, DuckDB (WASM for browser, native for Node.js) for local data storage and SQL-based querying
 - **frameworks**: React 18, TypeScript, ESLint
 - **playground**: React 18, TypeScript, Webpack 5, ESLint
+- **web**: Next.js 16 (static export), React 19, fumadocs (core/mdx/ui), Tailwind 4 (loaded only via `app/docs/docs.css`)
+- **docs**: Next.js 16 (static export), React 19, fumadocs, Tailwind 4
+- **samples**: TypeScript only — depends on `grid` (deep-imports `grid/dist/renderer` to avoid pulling DuckDB), no framework dependency
 
 ### package.json scripts
 - grid unit tests: yarn workspace grid test:unit
 - grid lint: yarn workspace grid lint --fix
 - build: yarn workspace grid build && yarn workspace grid build:css
 - playground build: yarn workspace playground build
+- samples type check: yarn workspace samples types:check
+- web build: yarn workspace web build (emits raw sample sources to public/samples first)
 
 ### Development Server
 Already setup by the user and running.
@@ -75,4 +83,4 @@ See `docs/pivot-data-pipeline.md` and `docs/flat-table-pipeline.md` for full pip
 - Do NOT run playground build
 - All packages use TypeScript with strict mode enabled
 - The workspace uses yarn workspaces for dependency management
-- ESLint is configured but may need workspace-level configuration fixes
+- ESLint: grid/frameworks/playground use eslint 8 (legacy .eslintrc); web/docs use eslint 9 flat config with eslint-config-next. Keep web/docs on eslint ^9 — eslint 10 breaks eslint-config-next's plugin stack (eslint-plugin-react supports up to ^9.7)

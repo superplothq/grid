@@ -14,7 +14,19 @@ export function SiteFooter() {
       <div className="site-footer-inner">
         <div className="site-footer-grid">
           <div className="site-footer-brand">
-            <p className="site-footer-name">{siteName}</p>
+            <p className="site-footer-name">
+              <img
+                src="/icons/superplot_full_white_bg.svg"
+                alt={siteName}
+                className="brand-logo brand-logo-light"
+              />
+              <img
+                src="/icons/superplot_full_dark_bg.svg"
+                alt=""
+                aria-hidden="true"
+                className="brand-logo brand-logo-dark"
+              />
+            </p>
             <p>The JavaScript grid built for agents.</p>
             <p>
               <a href={`mailto:${contactEmail}`}>{contactEmail}</a>

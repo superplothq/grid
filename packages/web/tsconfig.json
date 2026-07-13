@@ -21,6 +21,9 @@
     "paths": {
       "@/*": [
         "./*"
+      ],
+      "collections/*": [
+        "./.source/*"
       ]
     },
     "plugins": [
@@ -40,6 +43,7 @@
   ],
   "exclude": [
     "node_modules",
-    "out"
+    "out",
+    "public"
   ]
 }

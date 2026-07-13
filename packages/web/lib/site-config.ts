@@ -3,6 +3,8 @@ export const siteUrl = 'https://superplot.dev';
 export const gridBasePath = '/grid';
 export const gridDocsPath = '/grid/docs';
 export const gridSamplesPath = '/grid/samples';
+export const docsPath = '/docs';
+export const docsSamplesPath = '/docs/samples';
 export const gridFeaturesPath = '/grid/docs/features';
 export const gridDemosPath = '/grid/#demos';
 export const ourApproachPath = '/grid/our-approach';
@@ -20,8 +22,8 @@ export interface NavItem {
 
 export const navItems: NavItem[] = [
   { label: 'Demos', href: gridDemosPath },
-  { label: 'Docs', href: gridDocsPath },
-  { label: 'Samples', href: gridSamplesPath },
+  { label: 'Docs', href: docsPath },
+  { label: 'Samples', href: docsSamplesPath },
   { label: 'Our approach', href: ourApproachPath },
   { label: 'About', href: aboutPath },
   { label: 'Contact', href: contactPath },
@@ -38,8 +40,8 @@ export const footerLinkGroups: FooterLinkGroup[] = [
     links: [
       { label: 'Grid', href: gridBasePath },
       { label: 'Demos', href: gridDemosPath },
-      { label: 'Docs', href: gridDocsPath },
-      { label: 'Samples', href: gridSamplesPath },
+      { label: 'Docs', href: docsPath },
+      { label: 'Samples', href: docsSamplesPath },
       { label: 'Features', href: gridFeaturesPath },
     ],
   },

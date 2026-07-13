@@ -5,9 +5,18 @@ export function TopNav() {
   return (
     <header className="top-nav">
       <div className="top-nav-inner">
-        <Link href={gridBasePath} className="top-nav-brand">
-          <span className="top-nav-mark" aria-hidden="true" />
-          {siteName}
+        <Link href={gridBasePath} className="top-nav-brand" aria-label={siteName}>
+          <img
+            src="/icons/superplot_full_white_bg.svg"
+            alt={siteName}
+            className="brand-logo brand-logo-light"
+          />
+          <img
+            src="/icons/superplot_full_dark_bg.svg"
+            alt=""
+            aria-hidden="true"
+            className="brand-logo brand-logo-dark"
+          />
         </Link>
         <nav aria-label="Primary">
           <ul className="top-nav-links">

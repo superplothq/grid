@@ -1,0 +1,219 @@
+@import 'tailwindcss';
+@import 'fumadocs-ui/css/neutral.css';
+@import 'fumadocs-ui/css/preset.css';
+
+/* Use web's fonts inside the docs subtree */
+@theme {
+  --font-sans: var(--font-body-next), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-mono-next), ui-monospace, monospace;
+}
+
+/*
+ * Map fumadocs design tokens onto web's own tokens so /docs matches the rest of
+ * the site AND follows web's `html[data-theme]` switching automatically — no
+ * `.dark` class and no fumadocs theme provider needed.
+ */
+:root {
+  --color-fd-background: var(--bg);
+  --color-fd-foreground: var(--text);
+  --color-fd-muted: var(--bg-inset);
+  --color-fd-muted-foreground: var(--text-muted);
+  --color-fd-popover: var(--bg-raised);
+  --color-fd-popover-foreground: var(--text);
+  --color-fd-card: var(--bg-raised);
+  --color-fd-card-foreground: var(--text);
+  --color-fd-border: var(--border);
+  --color-fd-primary: var(--accent);
+  --color-fd-primary-foreground: var(--accent-contrast);
+  --color-fd-secondary: var(--bg-inset);
+  --color-fd-secondary-foreground: var(--text);
+  --color-fd-accent: var(--bg-inset);
+  --color-fd-accent-foreground: var(--text);
+  --color-fd-ring: var(--accent);
+
+  /* Offset the sticky sidebar so it rests just below web's sticky TopNav. */
+  --fd-banner-height: var(--nav-height);
+  --fd-docs-height: calc(100dvh - var(--nav-height));
+}
+
+/*
+ * Layout: web's sticky TopNav is the header. The sidebar stays put on the left
+ * (independently scrollable), while the center content + toc scroll together as
+ * the body; once that reaches the end, the page keeps scrolling to reveal the
+ * site footer.
+ */
+#nd-docs-layout {
+  font-family: var(--font-body);
+  --fd-docs-height: calc(100dvh - var(--nav-height));
+  /* At least fill the viewport below the TopNav; grow with content. */
+  min-height: calc(100dvh - var(--nav-height));
+  /* Must stay `visible`: fumadocs' `overflow-x: clip` here would become the
+     sticky containing block for the sidebar and stop it pinning to the viewport
+     (it would scroll up over the header). Horizontal clipping is moved to the
+     content column instead. */
+  overflow: visible !important;
+  /* Full-bleed 3-column grid: drop fumadocs' centering gutter columns so the
+     sidebar is flush-left and the toc flush-right on wide screens. */
+  grid-template-columns: var(--fd-sidebar-width) minmax(0, 1fr) var(--fd-toc-width) !important;
+  grid-template-areas:
+    'sidebar header toc'
+    'sidebar toc-popover toc'
+    'sidebar main toc' !important;
+}
+
+/* Keep the header above the sticky sidebar/toc so it's always on top with its
+   divider intact while the body scrolls. */
+body:has(#nd-docs-layout) .top-nav {
+  z-index: 50;
+}
+
+/* Clip wide content (long code lines) in the main column so removing the
+   layout-level clip can't introduce a horizontal page scroll. */
+#nd-page {
+  overflow-x: clip;
+  min-width: 0;
+}
+
+/* Sidebar sticks just below the TopNav and fills the viewport height (fumadocs
+   otherwise subtracts the banner offset, leaving it short of the bottom). */
+#nd-docs-layout > div:has(> #nd-sidebar) {
+  top: var(--nav-height) !important;
+  height: calc(100dvh - var(--nav-height)) !important;
+}
+
+/* The toc is part of the body scroll (not independently sticky), so it scrolls
+   away with the content rather than pinning to the viewport. */
+#nd-toc {
+  position: static !important;
+  height: auto !important;
+  max-height: none !important;
+  overflow: visible !important;
+}
+
+/* Footer sits flush after the content (drop web's default top margin here). */
+body:has(#nd-docs-layout) .site-footer {
+  margin-top: 0;
+}
+
+/* Lay the collapse ("hide") toggle and the search box on a single row:
+   [icon] [ search .......... ]. The sidebar header is normally a column stacking
+   an (empty, since nav is disabled) title-link row above the search; make it a
+   row, drop the empty link, keep the icon compact, and let the search grow. */
+#nd-sidebar div:has(> div > button[aria-label='Collapse Sidebar']) {
+  flex-direction: row;
+  align-items: center;
+}
+#nd-sidebar div:has(> div > button[aria-label='Collapse Sidebar']) > button {
+  flex: 1;
+}
+#nd-sidebar div:has(> button[aria-label='Collapse Sidebar']) {
+  justify-content: flex-start;
+}
+#nd-sidebar div:has(> button[aria-label='Collapse Sidebar']) > a {
+  display: none;
+}
+#nd-sidebar button[aria-label='Collapse Sidebar'] {
+  margin-inline: 0;
+}
+
+/* Sidebar and table-of-contents in monospace, matching web's nav/toc. */
+#nd-sidebar,
+#nd-sidebar aside,
+[data-radix-scroll-area-viewport],
+#nd-toc,
+#nd-subnav {
+  font-family: var(--font-mono);
+}
+
+#nd-toc *,
+#nd-sidebar * {
+  font-family: inherit;
+}
+
+/* Headings in the accent color with markdown hash markers (`#`, `##`, …),
+   matching web's section headings. */
+#nd-page h1,
+#nd-page h2,
+#nd-page h3,
+#nd-page h4,
+#nd-page h5,
+#nd-page h6 {
+  color: var(--accent);
+}
+
+#nd-page h1::before,
+#nd-page h2::before,
+#nd-page h3::before,
+#nd-page h4::before,
+#nd-page h5::before,
+#nd-page h6::before {
+  color: var(--accent);
+  font-family: var(--font-mono);
+}
+
+#nd-page h1::before {
+  content: '# ';
+}
+#nd-page h2::before {
+  content: '## ';
+}
+#nd-page h3::before {
+  content: '### ';
+}
+#nd-page h4::before {
+  content: '#### ';
+}
+#nd-page h5::before {
+  content: '##### ';
+}
+#nd-page h6::before {
+  content: '###### ';
+}
+
+/*
+ * Neutralize web's global element-level code styling inside docs so fumadocs +
+ * shiki own the code block appearance (otherwise `pre { background: var(--code-bg) }`
+ * from global.css makes code unreadable).
+ */
+#nd-docs-layout pre {
+  background: transparent;
+  border: 0;
+  color: inherit;
+  padding: 0;
+  border-radius: 0;
+  white-space: pre;
+  word-break: normal;
+  font-size: 0.8125rem;
+}
+
+#nd-docs-layout figure.shiki {
+  background: var(--bg-inset);
+}
+
+/*
+ * Shiki dual-theme normally switches token colors via a `.dark` class. Web
+ * themes via `html[data-theme]`, so bridge shiki to that instead (explicit dark,
+ * and system-dark when no explicit light is set).
+ */
+html[data-theme='dark'] #nd-docs-layout .shiki span {
+  color: var(--shiki-dark) !important;
+}
+
+@media (prefers-color-scheme: dark) {
+  html:not([data-theme='light']) #nd-docs-layout .shiki span {
+    color: var(--shiki-dark) !important;
+  }
+}
+
+/* Conversation reuses web's demo-chatbox visual; drop its fixed demo height. */
+#nd-docs-layout .sample-conversation[open] {
+  height: auto;
+}
+
+#nd-docs-layout .sample-conversation .demo-chatbox-messages {
+  max-height: 24rem;
+}
+
+#nd-docs-layout .sample-conversation .demo-chatbox-count::after {
+  content: '';
+}

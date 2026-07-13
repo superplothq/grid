@@ -10,6 +10,11 @@
     });
 
     document.querySelectorAll('a[href^="#"]').forEach(function (anchor) {
+      // Leave the fumadocs docs TOC anchors alone — fumadocs manages their
+      // `data-active` itself, and touching them here causes a hydration mismatch.
+      if (anchor.closest('#nd-docs-layout')) {
+        return;
+      }
       var linkPath = decodeURIComponent(anchor.getAttribute('href').slice(1));
       anchor.toggleAttribute('data-active', linkPath !== '' && linkPath === hashPath);
     });

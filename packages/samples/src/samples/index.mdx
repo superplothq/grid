@@ -1,0 +1,22 @@
+---
+title: Samples
+description: Self-contained grid samples built on the DataViewModel to Renderer bridge
+---
+
+Each sample is a self-contained directory in `packages/samples` — the page you are
+reading, the executable code, the conversation that produced it, and its dataset
+references all live together. Samples construct ViewModels directly in memory, so
+they exercise the DataViewModel ↔ Renderer bridge without a DataSource or DataModel.
+
+<Cards>
+  <Card
+    title="Grouped Sales Table"
+    href="/docs/samples/flat-sales-table"
+    description="A flat table with region groups and city leaf rows, built from a FlattenedDataViewModel."
+  />
+  <Card
+    title="Sales Pivot"
+    href="/docs/samples/sales-pivot"
+    description="A two-level pivot with Department × Measure columns, built from a PivotDataViewModel."
+  />
+</Cards>
