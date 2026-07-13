@@ -25,6 +25,7 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  font-family: var(--font-family);
   font-size: calc(var(--font-size) * 1px);
   font-weight: var(--font-weight);
   display: flex;
@@ -124,6 +125,7 @@
     justify-content: end;
     background: var(--value-background-color);
     color: var(--value-text-color);
+    font-variant-numeric: tabular-nums;
     border-top: calc(var(--horizontal-border-width) * 1px) solid var(--horizontal-border-color);
     border-right: calc(var(--vertical-border-width) * 1px) solid var(--vertical-border-color);
 
@@ -210,8 +212,8 @@
 
   &.selection-overlay {
     pointer-events: none;
-    background: rgba(0, 120, 215, 0.1);
-    border: 2px solid #0078d7;
+    background: rgba(59, 130, 246, 0.08);
+    border: 2px solid #3b82f6;
     z-index: 5;
     position: relative;
     box-sizing: border-box;
