@@ -316,6 +316,11 @@ export default class Grid extends GridWithEvents {
     return this.#data;
   }
 
+  /** The container the grid tracks are rendered onto - the element that carries the theme's CSS custom properties. Set style tokens (e.g. `--cell-padding-y`) on it to override theme values. */
+  get trackSurfaceContainer(): HTMLElement {
+    return this.#layout.gridContainer;
+  }
+
   /** Schedules a draw on the next animation frame. Multiple calls before the frame fires are coalesced into a single render. */
   scheduleDraw(): void {
     if (this.#scheduleDrawPending) return;

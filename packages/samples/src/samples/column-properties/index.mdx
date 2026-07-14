@@ -55,14 +55,24 @@ at 160px and holds Base Salary to at least 240px, while the rest fit content.
 { "file": "packages/samples/src/samples/column-properties/col-size.ts", "codeblock": { "lang": "ts" } }
 ```
 
-## Cell height
+## Row density
 
-`cellHeight` sets the row height for a column in pixels. Give every column the
-same height to make the whole table more compact or more spacious.
+With plain text columns (no cell renderer), the grid measures each row from its
+rendered content plus cell padding - it never assumes a fixed height. So the way
+to make the table more compact or more spacious is to change the vertical
+padding, the `--cell-padding-y` theme token, on the container the tracks render
+onto. On the next draw the grid re-measures and the whole table tightens or
+relaxes.
 
 ```ts
-vTrackDefs: columns.map(() => ({ cellHeight: 32 })),
+grid.trackSurfaceContainer.style.setProperty("--cell-padding-y", "3"); // compact
 ```
+
+Because the row height is derived from content, this keeps every row tall enough
+for its text at any density. If you instead need to pin a column to an exact
+pixel height, `cellHeight` on a `vTrackDef` does that - but only alongside a
+custom renderer, since the renderer owns how the cell fills that height. We cover
+that in the cell renderer section below.
 
 Try it below: switch between compact, comfortable, and spacious in the toolbar.
 

@@ -11,15 +11,17 @@ const COLUMNS = [
   { field: "total_ot_paid", label: "Total OT Paid" },
 ];
 
-// Each option is a row height in pixels. Applied to every column so the whole
-// table breathes at once.
-const HEIGHTS: Record<string, number> = {
-  "Compact (19px)": 19,
-  "Comfortable (32px)": 32,
-  "Spacious (48px)": 48,
+// With no custom renderer the grid measures each row from its rendered text
+// plus cell padding, so row height is driven by the `--cell-padding-y` theme
+// token. Each option is a vertical padding in pixels; dialing it up or down
+// makes the whole table breathe.
+const DENSITIES: Record<string, number> = {
+  Compact: 3,
+  Comfortable: 7,
+  Spacious: 16,
 };
 
-const DEFAULT_HEIGHT = "Comfortable (32px)";
+const DEFAULT_DENSITY = "Comfortable";
 const GRID_HEIGHT = 420;
 
 export function mount(el: HTMLElement, ctx: SampleContext): () => void {
@@ -29,13 +31,15 @@ export function mount(el: HTMLElement, ctx: SampleContext): () => void {
   let rows: SampleRow[] = [];
 
   const render = (choice: string): void => {
-    const cellHeight = HEIGHTS[choice];
+    // Override the theme's vertical padding on the container the tracks render
+    // onto. The grid re-measures row height on the next draw, so the table
+    // tightens or relaxes to match.
+    grid.trackSurfaceContainer.style.setProperty("--cell-padding-y", String(DENSITIES[choice]));
     grid.data = new FlattenedDataViewModel({
       data: COLUMNS.map((column) => rows.map((row) => row[column.field] ?? null)),
       columnFacets: [COLUMNS.map((column) => column.label)],
       totalRows: rows.length,
       options: {
-        vTrackDefs: COLUMNS.map(() => ({ cellHeight })),
         facetDefs: { row: [], col: [{ text: "" }], axis: "col" },
       },
     });
@@ -45,11 +49,11 @@ export function mount(el: HTMLElement, ctx: SampleContext): () => void {
   ctx.loadDataset("payroll").then((loaded) => {
     if (disposed) return;
     rows = loaded;
-    render(DEFAULT_HEIGHT);
+    render(DEFAULT_DENSITY);
   });
 
   const toolbar = createToolbar();
-  const select = toolbarSelect(Object.keys(HEIGHTS), DEFAULT_HEIGHT);
+  const select = toolbarSelect(Object.keys(DENSITIES), DEFAULT_DENSITY);
   toolbar.append(select);
   el.append(toolbar, gridMount);
 

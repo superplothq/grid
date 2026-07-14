@@ -190,6 +190,12 @@ body:has(#nd-docs-layout) .site-footer {
   background: var(--bg-inset);
 }
 
+/* Cap code block height so long sample sources scroll instead of stretching the page. */
+#nd-docs-layout figure.shiki pre {
+  max-height: 480px;
+  overflow: auto;
+}
+
 /*
  * Shiki dual-theme normally switches token colors via a `.dark` class. Web
  * themes via `html[data-theme]`, so bridge shiki to that instead (explicit dark,
