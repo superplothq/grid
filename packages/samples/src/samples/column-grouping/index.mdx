@@ -1,0 +1,54 @@
+---
+title: Column Grouping
+description: Group columns of a flat table under shared banner headers with a second column facet level.
+datasets: [payroll]
+runtime: static
+tags: [flat]
+---
+
+The `col` facet can carry more than one level. Stacking a second level draws a
+banner row above the column labels, so a plain flat table gains grouped headers
+without becoming a pivot - it is just an extra header row over the same rows.
+
+```ts
+grid.data = new FlattenedDataViewModel({
+  // top level is the group row, bottom is the column label row
+  columnFacets: [
+    ["Employment details", "Employment details", "Base Salary", "Extra expense", "Extra expense"],
+    ["Agency", "Title", null, "Regular Gross Paid", "Total OT Paid"],
+  ],
+  options: {
+    // one facet def per level: the group row, then the label row
+    facetDefs: { row: [], col: [{ text: "" }, { text: "" }], axis: "col" },
+  },
+});
+```
+
+## Group columns
+
+Merging works two ways. Repeating a value across columns on the group row spans
+it **horizontally** into one banner. Leaving a lower level `null` spans the cell
+above it **vertically**: put a column's label on the top level and `null` below,
+and that label fills both header rows instead of getting a banner of its own.
+
+```ts
+columnFacets: [
+  // repeat a group value to span it horizontally; a bare label on the top level
+  // (Base Salary) will span down when the level below it is null
+  ["Employment details", "Employment details", "Base Salary", "Extra expense", "Extra expense"],
+  // null under Base Salary → its label spans both rows vertically
+  ["Agency", "Title", null, "Regular Gross Paid", "Total OT Paid"],
+],
+```
+
+Try it below: Agency and Title sit under a shared **Employment details** banner,
+and Regular Gross Paid and Total OT Paid under **Extra expense**. Base Salary has
+no banner - its label spans both header rows vertically.
+
+<SampleDemo id="column-grouping" />
+
+### Source
+
+```json doc-gen:file
+{ "file": "packages/samples/src/samples/column-grouping/sample.ts", "codeblock": { "lang": "ts" } }
+```

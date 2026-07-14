@@ -5,6 +5,10 @@ export const samples: Record<string, SampleEntry> = {
     load: () => import("./samples/column-selection/sample"),
     conversation: () => Promise.resolve({ turns: [] }),
   },
+  "column-grouping": {
+    load: () => import("./samples/column-grouping/sample"),
+    conversation: () => Promise.resolve({ turns: [] }),
+  },
   "column-properties-col-size": {
     load: () => import("./samples/column-properties/col-size"),
     conversation: () => Promise.resolve({ turns: [] }),
