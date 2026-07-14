@@ -135,22 +135,37 @@ kind of data in the column. Hover the dot to open a card describing that column.
 A cell renderer takes over how a column's values are drawn. It returns text or
 DOM for a single cell - so a column can render a bar, a pill, or anything else
 instead of plain text. Unlike a header renderer, a cell has no left/right slots;
-the renderer lays out the whole cell itself.
+the renderer lays out the whole cell itself. A custom-rendered cell also loses
+the grid's default padding and alignment, so the renderer restores whatever it
+needs.
+
+A `valueFormatter` runs first and turns the raw value into a display string; the
+renderer then receives that string as its `value`, while the untouched number
+stays on `dataCtx.rawValue` (the bar reads it for its width). Here every numeric
+column formats as currency, and the deepest custom renderer decides the layout.
 
 ```ts
-const salaryBar = (value, _dataCtx, ctx) => {
+const currency = (value) =>
+  typeof value === "number" ? value.toLocaleString("en-US", { style: "currency", currency: "USD" }) : "";
+
+const numberCell = (value, _dataCtx, ctx) => {
+  // set properties individually - `cssText` would wipe the grid-area the layout
+  // sets on this same element
   ctx.container.style.display = "flex";
-  // ...build a bar sized to the value, plus an amount label
-  return [track, label];
+  ctx.container.style.justifyContent = "flex-end";
+  return value; // already the formatted currency string
 };
 
 vTrackDefs: columns.map((column) => ({
-  renderer: column.field === "base_salary" ? salaryBar : undefined,
+  ...(column.numeric
+    ? { valueFormatter: currency, renderer: column.field === "base_salary" ? salaryBar : numberCell }
+    : {}),
 })),
 ```
 
-Try it below: the Base Salary column draws each value as a proportional bar
-while the other columns stay as text.
+Try it below: Base Salary draws each value as a proportional bar with the amount,
+the other numeric columns right-align their values, and all of them are formatted
+as `$`-prefixed locale numbers.
 
 <SampleDemo id="column-properties-cell-renderer" />
 
