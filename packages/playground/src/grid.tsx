@@ -395,7 +395,7 @@ const GridPlayground: React.FC = () => {
   const defaultColFacetConfig = "2;3;3";
   const defaultCellSizeConfig = "";
   const defaultColSizeConfigExample = `0,2:[strategy=max;excludeColumnFacets=1]
-5-8:[strategy=fixed;widthInPx=90]`;
+5-8:[strategy=fixed;maxWidthInPx=90]`;
 
   const [rowFacetConfig, setRowFacetConfig] = useState(() =>
     localStorage.getItem("grid_rowFacetConfig") ?? defaultRowFacetConfig
@@ -614,7 +614,6 @@ const GridPlayground: React.FC = () => {
         ? {
             strategy: "clamped-width",
             excludeColumnFacets: settings.excludeColumnFacets === "1",
-            ...(settings.widthInPx && { widthInPx: parseInt(settings.widthInPx, 10) }),
             ...(settings.minWidthInPx && { minWidthInPx: parseInt(settings.minWidthInPx, 10) }),
             ...(settings.maxWidthInPx && { maxWidthInPx: parseInt(settings.maxWidthInPx, 10) }),
           }

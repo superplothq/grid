@@ -112,7 +112,6 @@ export interface IColAutoSizeStrategyStatic extends IColAutoSize {
 
 export interface IColAutoSizeStrategyClampedWidth extends IColAutoSize {
   strategy: "clamped-width";
-  widthInPx?: number;
   maxWidthInPx?: number;
   minWidthInPx?: number;
 }

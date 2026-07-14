@@ -1962,13 +1962,14 @@ export default class StandardLayout extends StandardLayoutBase {
           cell.style.left = `${currentLeft + widthDelta}px`;
         }
       },
-      onCommit: (finalWidth) => {
+      onCommit: () => {
         // Left region tracks are laid out as: [fixture0, fixture1, ..., rowFacet0, rowFacet1, ...]
         // Tracks below numLeftFixtures are fixtures; the rest are row facets offset by numLeftFixtures.
+        // The committed width persists via colsWidth.override; colSize only marks the strategy.
         if (trackIndex < numLeftFixtures) {
-          this.#fixtures.left[trackIndex].colSize = { strategy: "clamped-width", widthInPx: finalWidth };
+          this.#fixtures.left[trackIndex].colSize = { strategy: "clamped-width" };
         } else {
-          this.data!.facetDefs.row[trackIndex - numLeftFixtures].colSize = { strategy: "clamped-width", widthInPx: finalWidth };
+          this.data!.facetDefs.row[trackIndex - numLeftFixtures].colSize = { strategy: "clamped-width" };
         }
       },
     });
@@ -1999,8 +2000,8 @@ export default class StandardLayout extends StandardLayoutBase {
           cell.style.right = `${currentRight + widthDelta}px`;
         }
       },
-      onCommit: (finalWidth) => {
-        this.#fixtures.right[trackIndex].colSize = { strategy: "clamped-width", widthInPx: finalWidth };
+      onCommit: () => {
+        this.#fixtures.right[trackIndex].colSize = { strategy: "clamped-width" };
       },
     });
   }
@@ -2019,8 +2020,8 @@ export default class StandardLayout extends StandardLayoutBase {
       region: "center",
       regionIndex: centerIdx,
       headerCell: trackHeaderCell,
-      onCommit: (finalWidth) => {
-        this.data!.setColSize(centerIdx, { strategy: "clamped-width", widthInPx: finalWidth });
+      onCommit: () => {
+        this.data!.setColSize(centerIdx, { strategy: "clamped-width" });
       },
     });
   }
