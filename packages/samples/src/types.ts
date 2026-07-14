@@ -24,3 +24,11 @@ export interface SampleEntry {
   load: () => Promise<SampleModule>;
   conversation: () => Promise<Conversation>;
 }
+
+// A demo reuses the SampleModule contract but is surfaced on web's plain /demos
+// page instead of the docs gallery: no mdx, no conversation, self-contained data.
+export interface DemoEntry {
+  title: string;
+  description: string;
+  load: () => Promise<SampleModule>;
+}

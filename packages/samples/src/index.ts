@@ -1,4 +1,5 @@
 export { samples } from "./registry";
+export { demos } from "./demos-registry";
 export { createSampleContext } from "./runtime/context";
 export type {
   SampleRow,
@@ -7,4 +8,5 @@ export type {
   Conversation,
   ConversationTurn,
   SampleEntry,
+  DemoEntry,
 } from "./types";
