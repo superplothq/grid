@@ -1,4 +1,4 @@
-import { BaseSliceResult, DataViewport, GridDataViewModelOptions, ResolvedVTrackDef, ColAutoSizeConfig, IColAutoSizeStrategyStatic, FacetDef, FacetData, ViewModelMetadata, MetadataValue } from "./types";
+import { BaseSliceResult, DataViewport, GridDataViewModelOptions, ResolvedVTrackDef, ColAutoSizeConfig, IColAutoSizeStrategyStatic, FacetDef, FacetData, ViewModelMetadata, MetadataValue, ValueFormatter } from "./types";
 import { textRenderer, defaultFacetRenderer, defaultFacetHeaderRenderer } from "./cell-renderers";
 import { DataSchema } from "../datamodel/types";
 
@@ -193,6 +193,16 @@ export abstract class GridDataViewModel {
     rowFacetDefs: FacetDef[];
   } {
     const inputVTrackDefs = options?.vTrackDefs;
+    const inputColFacetDefs = options?.facetDefs?.col;
+    let facetValueFormatter: ValueFormatter | undefined;
+    if (inputColFacetDefs) {
+      for (let level = inputColFacetDefs.length - 1; level >= 0; level--) {
+        if (inputColFacetDefs[level]?.valueFormatter) {
+          facetValueFormatter = inputColFacetDefs[level].valueFormatter;
+          break;
+        }
+      }
+    }
     const vTrackDefs: ResolvedVTrackDef[] = [];
     for (let col = 0; col < this.#numCols; col++) {
       const def = inputVTrackDefs?.[col];
@@ -203,12 +213,14 @@ export abstract class GridDataViewModel {
           sampleData: def.sampleData,
           isCustom: true,
           colSize: def.colSize ?? defaultColAutoSize,
+          valueFormatter: def.valueFormatter ?? facetValueFormatter,
         });
       } else {
         vTrackDefs.push({
           renderer: textRenderer,
           isCustom: false,
           colSize: def?.colSize ?? defaultColAutoSize,
+          valueFormatter: def?.valueFormatter ?? facetValueFormatter,
         });
       }
     }
@@ -234,6 +246,7 @@ export abstract class GridDataViewModel {
         ...(d?.pseudo !== undefined && { pseudo: d.pseudo }),
         ...(d?.colSize !== undefined && { colSize: d.colSize }),
         ...(d?.groupSchema !== undefined && { groupSchema: d.groupSchema }),
+        ...(d?.valueFormatter !== undefined && { valueFormatter: d.valueFormatter }),
       });
     }
     return defs;

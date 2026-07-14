@@ -372,7 +372,13 @@ export default class StandardLayout extends StandardLayoutBase {
         cell.style.height = `${colDef.cellHeight}px`;
       } else {
         const sampleValue = colDef.sampleData ?? this.data!.getSlice(col, 0, col + 1, 1).data?.[0]?.[0];
-        const content = colDef.renderer(sampleValue, { viewModel: this.data!, rowIndex: 0, colIndex: col }, { container: cell, key: `test-measurement-${col}` });
+        const dataCtx = { viewModel: this.data!, rowIndex: 0, colIndex: col, rawValue: sampleValue };
+        let displayValue = sampleValue;
+        if (colDef.valueFormatter) {
+          const formatted = colDef.valueFormatter(sampleValue, dataCtx);
+          if (formatted !== undefined) displayValue = formatted;
+        }
+        const content = colDef.renderer(displayValue, dataCtx, { container: cell, key: `test-measurement-${col}` });
         if (content !== undefined) addOrReplaceChildren(cell, content);
       }
       measureCells.push(cell);
@@ -1844,6 +1850,7 @@ export default class StandardLayout extends StandardLayoutBase {
           contentCellRerenderCount++;
 
           let renderer = colDef.renderer;
+          let valueFormatter = colDef.valueFormatter;
           let dataStyleFns: ((el: HTMLElement) => void)[] = [];
           if (this.selectAllRules.length > 0 && sliceData.rowFacets && sliceData.columnFacets) {
             const rowPath = sliceData.rowFacets[j];
@@ -1855,10 +1862,17 @@ export default class StandardLayout extends StandardLayoutBase {
               value
             );
             if (result.effectiveRenderer) renderer = result.effectiveRenderer;
+            if (result.effectiveValueFormatter) valueFormatter = result.effectiveValueFormatter;
             dataStyleFns = result.styleFns;
           }
 
-          const content = renderer(value, { viewModel: this.data!, rowIndex: viewModel.y0 + j, colIndex: viewModel.x0 + i }, { container: cell, key });
+          const dataCtx = { viewModel: this.data!, rowIndex: viewModel.y0 + j, colIndex: viewModel.x0 + i, rawValue: value };
+          let displayValue = value;
+          if (valueFormatter) {
+            const formatted = valueFormatter(value, dataCtx);
+            if (formatted !== undefined) displayValue = formatted;
+          }
+          const content = renderer(displayValue, dataCtx, { container: cell, key });
           if (content !== undefined) addOrReplaceChildren(cell, content);
           cell.dataset.cellType = "value";
           cell.dataset.cclix = String(absoluteColIndex);

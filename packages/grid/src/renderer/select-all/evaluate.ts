@@ -5,6 +5,7 @@ import {
   FacetDef,
   SelectionRule,
   FacetCellRenderer,
+  ValueFormatter,
 } from "../types";
 
 export function matchesFacetPredicate(
@@ -53,9 +54,10 @@ export function evaluateRulesForDataCell(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   cellValue: any
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-): { effectiveRenderer?: CellRenderer<any>; styleFns: ((el: HTMLElement) => void)[] } {
+): { effectiveRenderer?: CellRenderer<any>; effectiveValueFormatter?: ValueFormatter; styleFns: ((el: HTMLElement) => void)[] } {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let effectiveRenderer: CellRenderer<any> | undefined;
+  let effectiveValueFormatter: ValueFormatter | undefined;
   const styleFns: ((el: HTMLElement) => void)[] = [];
 
   for (const rule of rules) {
@@ -71,12 +73,14 @@ export function evaluateRulesForDataCell(
     }
     if (!cellMatch) continue;
 
-    if (rule.terminal.type === "prop" && rule.terminal.props.cellRenderer)
-      effectiveRenderer = rule.terminal.props.cellRenderer;
-    else if (rule.terminal.type === "style")
+    if (rule.terminal.type === "prop") {
+      if (rule.terminal.props.cellRenderer) effectiveRenderer = rule.terminal.props.cellRenderer;
+      if (rule.terminal.props.valueFormatter) effectiveValueFormatter = rule.terminal.props.valueFormatter;
+    } else if (rule.terminal.type === "style") {
       styleFns.push(rule.terminal.fn);
+    }
   }
-  return { effectiveRenderer, styleFns };
+  return { effectiveRenderer, effectiveValueFormatter, styleFns };
 }
 
 export function evaluateRulesForFacetCell(

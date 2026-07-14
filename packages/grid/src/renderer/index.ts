@@ -51,6 +51,7 @@ export type {
   ValueRowMetadata,
   ValueCellMetadata,
   ValueCellDataContext,
+  ValueFormatter,
 } from "./types";
 export { Selection, CellSelection } from "./select-all";
 export { registerTheme, getTheme } from "./registry";

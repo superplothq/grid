@@ -136,6 +136,7 @@ export function useFlatGrid(options: UseFlatGridOptions): UseFlatGridResult {
       if (col.cellHeight !== undefined) def.cellHeight = col.cellHeight;
       if (col.sampleData !== undefined) def.sampleData = col.sampleData;
       if (col.colSize !== undefined) def.colSize = col.colSize;
+      if (col.valueFormatter !== undefined) def.valueFormatter = col.valueFormatter;
       return def;
     });
   }

@@ -122,11 +122,14 @@ export type ColAutoSizeConfig =
   | IColAutoSizeStrategyStatic;
 // #endregion col-auto-size-config
 
+export type ValueFormatter<T = any> = (val: T, ctx: ValueCellDataContext) => string | null | undefined;
+
 export interface VTrackDef<T = any> {
   renderer?: CellRenderer<T>;
   cellHeight?: number;
   sampleData?: T;
   colSize?: ColAutoSizeConfig;
+  valueFormatter?: ValueFormatter<T>;
 }
 
 type El = HTMLElement | HTMLElement[] | string;
@@ -195,6 +198,8 @@ export interface FacetDef {
   // Only used for row facet defs — column facets inherit the width of the data track above them.
   colSize?: ColAutoSizeConfig;
   groupSchema?: DataSchema[];
+  // Only used for column facet defs - the default formatter for data values in every column; the deepest level that defines one wins.
+  valueFormatter?: ValueFormatter;
 }
 
 export interface GridDataViewModelOptions {
@@ -210,6 +215,7 @@ export interface ResolvedVTrackDef extends VTrackDef {
   renderer: CellRenderer<any>;
   isCustom: boolean;
   colSize: ColAutoSizeConfig;
+  valueFormatter?: ValueFormatter;
 }
 
 export interface CellToMeasure {
@@ -283,6 +289,7 @@ export interface ValueCellDataContext {
   viewModel: GridDataViewModel;
   rowIndex: number;
   colIndex: number;
+  rawValue: any;
 }
 // #endregion metadata-types
 
@@ -293,6 +300,7 @@ export interface SelectionProps {
   cellRenderer?: CellRenderer<any>;
   trackRenderer?: FacetCellRenderer;
   colSize?: ColAutoSizeConfig;
+  valueFormatter?: ValueFormatter;
 }
 
 export interface FacetPredicateNode { type: "facet"; predicate: FacetPredicate; }

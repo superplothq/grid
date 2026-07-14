@@ -128,6 +128,66 @@ describe("evaluateRulesForDataCell", () => {
     const result = evaluateRulesForDataCell(rules, ["East"], ["2024"], rowDefs, colDefs, 42);
     expect(result.effectiveRenderer).to.equal(renderer2);
   });
+
+  it("should return matching valueFormatter", () => {
+    const valueFormatter = () => "formatted";
+    const rules: SelectionRule[] = [{
+      id: 0,
+      predicates: [{ type: "facet", predicate: (dim) => dim === "region" }, { type: "cell", predicate: () => true }],
+      terminal: { type: "prop", props: { valueFormatter } },
+    }];
+    const result = evaluateRulesForDataCell(rules, ["East"], ["2024"], rowDefs, colDefs, 42);
+    expect(result.effectiveValueFormatter).to.equal(valueFormatter);
+  });
+
+  it("should apply cell predicate filtering to valueFormatter", () => {
+    const valueFormatter = () => "formatted";
+    const rules: SelectionRule[] = [{
+      id: 0,
+      predicates: [
+        { type: "facet", predicate: () => true },
+        { type: "cell", predicate: (v) => v > 50 },
+      ],
+      terminal: { type: "prop", props: { valueFormatter } },
+    }];
+    expect(evaluateRulesForDataCell(rules, ["East"], ["2024"], rowDefs, colDefs, 42).effectiveValueFormatter).to.be.undefined;
+    expect(evaluateRulesForDataCell(rules, ["East"], ["2024"], rowDefs, colDefs, 100).effectiveValueFormatter).to.equal(valueFormatter);
+  });
+
+  it("should use last-write-wins for valueFormatter", () => {
+    const formatter1 = () => "f1";
+    const formatter2 = () => "f2";
+    const rules: SelectionRule[] = [
+      { id: 0, predicates: [{ type: "facet", predicate: () => true }, { type: "cell", predicate: () => true }], terminal: { type: "prop", props: { valueFormatter: formatter1 } } },
+      { id: 1, predicates: [{ type: "facet", predicate: () => true }, { type: "cell", predicate: () => true }], terminal: { type: "prop", props: { valueFormatter: formatter2 } } },
+    ];
+    const result = evaluateRulesForDataCell(rules, ["East"], ["2024"], rowDefs, colDefs, 42);
+    expect(result.effectiveValueFormatter).to.equal(formatter2);
+  });
+
+  it("should resolve renderer and valueFormatter from the same rule", () => {
+    const customRenderer = () => "custom";
+    const valueFormatter = () => "formatted";
+    const rules: SelectionRule[] = [{
+      id: 0,
+      predicates: [{ type: "facet", predicate: () => true }, { type: "cell", predicate: () => true }],
+      terminal: { type: "prop", props: { cellRenderer: customRenderer, valueFormatter } },
+    }];
+    const result = evaluateRulesForDataCell(rules, ["East"], ["2024"], rowDefs, colDefs, 42);
+    expect(result.effectiveRenderer).to.equal(customRenderer);
+    expect(result.effectiveValueFormatter).to.equal(valueFormatter);
+  });
+
+  it("should not apply valueFormatter from rules without cell predicates", () => {
+    const valueFormatter = () => "formatted";
+    const rules: SelectionRule[] = [{
+      id: 0,
+      predicates: [{ type: "facet", predicate: () => true }],
+      terminal: { type: "prop", props: { valueFormatter } },
+    }];
+    const result = evaluateRulesForDataCell(rules, ["East"], ["2024"], rowDefs, colDefs, 42);
+    expect(result.effectiveValueFormatter).to.be.undefined;
+  });
 });
 
 describe("evaluateRulesForFacetCell", () => {
