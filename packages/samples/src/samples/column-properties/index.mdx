@@ -88,7 +88,8 @@ Try it below: switch between compact, comfortable, and spacious in the toolbar.
 
 A header renderer can flank the column label with extra content: a marker on the
 left and a badge on the right, with the label in the middle. This is a property
-of the header, not of the column's cells.
+of the header, not of the column's cells. The affixes are ordinary DOM, so they
+can carry their own behaviour - here the left dot anchors a hover tooltip.
 
 ```ts
 facetDefs: {
@@ -96,7 +97,7 @@ facetDefs: {
   col: [{
     text: "",
     trackRenderer: (label) => ({
-      left: marker(),        // shown before the label
+      left: marker(),        // shown before the label - anchors the tooltip
       content: label,        // the label itself
       right: kindBadge(),    // shown after the label
     }),
@@ -105,8 +106,21 @@ facetDefs: {
 },
 ```
 
+The dot owns the tooltip. On `mouseenter` it opens a custom-HTML card - not a
+plain `title` attribute - positioned with fixed coordinates just below the dot so
+the grid's scroll container never crops it:
+
+```ts
+dot.addEventListener("mouseenter", () => {
+  const r = dot.getBoundingClientRect();
+  card.style.top = `${r.bottom + 8}px`;            // open downward from the dot
+  card.style.left = `${r.left + r.width / 2 - 16}px`; // caret lands under the dot
+  document.body.appendChild(card);
+});
+```
+
 Try it below: each header shows a leading marker and a trailing badge naming the
-kind of data in the column.
+kind of data in the column. Hover the dot to open a card describing that column.
 
 <SampleDemo id="column-properties-header-affixes" />
 
