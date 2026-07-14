@@ -156,6 +156,7 @@ export default class StandardLayout extends StandardLayoutBase {
   #fixtures: LayoutFixtures;
   #fixtureMeasurements = { top: [] as number[], topTotal: 0, bottom: [] as number[], bottomTotal: 0 };
   #selectAllRules: readonly SelectionRule[] = [];
+  #appliedSelStyleProps = new WeakMap<HTMLElement, string[]>();
   #isStaticStrategy = false;
   #viewportDataChangeUnsub: (() => void) | null = null;
   #columnTemplateParts: string[] | null = null;
@@ -185,6 +186,25 @@ export default class StandardLayout extends StandardLayoutBase {
     if (this.#selectAllRules.length === 0) return { trackRenderer: undefined, styleFns: [] };
     const result = evaluateRulesForFacetCell(this.#selectAllRules, facetPath, facetDefs);
     return { trackRenderer: result.effectiveTrackRenderer, styleFns: result.styleFns };
+  }
+
+  protected applyCellStyleFns(cell: HTMLElement, styleFns: ((el: HTMLElement) => void)[]): void {
+    const prev = this.#appliedSelStyleProps.get(cell);
+    if (prev) {
+      for (const prop of prev) cell.style.removeProperty(prop);
+      this.#appliedSelStyleProps.delete(cell);
+    }
+    if (styleFns.length === 0) return;
+
+    const before = new Set<string>();
+    for (let i = 0; i < cell.style.length; i++) before.add(cell.style[i]);
+    for (const fn of styleFns) fn(cell);
+    const applied: string[] = [];
+    for (let i = 0; i < cell.style.length; i++) {
+      const prop = cell.style[i];
+      if (!before.has(prop)) applied.push(prop);
+    }
+    if (applied.length > 0) this.#appliedSelStyleProps.set(cell, applied);
   }
 
   get gridContainer(): HTMLElement {
@@ -1218,7 +1238,7 @@ export default class StandardLayout extends StandardLayoutBase {
       if (contentDirty) {
         const { trackRenderer: colTrackRenderer, styleFns: colStyleFns } = this.resolveFacetOverrides([sliceData.columnFacets![merge.start][merge.level]], [this.data!.facetDefs.col[merge.level]]);
         this.buildAndPlaceFacetCell(cell, this.data!.facetDefs.col, merge, sliceData.columnFacets!, key, { rendererOverride: colTrackRenderer, resizeHandle: true });
-        for (const fn of colStyleFns) fn(cell);
+        this.applyCellStyleFns(cell, colStyleFns);
       }
       if (!isLeafLevel) {
         nonLeafColFacets.push({ cell, mergeStart: merge.start, mergeSpan: merge.spanPrimary });
@@ -1740,7 +1760,7 @@ export default class StandardLayout extends StandardLayoutBase {
       if (contentDirty) {
         const { trackRenderer: rowTrackRenderer, styleFns: rowStyleFns } = this.resolveFacetOverrides([sliceData.rowFacets![merge.start][merge.level]], [this.data!.facetDefs.row[merge.level]]);
         this.buildAndPlaceFacetCell(cell, this.data!.facetDefs.row, merge, sliceData.rowFacets!, key, { rendererOverride: rowTrackRenderer });
-        for (const fn of rowStyleFns) fn(cell);
+        this.applyCellStyleFns(cell, rowStyleFns);
       }
       if (!isLeaf) {
         // TODO transform is applied to cell's content. Find a better way to do this as the content could be custom
@@ -1816,7 +1836,7 @@ export default class StandardLayout extends StandardLayoutBase {
           cell.dataset.croix = String(absoluteRowIndex);
           cell.style.minWidth = fixedSize?.minWidthInPx !== undefined ? `${fixedSize.minWidthInPx}px` : "";
           cell.style.maxWidth = fixedSize?.maxWidthInPx !== undefined ? `${fixedSize.maxWidthInPx}px` : "";
-          for (const fn of dataStyleFns) fn(cell);
+          this.applyCellStyleFns(cell, dataStyleFns);
         }
 
         needAppend && nodesToAppend.push(cell);

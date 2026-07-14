@@ -67,7 +67,7 @@ export default class GroupedRowLayout extends StandardLayout {
         const { trackRenderer: grpTrackRenderer, styleFns: grpStyleFns } = this.resolveFacetOverrides([label], rowFacetDefs);
         const result = (grpTrackRenderer ?? rowFacetDefs[0].trackRenderer)(label as string, dataCtx, rendererCtx);
         this.populateFacetContainer(cell, facetContainer, result);
-        for (const fn of grpStyleFns) fn(cell);
+        this.applyCellStyleFns(cell, grpStyleFns);
       }
 
       cell.dataset.cellType = "row-facet";
