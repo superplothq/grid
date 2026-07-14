@@ -14,6 +14,10 @@ const COLUMNS = [
   { field: "total_ot_paid", label: "Total OT Paid" },
 ];
 
+// Static fractional track widths: the first two columns take twice the share of
+// the remaining three, so the table fills the grid width with no horizontal scroll.
+const COL_FR = [2, 2, 1, 1, 1];
+
 // The column highlighted (and the swatch shown) when the sample first renders.
 const DEFAULT_COLUMN = "Base Salary";
 const DEFAULT_COLOR = "#6366f1";
@@ -38,6 +42,7 @@ export function mount(el: HTMLElement, ctx: SampleContext): () => void {
       columnFacets: [COLUMNS.map((column) => column.label)],
       totalRows: rows.length,
       options: {
+        vTrackDefs: COLUMNS.map((_, i) => ({ colSize: { strategy: "static", width: COL_FR[i], unit: "fr" } })),
         facetDefs: { row: [], col: [{ text: "" }], axis: "col" },
       },
     });

@@ -13,6 +13,10 @@ const COLUMNS = [
 
 const GRID_HEIGHT = 420;
 
+// Static fractional track widths: the first two columns take twice the share of
+// the remaining three, so the table fills the grid width with no horizontal scroll.
+const COL_FR = [2, 2, 1, 1, 1];
+
 // A header renderer can place content on three sides of the label: a marker on
 // the left, the text in the middle, and a badge on the right. Here the badge
 // names the kind of values the column holds.
@@ -38,6 +42,7 @@ export function mount(el: HTMLElement, ctx: SampleContext): () => void {
       columnFacets: [COLUMNS.map((column) => column.label)],
       totalRows: rows.length,
       options: {
+        vTrackDefs: COLUMNS.map((_, i) => ({ colSize: { strategy: "static", width: COL_FR[i], unit: "fr" } })),
         facetDefs: {
           row: [],
           col: [{ text: "", trackRenderer: headerContent }],

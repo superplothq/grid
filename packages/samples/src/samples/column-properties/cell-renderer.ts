@@ -13,6 +13,10 @@ const COLUMNS = [
 
 // The one column that draws its own visual instead of plain text.
 const BAR_FIELD = "base_salary";
+
+// Static fractional track widths: the first two columns take twice the share of
+// the remaining three, so the table fills the grid width with no horizontal scroll.
+const COL_FR = [2, 2, 1, 1, 1];
 const GRID_HEIGHT = 420;
 
 export function mount(el: HTMLElement, ctx: SampleContext): () => void {
@@ -32,7 +36,10 @@ export function mount(el: HTMLElement, ctx: SampleContext): () => void {
       options: {
         // Only the salary column gets a custom renderer; the rest fall back to
         // the built-in text rendering.
-        vTrackDefs: COLUMNS.map((column) => (column.field === BAR_FIELD ? { renderer: bar } : {})),
+        vTrackDefs: COLUMNS.map((column, i) => ({
+          colSize: { strategy: "static", width: COL_FR[i], unit: "fr" },
+          ...(column.field === BAR_FIELD ? { renderer: bar } : {}),
+        })),
         facetDefs: { row: [], col: [{ text: "" }], axis: "col" },
       },
     });

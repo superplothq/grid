@@ -11,6 +11,10 @@ const COLUMNS = [
   { field: "total_ot_paid", label: "Total OT Paid" },
 ];
 
+// Static fractional track widths: the first two columns take twice the share of
+// the remaining three, so the table fills the grid width with no horizontal scroll.
+const COL_FR = [2, 2, 1, 1, 1];
+
 // With no custom renderer the grid measures each row from its rendered text
 // plus cell padding, so row height is driven by the `--cell-padding-y` theme
 // token. Each option is a vertical padding in pixels; dialing it up or down
@@ -40,6 +44,7 @@ export function mount(el: HTMLElement, ctx: SampleContext): () => void {
       columnFacets: [COLUMNS.map((column) => column.label)],
       totalRows: rows.length,
       options: {
+        vTrackDefs: COLUMNS.map((_, i) => ({ colSize: { strategy: "static", width: COL_FR[i], unit: "fr" } })),
         facetDefs: { row: [], col: [{ text: "" }], axis: "col" },
       },
     });
