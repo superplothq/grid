@@ -1,4 +1,7 @@
 {
   "title": "Column",
-  "pages": ["[Column Selection](/docs/samples/column-selection)"]
+  "pages": [
+    "[Column Selection](/docs/samples/column-selection)",
+    "[Column Properties](/docs/samples/column-properties)"
+  ]
 }
