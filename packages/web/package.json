@@ -3,7 +3,7 @@
   "version": "0.0.0",
   "private": true,
   "scripts": {
-    "dev": "node scripts/emit-sample-sources.mjs && next dev --port 3334",
+    "dev": "node scripts/emit-sample-sources.mjs && next dev --port 3334 --disable-source-maps",
     "dev:preview": "NEXT_DIST_DIR=.next-preview next build && OUT_DIR=.next-preview node scripts/serve-out.mjs",
     "build": "node scripts/emit-sample-sources.mjs && next build",
     "start": "serve out",
@@ -19,7 +19,7 @@
     "fumadocs-ui": "16.8.3",
     "grid": "1.0.0",
     "lucide-react": "^1.9.0",
-    "next": "16.2.4",
+    "next": "16.2.10",
     "react": "^19.2.5",
     "react-dom": "^19.2.5",
     "samples": "0.0.0"
@@ -31,7 +31,7 @@
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
     "eslint": "^9",
-    "eslint-config-next": "16.2.4",
+    "eslint-config-next": "16.2.10",
     "postcss": "^8.5.10",
     "serve": "^14.2.6",
     "tailwindcss": "^4.2.4",

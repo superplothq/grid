@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "build": "next build",
-    "dev": "next dev --port 3333",
+    "dev": "next dev --port 3333 --disable-source-maps",
     "start": "serve out",
     "types:check": "fumadocs-mdx && next typegen && tsc --noEmit",
     "postinstall": "fumadocs-mdx",
@@ -16,7 +16,7 @@
     "fumadocs-mdx": "14.3.1",
     "fumadocs-ui": "16.8.3",
     "lucide-react": "^1.9.0",
-    "next": "16.2.4",
+    "next": "16.2.10",
     "react": "^19.2.5",
     "react-dom": "^19.2.5",
     "tailwind-merge": "^3.5.0",
@@ -34,7 +34,7 @@
     "serve": "^14.2.6",
     "tailwindcss": "^4.2.4",
     "typescript": "^6.0.3",
-    "eslint-config-next": "16.2.4",
+    "eslint-config-next": "16.2.10",
     "eslint": "^9"
   }
 }
