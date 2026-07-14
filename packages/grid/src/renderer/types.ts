@@ -95,7 +95,7 @@ export interface FlatSliceResult extends BaseSliceResult {
 
 // #region col-auto-size-config
 export interface IColAutoSize {
-  strategy: "max-cell" | "fixed-width" | "static";
+  strategy: "max-cell" | "clamped-width" | "static";
   excludeColumnFacets?: boolean;
 }
 
@@ -110,8 +110,8 @@ export interface IColAutoSizeStrategyStatic extends IColAutoSize {
   unit: "%" | "fr" | "px";
 }
 
-export interface IColAutoSizeStrategyFixedWidth extends IColAutoSize {
-  strategy: "fixed-width";
+export interface IColAutoSizeStrategyClampedWidth extends IColAutoSize {
+  strategy: "clamped-width";
   widthInPx?: number;
   maxWidthInPx?: number;
   minWidthInPx?: number;
@@ -119,7 +119,7 @@ export interface IColAutoSizeStrategyFixedWidth extends IColAutoSize {
 
 export type ColAutoSizeConfig =
   | IColAutoSizeStrategyMaxCell
-  | IColAutoSizeStrategyFixedWidth
+  | IColAutoSizeStrategyClampedWidth
   | IColAutoSizeStrategyStatic;
 // #endregion col-auto-size-config
 

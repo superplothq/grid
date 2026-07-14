@@ -277,7 +277,7 @@ const options: GridDataViewModelOptions = {
 [`ColAutoSizeConfig`](/docs/api-references/type-references#colautosizeconfig) supports three strategies:
 
 - **`"max-cell"`** (default) - auto-sizes the column to the widest cell content
-- **`"fixed-width"`** - fixed width in pixels, with optional min/max bounds
+- **`"clamped-width"`** - content-sized, clamped by optional min/max pixel bounds
 - **`"static"`** - fixed width in `fr`, `%`, or `px` units
 
 All strategies accept `excludeColumnFacets?: boolean` - when `true`, column facet cells are excluded from auto-size measurement.
@@ -286,8 +286,8 @@ All strategies accept `excludeColumnFacets?: boolean` - when `true`, column face
 // Auto-size to content (default)
 { strategy: "max-cell" }
 
-// Fixed pixel width with min/max bounds
-{ strategy: "fixed-width", widthInPx: 200, minWidthInPx: 100, maxWidthInPx: 400 }
+// Content-sized, clamped between min/max bounds
+{ strategy: "clamped-width", minWidthInPx: 100, maxWidthInPx: 400 }
 
 // Fixed 2fr width
 { strategy: "static", width: 2, unit: "fr" }

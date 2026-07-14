@@ -612,7 +612,7 @@ const GridPlayground: React.FC = () => {
       // Build ColAutoSizeConfig
       const colSizeConfig: ColAutoSizeConfig = settings.strategy === "fixed"
         ? {
-            strategy: "fixed-width",
+            strategy: "clamped-width",
             excludeColumnFacets: settings.excludeColumnFacets === "1",
             ...(settings.widthInPx && { widthInPx: parseInt(settings.widthInPx, 10) }),
             ...(settings.minWidthInPx && { minWidthInPx: parseInt(settings.minWidthInPx, 10) }),

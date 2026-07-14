@@ -62,7 +62,7 @@ grid
   .selectAll((dim, dimVal) => dim === "Measure" && dimVal === "Trend")
   .prop({
     trackRenderer: myCustomFacetRenderer,
-    colSize: { strategy: "fixed-width", widthInPx: 120 },
+    colSize: { strategy: "clamped-width", widthInPx: 120 },
   });
 ```
 

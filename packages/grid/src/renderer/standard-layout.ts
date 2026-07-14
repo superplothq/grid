@@ -22,7 +22,7 @@ import {
   HeaderCellContext,
   FacetRendererContext,
   ColAutoSizeConfig,
-  IColAutoSizeStrategyFixedWidth,
+  IColAutoSizeStrategyClampedWidth,
   IColAutoSizeStrategyStatic,
   PivotSliceResult,
   SelectionRule,
@@ -161,6 +161,9 @@ export default class StandardLayout extends StandardLayoutBase {
   #viewportDataChangeUnsub: (() => void) | null = null;
   #columnTemplateParts: string[] | null = null;
   #columnTemplateDataStartCol = 0;
+  // Signature of the current viewmodel's column-sizing config. Used to decide when
+  // the measured max-seen widths (`colsWidth.*.indices`) are stale and must be reset.
+  #sizingSignature = "";
 
   constructor(config: GridConfig, mountPoint: HTMLElement, cellManager: CellManager) {
     super(config, mountPoint, cellManager);
@@ -574,12 +577,32 @@ export default class StandardLayout extends StandardLayoutBase {
     return count + this.config.overscan;
   }
 
+  #computeSizingSignature(data: GridDataViewModel): string {
+    const cols = data.vTrackDefs.map((d) => JSON.stringify(d.colSize)).join("|");
+    const rows = data.facetDefs.row.map((d) => JSON.stringify(d.colSize ?? null)).join("|");
+    return `${data.vTrackDefs.length}:${cols}#${rows}`;
+  }
+
   setData(data: GridDataViewModel): void {
     if (this.#viewportDataChangeUnsub) {
       this.#viewportDataChangeUnsub();
       this.#viewportDataChangeUnsub = null;
     }
     super.setData(data);
+    // The max-seen column-width memory (`colsWidth.*.indices`) is measured under the
+    // previous viewmodel's sizing config. Reset it only when that config changes -
+    // e.g. a column that was content-sized becomes clamped-width capped - otherwise a
+    // stale `indices` entry makes the max-seen freeze re-pin a header track to the old,
+    // wider width, desyncing it from its (correctly clamped) data cells. A plain data
+    // update keeps the same signature, so the memory (and scroll stability) survives.
+    // `override` holds user resizes and is intentionally left intact.
+    const signature = this.#computeSizingSignature(data);
+    if (signature !== this.#sizingSignature) {
+      this.#sizingSignature = signature;
+      this.colsWidth.left.indices = [];
+      this.colsWidth.center.indices = [];
+      this.colsWidth.right.indices = [];
+    }
     this.#viewportDataChangeUnsub = data.register("viewportDataChange", (viewport) => {
       this.emit("viewModelDataChanged", viewport);
     });
@@ -1217,8 +1240,8 @@ export default class StandardLayout extends StandardLayoutBase {
       const colspan = merge.spanPrimary;
 
       const isLeafLevel = merge.level === this.data!.numColFacetLevels - 1;
-      const shouldApplyWidth = isLeafLevel && colspan === 1 && !colDef.colSize.excludeColumnFacets && colDef.colSize.strategy === "fixed-width";
-      const fixedSize = shouldApplyWidth ? colDef.colSize as IColAutoSizeStrategyFixedWidth : null;
+      const shouldApplyWidth = isLeafLevel && colspan === 1 && !colDef.colSize.excludeColumnFacets && colDef.colSize.strategy === "clamped-width";
+      const clampedSize = shouldApplyWidth ? colDef.colSize as IColAutoSizeStrategyClampedWidth : null;
 
       let boundaryCellCls = (merge.start + merge.spanPrimary === numDataColsVisible ? "r-edge " : "");
       const [cell, needAppend, contentDirty] = this.placeCellInDom({
@@ -1231,14 +1254,20 @@ export default class StandardLayout extends StandardLayoutBase {
           colspan,
           top: viewModel.colFacetsTopPositions[merge.level],
           ...(merge.spanSecondary > 1 && { rowspan: merge.spanSecondary }),
-          ...(fixedSize?.minWidthInPx !== undefined && { minWidth: fixedSize.minWidthInPx }),
-          ...(fixedSize?.maxWidthInPx !== undefined && { maxWidth: fixedSize.maxWidthInPx }),
         },
       });
       if (contentDirty) {
         const { trackRenderer: colTrackRenderer, styleFns: colStyleFns } = this.resolveFacetOverrides([sliceData.columnFacets![merge.start][merge.level]], [this.data!.facetDefs.col[merge.level]]);
         this.buildAndPlaceFacetCell(cell, this.data!.facetDefs.col, merge, sliceData.columnFacets!, key, { rendererOverride: colTrackRenderer, resizeHandle: true });
         this.applyCellStyleFns(cell, colStyleFns);
+        if (isLeafLevel) {
+          // Clamped-width min/max live on the leaf header. Assigned (or cleared to "") only on a
+          // full redraw - not while scrolling reuses a cell, where clearing would fight the
+          // max-seen freeze that also writes minWidth. Released cells are wiped, so a recycled
+          // cell is already clean.
+          cell.style.minWidth = clampedSize?.minWidthInPx !== undefined ? `${clampedSize.minWidthInPx}px` : "";
+          cell.style.maxWidth = clampedSize?.maxWidthInPx !== undefined ? `${clampedSize.maxWidthInPx}px` : "";
+        }
       }
       if (!isLeafLevel) {
         nonLeafColFacets.push({ cell, mergeStart: merge.start, mergeSpan: merge.spanPrimary });
@@ -1794,7 +1823,7 @@ export default class StandardLayout extends StandardLayoutBase {
       const absoluteColIndex = this.data!.numRowFacetLevels + viewModel.x0 + i;
       // TODO[1]
       const colDef = colDefs[absoluteColIndex - this.data!.numRowFacetLevels];
-      const fixedSize = colDef.colSize.strategy === "fixed-width" ? colDef.colSize as IColAutoSizeStrategyFixedWidth : null;
+      const clampedSize = colDef.colSize.strategy === "clamped-width" ? colDef.colSize as IColAutoSizeStrategyClampedWidth : null;
 
       for (let j = 0; j < numDataRowsVisible; j++) {
         const absoluteRowIndex = this.data!.numColFacetLevels + viewModel.y0 + j;
@@ -1834,8 +1863,8 @@ export default class StandardLayout extends StandardLayoutBase {
           cell.dataset.cellType = "value";
           cell.dataset.cclix = String(absoluteColIndex);
           cell.dataset.croix = String(absoluteRowIndex);
-          cell.style.minWidth = fixedSize?.minWidthInPx !== undefined ? `${fixedSize.minWidthInPx}px` : "";
-          cell.style.maxWidth = fixedSize?.maxWidthInPx !== undefined ? `${fixedSize.maxWidthInPx}px` : "";
+          cell.style.minWidth = clampedSize?.minWidthInPx !== undefined ? `${clampedSize.minWidthInPx}px` : "";
+          cell.style.maxWidth = clampedSize?.maxWidthInPx !== undefined ? `${clampedSize.maxWidthInPx}px` : "";
           this.applyCellStyleFns(cell, dataStyleFns);
         }
 
@@ -1937,9 +1966,9 @@ export default class StandardLayout extends StandardLayoutBase {
         // Left region tracks are laid out as: [fixture0, fixture1, ..., rowFacet0, rowFacet1, ...]
         // Tracks below numLeftFixtures are fixtures; the rest are row facets offset by numLeftFixtures.
         if (trackIndex < numLeftFixtures) {
-          this.#fixtures.left[trackIndex].colSize = { strategy: "fixed-width", widthInPx: finalWidth };
+          this.#fixtures.left[trackIndex].colSize = { strategy: "clamped-width", widthInPx: finalWidth };
         } else {
-          this.data!.facetDefs.row[trackIndex - numLeftFixtures].colSize = { strategy: "fixed-width", widthInPx: finalWidth };
+          this.data!.facetDefs.row[trackIndex - numLeftFixtures].colSize = { strategy: "clamped-width", widthInPx: finalWidth };
         }
       },
     });
@@ -1971,7 +2000,7 @@ export default class StandardLayout extends StandardLayoutBase {
         }
       },
       onCommit: (finalWidth) => {
-        this.#fixtures.right[trackIndex].colSize = { strategy: "fixed-width", widthInPx: finalWidth };
+        this.#fixtures.right[trackIndex].colSize = { strategy: "clamped-width", widthInPx: finalWidth };
       },
     });
   }
@@ -1991,13 +2020,13 @@ export default class StandardLayout extends StandardLayoutBase {
       regionIndex: centerIdx,
       headerCell: trackHeaderCell,
       onCommit: (finalWidth) => {
-        this.data!.setColSize(centerIdx, { strategy: "fixed-width", widthInPx: finalWidth });
+        this.data!.setColSize(centerIdx, { strategy: "clamped-width", widthInPx: finalWidth });
       },
     });
   }
 
   #autofitTrack(region: "left" | "center" | "right", regionIndex: number, headerCell: HTMLElement, createCtrl: () => ReturnType<StandardLayout["changeLeafColWidth"]>): void {
-    // Temporarily remove any fixed-width override so the column falls back to max-content,
+    // Temporarily remove any clamped-width override so the column falls back to max-content,
     // allowing getBoundingClientRect to return the intrinsic content width.
     const store = this.colsWidth[region];
     const hadOverride = regionIndex in store.override;

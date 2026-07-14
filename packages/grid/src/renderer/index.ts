@@ -19,7 +19,7 @@ export { GridConfig, defaultConfig } from "./grid-config";
 export type {
   IColAutoSize,
   IColAutoSizeStrategyMaxCell,
-  IColAutoSizeStrategyFixedWidth,
+  IColAutoSizeStrategyClampedWidth,
   ColAutoSizeConfig,
   VTrackDef,
   ResolvedVTrackDef,

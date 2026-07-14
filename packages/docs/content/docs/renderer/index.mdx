@@ -50,7 +50,7 @@ grid.draw();
 1. **Calculates the viewport** - determines which rows and columns are visible based on scroll position, row heights, and column widths. This produces a viewport range `(x0, y0, x1, y1)` plus overscan.
 2. **Fetches the data slice** - calls `viewModel.getViewportData(x0, y0, x1, y1)` to get only the data needed for the visible range.
 3. **Renders cells** - places column facets (headers), row facets, data cells, fixture cells, and selection overlays into the DOM.
-4. **Auto-sizes columns** - measures rendered cells and adjusts column widths based on content. The sizing strategy (`"max-cell"`, `"fixed-width"`, or `"static"`) comes from the viewmodel's [`VTrackDef`](/docs/api-references/type-references#vtrackdef) and [`FacetDef`](/docs/api-references/type-references#facetdef) definitions.
+4. **Auto-sizes columns** - measures rendered cells and adjusts column widths based on content. The sizing strategy (`"max-cell"`, `"clamped-width"`, or `"static"`) comes from the viewmodel's [`VTrackDef`](/docs/api-references/type-references#vtrackdef) and [`FacetDef`](/docs/api-references/type-references#facetdef) definitions.
 5. **Emits `renderComplete`** - fires with the viewport bounds `{ x0, y0, x1, y1 }` so consumers know what was rendered.
 
 `scheduleDraw()` is a debounced variant - it batches multiple draw requests into a single `requestAnimationFrame` callback.
