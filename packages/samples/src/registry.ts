@@ -41,4 +41,12 @@ export const samples: Record<string, SampleEntry> = {
     load: () => import("./samples/column-formatter/dynamic-locale"),
     conversation: () => Promise.resolve({ turns: [] }),
   },
+  "column-interaction-resize": {
+    load: () => import("./samples/column-interaction/resize"),
+    conversation: () => Promise.resolve({ turns: [] }),
+  },
+  "column-interaction-selection": {
+    load: () => import("./samples/column-interaction/selection"),
+    conversation: () => Promise.resolve({ turns: [] }),
+  },
 };
