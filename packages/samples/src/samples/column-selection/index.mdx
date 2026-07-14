@@ -1,0 +1,55 @@
+---
+title: Column Selection
+description: Select a column by name and run an operation on it.
+datasets: [payroll]
+runtime: static
+tags: [flat, selection]
+---
+
+This sample renders a simple payroll table - no pivot, no row grouping - with a toolbar
+above it. Pick a column from the dropdown and the grid selects that column, ready for an
+operation to run against it.
+
+Columns are selected with the renderer's `selectAll` API by matching the header text.
+`selectAll` targets the column's header (its "track" header) cells; chaining
+`selectAllCell` extends the same selection onto the column's data cells:
+
+```ts
+// Select a column by its header text.
+const selection = grid.selectAll((_dim, value) => value === "Base Salary");
+
+// Extend the same selection onto that column's data cells.
+selection.selectAllCell(() => true);
+```
+
+A `Selection` is just a handle - once you have one you can run an operation on it
+(style it, swap its renderer, and so on).
+
+## Highlight column
+
+Highlighting is one operation you can run on a selection: apply a style to the selected
+header and data cells. Here each cell gets a theme-aware color mix, blended over the
+grid's theme tokens so it stays legible in light and dark mode:
+
+```ts
+// Tint the header (milder mix over the column-facet token).
+selection.style((cell) => {
+  cell.style.background = `color-mix(in srgb, ${color} 14%, var(--column-facet-background-color))`;
+});
+
+// Tint the data cells (stronger mix over the value token).
+selection.selectAllCell(() => true).style((cell) => {
+  cell.style.background = `color-mix(in srgb, ${color} 28%, var(--value-background-color))`;
+});
+```
+
+Try it below: pick a column from the dropdown, choose a color, and click **Apply** to
+tint that column's header and data cells. **Reset** clears the highlight.
+
+<SampleDemo id="column-selection" />
+
+### Source
+
+```json doc-gen:file
+{ "file": "packages/samples/src/samples/column-selection/sample.ts", "codeblock": { "lang": "ts" } }
+```

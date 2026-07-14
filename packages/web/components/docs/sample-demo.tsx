@@ -4,7 +4,7 @@ import { useEffect, useRef } from 'react';
 import { samples, createSampleContext } from 'samples';
 import 'grid/dist/grid.css';
 
-export function SampleDemo({ id, height = 420 }: { id: string; height?: number }) {
+export function SampleDemo({ id }: { id: string }) {
   const hostRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -23,11 +23,5 @@ export function SampleDemo({ id, height = 420 }: { id: string; height?: number }
     };
   }, [id]);
 
-  return (
-    <div
-      ref={hostRef}
-      className="not-prose my-6 overflow-hidden rounded-lg border bg-fd-card"
-      style={{ height }}
-    />
-  );
+  return <div ref={hostRef} className="not-prose my-6" />;
 }
