@@ -1,0 +1,117 @@
+---
+title: Column Formatter
+description: Format cell values from the column facet, override per column, and switch formatters live from a header control.
+datasets: [payroll]
+runtime: static
+tags: [flat]
+---
+
+A **value formatter** turns a raw cell value into the string the grid draws - for
+example, `107789` into `107,789`, or `$107,789`. It runs before any cell renderer,
+so the renderer receives the already-formatted string while the untouched number
+stays on `dataCtx.rawValue`. It's a hook you can use to format numbers, dates, or
+anything else.
+
+```ts
+type ValueFormatter = (value, dataCtx) => string | null | undefined;
+
+const currency: ValueFormatter = (value) =>
+  typeof value === "number" ? value.toLocaleString("en-US", { style: "currency", currency: "USD" }) : "";
+```
+
+A formatter can be declared in two places - on a **column facet**
+(`options.facetDefs.col[]`, where it becomes the default for every column beneath
+it) or on a single **track def** (`options.vTrackDefs[]`, where it applies to one
+column and overrides the facet default).
+
+## Format from the column facet
+
+Put a `valueFormatter` on a column facet def and it becomes the default for every
+data cell under that facet. With two facet levels, the grid uses the **deepest
+level that defines one** - so a formatter on the top group level (with the label
+level defining none) is a single higher-order default inherited by all columns.
+
+```ts
+facetDefs: {
+  row: [],
+  // formatter on the top (group) level; the label level defines none, so the
+  // group formatter is the default for every column below it
+  col: [{ text: "", valueFormatter: localeNumber }, { text: "" }],
+  axis: "col",
+},
+```
+
+Try it below: every numeric column shows locale-grouped numbers from one formatter
+declared on the Pay/Employee group row - no per-column wiring. Text columns pass
+through untouched because the formatter only transforms numbers.
+
+<SampleDemo id="column-formatter-facet" />
+
+**Source**
+
+```json doc-gen:file
+{ "file": "packages/samples/src/samples/column-formatter/facet-formatter.ts", "codeblock": { "lang": "ts" } }
+```
+
+## Override for one column
+
+The facet formatter is only a default. Set a `valueFormatter` on a column's track
+def and it wins for that column - a track def formatter takes precedence over the
+facet default (`def.valueFormatter ?? facetValueFormatter`). The group formatter
+stays in place for every other column.
+
+```ts
+vTrackDefs: columns.map((column) => ({
+  colSize,
+  // this column's own formatter overrides the inherited group default
+  ...(column.field === "base_salary" ? { valueFormatter: currency } : {}),
+})),
+facetDefs: { row: [], col: [{ text: "", valueFormatter: localeNumber }, { text: "" }], axis: "col" },
+```
+
+Try it below: Base Salary now renders as `$`-currency from its own track def,
+while Regular Gross and Overtime keep the locale grouping inherited from the group
+facet.
+
+<SampleDemo id="column-formatter-track-override" />
+
+**Source**
+
+```json doc-gen:file
+{ "file": "packages/samples/src/samples/column-formatter/track-override.ts", "codeblock": { "lang": "ts" } }
+```
+
+## Switch formatters live
+
+A formatter can also be applied as a **selection override**, so switching it live
+never rebuilds the viewmodel. `grid.selectAll(...)` matches the Pay group header,
+`.selectAllCell(...)` extends the selection onto its data cells, and
+`.prop({ valueFormatter })` overrides the formatter there. It is just a rule the
+renderer reads on the next `grid.draw()`. A mini locale dropdown in the Pay group
+header (rendered through the facet's `trackRenderer`) undoes the previous rule and
+applies a new one.
+
+```ts
+let active: Selection | null = null;
+const applyLocale = () => {
+  active?.undo();                                   // drop the previous locale rule
+  active = grid.selectAll((_dim, value) => value === "Pay");
+  active.selectAllCell(() => true).prop({ valueFormatter: localeFormatter(localeId) });
+  grid.draw();                                      // repaint - no new viewmodel
+};
+
+const payHeader: FacetCellRenderer = (label) =>
+  label !== "Pay" ? label : { content: label, right: localeSelect(localeId, (next) => { localeId = next; applyLocale(); }) };
+```
+
+Try it below: use the dropdown on the **Pay** header to switch between USD, EUR,
+JPY, and INR. Every Pay column reformats at once because they all inherit the
+group-level formatter.
+
+<SampleDemo id="column-formatter-dynamic-locale" />
+
+**Source**
+
+```json doc-gen:file
+{ "file": "packages/samples/src/samples/column-formatter/dynamic-locale.ts", "codeblock": { "lang": "ts" } }
+```

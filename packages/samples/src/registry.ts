@@ -25,4 +25,16 @@ export const samples: Record<string, SampleEntry> = {
     load: () => import("./samples/column-properties/cell-renderer"),
     conversation: () => Promise.resolve({ turns: [] }),
   },
+  "column-formatter-facet": {
+    load: () => import("./samples/column-formatter/facet-formatter"),
+    conversation: () => Promise.resolve({ turns: [] }),
+  },
+  "column-formatter-track-override": {
+    load: () => import("./samples/column-formatter/track-override"),
+    conversation: () => Promise.resolve({ turns: [] }),
+  },
+  "column-formatter-dynamic-locale": {
+    load: () => import("./samples/column-formatter/dynamic-locale"),
+    conversation: () => Promise.resolve({ turns: [] }),
+  },
 };

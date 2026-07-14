@@ -51,3 +51,50 @@ style.padding = "...";
 ```
 
 Seen in: `packages/samples/src/samples/column-properties/cell-renderer.ts`.
+
+---
+
+## `selectAll(...).prop(...)` only reaches data cells through a cell predicate
+
+**Symptom.** You apply a `valueFormatter` (or `cellRenderer`) via the select-all
+API on a facet match and expect the data cells under that facet to pick it up:
+
+```ts
+grid.selectAll((_dim, value) => value === "Pay").prop({ valueFormatter });   // ❌ no effect on data cells
+```
+
+The data cells render unchanged (raw, unformatted). Styling the *header* via the
+same facet selection works, so it looks like the rule "took" - but the values
+below never format. Adding a second empty cell selection
+(`.selectAllCell(() => true).prop({})`) doesn't help either.
+
+**Cause.** A select-all rule carries a list of predicates. `evaluateRulesForDataCell`
+(`packages/grid/src/renderer/select-all/evaluate.ts`) **skips any rule that has no
+cell predicate**:
+
+```ts
+if (cellPreds.length === 0) continue;   // facet-only rules never touch data cells
+```
+
+Facet-only rules are meant for facet (header) cells - `evaluateRulesForFacetCell`
+handles those and only reads `trackRenderer` / style, never `valueFormatter`. So a
+`valueFormatter`/`cellRenderer` prop only reaches data cells when the rule the prop
+is attached to also carries a cell predicate. Splitting them across two rules
+(formatter on the facet rule, cell predicate on a different empty rule) fails
+because each rule is evaluated independently.
+
+**Fix.** Attach the prop to the selection that includes the cell predicate - i.e.
+put `.prop({...})` after `.selectAllCell(...)`, not after the facet `selectAll(...)`:
+
+```ts
+grid
+  .selectAll((_dim, value) => value === "Pay")   // match the facet
+  .selectAllCell(() => true)                     // extend onto its data cells
+  .prop({ valueFormatter });                     // ✅ formatter now applies
+```
+
+The `.selectAllCell(() => true)` is not boilerplate - it is what makes the rule
+reach the data cells. (A static `FacetDef.valueFormatter` does apply facet-wide
+with no cell predicate, but the dynamic select-all path deliberately does not.)
+
+Seen in: `packages/samples/src/samples/column-formatter/dynamic-locale.ts`.
