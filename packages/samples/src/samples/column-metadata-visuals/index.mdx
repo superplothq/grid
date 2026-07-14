@@ -1,0 +1,118 @@
+---
+title: Column Metadata Visuals
+description: Precompute per-column and per-cell metadata, then read it from a custom renderer to draw heat bars and percentile meters.
+datasets: [payroll]
+runtime: static
+tags: [flat]
+---
+
+A viewmodel can carry **metadata** alongside its data: arbitrary key-values
+(`Record<string, unknown>`) precomputed once, so the cell renderer stays dumb and
+fast - it reads the metadata for its coordinates and draws, doing no scanning of
+its own.
+
+Metadata attaches at different **scopes**, each a different granularity that is
+supplied and read differently. The one you pick is about *what the value means*: a
+statistic over a whole column, a fact about a whole row, or something specific to a
+single cell.
+
+| Scope | Attach with | Read in the renderer with | Keyed by |
+| --- | --- | --- | --- |
+| Whole column | `valueColumns` | `getValueColumnMeta(colIndex)` | column index |
+| Whole row | `valueRows` | `getValueRowMeta(rowIndex)` | row index |
+| Single cell | `valueCells` | `getValueCellMeta(colIndex, rowIndex)` | column + row |
+
+Each getter returns `undefined` where nothing was attached, and the `colIndex` /
+`rowIndex` a renderer receives are absolute data indices - the same space the
+getters expect. (Column facets and headers carry their own metadata too -
+`columnFacets`, `rowFacets`, `headers`, read with `getColumnFacetMeta` /
+`getHeaderMeta` - for header-level context.)
+
+```ts
+grid.data = new FlattenedDataViewModel({
+  data,
+  columnFacets,
+  metadata: {
+    valueColumns: [{ colIndex: 1, meta: { min: 0, max: 190000 } }],           // whole column
+    valueRows: [{ rowIndex: 0, meta: { flagged: true } }],                    // whole row
+    valueCells: [{ colIndex: 1, rowIndex: 0, meta: { percentile: 78 } }],     // one cell
+  },
+});
+
+const renderer = (value, dataCtx) => {
+  const colMeta = dataCtx.viewModel.metadata?.getValueColumnMeta(dataCtx.colIndex);
+  const rowMeta = dataCtx.viewModel.metadata?.getValueRowMeta(dataCtx.rowIndex);
+  const cellMeta = dataCtx.viewModel.metadata?.getValueCellMeta(dataCtx.colIndex, dataCtx.rowIndex);
+  // ...draw from whichever scope applies
+};
+```
+
+The two demos below use **whole-column** metadata (a column's min/max) and
+**per-cell** metadata (a value's percentile).
+
+## Heat bars from per-column metadata
+
+Each numeric column stores its `min` and `max` in **`valueColumns`** metadata. The
+renderer reads that back with `getValueColumnMeta`, normalizes the cell against its
+own column's range, and draws a bar whose width is that fraction and whose colour
+runs cool (low) to warm (high). The normalization lives in metadata, so every
+column is scaled to itself with no per-column renderer wiring.
+
+```ts
+metadata: {
+  valueColumns: numericColumns.map((colIndex) => ({
+    colIndex, meta: { min: colMin(colIndex), max: colMax(colIndex) },
+  })),
+},
+
+const heatBar = (value, dataCtx, ctx) => {
+  const { min, max } = dataCtx.viewModel.metadata.getValueColumnMeta(dataCtx.colIndex);
+  const frac = (dataCtx.rawValue - min) / (max - min);   // where in the column's range
+  // ...bar width = frac, colour = heat(frac)
+};
+```
+
+Try it below: every numeric column is its own mini bar chart. A long, warm bar is
+near the top of that column's range; a short, cool one is near the bottom -
+Base Salary and Total OT are scaled independently.
+
+<SampleDemo id="column-metadata-heat-bars" />
+
+**Source**
+
+```json doc-gen:file
+{ "file": "packages/samples/src/samples/column-metadata-visuals/heat-bars.ts", "codeblock": { "lang": "ts" } }
+```
+
+## Percentile meters from per-cell metadata
+
+Ranking a value against the whole column is a cross-row calculation, so it is
+precomputed once into **`valueCells`** metadata - one `percentile` per numeric
+cell. The renderer reads it with `getValueCellMeta` and paints a five-segment
+meter plus a `Pxx` tag, coloured by band. The renderer never sorts or scans; the
+rank is already there.
+
+```ts
+metadata: {
+  valueCells: rankedCells.map(({ colIndex, rowIndex, percentile }) => ({
+    colIndex, rowIndex, meta: { percentile },
+  })),
+},
+
+const meter = (value, dataCtx) => {
+  const { percentile } = dataCtx.viewModel.metadata.getValueCellMeta(dataCtx.colIndex, dataCtx.rowIndex);
+  // ...fill Math.round(percentile / 100 * 5) segments, colour by band
+};
+```
+
+Try it below: each numeric cell shows its value, a meter, and its percentile
+within the column - `P99` fills all five segments in green, a low percentile fills
+one in slate.
+
+<SampleDemo id="column-metadata-percentile" />
+
+**Source**
+
+```json doc-gen:file
+{ "file": "packages/samples/src/samples/column-metadata-visuals/percentile.ts", "codeblock": { "lang": "ts" } }
+```

@@ -49,4 +49,12 @@ export const samples: Record<string, SampleEntry> = {
     load: () => import("./samples/column-interaction/selection"),
     conversation: () => Promise.resolve({ turns: [] }),
   },
+  "column-metadata-heat-bars": {
+    load: () => import("./samples/column-metadata-visuals/heat-bars"),
+    conversation: () => Promise.resolve({ turns: [] }),
+  },
+  "column-metadata-percentile": {
+    load: () => import("./samples/column-metadata-visuals/percentile"),
+    conversation: () => Promise.resolve({ turns: [] }),
+  },
 };
