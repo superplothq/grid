@@ -1,6 +1,7 @@
 import Grid, { FlattenedDataViewModel } from "grid/dist/renderer";
 import type { CellRenderer } from "grid/dist/renderer";
 import { createGridMount } from "../../runtime/mount";
+import { syncGridTheme } from "../../runtime/theme";
 import type { SampleContext, SampleRow, SampleValue } from "../../types";
 
 const COLUMNS = [
@@ -22,6 +23,7 @@ const GRID_HEIGHT = 420;
 export function mount(el: HTMLElement, ctx: SampleContext): () => void {
   const gridMount = createGridMount(el, GRID_HEIGHT);
   const grid = new Grid({}, gridMount, "flat");
+  const disposeTheme = syncGridTheme(grid);
   let disposed = false;
   el.append(gridMount);
 
@@ -48,6 +50,7 @@ export function mount(el: HTMLElement, ctx: SampleContext): () => void {
 
   return () => {
     disposed = true;
+    disposeTheme();
     el.removeChild(gridMount);
   };
 }

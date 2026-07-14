@@ -2,6 +2,7 @@ import Grid, { FlattenedDataViewModel } from "grid/dist/renderer";
 import type { ColAutoSizeConfig } from "grid/dist/renderer";
 import { createGridMount } from "../../runtime/mount";
 import { createToolbar, toolbarSelect } from "../../runtime/toolbar";
+import { syncGridTheme } from "../../runtime/theme";
 import type { SampleContext, SampleRow } from "../../types";
 
 // A simple flat table (no pivot, no grouping). `field` reads from the payroll
@@ -49,6 +50,7 @@ const GRID_HEIGHT = 420;
 export function mount(el: HTMLElement, ctx: SampleContext): () => void {
   const gridMount = createGridMount(el, GRID_HEIGHT);
   const grid = new Grid({}, gridMount, "flat");
+  const disposeTheme = syncGridTheme(grid);
   let disposed = false;
   let rows: SampleRow[] = [];
 
@@ -91,6 +93,7 @@ export function mount(el: HTMLElement, ctx: SampleContext): () => void {
 
   return () => {
     disposed = true;
+    disposeTheme();
     el.removeChild(toolbar);
     el.removeChild(gridMount);
   };

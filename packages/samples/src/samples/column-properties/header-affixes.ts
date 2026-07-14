@@ -1,6 +1,7 @@
 import Grid, { FlattenedDataViewModel } from "grid/dist/renderer";
 import type { FacetCellRenderer } from "grid/dist/renderer";
 import { createGridMount } from "../../runtime/mount";
+import { syncGridTheme } from "../../runtime/theme";
 import type { SampleContext, SampleRow } from "../../types";
 
 // `note` is a short, header-specific blurb shown in the hover tooltip that the
@@ -41,6 +42,7 @@ function headerContent(tooltip: Tooltip): FacetCellRenderer {
 export function mount(el: HTMLElement, ctx: SampleContext): () => void {
   const gridMount = createGridMount(el, GRID_HEIGHT);
   const grid = new Grid({}, gridMount, "flat");
+  const disposeTheme = syncGridTheme(grid);
   const tooltip = createTooltip();
   let disposed = false;
   el.append(gridMount);
@@ -65,6 +67,7 @@ export function mount(el: HTMLElement, ctx: SampleContext): () => void {
 
   return () => {
     disposed = true;
+    disposeTheme();
     tooltip.destroy();
     el.removeChild(gridMount);
   };
