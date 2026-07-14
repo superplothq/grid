@@ -47,8 +47,39 @@ no banner - its label spans both header rows vertically.
 
 <SampleDemo id="column-grouping" />
 
-### Source
+**Source**
 
 ```json doc-gen:file
 { "file": "packages/samples/src/samples/column-grouping/sample.ts", "codeblock": { "lang": "ts" } }
+```
+
+## Flag values over a threshold
+
+The group banner doubles as a selection target. `grid.selectAll` matches the
+**Extra expense** group, `selectAllCell` narrows the selection to the data cells
+whose value crosses a threshold, and `style` paints them - so conditional
+formatting rides on the same group structure, with no per-column wiring.
+
+```ts
+grid
+  .selectAll((_dim, value) => value === "Extra expense")            // the group's header
+  .selectAllCell((value) => typeof value === "number" && value > threshold)
+  .style((cell) => { cell.style.color = "#ef4444"; });             // over-threshold cells only
+```
+
+The formatter/style only reaches data cells because the rule carries a **cell
+predicate** (`selectAllCell`); a facet-only `selectAll(...).style(...)` styles the
+group header instead. Re-flagging on a new threshold is `active.undo()` then a
+fresh selection, so the old red never lingers.
+
+Try it below: raise or lower the threshold in the toolbar. Regular Gross Paid and
+Total OT Paid cells above it turn red, while the Employment details columns are
+never touched.
+
+<SampleDemo id="column-grouping-threshold" />
+
+**Source**
+
+```json doc-gen:file
+{ "file": "packages/samples/src/samples/column-grouping/threshold-highlight.ts", "codeblock": { "lang": "ts" } }
 ```
