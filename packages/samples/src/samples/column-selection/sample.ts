@@ -1,4 +1,5 @@
 import Grid, { FlattenedDataViewModel, Selection } from "grid/dist/renderer";
+import { createGridMount } from "../../runtime/mount";
 import { createToolbar, toolbarButton, toolbarColorInput, toolbarSelect } from "../../runtime/toolbar";
 import type { SampleContext } from "../../types";
 
@@ -23,13 +24,8 @@ const GRID_HEIGHT = 420;
 export function mount(el: HTMLElement, ctx: SampleContext): () => void {
   // The toolbar and grid are separate blocks; the flex gap between them shows
   // through to the page background, so they read as distinct components.
-  el.style.cssText = "display:flex;flex-direction:column;gap:12px;";
-
   // ---- The grid: a "flat" layout renders a simple table - no pivot, no row grouping.
-  const gridMount = document.createElement("div");
-  gridMount.style.cssText =
-    `position:relative;height:${GRID_HEIGHT}px;overflow:auto;border-radius:8px;` +
-    "border:1px solid color-mix(in srgb, currentColor 15%, transparent);";
+  const gridMount = createGridMount(el, GRID_HEIGHT);
   const grid = new Grid({}, gridMount, "flat");
   let disposed = false;
 

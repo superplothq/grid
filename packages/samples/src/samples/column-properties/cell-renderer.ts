@@ -1,5 +1,6 @@
 import Grid, { FlattenedDataViewModel } from "grid/dist/renderer";
 import type { CellRenderer } from "grid/dist/renderer";
+import { createGridMount } from "../../runtime/mount";
 import type { SampleContext, SampleRow, SampleValue } from "../../types";
 
 const COLUMNS = [
@@ -15,12 +16,7 @@ const BAR_FIELD = "base_salary";
 const GRID_HEIGHT = 420;
 
 export function mount(el: HTMLElement, ctx: SampleContext): () => void {
-  el.style.cssText = "display:flex;flex-direction:column;gap:12px;";
-
-  const gridMount = document.createElement("div");
-  gridMount.style.cssText =
-    `position:relative;height:${GRID_HEIGHT}px;overflow:auto;border-radius:8px;` +
-    "border:1px solid color-mix(in srgb, currentColor 15%, transparent);";
+  const gridMount = createGridMount(el, GRID_HEIGHT);
   const grid = new Grid({}, gridMount, "flat");
   let disposed = false;
   el.append(gridMount);
