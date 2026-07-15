@@ -259,3 +259,33 @@ For a tree with subtotal rows, I computed every subtotal myself (sumMeas
 - Cost: fine for a headless demo, but a grouped viewmodel with declarative aggregators (sum/avg/custom) would be the natural home for it.
 
 If I had to prioritize: #1 (data-aware autosize) and #2/#3 (a grouping+interaction controller) are the ones that would most shrink real demo code and eliminate the sharpest footguns. Most of the rest are quality-of-life helpers.
+
+
+claude --resume 6ec2a2ca-a78f-457d-bbe3-b5332209aa4f
+
+
+Here's an honest retrospective on where the grid core forced extra code or workarounds in this demo. Ranked by how much pain each caused.
+
+Real gaps that added the most code
+
+1. No parser/serializer for the table algebra. Core only consumes the object form (AxisExpr), so the entire algebra.ts (~250 lines: tokenizer, recursive-descent parser, serializer) exists purely to turn "cross(hierarchy(region, country), concat(mrr, seats))" into {type,children} and back. The algebra is core's grammar - a parseAxisExpr(string) / serializeAxisExpr(expr) pair belongs there. Any app exposing an expression editor will re-implement this.
+
+2. No semantic validation of expressions. Core has the schema and the algebra but validates nothing - not "unknown field", not "hierarchy must be dimensions", not "measure can't precede dimension". I wrote validateAxis. Core throws only a late Column "X" not found at query time. A validateAxisExpr(expr, schema) returning structured errors would remove that whole block and give consistent messages.
+
+3. No projection/expand-collapse helpers. To get "grouped rows, default fully expanded, collapse per node," I hand-rolled buildOpenTree + treeToPaths + a collapsedRows set, scanning the raw dataset to enumerate the open tree. Core exposes DimensionalProjectionPath and ProjectionState but no builder ("open all N levels"), no toggler ("flip this path"), and open: "*" recursion is undocumented so I couldn't trust it. The playground hand-rolls the identical helpers - a strong signal this should be in core.
+
+4. No column-stats / metadata helper. For the heatmap I needed per-measure avg/min/max. There's no default plumber, so stats.ts is a full PivotMetadataReshaper computing it from the reshaped grid. A createColumnStatsPlumber(["avg","min","max"]) (agent confirmed none exists) would replace the file.
+
+Footguns / things that were actively wrong
+
+5. Row-facet header ctx.level is unusable for identity. For a pivot, every row-facet corner header renders in the same column-facet header row, so HeaderCellContext.level is identical across Region/Country/Industry (it's hRow, not the row-facet column). This was the "all sort/filter popups target one field" bug you hit. Nothing in the context identifies the dimension; I had to bind the field into each renderer at construction. The context should carry the facet field or the row-facet index.
+
+6. Custom-rendered value cells silently lose alignment + padding. .cell.data.custom-rendered { justify-content: center; padding: 0 } overrides the normal right-align and --cell-padding-* for any renderer, and since .cell is flex, text-align is a no-op. That's the "not right aligned / no padding" bug. There's no opt-out or documented reason - a renderer shouldn't have to re-declare justify-content: flex-end and re-derive padding from the CSS vars to get default behavior back.
+
+7. No aggregated-row flag for value renderers. ValueCellDataContext has only {viewModel, rowIndex, colIndex, rawValue}. To skip formatting on collapsed subtotal rows I had to (a) detect them via the rowFacets null-padding heuristic inside the resh[r].aggregated flag through metadata plumbing just to read it back in therenderer. FlatRowMeta ({depth,isLeaf,isExpanded}) exists but isn't surfaced to pivot value cells. A dataCtx.isAggregated (or exposing row meta) would delete that entire round-trip.
+                                                                                                                                                                         Smaller ones
+                                                                                                                                                                         8. Aggregation is schema-only, not per-query. To switch a measure sum→avteFn by reference and rebuild - mutating shared schema objects is a smell. A per-query override in PivotConfig (e.g. measures: [{field, aggregation}]) would be cleaner and stateless.                                                              
+9. Per-measure formatting is awkward. The column-facet valueFormatter is a single pivot-wide function, so to format MRR as currency but counts as integers I look up the measure per column via colIndex + columnFacets. A formatter keyed by mea
+
+10. Grid has no destroy(). For the render-on-visible / destroy-on-hiddenrecreate the mount element to drop the grid's listeners, because there'sno teardown method.                                                                                                                                                        
+If I had to pick three for the core team: the algebra parser+validator (1,2), the row-facet header identity fix (5), and an aggregated-row flag on the value context (7) - those three account for the most code and the two real bugs.

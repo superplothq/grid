@@ -30,4 +30,9 @@ export const demos: Record<string, DemoEntry> = {
     description: "A compact revenue-recognition schedule - a collapsible Company > Contract > line-item tree with subtotal rows, grouped monthly Balance/Revenue columns and inline green recognition bars, over sortable, resizable columns with a pinned Name column.",
     load: () => import("./demos/revenue-recognition/demo"),
   },
+  "pivot-studio": {
+    title: "Pivot Studio",
+    description: "A Tableau-style pivot builder - write table-algebra expressions (cross / hierarchy / concat) for Rows and Columns with live validation and VSCode-style autocomplete, toggle grouped rows with drill-down chevrons, and sort/filter from the corner cells, all aggregated live over 5,000 SaaS subscriptions.",
+    load: () => import("./demos/pivot-studio/demo"),
+  },
 };
