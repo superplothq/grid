@@ -18,7 +18,13 @@ export function TopNav() {
             className="brand-logo brand-logo-dark"
           />
         </Link>
-        <nav aria-label="Primary">
+        <input
+          type="checkbox"
+          id="nav-menu-toggle"
+          className="nav-menu-checkbox"
+          aria-label="Toggle navigation menu"
+        />
+        <nav className="top-nav-nav" aria-label="Primary">
           <ul className="top-nav-links">
             {navItems.map((item) => (
               <li key={item.href}>
@@ -27,15 +33,20 @@ export function TopNav() {
             ))}
           </ul>
         </nav>
-        <button
-          type="button"
-          className="theme-toggle"
-          data-theme-toggle
-          aria-label="Cycle color theme between light, dark, and system"
-          suppressHydrationWarning
-        >
-          theme:system
-        </button>
+        <div className="top-nav-actions">
+          <button
+            type="button"
+            className="theme-toggle"
+            data-theme-toggle
+            aria-label="Cycle color theme between light, dark, and system"
+            suppressHydrationWarning
+          >
+            theme:system
+          </button>
+          <label htmlFor="nav-menu-toggle" className="nav-menu-button" aria-hidden="true">
+            <span className="nav-menu-bars" />
+          </label>
+        </div>
       </div>
     </header>
   );

@@ -94,12 +94,27 @@
     apply();
   }
 
+  function wireNavMenu() {
+    var toggle = document.getElementById('nav-menu-toggle');
+    if (!toggle) {
+      return;
+    }
+    // The links navigate client-side (Next.js <Link>), so the page doesn't
+    // reload to reset the checkbox — uncheck it on select so the menu closes.
+    document.querySelectorAll('.top-nav-nav a').forEach(function (link) {
+      link.addEventListener('click', function () {
+        toggle.checked = false;
+      });
+    });
+  }
+
   function init() {
     document.documentElement.dataset.enhanced = '';
     window.addEventListener('hashchange', syncHashState);
     syncHashState();
     wireCopyButtons();
     wireThemeToggle();
+    wireNavMenu();
   }
 
   if (document.readyState === 'complete') {

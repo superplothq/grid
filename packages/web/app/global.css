@@ -176,6 +176,7 @@ code {
 }
 
 .top-nav-inner {
+  position: relative;
   max-width: var(--content-width);
   margin: 0 auto;
   padding: 0 1.5rem;
@@ -240,12 +241,16 @@ html[data-theme='dark'] .brand-logo-dark {
   }
 }
 
+.top-nav-nav {
+  margin-right: auto;
+}
+
 .top-nav-links {
   display: flex;
   align-items: center;
   gap: 0.25rem;
   list-style: none;
-  margin: 0 auto 0 0;
+  margin: 0;
   padding: 0;
   overflow-x: auto;
 }
@@ -289,6 +294,126 @@ html[data-enhanced] .theme-toggle {
 .theme-toggle:hover {
   color: var(--accent);
   border-color: var(--accent);
+}
+
+.top-nav-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  flex-shrink: 0;
+}
+
+/* Visually hidden, but kept in the accessibility tree and operable so the
+   label can toggle it (CSS-only menu — works even before enhance.js runs). */
+.nav-menu-checkbox {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.nav-menu-button {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text-muted);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.nav-menu-button:hover {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+/* Three-bar hamburger drawn with the middle bar plus two pseudo-elements. */
+.nav-menu-bars,
+.nav-menu-bars::before,
+.nav-menu-bars::after {
+  content: '';
+  display: block;
+  width: 1rem;
+  height: 1.5px;
+  background: currentColor;
+  border-radius: 2px;
+  transition: transform 0.18s ease, opacity 0.18s ease;
+}
+
+.nav-menu-bars {
+  position: relative;
+}
+
+.nav-menu-bars::before {
+  position: absolute;
+  top: -5px;
+  left: 0;
+}
+
+.nav-menu-bars::after {
+  position: absolute;
+  top: 5px;
+  left: 0;
+}
+
+/* Morph the hamburger into an X while the menu is open. */
+.nav-menu-checkbox:checked ~ .top-nav-actions .nav-menu-bars {
+  background: transparent;
+}
+
+.nav-menu-checkbox:checked ~ .top-nav-actions .nav-menu-bars::before {
+  transform: translateY(5px) rotate(45deg);
+}
+
+.nav-menu-checkbox:checked ~ .top-nav-actions .nav-menu-bars::after {
+  transform: translateY(-5px) rotate(-45deg);
+}
+
+.nav-menu-checkbox:focus-visible ~ .top-nav-actions .nav-menu-button {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+@media (max-width: 900px) {
+  .nav-menu-button {
+    display: inline-flex;
+  }
+
+  /* Collapse the primary links into a dropdown panel under the bar. */
+  .top-nav-nav {
+    position: absolute;
+    top: var(--nav-height);
+    left: 0;
+    right: 0;
+    margin-right: 0;
+    display: none;
+    background: var(--bg);
+    border-bottom: 1px solid var(--border);
+    box-shadow: var(--shadow-panel);
+  }
+
+  .nav-menu-checkbox:checked ~ .top-nav-nav {
+    display: block;
+  }
+
+  .top-nav-links {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.15rem;
+    padding: 0.6rem 1.5rem 0.9rem;
+    overflow-x: visible;
+  }
+
+  .top-nav-links a {
+    display: block;
+    padding: 0.6rem 0.6rem;
+    font-size: 0.9rem;
+    border-radius: 8px;
+  }
 }
 
 main {
