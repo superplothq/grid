@@ -9,7 +9,6 @@ export type DemoKey =
   | 'infrastructure'
   | 'finance'
   | 'billing'
-  | 'hr'
   | 'pivot-analytics'
   | 'performance'
   | 'data-wrangling'
@@ -164,23 +163,6 @@ export const demoUseCases: DemoUseCase[] = [
     gridMountId: 'grid-demo-billing',
     demoId: 'revenue-recognition',
     conversation: revenueRecognitionConversation.messages as DemoConversationMessage[],
-  },
-  {
-    key: 'hr',
-    hashPath: 'demos/hr',
-    label: 'HR',
-    theme: 'headcount data',
-    summary: 'A headcount pivot by department and level, with an org-tree flat view alongside.',
-    gridMountId: 'grid-demo-hr',
-    conversation: [
-      { role: 'human', body: 'Show headcount by department and level, and let me switch to a tree of the org structure.' },
-      {
-        role: 'agent',
-        body: 'Both views share one datasource. The pivot crosses department and level; the tree is a grouped flat table over the same rows.',
-        code: `const pivot = usePivotGrid(dataSource, pivotConfig);
-const tree = useFlatGrid(dataSource, { groupBy: ['org', 'team'] });`,
-      },
-    ],
   },
   {
     key: 'pivot-analytics',
