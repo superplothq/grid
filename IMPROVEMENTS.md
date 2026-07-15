@@ -145,3 +145,63 @@ ChartRenderer returns an SVG string (risky depending on how the consumer inserts
 The top three (live-options update, real grouping/expand, and interaction events) are the ones that actually bent the architecture - I'm reconstructing viewmodels and re-implementing grouping/expansion that a grid core would normally own. The rest are papercuts that added lines but not structural compromise.
 
 Want me to file these somewhere (a docs/ note or issues), or turn any of them into a concrete core API proposal?
+
+claude --resume b9e7a5c6-18f5-4099-ad45-221e6311ebad
+
+❯ what are the things for which core is supposed to provide api but didn't that made code more lengthy / difficult
+
+Good question — here's an honest retrospective of where packages/grid made the demo longer or harder than it should have been. Ranked roughly by how much code/pain each caused.
+
+Big structural gaps
+
+1. No first-class "pin a data column left/right."
+Fixtures (PVerticalFixture) are designed for non-data chrome (checkboxes, action buttons). To pin actual data columns I had to render them through fixtures: hand-roll getCellsToRender (per-row cell placement, gridRow = numColFacetLevels + j + 1, data-croix, opaque backgrounds), a headerCell, width pinning, and a hand-written applyRenderer to re-invoke the column's own renderer inside the fixture. That's ~60 lines re-implementing what the core already does for scrolling columns. A grid.pinColumn(key, "left") that reuses the normal cell/renderer pipeline would have deleted the entire makeFixture factory.
+
+2. Fixtures are construction-only; the set can't change.
+GridConfig.fixtures is read once in the constructor and never re-read. Changing the count of pinned columns forces a full new Grid(...) — so buildGrid() tears down the mount, re-runs syncCustomGridTheme, re-attaches the delegated pointerdown, and rebuilds the viewmodel. My whole render() has a "did the pinned count change? rebuild everything : update in place" branch that only exists because of this. A grid.setFixtures() / dynamic pin API removes that.
+
+3. Column width accounting ignores data cells and non-leaf headers.
+The grid computes total/scrollable width from the measured leaf header cell only — data cells are never measured, and a rowspan (non-leaf) header isn't either. This produced two real bugs I had to engineer around:
+- Solo columns (level0=key, level1=null) were never measured → counted as defaultCellWidth (50px) → last column clipped, couldn't scroll to it.
+- Fix required restructuring columnFacets so every column has a leaf header (level0=""), plus fixed clamped-width (min==max) so measured==CSS==data.
+
+A "size to content including data cells," or simply a public setColumnWidth(col, px) / width override, would have made this a one-liner instead of a facet-encoding scheme.
+
+4. No public per-column width setter.
+Related: colsWidth.center.override exists internally (user-resize writes it) but there's no API to say "this column is 210px." I had to lean on the coincidence that clamped-width min==max forces the max-content CSS track. Brittle and non-obvious.
+
+5. No "column group" abstraction.
+The Performance Metrics band is raw level0/level1 arrays whose merge/rowo reverse-engineer from computeMerges (null-at-deeper-level → rowspan,equal-consecutive → colspan). Worse, split groups produce two bands with overlapping sticky labels, so I had to compute group contiguity myself and demote to ungrouped when
+split. A columnGroups: [{label, keys}] concept would own all of that.
+
+Papercuts that still cost lines
+
+6. draw() wipes cell event listeners.
+Every redraw rebuilds cell content, so onclick on header cells is discarded. All sort/filter interaction had to go through one delegated pointerdown on the mount keyed by
+data-sort-key / data-filter-key. A core header/cell click event (or stabove the delegation plumbing. This is a footgun everyone hits — worth adocumented hook.
+
+7. Void renderers aren't cleared → silent double-render.
+CellRenderer returns string | HTMLElement | HTMLElement[] | void. Returnntainer, but nothing tells you the core won't clear it — so my sparklineappendChild stacked a new SVG every tick ("old array + new array"). Also SVGSVGElement isn't HTMLElement, so returning the SVG was a type error, which is what pushed me to the void+append path in the first place. Accepting Node, and/or always clearills this bug class.
+
+8. updateData() doesn't re-apply options.
+It swaps data + columnFacets only. Any change to renderers / colSize / facetDefs (i.e. column set or order) needs a brand-new FlattenedDataViewModel. So my render() juggles
+three paths (rebuild grid / new viewmodel / updateData) largely to work () or a diffing update() would collapse them.
+
+9. Fixtures don't inherit grid-line CSS.
+grid.css forces border-top: none on .left-fixture/.right-fixture, so row rules stop at pinned columns. I had to re-draw both the horizontal and vertical borders inline on
+every fixture cell using the theme CSS vars. A fixture that matches dataa matchDataBorders flag) would remove that.
+
+10. Theme is construction-only; live theming is all app code.
+config.theme is read once. To ship a custom light/dark pair that follows the page, the samples runtime (applyGridTheme + syncCustomGridTheme) manually pushes tokens as CSS
+vars onto trackSurfaceContainer and re-applies on a MutationObserver. A ve setter would make that ~3 lines instead of a shared helper.
+
+11. --vertical-border-width is emitted unitless.
+The token 1 becomes --vertical-border-width: 1, so border: var(--vertical-border-width) solid ... is invalid CSS — I had to hardcode 1px. The grid's own CSS works around this
+with calc(var(...) * 1px); the exported var should be usable directly.
+
+The through-line
+
+The two themes are: (a) anything "pinned" is second-class — fixtures re-can't change dynamically, and don't inherit layout/borders; and (b) thewidth/measurement model assumes header-drives-width, which quietly breaks for data-wider-than-header, solo, and off-screen columns. Fixing #1–#3 alone would have removed the
+majority of the non-obvious code in this demo.
+
+Want me to write this up as an issue/RFC in the repo, or prototype any oper or a setColumnWidth API in the core)?

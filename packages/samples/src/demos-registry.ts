@@ -25,4 +25,9 @@ export const demos: Record<string, DemoEntry> = {
     description: "A realtime infrastructure grid - a host fleet ticks live with d3 sparklines, heat-scaled metrics and status pills, driven by a column layout panel (show/hide, drag-reorder, left/right pinning) and per-column text / number / status filters.",
     load: () => import("./demos/server-monitor/demo"),
   },
+  "revenue-recognition": {
+    title: "Revenue Recognition",
+    description: "A compact revenue-recognition schedule - a collapsible Company > Contract > line-item tree with subtotal rows, grouped monthly Balance/Revenue columns and inline green recognition bars, over sortable, resizable columns with a pinned Name column.",
+    load: () => import("./demos/revenue-recognition/demo"),
+  },
 };
