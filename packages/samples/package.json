@@ -11,9 +11,11 @@
   },
   "dependencies": {
     "d3-scale": "^4.0.2",
+    "d3-shape": "^3.2.0",
     "grid": "1.0.0"
   },
   "devDependencies": {
-    "@types/d3-scale": "^4.0.9"
+    "@types/d3-scale": "^4.0.9",
+    "@types/d3-shape": "^3.1.7"
   }
 }

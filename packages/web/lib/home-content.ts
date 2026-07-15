@@ -1,4 +1,6 @@
 import signalInboxConversation from 'samples/src/demos/signal-inbox/conversation.json';
+import marketPulseConversation from 'samples/src/demos/market-pulse/conversation.json';
+import serverMonitorConversation from 'samples/src/demos/server-monitor/conversation.json';
 import { gridDocsPath, gridFeaturesPath, ourApproachPath, siteUrl } from './site-config';
 
 export type DemoKey =
@@ -134,41 +136,22 @@ export const demoUseCases: DemoUseCase[] = [
     hashPath: 'demos/infrastructure',
     label: 'Infrastructure',
     theme: 'fleet telemetry',
-    summary: 'A live-feeling ops table of hosts grouped by cluster and status, with expand/collapse per group.',
+    summary:
+      'A realtime server monitor: a host fleet ticks live every second with momentum-driven d3 area sparklines, heat-scaled metrics and status swatches, a Gruvbox terminal theme, and a column panel that shows/hides, reorders and left/right-pins columns - plus per-column text / number / status filters.',
     gridMountId: 'grid-demo-infrastructure',
-    conversation: [
-      { role: 'human', body: 'I have host telemetry in a table. Group hosts by cluster, then by status, and let me collapse healthy groups.' },
-      {
-        role: 'agent',
-        body: 'I set up a flat table datamodel with a two-level grouping path. Expand and collapse state lives in the view layer.',
-        code: `const grid = useFlatGrid(dataSource, {
-  groupBy: ['cluster', 'status'],
-});`,
-      },
-      { role: 'agent', body: 'Groups render with packed row metadata, so toggling a group only re-renders the visible slice.' },
-    ],
+    demoId: 'server-monitor',
+    conversation: serverMonitorConversation.messages as DemoConversationMessage[],
   },
   {
     key: 'finance',
     hashPath: 'demos/finance',
     label: 'Finance',
-    theme: 'P&L statements',
-    summary: 'A statement-style pivot with account hierarchies on rows and periods on columns.',
+    theme: 'realtime trading blotter',
+    summary:
+      'A live trading blotter: instruments grouped by asset class tick in real time, with in-cell d3 sparklines, a % change surfaced through the metadata layer, value pills that flash on update, sortable columns, value filters, and drag-to-group.',
     gridMountId: 'grid-demo-finance',
-    conversation: [
-      { role: 'human', body: 'Build a P&L view: account category down the side, months across the top, amounts summed.' },
-      {
-        role: 'agent',
-        body: 'I modeled the account tree as a row hierarchy and concatenated an actual-versus-budget pair under each month.',
-        code: `const config = {
-  rows: hierarchy('category', 'account'),
-  columns: cross(hierarchy('month'), concat('actual', 'budget')),
-  values: [sum('amount')],
-};`,
-      },
-      { role: 'human', body: 'Can I drill into a single account?' },
-      { role: 'agent', body: 'Yes — the row facet is expandable per hierarchy level, and the SQL only fetches expanded branches.' },
-    ],
+    demoId: 'market-pulse',
+    conversation: marketPulseConversation.messages as DemoConversationMessage[],
   },
   {
     key: 'billing',

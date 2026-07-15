@@ -20,4 +20,9 @@ export const demos: Record<string, DemoEntry> = {
     description: "A realtime trading blotter - instruments grouped by asset class tick live with in-cell sparklines, a signed %-change surfaced through the grid's metadata layer, sortable columns, value filters and drag-to-group.",
     load: () => import("./demos/market-pulse/demo"),
   },
+  "server-monitor": {
+    title: "Server Monitor",
+    description: "A realtime infrastructure grid - a host fleet ticks live with d3 sparklines, heat-scaled metrics and status pills, driven by a column layout panel (show/hide, drag-reorder, left/right pinning) and per-column text / number / status filters.",
+    load: () => import("./demos/server-monitor/demo"),
+  },
 };
