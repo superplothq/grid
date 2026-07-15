@@ -31,7 +31,7 @@ const ROW_HEIGHT = 66;
 const PAGE_SIZES = [25, 50, 100];
 // Simulated data-fetch latency: the loader shows for this long on first load and on
 // every sort / page change, as if fetching a page from a server.
-const LOAD_DELAY_MS = 1000;
+const LOAD_DELAY_MS = 500;
 
 // Matches the theme's cell padding so custom cells align with the grid's own metrics.
 const CELL_PAD_X = 14;

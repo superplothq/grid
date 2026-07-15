@@ -1,6 +1,15 @@
+import { DemoLiveMount } from './DemoLiveMount';
 import type { DemoUseCase } from '@/lib/home-content';
 
 export function DemoFrame({ demo }: { demo: DemoUseCase }) {
+  if (demo.demoId) {
+    return (
+      <div id={demo.gridMountId} data-grid-demo={demo.key} className="demo-frame demo-frame-live">
+        <DemoLiveMount id={demo.demoId} />
+      </div>
+    );
+  }
+
   return (
     <div className="demo-frame">
       <div id={demo.gridMountId} data-grid-demo={demo.key} className="demo-frame-mount">

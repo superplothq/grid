@@ -10,6 +10,10 @@
     "clean": "rm -rf .turbo"
   },
   "dependencies": {
+    "d3-scale": "^4.0.2",
     "grid": "1.0.0"
+  },
+  "devDependencies": {
+    "@types/d3-scale": "^4.0.9"
   }
 }

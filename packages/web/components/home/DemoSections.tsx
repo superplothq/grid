@@ -1,5 +1,5 @@
 import type { DemoUseCase } from '@/lib/home-content';
-import { DemoConversationChatbox } from './DemoConversationChatbox';
+import { DemoConversationDrawer } from './DemoConversationDrawer';
 import { DemoFrame } from './DemoFrame';
 import { DemoTabs } from './DemoTabs';
 
@@ -31,7 +31,7 @@ export function DemoSections({ demos }: { demos: DemoUseCase[] }) {
           <p>{demo.summary}</p>
           <div className="demo-layout">
             <DemoFrame demo={demo} />
-            <DemoConversationChatbox conversation={demo.conversation} defaultOpen />
+            <DemoConversationDrawer conversation={demo.conversation} />
           </div>
         </article>
       ))}

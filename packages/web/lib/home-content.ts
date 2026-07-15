@@ -1,3 +1,4 @@
+import signalInboxConversation from 'samples/src/demos/signal-inbox/conversation.json';
 import { gridDocsPath, gridFeaturesPath, ourApproachPath, siteUrl } from './site-config';
 
 export type DemoKey =
@@ -11,10 +12,20 @@ export type DemoKey =
   | 'data-wrangling'
   | 'custom-filters';
 
+// A conversation message is either a legacy text/code pair (used by the scaffold
+// use cases below) or a list of rich blocks - text, code, a table, or the choices
+// an agent surfaced - so the chatbox can replay the real transcript that built a demo.
+export type ConversationBlock =
+  | { type: 'text'; text: string }
+  | { type: 'code'; code: string }
+  | { type: 'table'; headers: string[]; rows: string[][] }
+  | { type: 'choices'; items: { question: string; answer: string }[] };
+
 export interface DemoConversationMessage {
   role: 'human' | 'agent';
-  body: string;
+  body?: string;
   code?: string;
+  blocks?: ConversationBlock[];
 }
 
 export interface DemoUseCase {
@@ -25,6 +36,9 @@ export interface DemoUseCase {
   summary: string;
   conversation: DemoConversationMessage[];
   gridMountId: `grid-demo-${string}`;
+  // When set, the use case renders the live self-contained demo of this id from the
+  // samples package instead of the placeholder frame.
+  demoId?: string;
 }
 
 export interface Principle {
@@ -108,23 +122,12 @@ export const demoUseCases: DemoUseCase[] = [
     key: 'sales',
     hashPath: 'demos/sales',
     label: 'Sales',
-    theme: 'quarterly revenue',
-    summary: 'A pivot of revenue by region and quarter, built from a single prompt against a raw orders table.',
+    theme: 'signal inbox',
+    summary:
+      'A sleek B2B sales signal inbox: one row per prospect with rich contact cells, a heat score, category chips, a pipeline bar and a Fit toggle - sortable, selectable and paginated over 800 generated leads.',
     gridMountId: 'grid-demo-sales',
-    conversation: [
-      { role: 'human', body: 'Show me revenue by region and quarter from the orders table, with yearly subtotals.' },
-      {
-        role: 'agent',
-        body: 'I created a pivot config that crosses region rows with a year-to-quarter hierarchy on columns and aggregates revenue.',
-        code: `const config = {
-  rows: hierarchy('region'),
-  columns: hierarchy('year', 'quarter'),
-  values: [sum('revenue')],
-};`,
-      },
-      { role: 'human', body: 'Great — add a grand total row at the bottom.' },
-      { role: 'agent', body: 'Done. I enabled row totals in the pivot config; the datamodel regenerates the SQL and the grid redraws.' },
-    ],
+    demoId: 'signal-inbox',
+    conversation: signalInboxConversation.messages as DemoConversationMessage[],
   },
   {
     key: 'infrastructure',

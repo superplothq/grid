@@ -104,3 +104,44 @@ That makes authoring a pinned column as easy as a normal column renderer — whi
 So: DOM placement. The gap is that fixtures expose the low-level render loop instead of the same high-let that ordinary columns enjoy.
 
 ✻ Brewed for 1m 26
+
+claude --resume 68821af8-91af-408b-bb1c-f90abf83ad6a
+
+❯ what are the things for which core is supposed to provide api but didn't that made code more length / difficult
+
+Good question. Here's an honest list of the friction points where I had to write workaround code because the core (packages/grid) didn't expose an API for something a headless-demo consumer reasonably needs. Ranked by how much extra/awkward code they caused.
+
+High impact
+
+1. Can't change column options on a live viewmodel → forced full reconstruction.
+init() (which resolves vTrackDefs/facetDefs) is protected and only runs in the constructor. updateData() swaps data but not options. So the grouped↔flat toggle (which changes the column set a the Group facet) can't go through updateData() - I had to detect the column-set change and new FlattenedDataViewModel(...), which directly violates the "one persistent viewmodel" rule the whole design pushes.
+→ Wanted: a public setOptions() / updateOptions(options) on the viewmodel.
+only - does not fetch/remove childly hides collapsed children. So forand the Group facet) can't go throetect the column-set change and newFlattenedDataViewModel(...), whichersistent viewmodel" rule the wholedesign pushes.                                                                                 → Wanted: a public setOptions() /  viewmodel.
+
+2. Grouped expand/collapse is entirely DIY.
+expand()/collapse()/toggleExpand()/getSelectPath() exist but are documented as "viewmodel-level only - does not fetch/remove children." The layout never actually hides collapsed children. So for a real in-memory grouped table I maintain my own collapsed: Set, rebuild displayRows excluding collapsed members, hand-pack rowMegates myself every tick. Thewed when a redraw lands between mousedown and mouseup (my flaky-collapse bug). I ended up hand-rolling delegated pointerdown + data- attributes on the mount.
+→ Wanted: a core cellClick/groupToggle event that survives the redraw cycle.
+
+4. No targeted/partial updates for realtime.
+Every 300ms tick I rebuild all column data arrays + the entire metadata.valueCells array and call updateData() + draw(), even though only ~3 rows changed. There's no "mark these cells/rows dirty and re-render just them."
+→ Wanted: vm.updateCells([...]) / row-level invalidation so a live feed doesn't rebuild and repaint the whole viewport.
+
+Medium impact
+
+5. Row height is measured from rowlHeight only a fallback.
+ed: declarative per-column header config; a header align that actually works.
+
+Lower impact / papercuts
+
+9. Theme tokens are only on grid.trackSurfaceContainer.
+Any chrome I mount outside the grid (context menu, filter dropdown) loses --value-background-color, and every color-mix() using it collapses to transparent. I read the computed var off trackSurfaceContainer and republish it on each popup.
+→ Wanted: a grid.resolvedTheme accessor so surrounding UI can match.
+
+10. colSize: "static" silently disables horizontal scroll.
+Any static column flips the whole layout to fit-to-container. To pin fixed widths and keep scrolling I use clamped-width with equal min/max. A genuine fixed-px width shouldn't have this side effect (or should be documented at
+ChartRenderer returns an SVG string (risky depending on how the consumer inserts it) and its bar mode emits N <rect>s. I wrote my own d3 single-<path> bar renderer returning a DOM node.
+→ Wanted: a chart cell renderer that returns a node, is theme-aware, and supports a single-path bar mode.
+
+The top three (live-options update, real grouping/expand, and interaction events) are the ones that actually bent the architecture - I'm reconstructing viewmodels and re-implementing grouping/expansion that a grid core would normally own. The rest are papercuts that added lines but not structural compromise.
+
+Want me to file these somewhere (a docs/ note or issues), or turn any of them into a concrete core API proposal?
