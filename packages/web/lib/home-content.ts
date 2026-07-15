@@ -2,6 +2,7 @@ import signalInboxConversation from 'samples/src/demos/signal-inbox/conversation
 import marketPulseConversation from 'samples/src/demos/market-pulse/conversation.json';
 import serverMonitorConversation from 'samples/src/demos/server-monitor/conversation.json';
 import revenueRecognitionConversation from 'samples/src/demos/revenue-recognition/conversation.json';
+import pivotStudioConversation from 'samples/src/demos/pivot-studio/conversation.json';
 import { gridDocsPath, gridFeaturesPath, ourApproachPath, siteUrl } from './site-config';
 
 export type DemoKey =
@@ -168,21 +169,12 @@ export const demoUseCases: DemoUseCase[] = [
     key: 'pivot-analytics',
     hashPath: 'demos/pivot-analytics',
     label: 'Pivot analytics',
-    theme: 'multi-level facets',
-    summary: 'Deep pivots with crossed and concatenated facets on both axes, generated from table algebra.',
+    theme: 'Tableau-style pivot builder',
+    summary:
+      'A full Tableau-style pivot builder: write cross / hierarchy / concat table-algebra expressions for Rows and Columns with live validation and VSCode-style autocomplete, pick a per-measure aggregation, toggle grouped rows with drill-down chevrons, sort/filter from the corner cells, and heatmap cells by their deviation from each measure average - all aggregated live by DuckDB over 5,000 SaaS subscriptions, in an Ayu light/dark theme.',
     gridMountId: 'grid-demo-pivot-analytics',
-    conversation: [
-      { role: 'human', body: 'I want product categories crossed with channels on rows, and metrics side by side under each quarter.' },
-      {
-        role: 'agent',
-        body: 'Table algebra makes this a one-line change: cross on rows, hierarchy crossed with concat on columns.',
-        code: `const config = {
-  rows: cross(hierarchy('category'), hierarchy('channel')),
-  columns: cross(hierarchy('quarter'), concat('units', 'revenue')),
-};`,
-      },
-      { role: 'agent', body: 'The IR compiles this to a single SQL statement, and the flat result is reshaped into the 2D pivot grid.' },
-    ],
+    demoId: 'pivot-studio',
+    conversation: pivotStudioConversation.messages as DemoConversationMessage[],
   },
   {
     key: 'performance',
