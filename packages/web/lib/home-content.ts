@@ -1,6 +1,7 @@
 import signalInboxConversation from 'samples/src/demos/signal-inbox/conversation.json';
 import marketPulseConversation from 'samples/src/demos/market-pulse/conversation.json';
 import serverMonitorConversation from 'samples/src/demos/server-monitor/conversation.json';
+import revenueRecognitionConversation from 'samples/src/demos/revenue-recognition/conversation.json';
 import { gridDocsPath, gridFeaturesPath, ourApproachPath, siteUrl } from './site-config';
 
 export type DemoKey =
@@ -157,21 +158,12 @@ export const demoUseCases: DemoUseCase[] = [
     key: 'billing',
     hashPath: 'demos/billing',
     label: 'Billing',
-    theme: 'invoice records',
-    summary: 'A paginated flat table of invoices with sorting, filtering, and status grouping.',
+    theme: 'revenue-recognition schedule',
+    summary:
+      'A compact revenue-recognition schedule: a collapsible Company > Contract > line-item tree with subtotal rows, a green inline recognition bar, and a month-by-month Balance/Revenue column band (December 2024 back to January 2024) - sortable and resizable, with the Name column pinned on horizontal scroll.',
     gridMountId: 'grid-demo-billing',
-    conversation: [
-      { role: 'human', body: 'List all invoices, newest first, grouped by payment status. I need server-side pagination.' },
-      {
-        role: 'agent',
-        body: 'The flat table datamodel generates paginated SQL against the datasource, so only the visible page is ever loaded.',
-        code: `const grid = useFlatGrid(dataSource, {
-  groupBy: ['status'],
-  sort: [{ column: 'issued_at', direction: 'desc' }],
-});`,
-      },
-      { role: 'agent', body: 'Filters flow through the same pipeline — changing one rebuilds the viewmodel without touching the renderer.' },
-    ],
+    demoId: 'revenue-recognition',
+    conversation: revenueRecognitionConversation.messages as DemoConversationMessage[],
   },
   {
     key: 'hr',

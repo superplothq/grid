@@ -205,3 +205,57 @@ The two themes are: (a) anything "pinned" is second-class — fixtures re-can't 
 majority of the non-obvious code in this demo.
 
 Want me to write this up as an issue/RFC in the repo, or prototype any oper or a setColumnWidth API in the core)?
+
+claude --resume e15bb6f8-7e0b-41be-bfa2-15246b720b18
+
+❯ what are the things for which core is supposed to provide api but didn't that made code more lengthy / difficult
+
+Good question - here are the concrete places where I had to hand-roll something the core arguably should own, ranked by how much code/pain each added to this demo.
+
+1. Column autosize that ignores data cells
+
+The biggest one. Width is measured only from the leaf column-header cell (max-cell = header text width); data cells and row-facet bodies contribute nothing. There's no "size to widest data cell" strategy.
+- What I had to do: abandon content sizing, hardcode a minW(px) floor per column, and pick numbers that both fit the data and summed past the container so it'd scroll.
+- Cost: the entire "scroll not working / max-seen" investigation. An API like strategy: "max-content" that measures data (or measureData: true) would have made this a one-liner.
+
+2. Tree / grouped expand-collapse
+
+The core gives me createRowMeta(depth, isLeaf, isExpanded) (the storage) but no controller: no tree model, no "toggle group at row id", no visible-row derivation.
+- What I had to do: own the whole tree (collapsed: Set, a recursive flatten() that re-sorts siblings and skips collapsed subtrees, rebuild rowFacet + rowMeta every time, updateData).
+- Cost: ~40 lines of bookkeeping that every grouped demo will re-write identically.
+
+3. Interaction events (header click, group toggle, cell click)
+
+There's no onHeaderClick / onRowFacetClick with stable row/column identity. And plain onclick on rendered cells gets detached by redraws.
+- What I had to do: stamp data-rr-sort / data-rr-toggle attributes onto cells and run a single delegated pointerdown on the mount, decoding the target.
+- Cost: the data-attribute + delegation dance in both the header and the tree. A "click here's the (colKey,rowId)" event would delete all of it.
+
+4. Sorting
+
+No sort model, no sort state, no header sort affordance.
+- What I had to do: a sortValue per column, sort state, arrow rendering, toggle logic, and the delegated click from #3.
+- Cost: moderate. Even just a sort-state + "sorted column/direction" the header renderer could read would help.
+
+5. Custom-cell container boilerplate
+
+Custom renderers lose the grid's default padding/alignment/background, and cssText wipes the grid-area, so every renderer sets ~8 style properties by hand and must set an opaque background (var(--value-background-color)) itself for pinned-colu
+- What I had to do: repeat that block in money(), pctBar, nameFacet.
+- Cost: a ctx.baseContainer({ align, padded }) helper (or a typed accessnstead of stringly var(--...)) would remove the repetition and thesticky-background footgun.
+
+6. Column groups as a first-class concept
+
+Two-level headers work, but the "label spans both header rows" trick (null on the leaf level) makes a column unmeasurable (no leaf cell → collapses to 50px). Grouped and flat columns can't cleanly coexist.
+- What I had to do: restructure so every column has a real leaf header (unique key on the leaf level, group name / "" on top), accepting an empty band above the flat measures.
+- Cost: the columnFacets rewrite + losing the vertically-centered flat hat lays out spanning headers while keeping every column measurable wouldfix both.
+
+7. Header alignment
+
+.col-facet centers content and a justify-content on a shrink-wrapped node is inert; you must make the node width:100% to right-align.
+- Cost: small, but a real align on the column def that drives header andI.
+
+8. Group aggregation
+
+For a tree with subtotal rows, I computed every subtotal myself (sumMeas
+- Cost: fine for a headless demo, but a grouped viewmodel with declarative aggregators (sum/avg/custom) would be the natural home for it.
+
+If I had to prioritize: #1 (data-aware autosize) and #2/#3 (a grouping+interaction controller) are the ones that would most shrink real demo code and eliminate the sharpest footguns. Most of the rest are quality-of-life helpers.
