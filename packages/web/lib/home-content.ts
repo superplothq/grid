@@ -3,7 +3,7 @@ import marketPulseConversation from 'samples/src/demos/market-pulse/conversation
 import serverMonitorConversation from 'samples/src/demos/server-monitor/conversation.json';
 import revenueRecognitionConversation from 'samples/src/demos/revenue-recognition/conversation.json';
 import pivotStudioConversation from 'samples/src/demos/pivot-studio/conversation.json';
-import { docsPath, gridDocsPath, gridFeaturesPath, ourApproachPath, siteUrl } from './site-config';
+import { docsPath, gridDocsPath, ourApproachPath, siteUrl } from './site-config';
 
 export type DemoKey =
   | 'sales'
@@ -253,14 +253,14 @@ export const principles: Principle[] = [
 
 export const features: FeatureLink[] = [
   { hashPath: 'features/agent-ready', title: 'Built for agents', href: `${docsPath}/built-for-agents`, icon: 'bot', body: 'A layered, open-code architecture with metadata plumbing that lets an agent reliably generate any grid.' },
-  { hashPath: 'features/fullstack', title: 'Full-stack grid', href: `${gridFeaturesPath}#features/fullstack`, icon: 'server', body: 'One pipeline from SQL datasource to pixels, with server-side query generation and agent skills.' },
-  { hashPath: 'features/pivot-table', title: 'Pivot with table algebra', href: `${gridFeaturesPath}#features/pivot-table`, icon: 'table', body: 'Compose pivots from cross, hierarchy and concat operators instead of imperative config.' },
-  { hashPath: 'features/tree-table', title: 'Grouped and tree tables', href: `${gridFeaturesPath}#features/tree-table`, icon: 'tree', body: 'Flat grouping paths and multi-level tree tables with depth, leaf and expand state.' },
-  { hashPath: 'features/performance', title: 'Fast and realtime', href: `${gridFeaturesPath}#features/performance`, icon: 'gauge', body: 'Virtualized rendering with cell reuse that updates live as data streams in.' },
-  { hashPath: 'features/in-cell-charts', title: 'In-cell charts', href: `${gridFeaturesPath}#features/in-cell-charts`, icon: 'chart', body: 'Render sparklines, bars and heatmaps inside cells with custom renderers.' },
-  { hashPath: 'features/data-operations', title: 'Sort, filter, paginate, project', href: `${gridFeaturesPath}#features/data-operations`, icon: 'filter', body: 'Sorting, filtering, pagination and dimensional projections handled at the data layer.' },
-  { hashPath: 'features/accessibility', title: 'Accessible', href: `${gridFeaturesPath}#features/accessibility`, icon: 'accessibility', body: 'Semantic, keyboard-reachable DOM with expanding ARIA and screen-reader support.' },
-  { hashPath: 'features/theming', title: 'Themable', href: `${gridFeaturesPath}#features/theming`, icon: 'palette', body: 'Theme tokens and renderer CSS to match any design, in light and dark.' },
+  { hashPath: 'features/fullstack', title: 'Full-stack grid', href: `${docsPath}/fullstack-grid`, icon: 'server', body: 'One pipeline from SQL datasource to pixels, with server-side query generation and agent skills.' },
+  { hashPath: 'features/pivot-table', title: 'Pivot with table algebra', href: gridDocsPath, icon: 'table', body: 'Compose pivots from cross, hierarchy and concat operators instead of imperative config.' },
+  { hashPath: 'features/tree-table', title: 'Grouped and tree tables', href: gridDocsPath, icon: 'tree', body: 'Flat grouping paths and multi-level tree tables with depth, leaf and expand state.' },
+  { hashPath: 'features/performance', title: 'Fast and realtime', href: gridDocsPath, icon: 'gauge', body: 'Virtualized rendering with cell reuse that updates live as data streams in.' },
+  { hashPath: 'features/in-cell-charts', title: 'In-cell charts', href: gridDocsPath, icon: 'chart', body: 'Render sparklines, bars and heatmaps inside cells with custom renderers.' },
+  { hashPath: 'features/data-operations', title: 'Sort, filter, paginate, project', href: gridDocsPath, icon: 'filter', body: 'Sorting, filtering, pagination and dimensional projections handled at the data layer.' },
+  { hashPath: 'features/accessibility', title: 'Accessible', href: gridDocsPath, icon: 'accessibility', body: 'Semantic, keyboard-reachable DOM with expanding ARIA and screen-reader support.' },
+  { hashPath: 'features/theming', title: 'Themable', href: gridDocsPath, icon: 'palette', body: 'Theme tokens and renderer CSS to match any design, in light and dark.' },
 ];
 
 export const comparisonRows: ComparisonRow[] = [
@@ -352,7 +352,7 @@ export const faqItems: FaqItem[] = [
   {
     hashPath: 'faq/docs-examples',
     question: 'Where can I find documentation and examples?',
-    answer: 'Documentation lives under /grid/docs, with feature guides under /grid/docs/features and a sample catalog planned at /grid/samples. The demos section on this page shows how agents build each grid conversationally, and the source repository contains additional examples.',
+    answer: 'Documentation lives under /grid/docs, with feature guides and a sample catalog under /grid/docs/samples. The demos section on this page shows how agents build each grid conversationally, and the source repository contains additional examples.',
   },
 ];
 

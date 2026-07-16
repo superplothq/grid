@@ -3,9 +3,8 @@ export const siteUrl = 'https://superplot.dev';
 export const gridBasePath = '/grid';
 export const gridDocsPath = '/grid/docs';
 export const gridSamplesPath = '/grid/samples';
-export const docsPath = '/docs';
-export const docsSamplesPath = '/docs/samples';
-export const gridFeaturesPath = '/grid/docs/features';
+export const docsPath = '/grid/docs';
+export const docsSamplesPath = '/grid/docs/samples';
 export const gridDemosPath = '/grid/#demos';
 export const ourApproachPath = '/grid/our-approach';
 export const aboutPath = '/about';
@@ -40,7 +39,6 @@ export const footerLinkGroups: FooterLinkGroup[] = [
       { label: 'Demos', href: gridDemosPath },
       { label: 'Docs', href: docsPath },
       { label: 'Samples', href: docsSamplesPath },
-      { label: 'Features', href: gridFeaturesPath },
     ],
   },
   {
