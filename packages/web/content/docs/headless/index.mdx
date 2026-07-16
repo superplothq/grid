@@ -1,0 +1,67 @@
+---
+title: Headless Grid
+description: SuperPlot ships a viewmodel and a renderer, and a programming model that glues them together. It has no opinion about peripheral components like sort, filter, or pagination - you compose those against a robust, open-closed contract.
+---
+
+At its core SuperPlot is two things and the seam between them. A **DataViewModel**, a
+thin render-ready structure that holds your data, and a **Renderer**, the `Grid`
+instance that turns that structure into DOM. Everything else, including where the
+data comes from and how a user drives it, is a **programming model** you assemble in
+your own glue code.
+
+<DocDiagram id="dataflow" />
+
+The two data layers above the seam are optional. A **DataSource** (storage and query
+execution) and a **DataModel** (transformation, grouping, pagination) exist for when
+you want the library to prepare data for you, but you can skip both: build viewmodel
+params by hand and hand them straight to the renderer. The samples in this section do
+exactly that, holding data in memory and driving the viewmodel directly.
+
+## No opinion on peripheral components
+
+SuperPlot is [built for agents](/grid/docs/built-for-agents), which shapes what it
+does and does not ship. It provides the hard, invariant machinery, layout, cell
+recycling, virtualization, scrolling, and a typed contract at every boundary. It
+deliberately does **not** ship an opinionated sort menu, filter popup, or pagination
+bar. Those are peripheral, and how they should look and behave is a product decision
+that changes from grid to grid. Baking one choice in would only get in the way of the
+next.
+
+Instead, the grid gives you the pieces those components need: a place to render a
+header, a store to hold interaction state, and a single path to push new data
+through. You compose the peripheral component you actually want.
+
+## Robust programming model
+
+Leaving peripheral components to you would be a burden if the model underneath were
+weak. It follows the open-closed principle: the core stays closed to
+modification and owns the machinery, while a small set of typed extension points
+stays open for you to plug into. Data flows in one direction, from your state to the
+viewmodel to the renderer, so a grid is always a pure function of the state you hold.
+
+Two facts make this easy to build against:
+
+- **State has a home.** Every viewmodel carries a `metaState`, a namespaced
+  key-value store that persists across data updates. Sort direction, an active
+  filter, a page index: they live there, readable from any renderer and untouched by
+  `updateData`.
+- **There is one update path.** Whatever the interaction, the response is the same:
+  derive new rows from your state, call `viewModel.updateData(params)`, and
+  `grid.draw()`. The renderer reconciles the DOM and reuses what it can.
+
+Because the contract is small and uniform, the same handful of patterns cover sort,
+filter, pagination, and anything else. Once you have written one, the rest follow,
+and you retain complete control over even a complex, heavily customized grid.
+
+## Agent implements it
+
+Each page below takes one peripheral operation and builds it against this model,
+end to end: the control, the state on `metaState`, and the single render that turns
+state into rows. The design is a sensible default you can lift or replace.
+
+- [Sort](/grid/docs/samples/headless-sort) - click a column header to reorder rows,
+  with the sort held on `metaState`.
+- [Filter](/grid/docs/samples/headless-filter) - narrow the set from a search box and
+  a dropdown that compose through one render.
+- [Paginate](/grid/docs/samples/headless-paginate) - page through rows with prev and
+  next, the same windowing a server-backed model does with `offsetTop`.

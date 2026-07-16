@@ -42,7 +42,9 @@ export function FeatureGrid({ features }: { features: FeatureLink[] }) {
             {/* Hash links drive the CSS :target demo panels, which only update on
                 native fragment navigation - a Next.js Link uses pushState and would
                 change the URL without moving the page, so use a plain anchor. */}
-            {feature.href.includes('#') ? (
+            {feature.comingSoon ? (
+              <span className="card-cta-soon">Coming soon</span>
+            ) : feature.href.includes('#') ? (
               <a href={feature.href}>Explore</a>
             ) : (
               <Link href={feature.href}>Explore</Link>

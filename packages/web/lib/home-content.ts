@@ -57,6 +57,7 @@ export interface FeatureLink {
   body: string;
   href: string;
   icon: 'bot' | 'server' | 'table' | 'tree' | 'gauge' | 'chart' | 'filter' | 'accessibility' | 'palette';
+  comingSoon?: boolean;
 }
 
 export interface FaqItem {
@@ -258,9 +259,9 @@ export const features: FeatureLink[] = [
   { hashPath: 'features/tree-table', title: 'Grouped and tree tables', href: `${docsPath}/samples/hierarchical-tables`, icon: 'tree', body: 'Flat grouping paths and multi-level tree tables with depth, leaf and expand state.' },
   { hashPath: 'features/performance', title: 'Fast and realtime', href: `${gridDemosPath}/finance`, icon: 'gauge', body: 'Virtualized rendering with smooth scrolling and lightweight dom management that provides blazing fast rendering performance for realtime updates.' },
   { hashPath: 'features/in-cell-charts', title: 'In-cell charts', href: `${docsPath}/samples/custom-cell-renderers`, icon: 'chart', body: 'Render sparklines, bars and heatmaps inside cells with custom renderers.' },
-  { hashPath: 'features/data-operations', title: 'Sort, filter, paginate, project', href: gridDocsPath, icon: 'filter', body: 'Sorting, filtering, pagination and dimensional projections handled at the data layer.' },
-  { hashPath: 'features/accessibility', title: 'Accessible', href: gridDocsPath, icon: 'accessibility', body: 'Semantic, keyboard-reachable DOM with expanding ARIA and screen-reader support.' },
-  { hashPath: 'features/theming', title: 'Themable', href: gridDocsPath, icon: 'palette', body: 'Theme tokens and renderer CSS to match any design, in light and dark.' },
+  { hashPath: 'features/data-operations', title: 'Sort, filter, paginate, project', href: `${docsPath}/headless`, icon: 'filter', body: 'Sorting, filtering, pagination and dimensional projections handled at the data layer.' },
+  { hashPath: 'features/accessibility', title: 'Accessible', href: gridDocsPath, icon: 'accessibility', body: 'Semantic, keyboard-reachable DOM with expanding ARIA and screen-reader support.', comingSoon: true },
+  { hashPath: 'features/theming', title: 'Themable', href: `${gridDemosPath}/infrastructure`, icon: 'palette', body: 'Theme tokens and renderer CSS to match any design, in light and dark.' },
 ];
 
 export const comparisonRows: ComparisonRow[] = [

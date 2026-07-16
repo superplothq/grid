@@ -1,0 +1,142 @@
+---
+title: Sort
+description: Sort a headless grid from a translucent header popover with recordable keyboard shortcuts, all owned by the glue code and held on the viewmodel's metaState.
+datasets: [payroll]
+runtime: static
+tags: [flat]
+---
+
+The grid renders rows in exactly the order the viewmodel holds them. The viewmodel is
+transparent to sorting: reordering just produces the same data in a different order,
+which is still data you set on the viewmodel and render. Sorting is therefore glue
+code: you keep the current sort, reorder the rows yourself, and hand the new order
+back to the viewmodel. When you want the library to prepare that order for you, a
+DataModel implements sorting and defines the contract for it.
+
+The shared state, which column and which direction, lives on `viewModel.metaState`, a
+namespaced store that survives every `updateData` and is readable from anywhere,
+including the header renderer that draws the state icon.
+
+```ts
+// metaState is the grid's general-purpose store, keyed by a namespace you own.
+// It is a dumb store: values in, values out, with no reactivity - writing to it
+// does not redraw anything by itself.
+viewModel.metaState.set("sort", "field", "base_salary");
+viewModel.metaState.set("sort", "dir", "desc");
+
+// A renderer reads the state it cares about each time it runs. The header renderer
+// pulls the sort off metaState and draws the matching direction icon.
+function sortHeader(field) {
+  const { field: sortField, dir } = viewModel.metaState.get("sort") ?? {};
+  return field === sortField ? `${field} ${dir === "asc" ? "↑" : "↓"}` : field;
+}
+
+// Reorder the rows, hand them back, and draw. grid.draw() re-runs the renderers
+// against the current state, so the new order and caret only appear on the draw.
+const ordered = rows.slice().sort((a, b) => (a.base_salary - b.base_salary) * -1);
+viewModel.updateData(buildParams(ordered));
+grid.draw();
+```
+
+## Custom sort implementation: Sort by pressing shortcut
+
+Functionally, this is what the demo does. Clicking a column header opens a small
+popover with ascending, descending, and reset. Beside each direction is a recorder:
+arm it, press a keystroke, and that key binds to that exact sort. From then on the
+keystroke sorts the column from anywhere, with no popover needed, and the header shows
+an icon for the current direction.
+
+None of that is built into the grid. It comes together from one extension point and
+your own glue, in four steps:
+
+- **Register a custom cell renderer.** The column facet renderer owns the header, both
+  its presentation and its interaction. It draws the label and the state icon from
+  `metaState`, and tags the cell with its field id so one delegated `pointerdown` can
+  open the right popover across every redraw.
+- **Own the presentation and logic of sort.** The popover and the shortcut recorder
+  are plain DOM you build; the grid has no opinion about them. Choosing a direction, or
+  pressing a bound key, calls your own `applySort`, which writes the choice to
+  `metaState`.
+- **Reorder the data, or reset.** The render reads the sort back and reorders a copy of
+  the rows, or, when the sort was reset, hands the original order back untouched.
+- **Rerender.** `grid.draw()` re-runs the renderers against the new state, so the rows
+  and the header icon update together.
+
+The shortcut half is just two lines of state. Recording binds a keystroke to an
+action, and a global `keydown` reads the same store to apply it:
+
+```ts
+// Recording binds a keystroke to an action; bindings sit on metaState too.
+viewModel.metaState.set("shortcut", "⇧S", "base_salary:asc");
+
+// A global keydown reads the same store and applies the matching sort.
+document.addEventListener("keydown", (event) => {
+  const action = viewModel.metaState.get("shortcut")?.[comboFromEvent(event)];
+  if (!action) return;
+  const [field, dir] = action.split(":");
+  applySort(field, dir);
+});
+```
+
+The lifecycle stays one directional throughout: a click or a keystroke only writes to
+`metaState`, and the render reads it back to derive the row order. There is no second
+source of truth, so the header icon and the row order can never disagree.
+
+Try it below: click a header to open its popover and pick **Ascending**,
+**Descending**, or **Reset**. Hit **Record** next to a direction, press a key such as
+`S`, and from then on that key sorts the column directly. The header icon reflects the
+current direction.
+
+<SampleDemo id="headless-sort" />
+
+**Source**
+
+```json doc-gen:file
+{ "file": "packages/samples/src/samples/headless-sort/sample.ts", "codeblock": { "lang": "ts" } }
+```
+
+## Sort via DataModel
+
+This demo sorts in memory because it holds every row. In the real world the data lives
+behind a source that should do the sorting itself: a database orders far more
+efficiently than the browser can, and the full set may never fit in memory to begin
+with. Reordering there, at the source, is what a DataModel is for.
+
+The DataModel defines the contract for both requesting a sort and retrieving the
+sorted data. Sort is one field of its fetch config, sitting alongside grouping,
+filtering, and pagination, so it composes with the rest of the query rather than being
+a separate step:
+
+```ts
+const params = await model.getViewModelData({
+  startRow: 0,
+  endRow: 100,
+  sort: [
+    { field: "base_salary", direction: "desc" },
+    { field: "title_description", direction: "asc" },   // tiebreaker
+  ],
+});
+
+viewModel.updateData(params);
+grid.draw();
+```
+
+The glue keeps the same shape: something writes the sort, now into the config instead
+of `metaState`, the model returns ordered data, and a draw reflects it. Only the
+ordering itself moved from your code to the source.
+
+Sorting also means different things for different tables, and the same contract covers
+them all. A flat table sorts rows; a pivot or grouped table can multi-sort, sort
+within each group, or sort a dimension by an aggregated measure:
+
+```ts
+// Sort regions by their total revenue descending, alphabetical within ties.
+sort: [
+  { field: "region", direction: "desc", by: "revenue" },
+  { field: "region", direction: "asc" },
+];
+```
+
+Because the sort is declarative config that the DataModel turns into a query,
+multi-sort and grouped sort are the same feature with more entries, not new machinery
+you have to build.

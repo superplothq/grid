@@ -69,4 +69,16 @@ export const samples: Record<string, SampleEntry> = {
     load: () => import("./samples/custom-cell-renderers/sample"),
     conversation: () => Promise.resolve({ turns: [] }),
   },
+  "headless-sort": {
+    load: () => import("./samples/headless-sort/sample"),
+    conversation: () => Promise.resolve({ turns: [] }),
+  },
+  "headless-filter": {
+    load: () => import("./samples/headless-filter/sample"),
+    conversation: () => Promise.resolve({ turns: [] }),
+  },
+  "headless-paginate": {
+    load: () => import("./samples/headless-paginate/sample"),
+    conversation: () => Promise.resolve({ turns: [] }),
+  },
 };

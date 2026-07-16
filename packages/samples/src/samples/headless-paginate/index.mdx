@@ -1,0 +1,106 @@
+---
+title: Paginate
+description: Page through a headless grid with prev and next controls, feeding one page of rows at a time, all owned by the glue code and held on the viewmodel's metaState.
+datasets: [payroll]
+runtime: static
+tags: [flat]
+---
+
+The grid renders whatever rows the viewmodel holds; it never pages for you. Paging is
+transparent to the viewmodel: showing one page just means the viewmodel holds fewer
+rows, which is still data you set on it and render. Pagination is therefore glue code:
+you keep a page index, slice that page out of the full set, and hand it back. When you
+want the library to prepare those pages for you, a DataModel implements pagination and
+defines the contract for it.
+
+The shared state, which page is showing, lives on `viewModel.metaState`, a namespaced
+store that survives every `updateData` and is readable from anywhere, including the
+controls that draw the current page number.
+
+```ts
+// metaState is the grid's general-purpose store, keyed by a namespace you own.
+// It is a dumb store: values in, values out, with no reactivity - writing to it
+// does not redraw anything by itself.
+viewModel.metaState.set("page", "index", 2);
+
+// The render reads the index back and slices just that page out of the full set.
+const index = viewModel.metaState.get("page").index;
+const page = allRows.slice(index * PAGE_SIZE, index * PAGE_SIZE + PAGE_SIZE);
+viewModel.updateData(buildParams(page));
+grid.draw();
+```
+
+## Custom pagination implementation: Page with prev and next
+
+Functionally, this is what the demo does. Prev and Next move through fixed-size pages,
+a label shows the current page, and the buttons disable at the first and last page.
+Only one page of rows is ever handed to the viewmodel.
+
+None of that is built into the grid. It comes together from your own glue, in four
+steps:
+
+- **Build your own controls.** The Prev and Next buttons and the page label are plain
+  DOM chrome you own; the grid ships no pager. Each button writes the next page index to
+  `metaState`.
+- **Own the paging logic.** Moving a page clamps the index to the available range and
+  writes it, and nothing else changes hands.
+- **Slice the page.** The render reads the index back and hands the viewmodel just that
+  page's rows, sliced out of the full set held in memory.
+- **Rerender.** `grid.draw()` re-runs the renderers against the new page, and the same
+  read of `metaState` updates the label and the disabled state of the buttons.
+
+```ts
+function step(delta: number): void {
+  const index = viewModel.metaState.get("page").index;
+  const clamped = Math.min(Math.max(index + delta, 0), pageCount() - 1);
+  viewModel.metaState.set("page", "index", clamped);
+  viewModel.updateData(buildParams(pageRows(clamped)));
+  grid.draw();
+}
+```
+
+The lifecycle stays one directional throughout: a button only writes to `metaState`,
+and the render reads it back to derive the visible page. There is no second source of
+truth, so the label and the rows on screen can never disagree.
+
+Try it below: use **Prev** and **Next** to move through the pages. The label shows the
+current page, and the buttons disable at the first and last page.
+
+<SampleDemo id="headless-paginate" />
+
+**Source**
+
+```json doc-gen:file
+{ "file": "packages/samples/src/samples/headless-paginate/sample.ts", "codeblock": { "lang": "ts" } }
+```
+
+## Paginate via DataModel
+
+This demo pages in memory because it holds every row. In the real world the data is too
+large to hold at once, which is the whole reason to paginate: the source keeps the full
+set and hands over one window at a time. That windowing is a DataModel's job.
+
+The DataModel defines the contract for both requesting a page and retrieving it. A page
+is just a row range on the fetch config, sitting alongside sorting, filtering, and
+grouping, so it composes with the rest of the query:
+
+```ts
+const params = await model.getViewModelData({
+  startRow: 40,
+  endRow: 60,
+  sort: [{ field: "base_salary", direction: "desc" }],
+});
+
+// The returned params carry the full totalRows and the window's offsetTop, so the
+// grid can size the scrollbar for the whole set and place this block correctly.
+viewModel.updateData(params);
+grid.draw();
+```
+
+Because the viewmodel reports the full `totalRows` and positions its block with
+`offsetTop`, the grid can virtualize over the entire dataset while only ever holding one
+window. Instead of prev and next buttons, the grid then asks for pages as you scroll: it
+emits a `viewDataEmpty` event with the range it needs, and the glue fetches that page
+and feeds it back. The [dataflow](/grid/docs/dataflow) page walks through that loop. The
+control changed from buttons to scrolling, but the shape is the same: something requests
+a range, the model returns it, and a draw reflects it.

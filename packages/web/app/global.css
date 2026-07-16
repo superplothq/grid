@@ -1231,6 +1231,8 @@ html[data-theme='dark'] .stack-logo-dark-invert img {
 
 .card {
   position: relative;
+  display: flex;
+  flex-direction: column;
   background: var(--bg-raised);
   border: 1px solid var(--border);
   border-radius: var(--radius);
@@ -1259,10 +1261,20 @@ html[data-theme='dark'] .stack-logo-dark-invert img {
   font-family: var(--font-mono);
   font-size: 0.8rem;
   font-weight: 500;
+  margin-top: auto;
 }
 
 .card a::after {
   content: ' →';
+}
+
+.card-cta-soon {
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  font-weight: 500;
+  margin-top: auto;
+  opacity: 0.5;
+  cursor: default;
 }
 
 .card-icon {
