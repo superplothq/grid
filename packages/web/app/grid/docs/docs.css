@@ -116,13 +116,33 @@ body:has(#nd-docs-layout) .site-footer {
   margin-inline: 0;
 }
 
-/* Sidebar and table-of-contents in monospace, matching web's nav/toc. */
-#nd-sidebar,
-#nd-sidebar aside,
-[data-radix-scroll-area-viewport],
+/* Sidebar uses the body (non-monospace) font; the table-of-contents and subnav
+   stay monospace, matching web's toc. */
+#nd-sidebar {
+  font-family: var(--font-body);
+}
 #nd-toc,
 #nd-subnav {
   font-family: var(--font-mono);
+}
+
+/* Sidebar group labels from meta.json `---Label---` separators: render as small,
+   muted, uppercase section headings. Fumadocs keeps the group spacing (mt above
+   each, none on the first); we only restyle the type. */
+#nd-sidebar [data-radix-scroll-area-viewport] p {
+  /* Non-clickable group labels stay monospace while the rest of the sidebar
+     uses the body font. */
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  /* Tighten the gap fumadocs puts above each group (its default mt-6 is too big). */
+  margin-top: 0.85rem;
+}
+#nd-sidebar [data-radix-scroll-area-viewport] p:first-child {
+  margin-top: 0;
 }
 
 #nd-toc *,
@@ -316,6 +336,22 @@ html[data-theme='dark'] #nd-docs-layout .shiki span {
   color: var(--text-muted);
   font-size: 0.85rem;
   line-height: 1.45;
+}
+
+/* Inlined doc diagrams. Their strokes/text use `currentColor`, so setting the
+   figure color to web's text token themes them across light/dark automatically.
+   Muted annotations keep their own gray. On narrow screens the diagram holds a
+   readable min width and the figure scrolls instead of squashing. */
+.doc-diagram {
+  margin: 1.75rem 0 2rem;
+  color: var(--text);
+  overflow-x: auto;
+}
+.doc-diagram-svg svg {
+  display: block;
+  width: 100%;
+  min-width: 720px;
+  height: auto;
 }
 
 /* Conversation reuses web's demo-chatbox visual; drop its fixed demo height. */

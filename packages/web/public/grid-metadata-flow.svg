@@ -1,0 +1,71 @@
+<?xml version="1.0" standalone="no"?>
+<svg version="1.1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1300 1020">
+  <defs>
+    <marker id="meta-arrow" viewBox="0 0 12 12" refX="9" refY="6" markerWidth="9" markerHeight="9" orient="auto-start-reverse">
+      <path d="M1 1 L11 6 L1 11 Z" fill="currentColor" stroke="none"></path>
+    </marker>
+  </defs>
+
+  <!-- DataModel container -->
+  <rect x="40" y="30" width="780" height="395" rx="16" fill="none" stroke="currentColor" stroke-width="3"></rect>
+  <text x="430" y="80" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="22px" font-weight="700" fill="currentColor" text-anchor="middle">DataModel.getViewModelData(config)</text>
+
+  <!-- step 1: resolver (you define) -->
+  <rect x="130" y="110" width="600" height="64" rx="10" fill="none" stroke="currentColor" stroke-width="2.5" stroke-dasharray="7 7"></rect>
+  <text x="430" y="149" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="21px" fill="currentColor" text-anchor="middle">resolver.resolve(input)</text>
+
+  <line x1="430" y1="174" x2="430" y2="208" stroke="currentColor" stroke-width="2.5" marker-end="url(#meta-arrow)"></line>
+
+  <!-- step 2: getData -->
+  <rect x="130" y="214" width="600" height="64" rx="10" fill="none" stroke="currentColor" stroke-width="2.5"></rect>
+  <text x="430" y="253" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="21px" fill="currentColor" text-anchor="middle">getData(ir, resolver)</text>
+
+  <line x1="430" y1="278" x2="430" y2="312" stroke="currentColor" stroke-width="2.5" marker-end="url(#meta-arrow)"></line>
+
+  <!-- step 3: reshaper (you define) -->
+  <rect x="130" y="318" width="600" height="64" rx="10" fill="none" stroke="currentColor" stroke-width="2.5" stroke-dasharray="7 7"></rect>
+  <text x="430" y="357" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="21px" fill="currentColor" text-anchor="middle">reshaper.reshape(input, metadata)</text>
+
+  <!-- DataModel -> ViewModel -->
+  <line x1="430" y1="425" x2="430" y2="499" stroke="currentColor" stroke-width="2.5" marker-end="url(#meta-arrow)"></line>
+  <text x="450" y="470" font-family="Nunito, sans-serif, 'Segoe UI Emoji'" font-size="18px" font-style="italic" fill="#868e96" text-anchor="start">params with metadata</text>
+
+  <!-- ViewModel box -->
+  <rect x="130" y="505" width="600" height="80" rx="12" fill="none" stroke="currentColor" stroke-width="3"></rect>
+  <text x="430" y="552" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="22px" font-weight="700" fill="currentColor" text-anchor="middle">ViewModel.updateData(params)</text>
+
+  <!-- ViewModel -> Renderer -->
+  <line x1="430" y1="585" x2="430" y2="659" stroke="currentColor" stroke-width="2.5" marker-end="url(#meta-arrow)"></line>
+
+  <!-- Renderer container -->
+  <rect x="40" y="665" width="780" height="250" rx="16" fill="none" stroke="currentColor" stroke-width="3"></rect>
+  <text x="430" y="708" font-family="Nunito, sans-serif, 'Segoe UI Emoji'" font-size="22px" font-weight="700" fill="currentColor" text-anchor="middle">Renderer</text>
+  <text x="430" y="738" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="20px" fill="currentColor" text-anchor="middle">calls cellRenderer(data, dataCtx, ctx)</text>
+
+  <line x1="430" y1="750" x2="430" y2="771" stroke="currentColor" stroke-width="2.5" marker-end="url(#meta-arrow)"></line>
+
+  <!-- your cellRenderer (you define) -->
+  <rect x="130" y="777" width="600" height="100" rx="10" fill="none" stroke="currentColor" stroke-width="2.5" stroke-dasharray="7 7"></rect>
+  <text x="430" y="817" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="19px" fill="currentColor" text-anchor="middle">dataCtx.viewModel.metadata?</text>
+  <text x="430" y="847" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="19px" fill="currentColor" text-anchor="middle">.getValueCellMeta(col, row)</text>
+
+  <!-- side annotations -->
+  <text x="860" y="136" font-family="Nunito, sans-serif, 'Segoe UI Emoji'" font-size="18px" fill="#868e96" text-anchor="start">you define: what extra data to fetch</text>
+  <text x="860" y="160" font-family="Nunito, sans-serif, 'Segoe UI Emoji'" font-size="18px" fill="#868e96" text-anchor="start">e.g. SQL expressions appended to the query</text>
+
+  <text x="860" y="252" font-family="Nunito, sans-serif, 'Segoe UI Emoji'" font-size="18px" fill="#868e96" text-anchor="start">DataModel fetches data and metadata together</text>
+
+  <text x="860" y="344" font-family="Nunito, sans-serif, 'Segoe UI Emoji'" font-size="18px" fill="#868e96" text-anchor="start">you define: map raw results into</text>
+  <text x="860" y="368" font-family="Nunito, sans-serif, 'Segoe UI Emoji'" font-size="18px" fill="#868e96" text-anchor="start">ViewModel coordinates</text>
+
+  <text x="860" y="551" font-family="Nunito, sans-serif, 'Segoe UI Emoji'" font-size="18px" fill="#868e96" text-anchor="start">metadata stored, Map indexes built</text>
+
+  <text x="860" y="819" font-family="Nunito, sans-serif, 'Segoe UI Emoji'" font-size="18px" fill="#868e96" text-anchor="start">your renderer reads metadata</text>
+  <text x="860" y="843" font-family="Nunito, sans-serif, 'Segoe UI Emoji'" font-size="18px" fill="#868e96" text-anchor="start">and styles the cell</text>
+
+  <!-- legend -->
+  <rect x="130" y="950" width="46" height="26" rx="6" fill="none" stroke="currentColor" stroke-width="2.5" stroke-dasharray="7 7"></rect>
+  <text x="190" y="969" font-family="Nunito, sans-serif, 'Segoe UI Emoji'" font-size="18px" fill="#868e96" text-anchor="start">you provide</text>
+  <rect x="330" y="950" width="46" height="26" rx="6" fill="none" stroke="currentColor" stroke-width="2.5"></rect>
+  <text x="390" y="969" font-family="Nunito, sans-serif, 'Segoe UI Emoji'" font-size="18px" fill="#868e96" text-anchor="start">grid core</text>
+</svg>

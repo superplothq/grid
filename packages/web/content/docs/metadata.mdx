@@ -1,37 +1,17 @@
 ---
 title: Metadata
-description: How to attach and consume metadata - data about your data - alongside the grid's main data pipeline. Metadata flows through a resolver/reshaper pattern in the DataModel, gets stored on the ViewModel, and arrives at cell renderers for custom visualization.
+description: How to attach and consume metadata, the data about your data, alongside the grid's main data pipeline. Metadata flows through a resolver/reshaper pattern in the DataModel, gets stored on the ViewModel, and arrives at cell renderers for custom visualization.
 ---
 
-Metadata is data about your data. Examples: a column's min/max range for heatmap coloring, a per-cell quality flag ("missing", "mismatched"), a profit percentage per row for a profile bar. The grid does not interpret metadata - it transports it from the DataModel to cell renderers. Your code defines what metadata means and how to display it.
+Metadata is data about your data. Examples: a column's min/max range for heatmap coloring, a per-cell quality flag ("missing", "mismatched"), a profit percentage per row for a profile bar. The grid does not interpret metadata; it transports it from the DataModel to cell renderers. Your code defines what metadata means and how to display it.
 
 ## How metadata flows
 
-Metadata follows the same pipeline as regular data, with two additional user-provided pieces - a **resolver** (what metadata to fetch) and a **reshaper** (how to map it into ViewModel coordinates):
+Metadata follows the same pipeline as regular data, with two additional user-provided pieces, a **resolver** (what metadata to fetch) and a **reshaper** (how to map it into ViewModel coordinates):
 
-```
-DataModel.getViewModelData(config)
-  │
-  ├─ resolver.resolve(input)       ← you define: what extra data to fetch
-  │    └─ e.g. SQL expressions appended to the query
-  │
-  ├─ getData(ir, resolver)         ← DataModel fetches data + metadata together
-  │
-  ├─ reshaper.reshape(input, metadata)  ← you define: map raw results → ViewModel coords
-  │
-  └─ returns params with metadata
-        │
-        ▼
-  ViewModel.updateData(params)     ← metadata stored, Map indexes built
-        │
-        ▼
-  Renderer calls cellRenderer(data, dataCtx, ctx)
-        │
-        └─ dataCtx.viewModel.metadata?.getValueCellMeta(col, row)
-             └─ your renderer reads metadata and styles the cell
-```
+<DocDiagram id="metadata-flow" />
 
-The resolver and reshaper are bundled into a **plumber** - a factory function that takes the current config and returns both. The DataModel calls the plumber on each `getViewModelData`, but this is lightweight (just creates closures). The expensive work (SQL queries, API calls) only happens inside `resolve()`.
+The resolver and reshaper are bundled into a **plumber**, a factory function that takes the current config and returns both. The DataModel calls the plumber on each `getViewModelData`, but this is lightweight (just creates closures). The expensive work (SQL queries, API calls) only happens inside `resolve()`.
 
 ## Metadata targets
 
@@ -42,15 +22,15 @@ Metadata can be attached to six targets in the grid:
 | Column facet cells | Column headers (e.g. "Q1", "revenue") | `getColumnFacetMeta(level, index)` |
 | Row facet cells | Row headers (e.g. "Europe", "Germany") | `getRowFacetMeta(level, index)` |
 | Header cells | Corner cells / axis labels | `getHeaderMeta(axis, level)` |
-| Value cells - per column | Shared by all cells in a data column | `getValueColumnMeta(colIndex)` |
-| Value cells - per row | Shared by all cells in a data row | `getValueRowMeta(rowIndex)` |
-| Value cells - per cell | A single data cell | `getValueCellMeta(colIndex, rowIndex)` |
+| Value cells, per column | Shared by all cells in a data column | `getValueColumnMeta(colIndex)` |
+| Value cells, per row | Shared by all cells in a data row | `getValueRowMeta(rowIndex)` |
+| Value cells, per cell | A single data cell | `getValueCellMeta(colIndex, rowIndex)` |
 
-All lookup methods live on `ViewModelMetadata`, accessible via `viewModel.metadata`. Each returns a `MetadataValue` (`Record<string, unknown>`) or `undefined`. Core never interprets the keys inside `meta` - your code owns the semantics.
+All lookup methods live on `ViewModelMetadata`, accessible via `viewModel.metadata`. Each returns a `MetadataValue` (`Record<string, unknown>`) or `undefined`. Core never interprets the keys inside `meta`; your code owns the semantics.
 
 ## Pivot table metadata
 
-Pivot output is not paginated - one `getData` call returns all rows, one reshape pass produces the full grid. Metadata is resolved once and reshaped once.
+Pivot output is not paginated; one `getData` call returns all rows, one reshape pass produces the full grid. Metadata is resolved once and reshaped once.
 
 ### The plumber
 
@@ -65,11 +45,11 @@ interface PivotMetadataPlumbing<T> {
 }
 ```
 
-The plumber closes over whatever setup it needs and reads `config.metadata` to decide what to produce. `PivotConfig.metadata` is `unknown` - core passes it through without interpretation.
+The plumber closes over whatever setup it needs and reads `config.metadata` to decide what to produce. `PivotConfig.metadata` is `unknown`, so core passes it through without interpretation.
 
 ### Resolver
 
-The resolver tells the DataModel what extra data to fetch alongside the main query. For the SQL pipeline, it returns `SqlSelectExpression[]` - SQL fragments appended to the SELECT clause:
+The resolver tells the DataModel what extra data to fetch alongside the main query. For the SQL pipeline, it returns `SqlSelectExpression[]`, the SQL fragments appended to the SELECT clause:
 
 ```ts
 interface SqlSelectExpression {
@@ -82,9 +62,9 @@ interface SqlPivotMetadataResolver extends PivotMetadataResolver<SqlSelectExpres
 }
 ```
 
-The resolver input provides SQL context - `gridCte` (the CTE name, e.g. `"__d__2"`) and `tableAlias` (`"T"`). The resolver can reference any source column through `T`, even fields not in the pivot config, because the source table is already LEFT JOINed in the main query.
+The resolver input provides SQL context: `gridCte` (the CTE name, e.g. `"__d__2"`) and `tableAlias` (`"T"`). The resolver can reference any source column through `T`, even fields not in the pivot config, because the source table is already LEFT JOINed in the main query.
 
-SQL contributions can be aggregate expressions, window functions, CASE expressions, or subqueries. The resolver owns the SQL form - core just drops the expressions into the SELECT list.
+SQL contributions can be aggregate expressions, window functions, CASE expressions, or subqueries. The resolver owns the SQL form; core just drops the expressions into the SELECT list.
 
 ### Reshaper
 
@@ -231,11 +211,11 @@ interface StandardMetadataPlumbing {
 }
 ```
 
-`StandardDataFetchAndTransformIR` gains a `metadata?: unknown` field - same pattern as `PivotConfig.metadata`. The plumber reads `ir.metadata` to decide what to produce.
+`StandardDataFetchAndTransformIR` gains a `metadata?: unknown` field, the same pattern as `PivotConfig.metadata`. The plumber reads `ir.metadata` to decide what to produce.
 
 ### Global resolver + reshaper (column metadata)
 
-The global resolver runs its own query - not through `getData`. It fetches column-level stats (min, max, missing count) that apply to the entire table:
+The global resolver runs its own query, not through `getData`. It fetches column-level stats (min, max, missing count) that apply to the entire table:
 
 ```ts
 interface StandardGlobalMetadataResolver {
@@ -382,13 +362,13 @@ grid.draw();
 
 **4. What happens on scroll:**
 
-When the user scrolls to new rows, `getViewModelData` is called with a new `startRow`/`endRow`. Column metadata is already cached - the global resolver is not called again. New pages are fetched with the page resolver's SQL contributions. Evicted pages lose their metadata. The projection step reassembles everything into a fresh `ViewModelMetadata` aligned with the current data block.
+When the user scrolls to new rows, `getViewModelData` is called with a new `startRow`/`endRow`. Column metadata is already cached, so the global resolver is not called again. New pages are fetched with the page resolver's SQL contributions. Evicted pages lose their metadata. The projection step reassembles everything into a fresh `ViewModelMetadata` aligned with the current data block.
 
 ## Consuming metadata in renderers
 
 ### Native cell renderer
 
-The `CellRenderer` signature receives a `ValueCellDataContext` as its second argument. This provides `viewModel`, `rowIndex`, and `colIndex` - everything needed to look up metadata:
+The `CellRenderer` signature receives a `ValueCellDataContext` as its second argument. This provides `viewModel`, `rowIndex`, and `colIndex`, everything needed to look up metadata:
 
 ```ts
 type CellRenderer<T> = (
@@ -398,7 +378,7 @@ type CellRenderer<T> = (
 ) => string | HTMLElement | HTMLElement[] | void;
 ```
 
-Example - heatmap renderer using per-column metadata:
+Example, a heatmap renderer using per-column metadata:
 
 ```ts
 const heatmapRenderer: CellRenderer<number> = (data, dataCtx, ctx) => {
@@ -413,7 +393,7 @@ const heatmapRenderer: CellRenderer<number> = (data, dataCtx, ctx) => {
 };
 ```
 
-Example - quality renderer using per-cell metadata:
+Example, a quality renderer using per-cell metadata:
 
 ```ts
 const qualityRenderer: CellRenderer<unknown> = (data, dataCtx, ctx) => {
@@ -499,4 +479,4 @@ function createLocalQualityPlumber(
 }
 ```
 
-The reshaper runs after every page fetch. No SQL is added to the query - the reshaper reads `rowData` directly.
+The reshaper runs after every page fetch. No SQL is added to the query; the reshaper reads `rowData` directly.

@@ -1,24 +1,30 @@
 ---
 title: Dataflow
-description: How data flows through the pipeline that is part of the grid's lifecycle - from raw storage through transformation and viewmodel construction to DOM rendering. Each layer has a single responsibility and communicates with the next through a defined interface.
+description: How data flows through the pipeline that is part of the grid's lifecycle, from raw storage through transformation and viewmodel construction to DOM rendering. Each layer has a single responsibility and communicates with the next through a defined interface.
 ---
 
-The grid is built as four layers, each with a single responsibility. This is a headless library - it requires a layer above (your code) to tie all these components together. This allows great extensibility and composability.
+The grid is built as four layers, each with a single responsibility. This is a headless library that requires a layer above (your code) to tie all these components together. This allows great extensibility and composability.
 
 ## Patterns
 
 The four layers are: **DataSource**, **DataModel**, **DataViewModel**, and **Renderer**. Your code acts as the headless manager that orchestrates them. If the interfaces are adhered to, the dataflow just works.
 
-- **DataSource** connects to the actual data storage (a WASM database in the browser, an API server, in-memory data) and forwards config/queries to it. It does not know what the queries mean - it just sends them to the source and returns results. Example: a SQL string against a WASM DuckDB instance, or a JSON payload to an API server.
+<DocDiagram id="dataflow" />
+
+- **DataSource** connects to the actual data storage (a WASM database in the browser, an API server, in-memory data) and forwards config/queries to it. It does not know what the queries mean, it just sends them to the source and returns results. Example: a SQL string against a WASM DuckDB instance, or a JSON payload to an API server.
 - **DataModel** accepts a config describing what transformation to apply (group by, sort, window, reshape) and asks the DataSource to execute it. It receives raw results back and reshapes them into params ready for the ViewModel. Your code calls the DataModel and receives these params.
 - **DataViewModel** is a thin, fast, ready-to-render structure. Your code takes the params from the DataModel, applies any local transforms or formatting hooks, and feeds them into the ViewModel. The ViewModel knows nothing about where the data came from.
-- **Renderer** (the Grid instance) receives the ViewModel via `grid.data = viewModel` and renders cells into the DOM. It subscribes to events on the Renderer (scroll, interaction, `viewDataEmpty`) and uses those events to drive the next cycle - asking the DataModel for new data and feeding it back through the pipeline.
+- **Renderer** (the Grid instance) receives the ViewModel via `grid.data = viewModel` and renders cells into the DOM. It subscribes to events on the Renderer (scroll, interaction, `viewDataEmpty`) and uses those events to drive the next cycle, asking the DataModel for new data and feeding it back through the pipeline.
 
 Each layer is an interface or abstract class, so you can replace any layer without touching the others.
 
+Keeping the DataModel and DataViewModel internally disconnected, and wiring them together only through the glue code, is a deliberate decision. The dependency injection of the components happens in the glue code too: your layer constructs each one, hands a DataSource to the DataModel, feeds the DataModel's output into the ViewModel, and gives the ViewModel to the Renderer.
+
+The grid manages its own internal state, but every state that decides which kind of grid to produce lives in the glue code: the config for the DataModel, the local transforms applied on the way into the ViewModel, and the event handling that drives the next cycle. Because that state sits in your layer rather than being buried inside any single component, you stay in control of how the grid is composed and can swap or extend a layer without the others needing to know.
+
 ### New grid creation
 
-The example below uses `DuckDBWasmDataSource` (to connect to a WASM SQL database in the browser) and `SqlPivotTableDataModel` (to model data using SQL syntax) - these are opinionated subclasses that ship with the library. You can substitute any class that implements `DataSource<T>` or extends `DataModel`.
+The example below uses `DuckDBWasmDataSource` (to connect to a WASM SQL database in the browser) and `SqlPivotTableDataModel` (to model data using SQL syntax). These are opinionated subclasses that ship with the library. You can substitute any class that implements `DataSource<T>` or extends `DataModel`.
 
 ```ts
 // 1. Create a DataSource and load data into it
@@ -64,7 +70,7 @@ When the grid scrolls, the Renderer calls `viewModel.getViewportData(x0, y0, x1,
 
 But the ViewModel only holds a contiguous block of data. The full dataset may be larger. When the Renderer needs data that the ViewModel does not have, it emits a `viewDataEmpty` event with `{ startRow, endRow }`.
 
-Your code subscribes to this event and asks the DataModel to fetch the page. The DataModel checks its page cache - if the page is already cached, it assembles a contiguous block of data from adjacent cached pages (not just the single requested page) and returns it. If the page is not cached, the DataModel fetches it from the DataSource and evicts distant pages if necessary to prevent the browser from running out of memory.
+Your code subscribes to this event and asks the DataModel to fetch the page. The DataModel checks its page cache. If the page is already cached, it assembles a contiguous block of data from adjacent cached pages (not just the single requested page) and returns it. If the page is not cached, the DataModel fetches it from the DataSource and evicts distant pages if necessary to prevent the browser from running out of memory.
 
 ```ts
 grid.on("viewDataEmpty", async ({ startRow, endRow }) => {
@@ -83,7 +89,7 @@ grid.on("viewDataEmpty", async ({ startRow, endRow }) => {
 
 ### Data update from a cell interaction
 
-A custom cell renderer can render any DOM element - including interactive ones like buttons. When the user clicks, your code runs the same update flow: ask the DataModel for new data, update the ViewModel, re-draw.
+A custom cell renderer can render any DOM element, including interactive ones like buttons. When the user clicks, your code runs the same update flow: ask the DataModel for new data, update the ViewModel, re-draw.
 
 ```ts
 // A cell renderer that renders a "Refresh" button
@@ -107,9 +113,18 @@ const buttonRenderer: CellRenderer<unknown> = (data, ctx) => {
 
 The renderer has no opinion about what happens on click. It just renders the DOM element; your code decides what the interaction does and drives the data pipeline.
 
+## What SuperPlot ships as part of core
+
+The interfaces above are the contract, but you do not have to implement them from scratch. SuperPlot ships an opinionated implementation of each layer, enough to assemble a working grid out of the box, while leaving every layer replaceable.
+
+- **DataSource** - an in-browser `DuckDBWasmDataSource` backed by DuckDB compiled to WASM. It ingests column-major data and runs SQL entirely on the client. An `ApiDataSource` that forwards queries to a remote API server is planned but not shipped yet. Because it only has to implement `DataSource<T>`, it will slot in without touching the rest of the pipeline.
+- **DataModel** - a SQL data model that generates queries from a config: `SqlPivotTableDataModel` for pivots and `SqlStandardTableDataModel` for grouped, tree, and flat tables. An `ApiDataModel` that offloads the same shaping to an API server is planned but not shipped yet.
+- **DataViewModel** - two view models cover every shape. `PivotDataViewModel` serves multi-level pivots, and `FlattenedDataViewModel` serves grouped, tree, and standard flat tables.
+- **Renderer** - a single `Grid` with two layout engines. `StandardLayout` handles pivots, and `GroupedRowLayout` handles grouped-row and tree layouts. A standard flat table is just a reduced case of these layouts, so it needs no separate engine. A handful of custom cell renderers ship on top for common needs.
+
 ## DataSource
 
-The DataSource owns raw data and executes queries against it. It knows nothing about pivots, grouping, or rendering - it only runs commands and returns results.
+The DataSource owns raw data and executes queries against it. It knows nothing about pivots, grouping, or rendering. It only runs commands and returns results.
 
 The generic `DataSource<T>` interface takes a query of type `T` and returns rows:
 
@@ -143,7 +158,7 @@ await ds.release(); // count drops to 1 - datasource stays alive for pivotModel
 
 ### SqlDataSource
 
-`SqlDataSource` narrows the generic `DataSource<T>` to `DataSource<string>` - the query is always a SQL string. It adds `loadData()` for ingesting column-major data into a WASM SQL engine (DuckDB):
+`SqlDataSource` narrows the generic `DataSource<T>` to `DataSource<string>`, so the query is always a SQL string. It adds `loadData()` for ingesting column-major data into a WASM SQL engine (DuckDB):
 
 ```ts
 await ds.loadData({
@@ -188,7 +203,7 @@ abstract class DataModel<TInput, TViewModelData> {
 }
 ```
 
-The DataModel is where business logic lives - pivoting, grouping, aggregation, pagination. It knows nothing about DOM or rendering. Two pipelines exist:
+The DataModel is where business logic lives: pivoting, grouping, aggregation, pagination. It knows nothing about DOM or rendering. Two pipelines exist:
 
 ### PivotTableDataModel
 
@@ -240,7 +255,7 @@ const params = await pivotModel.getViewModelData(config);
 
 ### StandardTableDataModel
 
-Generates queries for grouped and paginated rows. Produces `FlattenedDataViewModelParams` for the flat table renderer. Handles pagination internally - it caches pages, fetches missing ones on demand, and evicts distant pages when memory limits are reached.
+Generates queries for grouped and paginated rows. Produces `FlattenedDataViewModelParams` for the flat table renderer. Handles pagination internally: it caches pages, fetches missing ones on demand, and evicts distant pages when memory limits are reached.
 
 ```ts
 const ir: StandardDataFetchAndTransformIR = {
@@ -281,7 +296,7 @@ const flatModel = new SqlStandardTableDataModel(schema, ds);
 
 The bridge between data and rendering. A thin, fast, ready-to-render structure that holds column-major data arrays, facet metadata, track definitions, and rendering options.
 
-The DataModel prepares data that can be fed to a ViewModel directly, or after local transformation/formatting. The ViewModel is designed to be fast to read (under ~2ms) - the Renderer calls `getViewportData()` on every frame. No computation happens during reads; it is pure memory access and array slicing.
+The DataModel prepares data that can be fed to a ViewModel directly, or after local transformation/formatting. The ViewModel is designed to be fast to read (under ~2ms), because the Renderer calls `getViewportData()` on every frame. No computation happens during reads; it is pure memory access and array slicing.
 
 Two subclasses:
 
@@ -296,7 +311,7 @@ const viewModel = new PivotDataViewModel(params);
 const viewModel = new FlattenedDataViewModel(params);
 ```
 
-The ViewModel knows nothing about DOM. It only knows data shapes - arrays, facet labels, track configs. The Renderer pulls what it needs via `getViewportData(x0, y0, x1, y1)` which returns only the slice of data visible in the current scroll position.
+The ViewModel knows nothing about DOM. It only knows data shapes: arrays, facet labels, track configs. The Renderer pulls what it needs via `getViewportData(x0, y0, x1, y1)` which returns only the slice of data visible in the current scroll position.
 
 ## Renderer
 
@@ -348,7 +363,7 @@ grid.draw();
 
 ### Swap the DataSource
 
-The SQL-based DataModels require a `SqlDataSource`. We pack DuckDB by default, but this is not the only option. Any WASM SQL database works - you just extend `SqlDataSource` and implement `execute` and `insertArrowTable` for your engine. Use case: you prefer PGlite (Postgres WASM) over DuckDB.
+The SQL-based DataModels require a `SqlDataSource`. We pack DuckDB by default, but this is not the only option. Any WASM SQL database works. You just extend `SqlDataSource` and implement `execute` and `insertArrowTable` for your engine. Use case: you prefer PGlite (Postgres WASM) over DuckDB.
 
 ```ts
 import { PGlite } from "@electric-sql/pglite";
@@ -385,7 +400,7 @@ const model = new SqlPivotTableDataModel(schema, ds);
 
 ### Share a DataSource
 
-Multiple grids can share one DataSource via ref counting. Use case: a dashboard with a pivot summary and a detail table both showing the same dataset - load the data once, query it from both models.
+Multiple grids can share one DataSource via ref counting. Use case: a dashboard with a pivot summary and a detail table both showing the same dataset. Load the data once, query it from both models.
 
 ```ts
 const ds = await DuckDBWasmDataSource.create();

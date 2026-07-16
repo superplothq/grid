@@ -2,8 +2,6 @@
   "pages": [
     "index",
     "---Concepts---",
-    "dataflow",
-    "metadata",
     "---Core Components---",
     "datasource",
     "datamodel",
