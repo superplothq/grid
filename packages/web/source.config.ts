@@ -3,6 +3,7 @@ import { metaSchema, pageSchema } from 'fumadocs-core/source/schema';
 import { z } from 'zod';
 import { remarkDocGen } from 'fumadocs-docgen';
 import { fileRegionGenerator } from './lib/file-region-generator';
+import { remarkClassOutline } from './lib/remark-class-outline';
 import path from 'node:path';
 
 const projectRoot = path.resolve(process.cwd(), '..', '..');
@@ -43,6 +44,7 @@ export const samples = defineDocs({
 export default defineConfig({
   mdxOptions: {
     remarkPlugins: [
+      [remarkClassOutline, { basePath: projectRoot }],
       [remarkDocGen, { generators: [fileRegionGenerator({ basePath: projectRoot })] }],
     ],
   },

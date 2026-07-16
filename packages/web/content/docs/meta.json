@@ -8,6 +8,7 @@
     "metadata",
     "---Core Features---",
     "column",
-    "[Pivot Table](/grid/docs/samples/pivot-table)"
+    "[Pivot Table](/grid/docs/samples/pivot-table)",
+    "[Hierarchical tables](/grid/docs/samples/hierarchical-tables)"
   ]
 }

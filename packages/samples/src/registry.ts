@@ -57,4 +57,12 @@ export const samples: Record<string, SampleEntry> = {
     load: () => import("./samples/column-metadata-visuals/percentile"),
     conversation: () => Promise.resolve({ turns: [] }),
   },
+  "grouped-table": {
+    load: () => import("./samples/hierarchical-tables/grouped"),
+    conversation: () => Promise.resolve({ turns: [] }),
+  },
+  "tree-table": {
+    load: () => import("./samples/hierarchical-tables/tree"),
+    conversation: () => Promise.resolve({ turns: [] }),
+  },
 };
