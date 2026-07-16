@@ -138,11 +138,17 @@ body:has(#nd-docs-layout) .site-footer {
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--text-muted);
-  /* Tighten the gap fumadocs puts above each group (its default mt-6 is too big). */
-  margin-top: 0.85rem;
+  /* Separate each group label from the section above it. */
+  margin-top: 2rem;
 }
 #nd-sidebar [data-radix-scroll-area-viewport] p:first-child {
   margin-top: 0;
+}
+
+/* Sidebar leaf links: bolder type and a touch more padding. */
+#nd-sidebar [data-radix-scroll-area-viewport] a {
+  font-weight: 700;
+  padding: calc(var(--spacing) * 1.6);
 }
 
 #nd-toc *,

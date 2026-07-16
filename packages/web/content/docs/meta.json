@@ -9,6 +9,7 @@
     "---Core Features---",
     "column",
     "[Pivot Table](/grid/docs/samples/pivot-table)",
-    "[Hierarchical tables](/grid/docs/samples/hierarchical-tables)"
+    "[Hierarchical Tables](/grid/docs/samples/hierarchical-tables)",
+    "[Custom Cell Renderers](/grid/docs/samples/custom-cell-renderers)"
   ]
 }

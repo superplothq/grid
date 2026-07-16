@@ -75,12 +75,16 @@ function generateOutline(filePath: string, className: string, exclude: string[] 
 
   let classDecl: ts.ClassDeclaration | undefined;
   let interfaceDecl: ts.InterfaceDeclaration | undefined;
+  let typeAliasDecl: ts.TypeAliasDeclaration | undefined;
   ts.forEachChild(sourceFile, (node) => {
     if (ts.isClassDeclaration(node) && node.name?.text === className) {
       classDecl = node;
     }
     if (ts.isInterfaceDeclaration(node) && node.name?.text === className) {
       interfaceDecl = node;
+    }
+    if (ts.isTypeAliasDeclaration(node) && node.name.text === className) {
+      typeAliasDecl = node;
     }
   });
 
@@ -94,6 +98,9 @@ function generateOutline(filePath: string, className: string, exclude: string[] 
   } else if (interfaceDecl) {
     outline = buildInterfaceOutline(interfaceDecl, checker);
     collectTypeRefsFromDeclaration(interfaceDecl, checker, referencedTypes, visited);
+  } else if (typeAliasDecl) {
+    outline = buildTypeAliasOutline(typeAliasDecl);
+    collectTypeRefsFromDeclaration(typeAliasDecl, checker, referencedTypes, visited);
   } else {
     return null;
   }

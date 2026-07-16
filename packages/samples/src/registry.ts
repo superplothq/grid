@@ -65,4 +65,8 @@ export const samples: Record<string, SampleEntry> = {
     load: () => import("./samples/hierarchical-tables/tree"),
     conversation: () => Promise.resolve({ turns: [] }),
   },
+  "custom-cell-renderers": {
+    load: () => import("./samples/custom-cell-renderers/sample"),
+    conversation: () => Promise.resolve({ turns: [] }),
+  },
 };

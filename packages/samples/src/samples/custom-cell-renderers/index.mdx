@@ -1,0 +1,114 @@
+---
+title: Custom cell renderers
+description: Render anything in a cell such as charts, dropdowns, color and date pickers, and action buttons through a tiny stateless renderer contract that stays highly performant, and swap renderers live.
+datasets: []
+runtime: static
+tags: [flat]
+---
+
+A cell is not limited to text. Every value column takes a **renderer**, a single
+function that maps one cell's value to DOM. The contract is deliberately tiny: it
+receives the value, a data context, and the cell element, and returns either an
+HTML string or a real DOM node.
+
+```ts
+import type { CellRenderer } from "grid/dist/renderer";
+
+// CellRenderer<T> = (data: T, dataCtx, ctx) => string | HTMLElement | HTMLElement[] | void
+const renderer: CellRenderer<number> = (value, dataCtx, ctx) => {
+  // dataCtx = { viewModel, rowIndex, colIndex, rawValue }  - who and where this cell is
+  // ctx.container is the cell element itself; style it directly if you like
+  const el = document.createElement("span");
+  el.textContent = value.toFixed(1);
+  return el;   // returning a string of HTML works too
+};
+```
+
+Here is the full contract with the context objects it hands you:
+
+<auto-class-outline
+  path="packages/grid/src/renderer/cell-renderers.ts"
+  name="CellRenderer"
+/>
+
+Two rules follow from how the grid draws:
+
+- **Stay stateless.** The grid may call a renderer many times for the same logical
+  cell, so it has to produce its whole output from `data` and `dataCtx` every time
+  and never accumulate state on the side.
+- **Mind who owns the DOM.** What you return decides who manages the lifecycle of
+  the nodes. Return a string or an element and the grid core owns those nodes: it
+  places, reuses, and clears them for you across draws. Return nothing (`void`) and
+  the grid leaves the cell untouched, handing the lifecycle to the caller (your glue
+  code). That empty return is the deliberate path for frameworks: React likes to own
+  its own DOM tree, so a React renderer mounts into `ctx.container` itself and
+  returns nothing.
+
+## A renderer for every column
+
+Each column gets its own renderer through `vTrackDefs`. The demo below wires seven:
+a bold text label, a d3 sparkline, a status `<select>`, a color `<input>`, a date
+`<input>`, a progress bar, and an action button. The interactive ones write their
+edit straight back to the row data and re-render, so the value on screen is always
+a reflection of the data, never of the DOM.
+
+```ts
+// Charts: the cell value is a number[]; d3 turns it into an inline SVG.
+import { line, curveCatmullRom } from "d3-shape";
+import { scaleLinear } from "d3-scale";
+
+const trendRenderer: CellRenderer<number[]> = (series, dataCtx) => {
+  const x = scaleLinear().domain([0, series.length - 1]).range([3, 117]);
+  const y = scaleLinear().domain([Math.min(...series), Math.max(...series)]).range([29, 3]);
+  const path = line<number>().x((_, i) => x(i)).y((v) => y(v)).curve(curveCatmullRom)(series);
+  return `<svg width="120" height="32"><path d="${path}" fill="none" stroke="${rows[dataCtx.rowIndex].color}" /></svg>`;
+};
+
+// Editable: seed the widget from the value, write the edit back to the row, re-render.
+const statusRenderer: CellRenderer<string> = (value, dataCtx) => {
+  const select = buildSelect(STATUSES, value);
+  select.addEventListener("change", () => {
+    rows[dataCtx.rowIndex].status = select.value;   // state lives in the data
+    render();                                        // updateData + draw
+  });
+  return select;
+};
+```
+
+Try it below: change a Status, pick a Label color, set a Due date, or click Advance
+to bump a row's progress. Each edit updates the row and the grid redraws from it.
+
+<SampleDemo id="custom-cell-renderers" />
+
+**Source**
+
+```json doc-gen:file
+{ "file": "packages/samples/src/samples/custom-cell-renderers/sample.ts", "codeblock": { "lang": "ts" } }
+```
+
+## Swap renderers live
+
+Because a renderer is just a function read at draw time, its behavior can depend on
+external state. The sparkline reads a `chartType` variable from scope, so changing
+it and calling `draw()` repaints every visible chart with no data change, no new
+viewmodel, and no query.
+
+```ts
+let chartType = "line";
+
+const trendRenderer: CellRenderer<number[]> = (series, dataCtx) =>
+  trendSvg(series, chartType, rows[dataCtx.rowIndex].color);   // reads chartType live
+
+chartPicker.addEventListener("change", () => {
+  chartType = chartPicker.value;   // "line" | "bar" | "area"
+  grid.draw();                     // repaints the visible cells against the new type
+});
+```
+
+Try it above: switch the **Trend chart** control between line, bar, and area. Only
+the charts change; the rest of the grid is untouched.
+
+Renderers are not fixed at construction either. The `selectAll` API can override a
+renderer for a whole column, a single row, or an individual cell, swapping how those
+cells draw without rebuilding the viewmodel. See
+[Column selection](/grid/docs/samples/column-selection) for that targeting in action.
