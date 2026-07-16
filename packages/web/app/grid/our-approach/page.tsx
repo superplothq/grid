@@ -316,7 +316,7 @@ export default function OurApproachPage() {
         <p>
           We take a different approach. The pivot table&rsquo;s row and column axes are defined using
           a small set of composable operators drawn from the table algebra formalized in the Polaris
-          paper from Stanford.
+          paper.
         </p>
 
         <h3>The operators</h3>
@@ -335,8 +335,7 @@ export default function OurApproachPage() {
               rel="noopener noreferrer"
             >
               Polaris: A System for Query, Analysis, and Visualization of Multidimensional Databases
-            </a>{' '}
-            (Stolte, Tang, Hanrahan — Stanford)
+            </a>
           </figcaption>
         </figure>
         <p>Three operators compose to define any axis of a pivot table:</p>

@@ -276,6 +276,48 @@ html[data-theme='dark'] #nd-docs-layout .shiki span {
   }
 }
 
+/* A compact card that turns any link into a titled callout. Icon and title sit
+   on one line; the background shifts on hover (theme-aware, no underline). */
+.doc-link-card,
+.doc-link-card:hover {
+  text-decoration: none;
+}
+.doc-link-card {
+  display: block;
+  max-width: 360px;
+  margin: 1.6rem 0;
+  padding: 0.85rem 1.1rem;
+  border: 1px solid var(--accent);
+  border-radius: 12px;
+  background: var(--bg-raised);
+  transition: background 0.15s ease;
+}
+.doc-link-card:hover {
+  background: color-mix(in srgb, var(--accent) 9%, var(--bg-raised));
+}
+.doc-link-card-head {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.35rem;
+}
+.doc-link-card-icon {
+  flex-shrink: 0;
+  width: 1.2rem;
+  height: 1.2rem;
+  color: var(--accent);
+}
+.doc-link-card-title {
+  font-weight: 600;
+  color: var(--text);
+}
+.doc-link-card-text {
+  display: block;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+  line-height: 1.45;
+}
+
 /* Conversation reuses web's demo-chatbox visual; drop its fixed demo height. */
 #nd-docs-layout .sample-conversation[open] {
   height: auto;

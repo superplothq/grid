@@ -254,7 +254,7 @@ export const principles: Principle[] = [
 export const features: FeatureLink[] = [
   { hashPath: 'features/agent-ready', title: 'Built for agents', href: `${docsPath}/built-for-agents`, icon: 'bot', body: 'A layered, open-code architecture with metadata plumbing that lets an agent reliably generate any grid.' },
   { hashPath: 'features/fullstack', title: 'Full-stack grid', href: `${docsPath}/fullstack-grid`, icon: 'server', body: 'One pipeline from SQL datasource to pixels, with server-side query generation and agent skills.' },
-  { hashPath: 'features/pivot-table', title: 'Pivot with table algebra', href: gridDocsPath, icon: 'table', body: 'Compose pivots from cross, hierarchy and concat operators instead of imperative config.' },
+  { hashPath: 'features/pivot-table', title: 'Pivot with table algebra', href: `${docsPath}/pivot-table`, icon: 'table', body: 'Compose pivots from cross, hierarchy and concat operators instead of imperative config.' },
   { hashPath: 'features/tree-table', title: 'Grouped and tree tables', href: gridDocsPath, icon: 'tree', body: 'Flat grouping paths and multi-level tree tables with depth, leaf and expand state.' },
   { hashPath: 'features/performance', title: 'Fast and realtime', href: gridDocsPath, icon: 'gauge', body: 'Virtualized rendering with cell reuse that updates live as data streams in.' },
   { hashPath: 'features/in-cell-charts', title: 'In-cell charts', href: gridDocsPath, icon: 'chart', body: 'Render sparklines, bars and heatmaps inside cells with custom renderers.' },
