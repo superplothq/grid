@@ -1,0 +1,105 @@
+---
+title: Built for agents
+description: A layered, open-closed architecture with a stable contract at every boundary - so an agent can generate any grid.
+---
+
+SuperPlot is built for a new kind of consumer: coding agents that generate, inspect, and refine data grids in conversation with a human. Everything below follows from one idea - a grid composed of independent layers, each opening up a typed contract, so an agent can build it reliably, one layer at a time.
+
+## The pipeline
+
+The grid is a strict four-stage pipeline. Each stage has a single responsibility and a typed contract with the next, and knows nothing about the layers above or below it.
+
+```text
+DataSource  ->  DataModel  ->  DataViewModel  ->  Renderer
+(storage)       (transform)    (bridge)           (pixels)
+```
+
+- **DataSource** - raw storage and query execution. Loads data, runs SQL against an in-browser database, or calls an API backend. No knowledge of what the data means.
+- **DataModel** - transforms data for a use case: pivot aggregation, flat grouping, sorting, filtering, pagination. Produces a ready-to-render shape.
+- **DataViewModel** - the bridge: render-ready data plus rendering metadata (facet hierarchies, column stats, per-cell annotations). The renderer slices into it for the visible viewport.
+- **Renderer** - turns the view model into DOM: grid layout, cell recycling, scrolling. Consumes the view model without interpreting it.
+
+Although the grid package ships common implementations of these layers, an agent can just as easily build or extend a layer by implementing its interface (or protocol).
+
+<Callout type="info">
+Out of the box, SuperPlot is a headless library - it provides opinionated layout, data flow, data model, and data transformation, as both contracts and their implementations, plus a set of extension points, and almost no peripheral components of its own. The agent defines those components as the requirement demands, using SuperPlot's contracts, APIs, and extension points.
+</Callout>
+
+### Agent glues layers
+
+An agent can use these layers ready-made, extend them at their extension points, or build entirely new layers by implementing the interfaces. It then glues these layers together into a working grid.
+
+Because each boundary is a typed contract, an agent works on exactly the layer a task needs and ignores the rest:
+
+- "Add a sort dropdown" is a DataModel config change. No SQL, no DOM.
+- "Point this at Postgres instead of DuckDB" is a DataSource swap. The model and renderer are untouched.
+- "Draw a sparkline in this cell" is a Renderer extension. The data layers never change.
+
+The blast radius of any change is bounded by the layer it lives in. Structurally valid code within a contract is almost always functionally correct, which is exactly the kind of constraint agents work well around.
+
+### Layers are independent
+
+`DataSource<T>` knows nothing about pivots, and `DataModel` knows nothing about rendering. Each layer has no knowledge of the layer that precedes it: there is deliberately no connection between the `DataModel` and the `DataViewModel`, and that is a conscious choice.
+
+Because of this, you can pick a single layer up and use it for a completely different purpose, or replace SuperPlot's layer with your own. This independence is enforced by the interfaces SuperPlot provides.
+
+## Open-closed architecture
+
+Inside each layer there are extension points. We discourage overriding and encourage hooking onto these extension points. The core stays *closed* to modification and owns the hard, invariant machinery, while staying *open* to extension through a small set of typed points where an agent plugs in behavior.
+
+The core manages:
+
+- grid **layout** and column / row sizing
+- **DOM operations** - cell recycling, virtualization, smooth scrolling
+- **component routing** - dispatching each cell, header, and facet to the right renderer
+- **state management** - grid internal state such as sort, filter, selection, and expand, and the redraws they trigger
+- **API access points** - a typed surface for an agent to drive the grid and read its state
+
+Against that fixed core, these are the extension points an agent composes:
+
+- **Fixtures** - custom vertical / horizontal regions (row numbers, quality bars, histograms, minimaps) layered onto the grid without touching layout.
+- **Cell / facet / header renderers** - one renderer signature, regardless of content, to override how any cell draws.
+- **ViewModel overrides** - supply your own view-model behavior where the default reshaping is not enough.
+- **The metadata layer** - a resolver / reshaper that computes column stats, per-cell flags, and distribution summaries alongside the data fetch, then makes them available to every cell, header, and fixture.
+
+An agent never forks the grid or edits its internals. It works within these points, and the same few patterns repeat across all of them, so once you learn one fixture, one renderer, and one metadata resolver, every variation follows.
+
+<Callout title="Metadata is first-class">
+Complex grids need to render data in the context of computed metadata - column averages, quality flags, distributions. The metadata layer flows through the same pipeline as the data, so "highlight cells above the column average" is an extension, not a patch.
+</Callout>
+
+## Why this differs from grids built for humans
+
+Traditional grid libraries are built for a human reading documentation. They expose a large, fixed set of config options - flags, callbacks, nested option objects - chosen so a person can find the one they need and wire it up quickly. That optimizes for recognition and a fast learning curve, but it caps what is possible at whatever the option surface anticipated.
+
+SuperPlot optimizes for a different consumer. Instead of a fixed menu of options, it exposes an elaborate, composable contract at every layer:
+
+- Not "set `showSparkline: true`", but "here is the renderer contract - draw whatever you want in a cell."
+- Not "pick from these five aggregations", but "compose the table-algebra operators into any axis."
+- Not "toggle these built-in columns", but "plug a fixture into the layout."
+
+A fixed config is easy for a human and bounded by design. A composable contract with constraints and a strong protocol definition is a larger surface to learn, but an agent learns the pattern once and then generates combinations the library authors never enumerated.
+
+### Unidirectional data flow
+
+Data moves in exactly one direction:
+
+```text
+DataSource -> DataModel -> DataViewModel -> Renderer -> DOM
+```
+
+We chose a single direction of flow because it is easier to reason about, easier to learn as a pattern, and predictable by design. There is one source of truth and one path a change can take, so an agent can work out what the grid will look like from the inputs alone, with no hidden feedback loops between the view and the data.
+
+For example, suppose an agent adds a sort button to the column header cells. On click, it asks the DataModel to prepare the sorted data. The DataModel returns that data, which is fed into the DataViewModel, and the updated view model is handed to the grid, which triggers a render.
+
+### Stupid-fast ViewModel -> Renderer
+
+The DataViewModel, although elaborate, defines a fixed contract that the agent only needs to fill in. Once it is populated, the renderer takes over layouting, dirty checking, DOM pooling, and everything else required to put pixels on screen.
+
+This means an agent reasons only about populating data, with a rough idea of how the renderer will react to it, while what the renderer actually does stays completely abstracted away. And because this ViewModel to Renderer step is the hot path, it is built to be insanely fast.
+
+## Putting it together
+
+A grid looks simple on the surface, but it becomes genuinely complex once it has to handle every aspect at once. Sorting, filtering, pagination, expand and collapse, and live updates are just table stakes.
+
+Our approach is to draw clear ownership boundaries: what SuperPlot owns, and what the glue code an agent writes owns. By defining who owns what, and how those boundaries negotiate with each other, it becomes possible to build a grid that is complex and highly interactive, yet stable and able to scale.

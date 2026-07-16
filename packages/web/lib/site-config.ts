@@ -21,9 +21,7 @@ export interface NavItem {
 }
 
 export const navItems: NavItem[] = [
-  { label: 'Demos', href: gridDemosPath },
   { label: 'Docs', href: docsPath },
-  { label: 'Samples', href: docsSamplesPath },
   { label: 'Our approach', href: ourApproachPath },
   { label: 'About', href: aboutPath },
   { label: 'Contact', href: contactPath },

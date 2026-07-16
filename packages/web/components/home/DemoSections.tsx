@@ -27,8 +27,7 @@ export function DemoSections({ demos }: { demos: DemoUseCase[] }) {
           suppressHydrationWarning
         >
           <h3>{demo.label}</h3>
-          <p className="demo-theme">Theme: {demo.theme}</p>
-          <p>{demo.summary}</p>
+          <p className="demo-summary">{demo.summary}</p>
           <div className="demo-layout">
             <DemoFrame demo={demo} />
             <DemoConversationDrawer conversation={demo.conversation} />

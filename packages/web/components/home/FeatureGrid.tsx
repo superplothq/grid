@@ -1,26 +1,26 @@
 import Link from 'next/link';
 import {
+  Accessibility,
+  BarChart3,
+  Bot,
   Filter,
   Gauge,
-  Layers,
   ListTree,
-  Move,
   Palette,
-  Radio,
   Server,
   Table,
 } from 'lucide-react';
 import type { FeatureLink } from '@/lib/home-content';
 
 const icons: Record<FeatureLink['icon'], typeof Gauge> = {
-  gauge: Gauge,
-  layers: Layers,
-  tree: ListTree,
-  table: Table,
+  bot: Bot,
   server: Server,
+  table: Table,
+  tree: ListTree,
+  gauge: Gauge,
+  chart: BarChart3,
   filter: Filter,
-  radio: Radio,
-  move: Move,
+  accessibility: Accessibility,
   palette: Palette,
 };
 

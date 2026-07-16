@@ -3,7 +3,7 @@ import marketPulseConversation from 'samples/src/demos/market-pulse/conversation
 import serverMonitorConversation from 'samples/src/demos/server-monitor/conversation.json';
 import revenueRecognitionConversation from 'samples/src/demos/revenue-recognition/conversation.json';
 import pivotStudioConversation from 'samples/src/demos/pivot-studio/conversation.json';
-import { gridDocsPath, gridFeaturesPath, ourApproachPath, siteUrl } from './site-config';
+import { docsPath, gridDocsPath, gridFeaturesPath, ourApproachPath, siteUrl } from './site-config';
 
 export type DemoKey =
   | 'sales'
@@ -56,7 +56,7 @@ export interface FeatureLink {
   title: string;
   body: string;
   href: string;
-  icon: 'gauge' | 'layers' | 'tree' | 'table' | 'server' | 'filter' | 'radio' | 'move' | 'palette';
+  icon: 'bot' | 'server' | 'table' | 'tree' | 'gauge' | 'chart' | 'filter' | 'accessibility' | 'palette';
 }
 
 export interface FaqItem {
@@ -138,7 +138,7 @@ export const demoUseCases: DemoUseCase[] = [
     label: 'Infrastructure',
     theme: 'fleet telemetry',
     summary:
-      'A realtime server monitor: a host fleet ticks live every second with momentum-driven d3 area sparklines, heat-scaled metrics and status swatches, a Gruvbox terminal theme, and a column panel that shows/hides, reorders and left/right-pins columns - plus per-column text / number / status filters.',
+      'A realtime server monitor: a host fleet ticks live every second with d3 area sparklines, heat-scaled metrics and status swatches, a custom terminal theme, and a column panel to show/hide, reorder and pin columns - plus per-column filters.',
     gridMountId: 'grid-demo-infrastructure',
     demoId: 'server-monitor',
     conversation: serverMonitorConversation.messages as DemoConversationMessage[],
@@ -160,7 +160,7 @@ export const demoUseCases: DemoUseCase[] = [
     label: 'Billing',
     theme: 'revenue-recognition schedule',
     summary:
-      'A compact revenue-recognition schedule: a collapsible Company > Contract > line-item tree with subtotal rows, a green inline recognition bar, and a month-by-month Balance/Revenue column band (December 2024 back to January 2024) - sortable and resizable, with the Name column pinned on horizontal scroll.',
+      'A compact revenue-recognition schedule: a collapsible Company > Contract > line-item tree with subtotal rows, inline recognition bars, and a month-by-month Balance/Revenue band - sortable and resizable, with the Name column pinned on scroll.',
     gridMountId: 'grid-demo-billing',
     demoId: 'revenue-recognition',
     conversation: revenueRecognitionConversation.messages as DemoConversationMessage[],
@@ -171,7 +171,7 @@ export const demoUseCases: DemoUseCase[] = [
     label: 'Pivot analytics',
     theme: 'Tableau-style pivot builder',
     summary:
-      'A full Tableau-style pivot builder: write cross / hierarchy / concat table-algebra expressions for Rows and Columns with live validation and VSCode-style autocomplete, pick a per-measure aggregation, toggle grouped rows with drill-down chevrons, sort/filter from the corner cells, and heatmap cells by their deviation from each measure average - all aggregated live by DuckDB over 5,000 SaaS subscriptions, in an Ayu light/dark theme.',
+      'A full Tableau-style pivot builder: write cross / hierarchy / concat expressions for Rows and Columns, pick per-measure aggregations, toggle grouped rows with drill-down chevrons, and sort, filter and heatmap from the grid - aggregated live over 5,000 SaaS subscriptions.',
     gridMountId: 'grid-demo-pivot-analytics',
     demoId: 'pivot-studio',
     conversation: pivotStudioConversation.messages as DemoConversationMessage[],
@@ -252,15 +252,15 @@ export const principles: Principle[] = [
 ];
 
 export const features: FeatureLink[] = [
-  { hashPath: 'features/performance', title: 'Performance and virtualized rendering', href: `${gridFeaturesPath}#features/performance`, icon: 'gauge', body: 'Viewport-first rendering with cell reuse.' },
-  { hashPath: 'features/standard-table', title: 'Standard table with grouping', href: `${gridFeaturesPath}#features/standard-table`, icon: 'layers', body: 'Flat rows, grouping paths, pagination, sorting, and filtering.' },
-  { hashPath: 'features/tree-table', title: 'Tree table', href: `${gridFeaturesPath}#features/tree-table`, icon: 'tree', body: 'Grouped flat metadata supports depth, leaf, and expanded state.' },
-  { hashPath: 'features/pivot-table', title: 'Pivot table', href: `${gridFeaturesPath}#features/pivot-table`, icon: 'table', body: 'Row and column facets with table algebra.' },
-  { hashPath: 'features/server-codegen', title: 'Server-side code generation', href: `${gridFeaturesPath}#features/server-codegen`, icon: 'server', body: 'SQL-backed models generate executable datasource queries.' },
-  { hashPath: 'features/filtering', title: 'Sorting, filtering and pagination', href: `${gridFeaturesPath}#features/filtering`, icon: 'filter', body: 'Transform inputs flow through DataModel and ViewModel.' },
-  { hashPath: 'features/realtime', title: 'Real-time updates', href: `${gridFeaturesPath}#features/realtime`, icon: 'radio', body: 'Replace datasource/model layers and redraw on external events.' },
-  { hashPath: 'features/interactions', title: 'Advanced row/column interactions', href: `${gridFeaturesPath}#features/interactions`, icon: 'move', body: 'Renderer events and custom cell renderers drive app behavior.' },
-  { hashPath: 'features/theming', title: 'Custom theme and styling', href: `${gridFeaturesPath}#features/theming`, icon: 'palette', body: 'Theme config and renderer CSS customize visual output.' },
+  { hashPath: 'features/agent-ready', title: 'Built for agents', href: `${docsPath}/built-for-agents`, icon: 'bot', body: 'A layered, open-code architecture with metadata plumbing that lets an agent reliably generate any grid.' },
+  { hashPath: 'features/fullstack', title: 'Full-stack grid', href: `${gridFeaturesPath}#features/fullstack`, icon: 'server', body: 'One pipeline from SQL datasource to pixels, with server-side query generation and agent skills.' },
+  { hashPath: 'features/pivot-table', title: 'Pivot with table algebra', href: `${gridFeaturesPath}#features/pivot-table`, icon: 'table', body: 'Compose pivots from cross, hierarchy and concat operators instead of imperative config.' },
+  { hashPath: 'features/tree-table', title: 'Grouped and tree tables', href: `${gridFeaturesPath}#features/tree-table`, icon: 'tree', body: 'Flat grouping paths and multi-level tree tables with depth, leaf and expand state.' },
+  { hashPath: 'features/performance', title: 'Fast and realtime', href: `${gridFeaturesPath}#features/performance`, icon: 'gauge', body: 'Virtualized rendering with cell reuse that updates live as data streams in.' },
+  { hashPath: 'features/in-cell-charts', title: 'In-cell charts', href: `${gridFeaturesPath}#features/in-cell-charts`, icon: 'chart', body: 'Render sparklines, bars and heatmaps inside cells with custom renderers.' },
+  { hashPath: 'features/data-operations', title: 'Sort, filter, paginate, project', href: `${gridFeaturesPath}#features/data-operations`, icon: 'filter', body: 'Sorting, filtering, pagination and dimensional projections handled at the data layer.' },
+  { hashPath: 'features/accessibility', title: 'Accessible', href: `${gridFeaturesPath}#features/accessibility`, icon: 'accessibility', body: 'Semantic, keyboard-reachable DOM with expanding ARIA and screen-reader support.' },
+  { hashPath: 'features/theming', title: 'Themable', href: `${gridFeaturesPath}#features/theming`, icon: 'palette', body: 'Theme tokens and renderer CSS to match any design, in light and dark.' },
 ];
 
 export const comparisonRows: ComparisonRow[] = [
