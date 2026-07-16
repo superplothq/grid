@@ -354,6 +354,51 @@ html[data-theme='dark'] #nd-docs-layout .shiki span {
   height: auto;
 }
 
+/* Tableau-style field pills: dimensions blue, measures green. Filled soft
+   background with a matching border; the text lightens in dark mode so it stays
+   legible on the dark surface. */
+.doc-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.05rem 0.5rem;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  font-family: var(--font-mono);
+  font-size: 0.82em;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.doc-pill-dimension {
+  color: #1c6fb0;
+  background: color-mix(in srgb, #1f77b4 14%, transparent);
+  border-color: color-mix(in srgb, #1f77b4 34%, transparent);
+}
+.doc-pill-measure {
+  color: #1f8f57;
+  background: color-mix(in srgb, #2ca02c 15%, transparent);
+  border-color: color-mix(in srgb, #2ca02c 34%, transparent);
+}
+@media (prefers-color-scheme: dark) {
+  html:not([data-theme='light']) .doc-pill-dimension {
+    color: #6fb2e6;
+  }
+  html:not([data-theme='light']) .doc-pill-measure {
+    color: #5fc98c;
+  }
+}
+:root[data-theme='dark'] .doc-pill-dimension {
+  color: #6fb2e6;
+}
+:root[data-theme='dark'] .doc-pill-measure {
+  color: #5fc98c;
+}
+:root[data-theme='light'] .doc-pill-dimension {
+  color: #1c6fb0;
+}
+:root[data-theme='light'] .doc-pill-measure {
+  color: #1f8f57;
+}
+
 /* Conversation reuses web's demo-chatbox visual; drop its fixed demo height. */
 #nd-docs-layout .sample-conversation[open] {
   height: auto;

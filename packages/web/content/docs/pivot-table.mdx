@@ -17,6 +17,14 @@ This is why a pivot needs a semantics rather than a pile of options. To cover ev
 
 SuperPlot treats the pivot as a first-class citizen. It helps you implement not just the grid but the data generation too, because producing correct data for different pivot configs is itself a combinatorial problem. The DataModel defines the input and output contract. We ship a default implementation that generates SQL for the browser via DuckDB WASM, plus a skill that generates the same for your own toolchains and infrastructure. The DataViewModel then receives the reshaped result as a render-ready structure, and the renderer draws it. From raw rows to pixels, the whole path is covered.
 
+<a className="doc-link-card" href="/grid/docs/samples/pivot-table">
+  <span className="doc-link-card-head">
+    <svg className="doc-link-card-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M8 6l-6 6 6 6" /><path d="M16 6l6 6-6 6" /></svg>
+    <span className="doc-link-card-title">Pivot Table: table algebra by example</span>
+  </span>
+  <span className="doc-link-card-text">Edit cross, hierarchy, and concat expressions on live pivots and see the config each one produces.</span>
+</a>
+
 ### Table algebra
 
 Each axis, rows and columns alike, is defined with three composable operators, drawn from the table algebra formalized in the Polaris paper.

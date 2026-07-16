@@ -1,0 +1,329 @@
+---
+title: Pivot Table
+description: Build a pivot by writing a small table-algebra expression for each axis. You can edit each expression to live change the effect.
+runtime: duckdb
+tags: [pivot]
+---
+
+A pivot summarizes a flat table by laying one set of fields down the rows and
+another across the columns, aggregating a measure at each intersection. In
+SuperPlot each axis is not a fixed list of fields but a small expression built
+from three operators, `cross`, `hierarchy`, and `concat`. That expression is the
+whole configuration: the DataModel turns it into SQL, reshapes the result, and the
+grid renders it.
+
+Every widget on this page is the same pivot over 5,000 generated SaaS
+subscriptions. Edit the **Rows** and **Columns** expressions and the grid re-runs
+live; the autocomplete lists the dimensions, measures, and operators you can use.
+All the grids share one in-browser DuckDB datasource, created once, and only the
+one you are looking at is mounted at a time.
+
+## Dataset
+
+The examples run over one generated table of SaaS subscriptions whose fields fall
+into two kinds.
+
+- **Dimensions** are the categorical fields you group and nest by, the labels that
+  become row and column headers.
+- **Measures** are the numeric fields that get aggregated at each intersection, the
+  values that fill the cells.
+
+In an expression, dimensions carry the structure of an axis while measures are what
+you put under it.
+
+| Field | Kind | Description |
+| --- | --- | --- |
+| <Pill kind="dimension">region</Pill> | Dimension | Sales region (North America, Europe, APAC, LATAM) |
+| <Pill kind="dimension">country</Pill> | Dimension | Country within a region |
+| <Pill kind="dimension">plan</Pill> | Dimension | Subscription plan (Free, Pro, Business, Enterprise) |
+| <Pill kind="dimension">industry</Pill> | Dimension | Customer industry |
+| <Pill kind="dimension">channel</Pill> | Dimension | Acquisition channel |
+| <Pill kind="measure">mrr</Pill> | Measure | Monthly recurring revenue |
+| <Pill kind="measure">seats</Pill> | Measure | Seats on the subscription |
+| <Pill kind="measure">signups</Pill> | Measure | New signups |
+| <Pill kind="measure">churned</Pill> | Measure | Churned seats |
+
+Dimensions go on either axis to shape the grid; measures go on either axis to be
+aggregated into it.
+
+### Schema
+
+Before any pivot runs, the data is loaded into a datasource with a **schema** that
+declares each field's kind. Dimensions are marked `type: "dimension"`. Measures are
+marked `type: "measure"` and additionally carry a numeric `subtype` (`integer` or
+`decimal`) and an **`aggregateFn`**. The aggregate function is what a pivot needs to
+collapse the many rows behind a cell into a single value: `sum` on this page, but
+`avg`, `count`, `min`, and `max` are available too. Dimensions need no aggregate,
+they are grouped rather than reduced.
+
+```ts
+import { DuckDBWasmDataSource, SqlPivotTableDataModel } from "grid";
+import type { DataSchema } from "grid";
+
+const schema: DataSchema[] = [
+  { name: "region",   displayName: "Region",   type: "dimension" },
+  { name: "country",  displayName: "Country",  type: "dimension" },
+  { name: "plan",     displayName: "Plan",     type: "dimension" },
+  { name: "industry", displayName: "Industry", type: "dimension" },
+  { name: "channel",  displayName: "Channel",  type: "dimension" },
+  { name: "mrr",      displayName: "MRR",      type: "measure", subtype: "decimal", aggregateFn: "sum" },
+  { name: "seats",    displayName: "Seats",    type: "measure", subtype: "integer", aggregateFn: "sum" },
+  { name: "signups",  displayName: "Signups",  type: "measure", subtype: "integer", aggregateFn: "sum" },
+  { name: "churned",  displayName: "Churned Seats", type: "measure", subtype: "integer", aggregateFn: "sum" },
+];
+
+// Load the column-major data into an in-browser DuckDB datasource, then build the
+// pivot DataModel on top of it. Every example on this page shares this datasource.
+const ds = await DuckDBWasmDataSource.create();
+await ds.loadData({ schema, data });
+
+const model = new SqlPivotTableDataModel(schema, ds);
+```
+
+The `model` is what the following examples call: each config you write becomes
+`model.getViewModelData(config)`, whose result feeds a `PivotDataViewModel` and the
+grid.
+
+## Table algebra operators
+
+Each axis is composed from three operators. This section shows what each one does on
+its own; for the deeper conceptual treatment and the formalism behind them, see
+[Pivot with table algebra](/grid/docs/pivot-table).
+
+### hierarchy
+
+`hierarchy(a, b)` nests `b` under `a` and keeps only the parent and child
+combinations that actually exist in the data. Unlike `cross`, which enumerates
+every possible pairing, `hierarchy` produces only observed pairs, which is what
+makes it a drill-down. It takes plain dimension fields, never measures.
+
+```ts
+import { hierarchy } from "grid";
+
+// Months nested under their actual quarter
+hierarchy("Quarter", "Month")
+```
+
+<div style={{ overflowX: 'auto', margin: '1rem 0' }}>
+  <div style={{ display: 'inline-grid', gridTemplateColumns: 'repeat(12, auto)', gap: '1px', padding: '1px', background: 'color-mix(in srgb, var(--color-fd-foreground) 20%, var(--color-fd-background))', borderRadius: '6px', width: 'fit-content', fontSize: '13px' }}>
+    <div style={{ padding: '6px 12px', background: 'color-mix(in srgb, var(--color-fd-foreground) 3%, var(--color-fd-background))', textAlign: 'center', fontWeight: 600, gridColumn: 'span 3' }}>Qtr1</div>
+    <div style={{ padding: '6px 12px', background: 'color-mix(in srgb, var(--color-fd-foreground) 3%, var(--color-fd-background))', textAlign: 'center', fontWeight: 600, gridColumn: 'span 3' }}>Qtr2</div>
+    <div style={{ padding: '6px 12px', background: 'color-mix(in srgb, var(--color-fd-foreground) 3%, var(--color-fd-background))', textAlign: 'center', fontWeight: 600, gridColumn: 'span 3' }}>Qtr3</div>
+    <div style={{ padding: '6px 12px', background: 'color-mix(in srgb, var(--color-fd-foreground) 3%, var(--color-fd-background))', textAlign: 'center', fontWeight: 600, gridColumn: 'span 3' }}>Qtr4</div>
+    <div style={{ padding: '6px 12px', background: 'color-mix(in srgb, var(--color-fd-foreground) 3%, var(--color-fd-background))', textAlign: 'center' }}>Jan</div>
+    <div style={{ padding: '6px 12px', background: 'color-mix(in srgb, var(--color-fd-foreground) 3%, var(--color-fd-background))', textAlign: 'center' }}>Feb</div>
+    <div style={{ padding: '6px 12px', background: 'color-mix(in srgb, var(--color-fd-foreground) 3%, var(--color-fd-background))', textAlign: 'center' }}>Mar</div>
+    <div style={{ padding: '6px 12px', background: 'color-mix(in srgb, var(--color-fd-foreground) 3%, var(--color-fd-background))', textAlign: 'center' }}>Apr</div>
+    <div style={{ padding: '6px 12px', background: 'color-mix(in srgb, var(--color-fd-foreground) 3%, var(--color-fd-background))', textAlign: 'center' }}>May</div>
+    <div style={{ padding: '6px 12px', background: 'color-mix(in srgb, var(--color-fd-foreground) 3%, var(--color-fd-background))', textAlign: 'center' }}>Jun</div>
+    <div style={{ padding: '6px 12px', background: 'color-mix(in srgb, var(--color-fd-foreground) 3%, var(--color-fd-background))', textAlign: 'center' }}>Jul</div>
+    <div style={{ padding: '6px 12px', background: 'color-mix(in srgb, var(--color-fd-foreground) 3%, var(--color-fd-background))', textAlign: 'center' }}>Aug</div>
+    <div style={{ padding: '6px 12px', background: 'color-mix(in srgb, var(--color-fd-foreground) 3%, var(--color-fd-background))', textAlign: 'center' }}>Sep</div>
+    <div style={{ padding: '6px 12px', background: 'color-mix(in srgb, var(--color-fd-foreground) 3%, var(--color-fd-background))', textAlign: 'center' }}>Oct</div>
+    <div style={{ padding: '6px 12px', background: 'color-mix(in srgb, var(--color-fd-foreground) 3%, var(--color-fd-background))', textAlign: 'center' }}>Nov</div>
+    <div style={{ padding: '6px 12px', background: 'color-mix(in srgb, var(--color-fd-foreground) 3%, var(--color-fd-background))', textAlign: 'center' }}>Dec</div>
+  </div>
+</div>
+
+<Callout type="warn">
+  `hierarchy` takes only dimensions, never measures. It is also the one operator that
+  cannot wrap another operator: its arguments must be plain dimension fields, so
+  `hierarchy(concat(...))` or `hierarchy(cross(...))` is not allowed. It can still sit
+  inside another operator, as in `cross(hierarchy(region, country), mrr)`.
+</Callout>
+
+### cross
+
+`cross(a, b)` is the cartesian product: every value of `a` paired with every value
+of `b`. Each argument becomes a nested facet level, so crossing two dimensions gives
+nested headers, and crossing a dimension with a measure repeats the measure under
+each dimension value.
+
+```ts
+import { cross } from "grid";
+
+// every quarter paired with every product
+cross("Quarter", "Product")
+```
+
+<div style={{ overflowX: 'auto', margin: '1rem 0' }}>
+  <div style={{ display: 'inline-grid', gridTemplateColumns: 'repeat(8, auto)', gap: '1px', padding: '1px', background: 'color-mix(in srgb, var(--color-fd-foreground) 20%, var(--color-fd-background))', borderRadius: '6px', width: 'fit-content', fontSize: '13px' }}>
+    <div style={{ padding: '6px 12px', background: 'color-mix(in srgb, var(--color-fd-foreground) 3%, var(--color-fd-background))', textAlign: 'center', fontWeight: 600, gridColumn: 'span 2' }}>Qtr1</div>
+    <div style={{ padding: '6px 12px', background: 'color-mix(in srgb, var(--color-fd-foreground) 3%, var(--color-fd-background))', textAlign: 'center', fontWeight: 600, gridColumn: 'span 2' }}>Qtr2</div>
+    <div style={{ padding: '6px 12px', background: 'color-mix(in srgb, var(--color-fd-foreground) 3%, var(--color-fd-background))', textAlign: 'center', fontWeight: 600, gridColumn: 'span 2' }}>Qtr3</div>
+    <div style={{ padding: '6px 12px', background: 'color-mix(in srgb, var(--color-fd-foreground) 3%, var(--color-fd-background))', textAlign: 'center', fontWeight: 600, gridColumn: 'span 2' }}>Qtr4</div>
+    <div style={{ padding: '6px 12px', background: 'color-mix(in srgb, var(--color-fd-foreground) 3%, var(--color-fd-background))', textAlign: 'center' }}>Coffee</div>
+    <div style={{ padding: '6px 12px', background: 'color-mix(in srgb, var(--color-fd-foreground) 3%, var(--color-fd-background))', textAlign: 'center' }}>Tea</div>
+    <div style={{ padding: '6px 12px', background: 'color-mix(in srgb, var(--color-fd-foreground) 3%, var(--color-fd-background))', textAlign: 'center' }}>Coffee</div>
+    <div style={{ padding: '6px 12px', background: 'color-mix(in srgb, var(--color-fd-foreground) 3%, var(--color-fd-background))', textAlign: 'center' }}>Tea</div>
+    <div style={{ padding: '6px 12px', background: 'color-mix(in srgb, var(--color-fd-foreground) 3%, var(--color-fd-background))', textAlign: 'center' }}>Coffee</div>
+    <div style={{ padding: '6px 12px', background: 'color-mix(in srgb, var(--color-fd-foreground) 3%, var(--color-fd-background))', textAlign: 'center' }}>Tea</div>
+    <div style={{ padding: '6px 12px', background: 'color-mix(in srgb, var(--color-fd-foreground) 3%, var(--color-fd-background))', textAlign: 'center' }}>Coffee</div>
+    <div style={{ padding: '6px 12px', background: 'color-mix(in srgb, var(--color-fd-foreground) 3%, var(--color-fd-background))', textAlign: 'center' }}>Tea</div>
+  </div>
+</div>
+
+<Callout type="info">
+  Inside a `cross`, a measure cannot appear before a dimension. A measure has to be
+  the leaf (innermost) argument or sit inside a group, so `cross(plan, mrr)` and
+  `cross(plan, concat(mrr, seats))` are valid while `cross(mrr, plan)` is not.
+</Callout>
+
+### concat
+
+`concat(a, b)` places values side by side on the same facet level, as peers rather
+than nested. It generates no combinations; the branches are simply laid out in
+sequence. It works on measures, to show several metrics at once, and on dimensions,
+to place two breakdowns side by side.
+
+```ts
+import { concat } from "grid";
+
+// Profit and Sales as adjacent columns
+concat("Profit", "Sales")
+```
+
+<div style={{ overflowX: 'auto', margin: '1rem 0' }}>
+  <div style={{ display: 'inline-grid', gridTemplateColumns: 'repeat(2, auto)', gap: '1px', padding: '1px', background: 'color-mix(in srgb, var(--color-fd-foreground) 20%, var(--color-fd-background))', borderRadius: '6px', width: 'fit-content', fontSize: '13px' }}>
+    <div style={{ padding: '6px 12px', background: 'color-mix(in srgb, var(--color-fd-foreground) 3%, var(--color-fd-background))', textAlign: 'center' }}>Profit</div>
+    <div style={{ padding: '6px 12px', background: 'color-mix(in srgb, var(--color-fd-foreground) 3%, var(--color-fd-background))', textAlign: 'center' }}>Sales</div>
+  </div>
+</div>
+
+Concatenating dimensions lays their values out in the same way, one field's values
+after the next on a single level:
+
+```ts
+// Product values followed by Quarter values, side by side on one level
+concat("Product", "Quarter")
+```
+
+<div style={{ overflowX: 'auto', margin: '1rem 0' }}>
+  <div style={{ display: 'inline-grid', gridTemplateColumns: 'repeat(5, auto)', gap: '1px', padding: '1px', background: 'color-mix(in srgb, var(--color-fd-foreground) 20%, var(--color-fd-background))', borderRadius: '6px', width: 'fit-content', fontSize: '13px' }}>
+    <div style={{ padding: '6px 12px', background: 'color-mix(in srgb, var(--color-fd-foreground) 3%, var(--color-fd-background))', textAlign: 'center' }}>Coffee</div>
+    <div style={{ padding: '6px 12px', background: 'color-mix(in srgb, var(--color-fd-foreground) 3%, var(--color-fd-background))', textAlign: 'center' }}>Tea</div>
+    <div style={{ padding: '6px 12px', background: 'color-mix(in srgb, var(--color-fd-foreground) 3%, var(--color-fd-background))', textAlign: 'center' }}>Qtr1</div>
+    <div style={{ padding: '6px 12px', background: 'color-mix(in srgb, var(--color-fd-foreground) 3%, var(--color-fd-background))', textAlign: 'center' }}>Qtr2</div>
+    <div style={{ padding: '6px 12px', background: 'color-mix(in srgb, var(--color-fd-foreground) 3%, var(--color-fd-background))', textAlign: 'center' }}>Qtr3</div>
+  </div>
+</div>
+
+<Callout type="warn">
+  `concat` cannot mix kinds. Every field inside a single `concat` must be the same
+  kind: a `concat` of measures (`concat(mrr, seats)`) or a `concat` of dimensions
+  (`concat(plan, industry)`), never one that combines a measure with a dimension.
+</Callout>
+
+## Config examples
+
+The widgets below are editable. Change the **Rows** and **Columns** expressions and
+the grid re-runs live, with autocomplete for the fields and operators.
+
+### One dimension, one measure in each axis
+
+The simplest pivot: a single dimension down the rows and a single measure across
+the columns. `region` on the rows groups the subscriptions by region, and `mrr` on
+the columns sums monthly recurring revenue for each group.
+
+<PivotDemo rows="region" columns="mrr" />
+
+An axis is any of a bare field name, or an operator wrapping other fields. A bare
+measure like `mrr` is a valid column axis on its own. The config passes each axis
+straight through to the DataModel:
+
+```ts
+import { cross, hierarchy, concat } from "grid";
+
+const config: PivotConfig = {
+  rows: "region",
+  columns: "mrr",
+};
+
+const params = await model.getViewModelData(config);
+grid.data = new PivotDataViewModel(params);
+grid.draw();
+```
+
+### `concat(measure, ...)` lays down measures one after another
+
+`concat` places **measure** fields next to each other on the same level. Putting
+`concat(mrr, seats)` on the columns gives each region two peer columns, MRR and
+Seats, laid down one after another rather than nested.
+
+<PivotDemo rows="region" columns="concat(mrr, seats)" />
+
+```ts
+const config: PivotConfig = {
+  rows: "region",
+  columns: concat("mrr", "seats"),
+};
+```
+
+### `hierarchy(dimension, ...)` nests field values
+
+`hierarchy` nests dimensions and keeps only the combinations that exist in the
+data. `hierarchy(region, country)` puts each country under its region, so North
+America expands to United States and Canada while APAC expands to its own
+countries. No impossible region and country pairs appear.
+
+<PivotDemo rows="hierarchy(region, country)" columns="concat(mrr, seats)" />
+
+```ts
+const config: PivotConfig = {
+  rows: hierarchy("region", "country"),
+  columns: concat("mrr", "seats"),
+};
+```
+
+### `cross(dimension | group | measure, ...)` nests one field under another
+
+`cross` is the cartesian product: it pairs every value of the first argument with
+every value of the next, which is what creates nested headers. Each argument can be
+a dimension, a group (another `cross`, `concat`, or `hierarchy`), or a measure.
+`cross(plan, concat(mrr, seats))` gives each plan its own MRR and Seats columns, so
+the header reads Free, Pro, Business, and Enterprise across the top, each carrying
+the two measures beneath it.
+
+<PivotDemo rows="region" columns="cross(plan, concat(mrr, seats))" />
+
+```ts
+const config: PivotConfig = {
+  rows: "region",
+  columns: cross("plan", concat("mrr", "seats")),
+};
+```
+
+### `concat(dimension, ...)` works on dimensions too
+
+`concat` is not only for measures. It places dimension fields side by side on the
+same level as well, giving two independent breakdowns as peers rather than one
+nested under the other. That is what makes it versatile: anywhere you want peers
+instead of nesting, on either axis and for either kind, `concat` is the operator.
+
+Combined with `cross`, a group of dimensions can be paired with a group of
+measures. `cross(concat(plan, industry), concat(mrr, seats))` puts the Plan and
+Industry breakdowns side by side across the top, and gives each of them its own MRR
+and Seats columns beneath.
+
+<PivotDemo rows="region" columns="cross(concat(plan, industry), concat(mrr, seats))" />
+
+```ts
+const config: PivotConfig = {
+  rows: "region",
+  columns: cross(concat("plan", "industry"), concat("mrr", "seats")),
+};
+```
+
+### Composing everything
+
+The operators nest, so an axis reads like a small expression. A hierarchy of three
+dimensions down the rows, a `cross` of a plan with two measures across the columns:
+
+<PivotDemo rows="hierarchy(region, country, industry)" columns="cross(plan, concat(mrr, seats))" />
+
+```ts
+const config: PivotConfig = {
+  rows: hierarchy("region", "country", "industry"),
+  columns: cross("plan", concat("mrr", "seats")),
+};
+```
