@@ -16,15 +16,7 @@ This is a Yarn workspace made up of the following packages:
 
 - **packages/grid** - Headless grid / pivot table core (TypeScript, DuckDB, SQL-based querying)
 - **packages/frameworks** - Framework bindings (React 18): `DataGrid`, `usePivotGrid`, `useFlatGrid`, `useDataSource`
-- **packages/playground** - React app for developing and demoing grid samples
 - **packages/web** - SuperPlot public site (Next.js, static export) that hosts `/grid/docs`
-- **packages/docs** - Standalone documentation site
-- **packages/samples** - Self-contained grid samples consumed by the site
-
-## Requirements
-
-- Node.js 18+
-- Yarn 1.x (this repo pins `yarn@1.22.22`)
 
 ## Getting started
 
