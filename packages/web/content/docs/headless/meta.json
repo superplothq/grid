@@ -1,0 +1,8 @@
+{
+  "title": "Headless Grid",
+  "pages": [
+    "[Sort](/grid/docs/samples/headless-sort)",
+    "[Filter](/grid/docs/samples/headless-filter)",
+    "[Paginate](/grid/docs/samples/headless-paginate)"
+  ]
+}

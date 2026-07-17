@@ -1,0 +1,321 @@
+---
+title: Custom cell renderers
+description: Render anything in a cell such as charts, dropdowns, color and date pickers, and action buttons through a tiny stateless renderer contract that stays highly performant, and swap renderers live.
+datasets: []
+runtime: static
+tags: [flat]
+---
+
+Each column gets its own renderer through `vTrackDefs`. The demo below wires seven:
+a bold text label, a d3 sparkline, a status `<select>`, a color `<input>`, a date
+`<input>`, a progress bar, and an action button. The interactive ones write their
+edit straight back to the row data and re-render, so the value on screen is always
+a reflection of the data, never of the DOM.
+
+```ts
+// Charts: the cell value is a number[]; d3 turns it into an inline SVG.
+import { line, curveCatmullRom } from "d3-shape";
+import { scaleLinear } from "d3-scale";
+
+const trendRenderer: CellRenderer<number[]> = (series, dataCtx) => {
+  const x = scaleLinear().domain([0, series.length - 1]).range([3, 117]);
+  const y = scaleLinear().domain([Math.min(...series), Math.max(...series)]).range([29, 3]);
+  const path = line<number>().x((_, i) => x(i)).y((v) => y(v)).curve(curveCatmullRom)(series);
+  return `<svg width="120" height="32"><path d="${path}" fill="none" stroke="${rows[dataCtx.rowIndex].color}" /></svg>`;
+};
+
+// Editable: seed the widget from the value, write the edit back to the row, re-render.
+const statusRenderer: CellRenderer<string> = (value, dataCtx) => {
+  const select = buildSelect(STATUSES, value);
+  select.addEventListener("change", () => {
+    rows[dataCtx.rowIndex].status = select.value;   // state lives in the data
+    render();                                        // updateData + draw
+  });
+  return select;
+};
+```
+
+Try it below: change a Status, pick a Label color, set a Due date, or click Advance
+to bump a row's progress. Each edit updates the row and the grid redraws from it.
+
+<SampleDemo id="custom-cell-renderers" />
+
+**Source**
+
+```json doc-gen:file
+{ "file": "packages/samples/src/samples/custom-cell-renderers/sample.ts", "codeblock": { "lang": "ts" } }
+```
+
+## Swap renderers live
+
+Because a renderer is just a function read at draw time, its behavior can depend on
+external state. The sparkline reads a `chartType` variable from scope, so changing
+it and calling `draw()` repaints every visible chart with no data change, no new
+viewmodel, and no query.
+
+```ts
+let chartType = "line";
+
+const trendRenderer: CellRenderer<number[]> = (series, dataCtx) =>
+  trendSvg(series, chartType, rows[dataCtx.rowIndex].color);   // reads chartType live
+
+chartPicker.addEventListener("change", () => {
+  chartType = chartPicker.value;   // "line" | "bar" | "area"
+  grid.draw();                     // repaints the visible cells against the new type
+});
+```
+
+Try it above: switch the **Trend chart** control between line, bar, and area. Only
+the charts change; the rest of the grid is untouched.
+
+## The three renderer types
+
+The demo overrides data cells, but every cell in the grid is drawn by a renderer, and
+there are three types, one for each kind of cell:
+
+- **Data cell renderer** (`CellRenderer`) - the value inside a data cell, the main grid
+  body. This is what the demo above uses.
+- **Facet cell renderer** (`FacetCellRenderer`) - a row or column header cell, for
+  example the "Q1" or "Revenue" labels.
+- **Facet header renderer** (`FacetHeaderRenderer`) - the level label that names a facet
+  track, for example "Region" or "Quarter".
+
+All three share the same ownership convention: return content and the layout places it
+in the DOM, or return `void` to signal that you have taken the container over yourself
+(the path frameworks like React use).
+
+## Data cell renderers
+
+A `CellRenderer` receives the cell's value and the context objects that say who and
+where the cell is:
+
+<auto-class-outline
+  path="packages/grid/src/renderer/cell-renderers.ts"
+  name="CellRenderer"
+/>
+
+### Return values
+
+| Return type | Behavior |
+|---|---|
+| `string` | Set as the cell's `innerHTML`. Use for simple text or HTML strings. |
+| `HTMLElement` | Appended as the cell's child. |
+| `HTMLElement[]` | All elements appended as children. |
+| `void` (undefined) | The layout does not touch the container. The renderer owns it, the path used when a framework like React calls `createRoot` on the container. |
+
+Two rules follow from that table and from how the grid draws:
+
+- **Stay stateless.** The grid may call a renderer many times for the same logical
+  cell, so it has to produce its whole output from `data` and `dataCtx` every time and
+  never accumulate state on the side. In the demo, every edit is written back to the
+  row and the grid redraws from the data, so the cell is always a function of the data.
+- **Mind who owns the DOM.** What you return decides who manages the lifecycle of the
+  nodes. Return a string or an element and the grid core owns them: it places, reuses,
+  and clears them for you across draws. Return nothing (`void`) and the grid leaves the
+  cell untouched, handing the lifecycle to your glue code.
+
+### Assigning renderers
+
+Data cell renderers are assigned per column via `VTrackDef.renderer` in the viewmodel
+options. Columns without a renderer get the default `textRenderer`.
+
+```ts
+const options: GridDataViewModelOptions = {
+  vTrackDefs: [
+    undefined,                                        // column 0: default textRenderer
+    { renderer: myBarRenderer },                      // column 1: custom renderer
+    { renderer: sparklineRenderer, cellHeight: 40 },  // column 2: custom with fixed height
+  ],
+};
+
+const viewModel = new FlattenedDataViewModel({ ...params, options });
+```
+
+### Cell height and sample data
+
+The layout measures row height before the first render by calling each column's
+renderer with a sample value, by default the first row's value. Two options control
+this for renderers whose height does not follow from the first row:
+
+- `cellHeight` - skip measurement entirely and use this fixed pixel height. Useful for
+  fixed-size content like charts (the demo pins its row height this way).
+- `sampleData` - provide a representative value for measurement instead of the first
+  row.
+
+```ts
+const chartDef: VTrackDef<number[]> = {
+  renderer: createChartRenderer({ chartType: "line", minHeight: 30 }),
+  cellHeight: 30,
+  sampleData: [1, 2, 3, 4, 5],
+};
+```
+
+## Facet cell renderers
+
+A `FacetCellRenderer` draws a single facet cell, the value labels in row and column
+headers:
+
+<auto-class-outline
+  path="packages/grid/src/renderer/types.ts"
+  name="FacetCellRenderer"
+/>
+
+- `path` gives the full facet context. For a column facet cell at level 1 showing
+  "Revenue" under "Q1", the path is `["Q1", "Revenue"]`.
+- `flatMeta` is present only for row facets rendered by `GroupedRowLayout`; it carries
+  `depth`, `isLeaf`, and `isExpanded` for the row.
+- `ctx.render(viewModel)` triggers a re-render, for interactive facet cells such as a
+  group row you click to expand or collapse.
+- Instead of a plain string or element, a facet renderer can return a `FacetCellContent`
+  object with up to three slots: `left` (e.g. an expand icon), `content` (the label),
+  and `right` (e.g. a sort indicator).
+
+```ts
+const groupFacetRenderer: FacetCellRenderer = (data, dataCtx, ctx) => {
+  const icon = document.createElement("span");
+  icon.textContent = dataCtx.flatMeta?.isExpanded ? "▼" : "▶";
+  icon.style.cursor = "pointer";
+  icon.onclick = () => {
+    toggleGroup(dataCtx.index);   // toggle expand/collapse
+    ctx.render(updatedViewModel); // and re-render
+  };
+  return { left: icon, content: data ?? "" };
+};
+```
+
+Facet renderers are set via `FacetDef.trackRenderer` in the viewmodel options:
+
+```ts
+const options: GridDataViewModelOptions = {
+  facetDefs: {
+    row: [{ text: "Region", trackRenderer: groupFacetRenderer }],
+    col: [{ text: "Quarter", trackRenderer: defaultFacetRenderer }],
+    axis: "col",
+  },
+};
+```
+
+## Facet header renderers
+
+A `FacetHeaderRenderer` draws the level label, the cell that names a facet track such
+as "Region" or "Quarter":
+
+<auto-class-outline
+  path="packages/grid/src/renderer/types.ts"
+  name="FacetHeaderRenderer"
+/>
+
+The `text` argument is the `FacetDef.text` value. Use `ctx.render` for interactive
+headers, for example a column header you click to sort:
+
+```ts
+const sortableHeaderRenderer: FacetHeaderRenderer = (text, ctx) => {
+  const label = document.createElement("span");
+  label.textContent = text;
+  label.style.cursor = "pointer";
+  label.onclick = () => {
+    applySort(text);              // apply sort
+    ctx.render(updatedViewModel); // and re-render
+  };
+  return label;
+};
+```
+
+## Built-in renderers
+
+The grid ships a few renderers so common cells need no custom code:
+
+- **`textRenderer`** - the default data cell renderer. Displays the value as a
+  single-line string with ellipsis overflow. Columns without a `VTrackDef.renderer` use
+  it.
+- **`createChartRenderer`** - a factory that returns a data cell renderer for inline SVG
+  `"line"` or `"bar"` charts from a `number[]` cell value. The demo hand-rolls its own
+  charts with d3 for full control, but this covers the common case.
+- **`defaultFacetRenderer`** and **`defaultFacetHeaderRenderer`** - the default facet and
+  header renderers; both return the value as a string, with `null` becoming `""`.
+
+```ts
+import { createChartRenderer } from "grid/dist/renderer";
+
+const sparkline = createChartRenderer({ chartType: "line", color: "#1976d2" });
+const barChart = createChartRenderer({ chartType: "bar", minWidth: 100, minHeight: 24 });
+
+const options: GridDataViewModelOptions = {
+  vTrackDefs: [
+    undefined,
+    { renderer: sparkline, cellHeight: 20, sampleData: [1, 2, 3] },
+  ],
+};
+```
+
+## Framework rendering (void return)
+
+When a renderer returns `void`, the layout skips placing content in the DOM: it assumes
+the renderer owns the container. This is the pattern for React, Vue, or any framework
+that manages its own DOM tree.
+
+The one constraint: the layout measures cell dimensions with `getBoundingClientRect`
+immediately after calling renderers, for column auto-sizing. Framework renders that are
+async (like React's default batching) must be flushed synchronously before measurement.
+The React bindings in `packages/frameworks` handle this for you: the adapter creates a
+`createRoot` bound to the cell's container, returns `void`, and flushes with `flushSync`
+before measurement, so you pass a React component and it is wrapped as a renderer.
+
+```tsx
+import type { FC } from "react";
+import type { CellProps } from "frameworks";
+
+const PercentCell: FC<CellProps<number>> = ({ value }) => (
+  <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+    <div style={{ width: `${value}%`, height: 4, background: value >= 50 ? "#4caf50" : "#f44336" }} />
+    <span>{value}%</span>
+  </div>
+);
+
+// In a useFlatGrid / usePivotGrid columns config:
+const columns = [{ renderer: PercentCell }];
+```
+
+Without React, follow the same shape: on the first call mount your root on
+`ctx.container`, on later calls (same `ctx.key`, cell reused) update it, return `void`,
+and clean up via the `onCellRelease` hook on the Grid constructor.
+
+```ts
+const grid = new Grid(config, mountEl, "flat", {
+  onCellRelease: (key, cell) => myFramework.unmount(cell),
+});
+```
+
+## Conditional renderers via selection rules
+
+`VTrackDef.renderer` and `FacetDef.trackRenderer` apply to a whole column or facet
+level. To override the renderer for specific cells by their facet context or value, use
+`grid.selectAll`. It matches facet cells by dimension name and value; chain `.prop` to
+override the renderer for the matching cells only, without rebuilding the viewmodel.
+
+```ts
+// A bar renderer only for Revenue data cells.
+grid
+  .selectAll((dim, dimVal) => dim === "Measure" && dimVal === "Revenue")
+  .prop({ cellRenderer: barRenderer });
+
+// Target data cells by value: red text for negative revenue.
+grid
+  .selectAll((dim, dimVal) => dim === "Measure" && dimVal === "Revenue")
+  .selectAllCell((value) => value < 0)
+  .prop({ cellRenderer: negativeValueRenderer });
+```
+
+That is how a renderer can change per column, per row, or per cell after construction.
+See [Column selection](/grid/docs/samples/column-selection) for the targeting in action.
+
+## Renderer selection priority
+
+For each cell, the layout resolves which renderer to use in this order:
+
+1. **Selection rule override** - a matching `selectAll` rule that supplies a
+   `cellRenderer` (data cells) or `trackRenderer` (facet cells) wins. When several rules
+   match, the last one inserted wins.
+2. **VTrackDef / FacetDef renderer** - the renderer set on the column or facet level.
+3. **Default renderer** - `textRenderer` for data cells, `defaultFacetRenderer` for
+   facet cells, `defaultFacetHeaderRenderer` for facet headers.

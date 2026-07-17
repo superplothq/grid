@@ -1,25 +1,32 @@
-import {GridDataViewModel} from "./grid-data-viewmodel";
+import { GridDataViewModel } from "./grid-data-viewmodel";
 import { GridConfig, defaultConfig } from "./grid-config";
-import CellManager from "./core/cell-manager";
-import {addToRegistry} from "./registry";
-import { Constructor } from "./types";
+import CellManager from "./cell-manager";
+import { addToRegistry } from "./registry";
+import { Constructor, FacetPredicate } from "./types";
 import "./themes";
-import StandardLayout, { LayoutEvents } from "./core/standard-layout";
-import { WithEvents, EventEmitter } from "./core/mixins";
+import StandardLayout, { LayoutEvents } from "./standard-layout";
+import GroupedRowLayout from "./grouped-row-layout";
+import { WithEvents, EventEmitter } from "./mixins";
+import { SelectionRuleStore, Selection } from "./select-all";
+
+export type LayoutType = "pivot" | "flat";
 
 // TODO this used to be the entry point, now it's not, so lot of this config
 // is not necessary
 export { StandardLayout };
+export { default as GroupedRowLayout } from "./grouped-row-layout";
 export { GridConfig, defaultConfig } from "./grid-config";
 export type {
   IColAutoSize,
   IColAutoSizeStrategyMaxCell,
-  IColAutoSizeStrategyFixedWidth,
+  IColAutoSizeStrategyClampedWidth,
   ColAutoSizeConfig,
   VTrackDef,
   ResolvedVTrackDef,
   GridDataViewModelOptions,
-  SliceResult,
+  BaseSliceResult,
+  PivotSliceResult,
+  FlatSliceResult,
   Theme,
   FacetCellRenderer,
   FacetRendererContext,
@@ -28,12 +35,33 @@ export type {
   FacetDef,
   FacetMeta,
   FacetHeaderRenderer,
-  FacetHeaderContext,
+  HeaderCellContext as FacetHeaderContext,
+  FacetData,
+  FlatRowMeta,
+  DataViewport,
+  FacetPredicate,
+  CellPredicate,
+  SelectionProps,
+  ViewModelMetadata,
+  MetadataValue,
+  ColumnFacetMetadata,
+  RowFacetMetadata,
+  HeaderMetadata,
+  ValueColumnMetadata,
+  ValueRowMetadata,
+  ValueCellMetadata,
+  ValueCellDataContext,
+  ValueFormatter,
 } from "./types";
-export { registerTheme } from "./registry";
+export { Selection, CellSelection } from "./select-all";
+export { registerTheme, getTheme } from "./registry";
 export { GridDataViewModel, MetaState } from "./grid-data-viewmodel";
-export type { BaseViewModel as BaseViewState } from "./core/layout-proto";
-export type { LayoutEvents } from "./core/standard-layout";
+export { PivotDataViewModel } from "./pivot-data-viewmodel";
+export { FlattenedDataViewModel, createRowMeta } from "./flattened-data-viewmodel";
+export type { BaseViewModel } from "./layout-proto";
+export type { LayoutEvents } from "./standard-layout";
+export { PVerticalFixture, PHorizontalFixture } from "./fixture-proto";
+export type { BaseFixtureViewModel } from "./fixture-proto";
 export type { EventEmitter };
 export {
   textRenderer,
@@ -46,7 +74,7 @@ export {
   type CellWithConfigRenderer,
   type CellRenderer,
   type RendererContext,
-} from "./core/cell-renderers";
+} from "./cell-renderers";
 
 export type SelectionPayload = {
   hash: string;
@@ -75,6 +103,11 @@ function fastHash(str: string): string {
   return (hash >>> 0).toString(36);
 }
 
+/**
+ * The public entry point for the grid renderer. Wraps a layout engine (`StandardLayout` or `GroupedRowLayout`),
+ * a cell pool, and a selection rule store. Set a [GridDataViewModel](/docs/viewmodel) via the `data` setter, then
+ * call `draw()` to render. The Grid forwards all [layout events](/docs/renderer/events) and adds selection events.
+ */
 export default class Grid extends GridWithEvents {
   #config: GridConfig;
   #data: GridDataViewModel | undefined;
@@ -82,16 +115,25 @@ export default class Grid extends GridWithEvents {
   #layout: StandardLayout;
   #renderCount = 0;
   #selections: Map<string, [fromRow: number, fromCol: number, toRow: number, toCol: number]> = new Map();
+  #ruleStore: SelectionRuleStore;
 
-  constructor(config: Partial<GridConfig>, mountPoint: HTMLElement) {
+  constructor(config: Partial<GridConfig>, mountPoint: HTMLElement, layoutType: LayoutType = "pivot", opts?: {
+    onCellRelease?: (key: string, cell: HTMLElement) => void;
+    onBeforeMeasure?: () => void;
+  }) {
     super();
     this.#config = { ...defaultConfig, ...config };
 
     this.#cellManager = new CellManager();
-    this.#layout = new StandardLayout(this.#config, mountPoint, this.#cellManager);
+    if (opts?.onCellRelease) this.#cellManager.onRelease = opts.onCellRelease;
+    const LayoutClass = layoutType === "flat" ? GroupedRowLayout : StandardLayout;
+    this.#layout = new LayoutClass(this.#config, mountPoint, this.#cellManager);
+    if (opts?.onBeforeMeasure) this.#layout.onBeforeMeasure = opts.onBeforeMeasure;
+
+    this.#ruleStore = new SelectionRuleStore(() => this.draw());
 
     // Forward layout events to Grid
-    this.forwardFrom(this.#layout as unknown as EventEmitter<LayoutEvents>, ["renderComplete", "debug_perf:metrics"]);
+    this.forwardFrom(this.#layout as unknown as EventEmitter<LayoutEvents>, ["renderComplete", "debug_perf:metrics", "viewDataEmpty", "viewModelDataChanged"]);
 
     this.#setupResizeHandler();
   }
@@ -100,16 +142,14 @@ export default class Grid extends GridWithEvents {
     if (!this.#config.enableResizeUI) return;
 
     const container = this.#layout.gridContainer;
-    const EDGE_THRESHOLD = 4;
-
-    const isNearRightEdge = (cell: HTMLElement, clientX: number): boolean => {
-      const rect = cell.getBoundingClientRect();
-      return clientX >= rect.right - EDGE_THRESHOLD;
+    const isResizeHandle = (target: EventTarget | null): boolean => {
+      if (!(target instanceof HTMLElement)) return false;
+      return target.classList.contains("resize-handle");
     };
 
-    const getHeaderCell = (target: EventTarget | null): HTMLElement | null => {
+    const getResizeTarget = (target: EventTarget | null): HTMLElement | null => {
       if (!(target instanceof HTMLElement)) return null;
-      return target.closest<HTMLElement>("[data-cell-type='column-facet']");
+      return target.closest<HTMLElement>("[data-cell-action-resize='1']");
     };
 
     const findFullColumnRange = (level: number, rightPtr: number): { start: number; end: number } => {
@@ -142,48 +182,76 @@ export default class Grid extends GridWithEvents {
     };
 
     container.addEventListener("mousedown", (e: MouseEvent) => {
-      const cell = getHeaderCell(e.target);
-      if (!cell || !isNearRightEdge(cell, e.clientX)) return;
+      if (!isResizeHandle(e.target)) return;
+      const cell = getResizeTarget(e.target);
+      if (!cell) return;
 
-      const level = parseInt(cell.dataset.facetLevel!, 10);
-      // See the diagram in the comment on standard-layout.ts
-      // since for facets level < leaf levels, columns are merged (by applying colspan), rightPtr contains the right
-      // most index of the merged column facet value from the data view model.
-
-      // TODO[1] this confusing rowFacetAdjustment is necessary because the dataset indices (hix, cclix)
-      //      includes row facets while computing the indices. But column facets / col defs in data view model
-      //      does not include row facets header.
-      //      This is a temporary fix. To fix it properly - add rowFacet headers in both colDefs and columnFacets
-      //      (we will need it when we have to show row header / enable row resizing).
-      const rowFacetAdjustment = this.#layout.data!.numRowFacetLevels;
-      const rightPtr = parseInt(cell.dataset.hix!, 10) - rowFacetAdjustment;
-
-      // column facets level = leaf levels provides header cells for data cells. These two essentially create a standard table.
-      // Column facets level < leaf levels create hierarchy/nesting and spans over multiple leaf level columns.
-      // Here we find out : for a given level and value of column facet what are the leaf level columns over which the
-      // column facet spans. This would contain columns that are in viewport and that are invisible and not in dom
-      // because of virtualization
-      const fullRange = findFullColumnRange(level, rightPtr);
-      const totalColCount = fullRange.end - fullRange.start + 1;
+      const region = cell.dataset.cellRegion as "left" | "center" | "right";
       const startX = e.clientX;
-
-      // Find out out of all leaf level nodes over which the column being dragged spans, which columns are in dom
-      // TODO[1]
-      const visibleCols = getVisibleLeafColumns(fullRange.start + rowFacetAdjustment, fullRange.end + rowFacetAdjustment);
-      // TODO for cells that are not currently in dom atm, but would appear in dom as we scroll / reduce size of columns
-      //      we need to update the change in size of columns to be considered as they appears on the dom
 
       type ResizeController = ReturnType<StandardLayout["changeLeafColWidth"]>;
       const resizeControllers: { idx: number; ctrl: ResizeController }[] = [];
-      for (const colIdx of visibleCols) {
-        resizeControllers.push({ idx: colIdx, ctrl: this.#layout.changeLeafColWidth(colIdx) });
+      const createControllers: (() => void)[] = [];
+      let totalColCount = 1;
+
+      if (region === "center") {
+        const level = parseInt(cell.dataset.facetLevel!, 10);
+        // See the diagram in the comment on standard-layout.ts
+        // since for facets level < leaf levels, columns are merged (by applying colspan), rightPtr contains the right
+        // most index of the merged column facet value from the data view model.
+        const numLeftFixedTracks = this.#layout.numLeftFixedTracks;
+        const rightPtr = parseInt(cell.dataset.hix!, 10) - numLeftFixedTracks;
+
+        // column facets level = leaf levels provides header cells for data cells. These two essentially create a standard table.
+        // Column facets level < leaf levels create hierarchy/nesting and spans over multiple leaf level columns.
+        // Here we find out : for a given level and value of column facet what are the leaf level columns over which the
+        // column facet spans. This would contain columns that are in viewport and that are invisible and not in dom
+        // because of virtualization
+        const leafLevel = this.#layout.data!.numColFacetLevels - 1;
+        const fullRange = level < leafLevel
+          ? findFullColumnRange(level, rightPtr)
+          : { start: rightPtr, end: rightPtr };
+        totalColCount = fullRange.end - fullRange.start + 1;
+
+        // Find out out of all leaf level nodes over which the column being dragged spans, which columns are in dom
+        const visibleCols = getVisibleLeafColumns(fullRange.start + numLeftFixedTracks, fullRange.end + numLeftFixedTracks);
+        // TODO for cells that are not currently in dom atm, but would appear in dom as we scroll / reduce size of columns
+        //      we need to update the change in size of columns to be considered as they appears on the dom
+
+        for (const colIdx of visibleCols) {
+          createControllers.push(() => resizeControllers.push({ idx: colIdx, ctrl: this.#layout.changeLeafColWidth(colIdx) }));
+        }
+      } else if (region === "left" && (e.target as HTMLElement).dataset.groupFacetResize === "1") {
+        const numLeftFixtures = this.#layout.numLeftFixedTracks - this.#layout.data!.numRowFacetLevels;
+        const numRowFacetLevels = this.#layout.data!.numRowFacetLevels;
+        totalColCount = numRowFacetLevels;
+        for (let i = 0; i < numRowFacetLevels; i++) {
+          const trackIndex = numLeftFixtures + i;
+          createControllers.push(() => resizeControllers.push({ idx: trackIndex, ctrl: this.#layout.changeLeftStickyTrackWidth(trackIndex) }));
+        }
+      } else if (region === "left") {
+        const trackIndex = parseInt(cell.dataset.leftStickyTrackIndex!, 10);
+        createControllers.push(() => resizeControllers.push({ idx: trackIndex, ctrl: this.#layout.changeLeftStickyTrackWidth(trackIndex) }));
+      } else if (region === "right") {
+        const trackIndex = parseInt(cell.dataset.rightStickyTrackIndex!, 10);
+        createControllers.push(() => resizeControllers.push({ idx: trackIndex, ctrl: this.#layout.changeRightStickyTrackWidth(trackIndex) }));
       }
 
+      if (createControllers.length === 0) return;
 
+      // Defer controller creation to the first mousemove. Creating controllers eagerly on mousedown
+      // mutates gridTemplateColumns (override set + #applyColumnTemplate), and the cancel on mouseup
+      // mutates it again. These two mutations on a no-drag click cause a browser relayout that
+      // breaks dblclick detection. By deferring, single clicks cause zero template mutations.
+      let didDrag = false;
       const onMouseMove = (moveEvent: MouseEvent) => {
+        if (!didDrag) {
+          didDrag = true;
+          for (const fn of createControllers) fn();
+        }
         container.style.cursor = "col-resize";
         const deltaX = moveEvent.clientX - startX;
-        const lastPerColDelta = deltaX / totalColCount;
+        const lastPerColDelta = (region === "right" ? -deltaX : deltaX) / totalColCount;
         resizeControllers.forEach(c => c.ctrl.byDelta(lastPerColDelta));
       };
 
@@ -192,8 +260,10 @@ export default class Grid extends GridWithEvents {
         document.removeEventListener("mouseup", onMouseUp);
         container.style.cursor = "";
 
-        resizeControllers.forEach(c => c.ctrl.commit());
-        this.draw();
+        if (didDrag) {
+          resizeControllers.forEach(c => c.ctrl.commit());
+          this.draw();
+        }
       };
 
       document.addEventListener("mousemove", onMouseMove);
@@ -201,25 +271,82 @@ export default class Grid extends GridWithEvents {
 
       e.preventDefault();
     });
+
+    container.addEventListener("dblclick", (e: MouseEvent) => {
+      if (!isResizeHandle(e.target)) return;
+      const cell = getResizeTarget(e.target);
+      if (!cell) return;
+
+      const region = cell.dataset.cellRegion as "left" | "center" | "right";
+
+      if (region === "left" && (e.target as HTMLElement).dataset.groupFacetResize === "1") {
+        const numLeftFixtures = this.#layout.numLeftFixedTracks - this.#layout.data!.numRowFacetLevels;
+        const numRowFacetLevels = this.#layout.data!.numRowFacetLevels;
+        for (let i = 0; i < numRowFacetLevels; i++) {
+          this.#layout.autofitLeftStickyTrackWidth(numLeftFixtures + i);
+        }
+        this.draw();
+      } else if (region === "left") {
+        const trackIndex = parseInt(cell.dataset.leftStickyTrackIndex!, 10);
+        this.#layout.autofitLeftStickyTrackWidth(trackIndex);
+        this.draw();
+      } else if (region === "right") {
+        const trackIndex = parseInt(cell.dataset.rightStickyTrackIndex!, 10);
+        this.#layout.autofitRightStickyTrackWidth(trackIndex);
+        this.draw();
+      } else if (region === "center") {
+        const leafLevel = this.#layout.data!.numColFacetLevels - 1;
+        if (parseInt(cell.dataset.facetLevel!, 10) !== leafLevel) return;
+        const colIdx = parseInt(cell.dataset.hix!, 10);
+        this.#layout.autofitLeafColWidth(colIdx);
+        this.draw();
+      }
+    });
   }
 
+  #scheduleDrawPending = false;
+
+  /** Sets the viewmodel that provides data for rendering. After setting, call `draw()` to trigger the first render. Reassign after `updateData()` to push new data into the grid. */
   set data(value: GridDataViewModel) {
     this.#data = value;
     this.#layout.setData(value);
   }
 
+  /** Returns the current viewmodel, or `undefined` if none has been set. */
   get data(): GridDataViewModel | undefined {
     return this.#data;
   }
 
+  /** The container the grid tracks are rendered onto - the element that carries the theme's CSS custom properties. Set style tokens (e.g. `--cell-padding-y`) on it to override theme values. */
+  get trackSurfaceContainer(): HTMLElement {
+    return this.#layout.gridContainer;
+  }
+
+  /** Schedules a draw on the next animation frame. Multiple calls before the frame fires are coalesced into a single render. */
+  scheduleDraw(): void {
+    if (this.#scheduleDrawPending) return;
+    this.#scheduleDrawPending = true;
+    requestAnimationFrame(() => {
+      this.#scheduleDrawPending = false;
+      this.draw();
+    });
+  }
+
+  /** Creates a [Selection](/docs/renderer/selections) builder that targets facet cells matching the predicate. Chain `.selectAll()` to add more predicates, then `.style()` or `.prop()` to apply effects. */
+  selectAll(predicate: FacetPredicate): Selection {
+    return new Selection(this.#ruleStore, [{ type: "facet", predicate }]);
+  }
+
+  /** Triggers a synchronous render cycle: calculates the viewport, fetches the data slice, renders cells, auto-sizes columns, and emits `renderComplete`. Throws if `data` has not been set. */
   draw(): void {
     const startTime = performance.now();
     this.#renderCount++;
 
     if (!this.#data) throw new Error("Data is not set!");
 
+    this.#layout.setSelectAllRules(this.#ruleStore.rules);
     const viewModel = this.#layout.calculateViewModel();
-    this.#layout.render(viewModel, {t1: startTime});
+    this.#layout.render(viewModel, { t1: startTime });
   }
 
   #makeSelectionId(fromRow: number, fromCol: number, toRow: number, toCol: number): string {
@@ -288,6 +415,7 @@ export default class Grid extends GridWithEvents {
     this.#layout.viewModelProposal({ selections: selectionsArray });
   }
 
+  /** Selects a single cell by its data row and column index. Returns `[hash, unsub]` where `hash` identifies the selection and `unsub()` removes it. Returns `null` if the cell is already selected. Emits `selectionAdded`; calling `unsub()` emits `selectionRemoved`. */
   selectCellByDataIndex(row: number, col: number): SelectionResult {
     const result = this.#resolveConflictsAndAddSelection(row, col, row, col);
     if (result.isDuplicate) return null;
@@ -305,6 +433,7 @@ export default class Grid extends GridWithEvents {
     }];
   }
 
+  /** Selects a rectangular range of cells. Coordinates are normalized (min/max) internally. A range selection clears all previous selections. Returns `[hash, unsub]` or `null` if already selected. */
   selectRangeByDataIndex(fromRow: number, fromCol: number, toRow: number, toCol: number): SelectionResult {
     // Normalize to ensure from <= to
     const normFromRow = Math.min(fromRow, toRow);
@@ -328,6 +457,7 @@ export default class Grid extends GridWithEvents {
     }];
   }
 
+  /** Selects an entire column by its data index (all rows from 0 to Infinity). Column selections accumulate; adding a non-column selection clears them. Returns `[hash, unsub]` or `null` if already selected. */
   selectColumnByDataIndex(colIndex: number): SelectionResult {
     const result = this.#resolveConflictsAndAddSelection(0, colIndex, Infinity, colIndex);
     if (result.isDuplicate) return null;
@@ -345,6 +475,7 @@ export default class Grid extends GridWithEvents {
     }];
   }
 
+  /** Selects an entire row by its data index (all columns from 0 to Infinity). Row selections accumulate; adding a non-row selection clears them. Returns `[hash, unsub]` or `null` if already selected. */
   selectRowByDataIndex(rowIndex: number): SelectionResult {
     const result = this.#resolveConflictsAndAddSelection(rowIndex, 0, rowIndex, Infinity);
     if (result.isDuplicate) return null;
@@ -362,6 +493,17 @@ export default class Grid extends GridWithEvents {
     }];
   }
 
+  /** Programmatically scrolls to a row or column by its absolute index. For columns, retries up to 5 times to handle auto-sizing geometry changes. Throws if `data` has not been set. */
+  scrollTo(axis: "row" | "column", absoluteIndex: number): void {
+    if (!this.#data) throw new Error("Data is not set!");
+    if (axis === "row") {
+      this.#layout.scrollToRow(absoluteIndex);
+    } else {
+      this.#layout.scrollToCol(absoluteIndex);
+    }
+  }
+
+  /** Removes all active cell/row/column/range selections and triggers a re-render. */
   clearAllSelections(): void {
     this.#selections.clear();
     this.#syncSelectionsToLayout();

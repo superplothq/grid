@@ -1,21 +1,10 @@
 import React, {useEffect, useRef, useState} from "react";
 import "grid/dist/grid.css";
-import Grid, {GridDataViewModel, FacetCellRenderer, FacetDataContext, FacetRendererContext, FacetHeaderRenderer, FacetHeaderContext, GridDataViewModelOptions} from "grid/dist/renderer";
-import {BrowserInMemoryDataModel, DuckDBWasmBundles, cross, hierarchy, GridData, MeasureSchema, ProjectionState, AxisConfig, DimensionalProjectionPath, SortEntry, Filter, ScalarFilter} from "grid/dist/index";
+import Grid, {PivotDataViewModel, FacetCellRenderer, FacetDataContext, FacetRendererContext, FacetHeaderRenderer, FacetHeaderContext, GridDataViewModelOptions} from "grid/dist/renderer";
+import {DuckDBWasmDataSource, SqlPivotTableDataModel, cross, hierarchy, GridData, DataSchema, ProjectionState, AxisConfig, DimensionalProjectionPath, SortEntry, Filter, ScalarFilter} from "grid/dist/index";
 import feather from "feather-icons";
 import SortDropdown, {SortEntryConfig} from "./sort-dropdown";
 import FilterDropdown from "./filter-dropdown";
-
-const DUCKDB_BUNDLES: DuckDBWasmBundles = {
-  mvp: {
-    mainModule: "/duckdb-mvp.wasm",
-    mainWorker: "/duckdb-browser-mvp.worker.js",
-  },
-  eh: {
-    mainModule: "/duckdb-eh.wasm",
-    mainWorker: "/duckdb-browser-eh.worker.js",
-  },
-};
 
 const gridData: GridData = {
   columns: [
@@ -27,10 +16,10 @@ const gridData: GridData = {
     "channel",
     "quarter",
     "segment",
-    {name: "revenue", displayName: "Revenue", type: "measure", aggregateFn: "sum"} as MeasureSchema,
-    {name: "cost", displayName: "Cost", type: "measure", aggregateFn: "sum"} as MeasureSchema,
-    {name: "units_sold", displayName: "Units Sold", type: "measure", aggregateFn: "sum"} as MeasureSchema,
-    {name: "returns", displayName: "Returns", type: "measure", aggregateFn: "sum"} as MeasureSchema,
+    {name: "revenue", displayName: "Revenue", type: "measure", aggregateFn: "sum"},
+    {name: "cost", displayName: "Cost", type: "measure", aggregateFn: "sum"},
+    {name: "units_sold", displayName: "Units Sold", type: "measure", aggregateFn: "sum"},
+    {name: "returns", displayName: "Returns", type: "measure", aggregateFn: "sum"},
   ],
   data: [
     // region
@@ -62,7 +51,7 @@ const gridData: GridData = {
 
 function mergeRenderers(
   options: GridDataViewModelOptions | undefined,
-  viewModel: GridDataViewModel,
+  viewModel: PivotDataViewModel,
 ): GridDataViewModelOptions {
   const existingRow = viewModel.facetDefs.row;
   const existingCol = viewModel.facetDefs.col;
@@ -97,7 +86,7 @@ function buildFacetDefs(
   };
 }
 
-const MEASURE_NAMES = (gridData.columns.filter(c => typeof c === "object" && (c as MeasureSchema).type === "measure") as MeasureSchema[]).map(m => m.name);
+const MEASURE_NAMES = (gridData.columns.filter(c => typeof c === "object" && (c as DataSchema).type === "measure") as DataSchema[]).map(m => m.name);
 
 const ROW_HIERARCHY_FIELDS = ["region", "country", "city"];
 const COL_HIERARCHY_FIELDS = ["department", "product"];
@@ -194,8 +183,8 @@ function makeFacetRenderer(
   axis: "row" | "col",
   hierarchyDepth: number,
   projectionTreeRef: React.MutableRefObject<ProjectionTree>,
-  modelRef: React.MutableRefObject<BrowserInMemoryDataModel | null>,
-  viewModelRef: React.MutableRefObject<GridDataViewModel | null>,
+  modelRef: React.MutableRefObject<SqlPivotTableDataModel | null>,
+  viewModelRef: React.MutableRefObject<PivotDataViewModel | null>,
   buildConfig: () => { rows: AxisConfig; columns: AxisConfig; sort?: SortEntry[]; filter?: Filter[] },
 ): FacetCellRenderer {
   return (data: string, dataCtx: FacetDataContext, rCtx: FacetRendererContext) => {
@@ -245,7 +234,7 @@ function makeFacetRenderer(
       const config = buildConfig();
       const result = await model.getViewModelData(config);
 
-      viewModel.updateData(result.data, result.columnFacets, result.rowFacets, mergeRenderers(result.options, viewModel));
+      viewModel.updateData({ data: result.data, columnFacets: result.columnFacets, rowFacets: result.rowFacets, options: mergeRenderers(result.options, viewModel) });
 
       dataCtx.viewModel.metaState.clear(ns);
       rCtx.render(viewModel);
@@ -261,8 +250,8 @@ function makeFacetRenderer(
 const PivotGridPlayground: React.FC = () => {
   const gridConRef = useRef<HTMLDivElement>(null);
   const gridRef = useRef<Grid | null>(null);
-  const modelRef = useRef<BrowserInMemoryDataModel | null>(null);
-  const viewModelRef = useRef<GridDataViewModel | null>(null);
+  const modelRef = useRef<SqlPivotTableDataModel | null>(null);
+  const viewModelRef = useRef<PivotDataViewModel | null>(null);
   const rowProjectionRef = useRef<ProjectionTree>({});
   const colProjectionRef = useRef<ProjectionTree>({});
   const [loading, setLoading] = useState(true);
@@ -302,8 +291,8 @@ const PivotGridPlayground: React.FC = () => {
   openFilterDropdownRef.current = openFilterDropdown;
 
   const getFieldType = (fieldName: string): "dimension" | "measure" => {
-    const col = gridData.columns.find(c => (typeof c === "object" ? (c as MeasureSchema).name : c) === fieldName);
-    return (typeof col === "object" && (col as MeasureSchema).type === "measure") ? "measure" : "dimension";
+    const col = gridData.columns.find(c => (typeof c === "object" ? (c as DataSchema).name : c) === fieldName);
+    return (typeof col === "object" && (col as DataSchema).type === "measure") ? "measure" : "dimension";
   };
 
   const buildConfig = (): { rows: AxisConfig; columns: AxisConfig; sort?: SortEntry[]; filter?: Filter[] } => {
@@ -378,7 +367,15 @@ const PivotGridPlayground: React.FC = () => {
     let cancelled = false;
 
     const init = async () => {
-      const model = await BrowserInMemoryDataModel.create(gridData, DUCKDB_BUNDLES);
+      const schema: DataSchema[] = gridData.columns.map((col) => {
+        if (typeof col === "string") {
+          return { name: col, displayName: col, type: "dimension" as const };
+        }
+        return col;
+      });
+      const ds = await DuckDBWasmDataSource.create();
+      await ds.loadData({ schema, data: gridData.data });
+      const model = new SqlPivotTableDataModel(schema, ds);
       modelRef.current = model;
 
       const config = buildConfig();
@@ -390,10 +387,10 @@ const PivotGridPlayground: React.FC = () => {
       const rowRenderer = makeFacetRenderer("row", ROW_HIERARCHY_DEPTH, rowProjectionRef, modelRef, viewModelRef, buildConfig);
       const colRenderer = makeFacetRenderer("col", COL_HIERARCHY_DEPTH, colProjectionRef, modelRef, viewModelRef, buildConfig);
 
-      const viewModel = new GridDataViewModel(
-        result.data, result.columnFacets, result.rowFacets,
-        buildFacetDefs(result.options, rowRenderer, colRenderer, ROW_HIERARCHY_FIELDS, COL_HIERARCHY_FIELDS, rowHeaderRenderer, colHeaderRenderer),
-      );
+      const viewModel = new PivotDataViewModel({
+        data: result.data, columnFacets: result.columnFacets, rowFacets: result.rowFacets,
+        options: buildFacetDefs(result.options, rowRenderer, colRenderer, ROW_HIERARCHY_FIELDS, COL_HIERARCHY_FIELDS, rowHeaderRenderer, colHeaderRenderer),
+      });
       viewModelRef.current = viewModel;
 
       if (!gridRef.current) {
@@ -434,10 +431,10 @@ const PivotGridPlayground: React.FC = () => {
     const rowRenderer = makeFacetRenderer("row", ROW_HIERARCHY_DEPTH, rowProjectionRef, modelRef, viewModelRef, buildConfig);
     const colRenderer = makeFacetRenderer("col", COL_HIERARCHY_DEPTH, colProjectionRef, modelRef, viewModelRef, buildConfig);
 
-    viewModel.updateData(
-      result.data, result.columnFacets, result.rowFacets,
-      buildFacetDefs(result.options, rowRenderer, colRenderer, ROW_HIERARCHY_FIELDS, COL_HIERARCHY_FIELDS, rowHeaderRenderer, colHeaderRenderer),
-    );
+    viewModel.updateData({
+      data: result.data, columnFacets: result.columnFacets, rowFacets: result.rowFacets,
+      options: buildFacetDefs(result.options, rowRenderer, colRenderer, ROW_HIERARCHY_FIELDS, COL_HIERARCHY_FIELDS, rowHeaderRenderer, colHeaderRenderer),
+    });
 
     grid.draw();
   };
@@ -465,10 +462,10 @@ const PivotGridPlayground: React.FC = () => {
     const rowRenderer = makeFacetRenderer("row", ROW_HIERARCHY_DEPTH, rowProjectionRef, modelRef, viewModelRef, buildConfig);
     const colRenderer = makeFacetRenderer("col", COL_HIERARCHY_DEPTH, colProjectionRef, modelRef, viewModelRef, buildConfig);
 
-    viewModel.updateData(
-      result.data, result.columnFacets, result.rowFacets,
-      buildFacetDefs(result.options, rowRenderer, colRenderer, ROW_HIERARCHY_FIELDS, COL_HIERARCHY_FIELDS, rowHeaderRenderer, colHeaderRenderer),
-    );
+    viewModel.updateData({
+      data: result.data, columnFacets: result.columnFacets, rowFacets: result.rowFacets,
+      options: buildFacetDefs(result.options, rowRenderer, colRenderer, ROW_HIERARCHY_FIELDS, COL_HIERARCHY_FIELDS, rowHeaderRenderer, colHeaderRenderer),
+    });
     grid.draw();
 
     setSortDropdownState(null);
@@ -488,10 +485,10 @@ const PivotGridPlayground: React.FC = () => {
     const rowRenderer = makeFacetRenderer("row", ROW_HIERARCHY_DEPTH, rowProjectionRef, modelRef, viewModelRef, buildConfig);
     const colRenderer = makeFacetRenderer("col", COL_HIERARCHY_DEPTH, colProjectionRef, modelRef, viewModelRef, buildConfig);
 
-    viewModel.updateData(
-      result.data, result.columnFacets, result.rowFacets,
-      buildFacetDefs(result.options, rowRenderer, colRenderer, ROW_HIERARCHY_FIELDS, COL_HIERARCHY_FIELDS, rowHeaderRenderer, colHeaderRenderer),
-    );
+    viewModel.updateData({
+      data: result.data, columnFacets: result.columnFacets, rowFacets: result.rowFacets,
+      options: buildFacetDefs(result.options, rowRenderer, colRenderer, ROW_HIERARCHY_FIELDS, COL_HIERARCHY_FIELDS, rowHeaderRenderer, colHeaderRenderer),
+    });
     grid.draw();
 
     setFilterDropdownState(null);
@@ -511,10 +508,10 @@ const PivotGridPlayground: React.FC = () => {
     const rowRenderer = makeFacetRenderer("row", ROW_HIERARCHY_DEPTH, rowProjectionRef, modelRef, viewModelRef, buildConfig);
     const colRenderer = makeFacetRenderer("col", COL_HIERARCHY_DEPTH, colProjectionRef, modelRef, viewModelRef, buildConfig);
 
-    viewModel.updateData(
-      result.data, result.columnFacets, result.rowFacets,
-      buildFacetDefs(result.options, rowRenderer, colRenderer, ROW_HIERARCHY_FIELDS, COL_HIERARCHY_FIELDS, rowHeaderRenderer, colHeaderRenderer),
-    );
+    viewModel.updateData({
+      data: result.data, columnFacets: result.columnFacets, rowFacets: result.rowFacets,
+      options: buildFacetDefs(result.options, rowRenderer, colRenderer, ROW_HIERARCHY_FIELDS, COL_HIERARCHY_FIELDS, rowHeaderRenderer, colHeaderRenderer),
+    });
     grid.draw();
 
     setFilterDropdownState(null);

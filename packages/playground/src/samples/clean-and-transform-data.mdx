@@ -1,0 +1,101 @@
+import SchemaInferenceGrid from "./components/SchemaInferenceGrid";
+import {CleanGrid} from "./components/SchemaInferenceGrid";
+
+# Clean and Transform Data
+
+[We have created our first table](/samples/getting-started-flat-data#loading-data-as-is-in-a-simple-table). When grid renders data, if schema is not provided, it does best effort to infer the schema by sampling the data.
+
+But as you can see, often the data requires cleaning for grid to infer schema and render it correctly. And it's better if we explicitly push schema to grid.
+
+## Dimensions and Measures
+
+Every column in your data falls into one of two categories:
+
+- **Dimension** — A column you group or filter by. Dimensions are categorical or descriptive: names, dates, locations, statuses. They answer *what*, *who*, *where*, *when*. Examples: `Agency Name`, `Work Location Borough`, `Agency Start Date`.
+
+- **Measure** — A column you aggregate (sum, average, count, etc). Measures are numeric values that you want to do math on. They answer *how much* or *how many*. Examples: `Base Salary`, `Regular Hours`, `OT Hours`.
+
+Getting this distinction right matters because grid uses it to decide how to sort, aggregate, and display each column. A salary column marked as a dimension would be sorted alphabetically instead of numerically, and you wouldn't be able to sum or average it in a pivot.
+
+Dimensions can also have a **subtype**:
+- `temporal` — for date/time columns like `Agency Start Date`. This enables date-aware sorting, formatting, and filtering.
+
+Measures can have a subtype too:
+- `integer` — whole numbers like employee counts
+- `decimal` — numbers with fractional parts like salaries or hours
+
+## Schema inference and its limits
+
+When no schema is provided, grid samples the data and guesses a type for each column. Here's what it inferred for our payroll dataset:
+
+```ts
+[{ "name": "Payroll Number", "type": "measure", "subtype": "integer" }, // wrong: should be dimension
+ { "name": "Agency Name", "type": "dimension" },
+ { "name": "Last Name", "type": "dimension" },
+ { "name": "First Name", "type": "dimension" },
+ { "name": "Agency Start Date", "type": "dimension" }, // wrong: should be temporal
+ { "name": "Work Location Borough", "type": "dimension" },
+ { "name": "Title Description", "type": "dimension" },
+ { "name": "Leave Status as of June 30", "type": "dimension" },
+ { "name": "Base Salary", "type": "dimension" }, // wrong: should be measure
+ { "name": "Pay Basis", "type": "dimension" },
+ { "name": "Regular Hours", "type": "dimension" }, // wrong: should be measure
+ { "name": "Regular Gross Paid", "type": "dimension" }, // wrong: should be measure
+ { "name": "OT Hours", "type": "dimension" }, // wrong: should be measure
+ { "name": "Total OT Paid", "type": "dimension" }, // wrong: should be measure
+ { "name": "Total Other Pay", "type": "dimension" }] // wrong: should be measure
+```
+
+Several columns are wrong:
+
+- **Payroll Number** was inferred as a measure because it's numeric. But it's an ID — you'd never sum or average payroll numbers. It should be a dimension.
+- **Agency Start Date** was inferred as a plain dimension because the date format (`02/13/2023`) wasn't recognized as ISO. It should be `temporal` with a date format.
+- **Base Salary, Regular Hours, Regular Gross Paid, OT Hours, Total OT Paid, Total Other Pay** were all inferred as dimensions. Why? Because the raw CSV values contain `$` and `,` characters (e.g. `"$88,793.00"`, `"1,820"`), which makes them look like text, not numbers.
+
+With this incorrect schema, the grid renders like this — notice the warning icons on mistyped columns:
+
+<SchemaInferenceGrid height="150px" />
+
+## Cleaning data and imposing schema
+
+To fix this, we pass two things to `loadDataFromURL`:
+
+1. **`schema`** — An explicit schema array that tells grid the correct type and subtype for each column.
+2. **`replace`** — A map of string replacements to clean the raw values *before* grid casts them to the target type. For the money columns, we strip `$` and `,`. For the numeric hour columns, we strip `,`.
+
+```ts
+const schema: DataSchema[] = [
+  {name: "Payroll Number", type: "dimension"},
+  {name: "Agency Name", type: "dimension"},
+  {name: "Last Name", type: "dimension"},
+  {name: "First Name", type: "dimension"},
+  {name: "Agency Start Date", type: "dimension", subtype: "temporal", datetimeFormat: "%m/%d/%Y"},
+  {name: "Work Location Borough", type: "dimension"},
+  {name: "Title Description", type: "dimension"},
+  {name: "Leave Status as of June 30", type: "dimension"},
+  {name: "Base Salary", type: "measure", subtype: "decimal"},
+  {name: "Pay Basis", type: "dimension"},
+  {name: "Regular Hours", type: "measure", subtype: "decimal"},
+  {name: "Regular Gross Paid", type: "measure", subtype: "decimal"},
+  {name: "OT Hours", type: "measure", subtype: "decimal"},
+  {name: "Total OT Paid", type: "measure", subtype: "decimal"},
+  {name: "Total Other Pay", type: "measure", subtype: "decimal"},
+];
+
+const replace = new Map([
+  ["Base Salary", new Map([["$", ""], [",", ""]])],
+  ["Regular Gross Paid", new Map([["$", ""], [",", ""]])],
+  ["Total OT Paid", new Map([["$", ""], [",", ""]])],
+  ["Total Other Pay", new Map([["$", ""], [",", ""]])],
+  ["Regular Hours", new Map([[",", ""]])],
+  ["OT Hours", new Map([[",", ""]])],
+]);
+
+const columns = await ds.loadDataFromURL({url, type: "csv", schema, replace});
+```
+
+What happens under the hood: grid first loads everything as VARCHAR, then for each column it applies the `replace` substitutions via SQL `REPLACE()` calls, and finally casts the column to the target SQL type derived from the schema (e.g. `DOUBLE` for decimal measures, `TIMESTAMP` for temporal dimensions via `strptime`).
+
+With the correct schema and cleaned data, the grid renders correctly — numeric columns are right-aligned and sortable as numbers, and the date column is properly parsed:
+
+<CleanGrid height="300px" />

@@ -6,8 +6,10 @@
     "packages/*"
   ],
   "scripts": {
-    "build": "yarn workspaces run build",
     "start": "yarn workspace playground start",
+    "grid:build": "yarn workspace grid build && yarn workspace grid build:css && yarn workspace frameworks build",
+    "web:start": "yarn workspace web dev",
+    "web:build": "yarn workspace web build",
     "lint": "yarn workspaces run lint",
     "clean": "yarn workspaces run clean"
   },

@@ -1,17 +1,24 @@
 const path = require("path");
 const HtmlWebpackPlugin = require("html-webpack-plugin");
-const CopyWebpackPlugin = require("copy-webpack-plugin");
+const rehypePrettyCode = require("rehype-pretty-code").default;
+const rehypeSlug = require("rehype-slug").default;
+const rehypeAutolinkHeadings = require("rehype-autolink-headings").default;
 
 module.exports = {
   entry: "./src/index.tsx",
   output: {
     path: path.resolve(__dirname, "dist"),
     filename: "bundle.js",
+    publicPath: "/",
     clean: true,
   },
   devtool: "source-map",
   resolve: {
-    extensions: [".tsx", ".ts", ".js"],
+    extensions: [".tsx", ".ts", ".js", ".mdx"],
+    alias: {
+      react: path.resolve(__dirname, "node_modules/react"),
+      "react-dom": path.resolve(__dirname, "node_modules/react-dom"),
+    },
     fallback: {
       "fs": false,
       "path": false,
@@ -24,11 +31,19 @@ module.exports = {
         test: /\.js$/,
         enforce: "pre",
         use: ["source-map-loader"],
+        exclude: /node_modules\/@duckdb/,
       },
       {
         test: /\.tsx?$/,
         use: "ts-loader",
         exclude: /node_modules/,
+      },
+      {
+        test: /\.mdx$/,
+        use: [
+          { loader: "ts-loader", options: { transpileOnly: true, compilerOptions: { jsx: "react-jsx", allowJs: true } } },
+          { loader: "@mdx-js/loader", options: { providerImportSource: "@mdx-js/react", rehypePlugins: [rehypeSlug, [rehypeAutolinkHeadings, { behavior: "prepend", properties: { className: ["anchor-link"] } }], [rehypePrettyCode, { theme: { light: "github-light", dark: "github-dark" } }]] } },
+        ],
       },
       {
         test: /\.css$/i,
@@ -43,34 +58,6 @@ module.exports = {
   plugins: [
     new HtmlWebpackPlugin({
       template: "./public/index.html",
-    }),
-    new CopyWebpackPlugin({
-      patterns: [
-        {
-          from: "../../node_modules/@electric-sql/pglite/dist/pglite.wasm",
-          to: "pglite.wasm",
-        },
-        {
-          from: "../../node_modules/@electric-sql/pglite/dist/pglite.data",
-          to: "pglite.data",
-        },
-        {
-          from: "../../node_modules/@duckdb/duckdb-wasm/dist/duckdb-mvp.wasm",
-          to: "duckdb-mvp.wasm",
-        },
-        {
-          from: "../../node_modules/@duckdb/duckdb-wasm/dist/duckdb-browser-mvp.worker.js",
-          to: "duckdb-browser-mvp.worker.js",
-        },
-        {
-          from: "../../node_modules/@duckdb/duckdb-wasm/dist/duckdb-eh.wasm",
-          to: "duckdb-eh.wasm",
-        },
-        {
-          from: "../../node_modules/@duckdb/duckdb-wasm/dist/duckdb-browser-eh.worker.js",
-          to: "duckdb-browser-eh.worker.js",
-        },
-      ],
     }),
   ],
   devServer: {

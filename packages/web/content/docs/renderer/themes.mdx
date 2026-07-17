@@ -1,0 +1,174 @@
+---
+title: Themes
+description: How the grid theming system works. Themes are plain objects that map to CSS custom properties on the grid container. Two built-in themes (light and dark) are provided; register custom themes for full control.
+---
+
+A theme is a flat object of CSS values. The grid converts each key to a CSS custom property and applies it to the grid container. The grid's stylesheet references these variables for colors, spacing, borders, and typography.
+
+## Using a theme
+
+Pass the theme name via `GridConfig.theme`:
+
+```ts
+const grid = new Grid({ theme: "dark" }, mountEl);
+```
+
+The grid ships with two built-in themes: `"light"` (default) and `"dark"`.
+
+## Theme interface
+
+A `Theme` is a plain `Record<string, string | number>`. Each key is converted to a CSS variable by:
+
+1. Inserting a `-` before each uppercase letter and lowercasing
+2. Prepending `--`
+
+For example, `columnFacetBackgroundColor` becomes `--column-facet-background-color`.
+
+## Built-in themes
+
+### Light theme
+
+```ts
+const lightTheme: Theme = {
+  cellPaddingY: 6,
+  cellPaddingX: 10,
+  verticalBorderWidth: 1,
+  verticalBorderColor: "#ccd0da",
+  horizontalBorderWidth: 1,
+  horizontalBorderColor: "#ccd0da",
+  fontSize: 12,
+  fontWeight: "normal",
+  columnFacetBackgroundColor: "#e6e9ef",
+  columnFacetFontWeight: 500,
+  columnFacetTextColor: "#5c5f77",
+  rowFacetBackgroundColor: "#eff1f5",
+  valueTextColor: "#4c4f69",
+  valueBackgroundColor: "#FAFAFA",
+  facetHeaderBackgroundColor: "#e6e9ef",
+  facetHeaderFontColor: "#5c5f77",
+  facetHeaderFontSize: 12,
+  facetHeaderFontWeight: "normal",
+  dataLeftBorderWidth: 1,
+  dataLeftBorderColor: "#ccd0da",
+  dataTopBorderWidth: 1,
+  dataTopBorderColor: "#ccd0da",
+  errOverlayBackgroundColor: "rgba(255, 255, 255, 0.9)",
+  errOverlayTextColor: "#d81b60",
+};
+```
+
+### Dark theme
+
+```ts
+const darkTheme: Theme = {
+  cellPaddingY: 6,
+  cellPaddingX: 10,
+  verticalBorderWidth: 1,
+  verticalBorderColor: "#414559",
+  horizontalBorderWidth: 1,
+  horizontalBorderColor: "#414559",
+  fontSize: 12,
+  fontWeight: "normal",
+  columnFacetBackgroundColor: "#292c3c",
+  columnFacetFontWeight: 500,
+  columnFacetTextColor: "#cdd6f4",
+  rowFacetBackgroundColor: "#303446",
+  valueTextColor: "#c6d0f5",
+  valueBackgroundColor: "#303446",
+  facetHeaderBackgroundColor: "#292c3c",
+  facetHeaderFontColor: "#cdd6f4",
+  facetHeaderFontSize: 12,
+  facetHeaderFontWeight: "normal",
+  dataLeftBorderWidth: 1,
+  dataLeftBorderColor: "#414559",
+  dataTopBorderWidth: 1,
+  dataTopBorderColor: "#414559",
+  errOverlayBackgroundColor: "rgba(48, 52, 70, 0.9)",
+  errOverlayTextColor: "#ff7043",
+};
+```
+
+## Theme properties reference
+
+| Property | CSS variable | Applies to |
+|---|---|---|
+| `cellPaddingY` | `--cell-padding-y` | Vertical padding on all cells |
+| `cellPaddingX` | `--cell-padding-x` | Horizontal padding on all cells |
+| `verticalBorderWidth` | `--vertical-border-width` | Right border on facet and data cells |
+| `verticalBorderColor` | `--vertical-border-color` | Right border color; also used for resize handles |
+| `horizontalBorderWidth` | `--horizontal-border-width` | Bottom border on column facets, row facets, data cells, and headers |
+| `horizontalBorderColor` | `--horizontal-border-color` | Bottom border color |
+| `fontSize` | `--font-size` | Base font size for all cells |
+| `fontWeight` | `--font-weight` | Base font weight for all cells |
+| `columnFacetBackgroundColor` | `--column-facet-background-color` | Background of column facet (header) cells |
+| `columnFacetFontWeight` | `--column-facet-font-weight` | Font weight of column facet cells |
+| `columnFacetTextColor` | `--column-facet-text-color` | Text color of column facet cells and row facet cells |
+| `rowFacetBackgroundColor` | `--row-facet-background-color` | Background of row facet cells |
+| `valueTextColor` | `--value-text-color` | Text color of data cells |
+| `valueBackgroundColor` | `--value-background-color` | Background of data cells |
+| `facetHeaderBackgroundColor` | `--facet-header-background-color` | Background of corner/header cells |
+| `facetHeaderFontColor` | `--facet-header-font-color` | Text color of corner/header cells |
+| `facetHeaderFontSize` | `--facet-header-font-size` | Font size of corner/header cells |
+| `facetHeaderFontWeight` | `--facet-header-font-weight` | Font weight of corner/header cells |
+| `dataLeftBorderWidth` | `--data-left-border-width` | Left border on the first data column (separator between row facets and data) |
+| `dataLeftBorderColor` | `--data-left-border-color` | Left border color of the first data column |
+| `dataTopBorderWidth` | `--data-top-border-width` | Top border on the first data row (separator between column facets and data) |
+| `dataTopBorderColor` | `--data-top-border-color` | Top border color of the first data row |
+| `errOverlayBackgroundColor` | `--err-overlay-background-color` | Background of error overlay |
+| `errOverlayTextColor` | `--err-overlay-text-color` | Text color of error overlay |
+
+## Registering a custom theme
+
+Use `registerTheme(name, theme)` to add a new theme. Then pass its name to `GridConfig.theme`.
+
+```ts
+import { registerTheme } from "grid";
+
+registerTheme("corporate", {
+  cellPaddingY: 8,
+  cellPaddingX: 12,
+  verticalBorderWidth: 1,
+  verticalBorderColor: "#e0e0e0",
+  horizontalBorderWidth: 1,
+  horizontalBorderColor: "#e0e0e0",
+  fontSize: 13,
+  fontWeight: "normal",
+  columnFacetBackgroundColor: "#f5f5f5",
+  columnFacetFontWeight: 600,
+  columnFacetTextColor: "#333",
+  rowFacetBackgroundColor: "#fafafa",
+  valueTextColor: "#222",
+  valueBackgroundColor: "#fff",
+  facetHeaderBackgroundColor: "#f5f5f5",
+  facetHeaderFontColor: "#333",
+  facetHeaderFontSize: 13,
+  facetHeaderFontWeight: 600,
+  dataLeftBorderWidth: 2,
+  dataLeftBorderColor: "#bbb",
+  dataTopBorderWidth: 2,
+  dataTopBorderColor: "#bbb",
+  errOverlayBackgroundColor: "rgba(255, 255, 255, 0.95)",
+  errOverlayTextColor: "#c62828",
+});
+
+const grid = new Grid({ theme: "corporate" }, mountEl);
+```
+
+You can also add custom properties that don't exist in the built-in themes. Any key on the object becomes a CSS variable on the grid container, which you can reference in custom cell renderers or via selection rule style functions:
+
+```ts
+registerTheme("custom", {
+  ...lightTheme,
+  highlightColor: "#ffeb3b",
+});
+
+// Use in a selection rule style function:
+grid.selectAll((dim, val) => val === "Total")
+  .style((el) => {
+    el.style.backgroundColor = "var(--highlight-color)";
+  });
+```
+
+## Theme storage
+
+Themes are stored in a global registry on `window.__dataflow_grid__.themes`. This means themes registered in one module are available to all grid instances on the page. The registry persists for the page lifetime.

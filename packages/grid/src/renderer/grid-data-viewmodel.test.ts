@@ -1,5 +1,6 @@
 import { expect } from "chai";
-import { GridDataViewModel, MetaState } from "./grid-data-viewmodel";
+import { MetaState } from "./grid-data-viewmodel";
+import { PivotDataViewModel } from "./pivot-data-viewmodel";
 
 const colFacets2Levels: string[][] = [
   ["A", "A", "A", "B", "B", "B"],
@@ -76,7 +77,7 @@ describe("MetaState", () => {
   });
 
   it("should be available on GridDataViewModel", () => {
-    const vm = new GridDataViewModel(data4x5, colFacets1Level);
+    const vm = new PivotDataViewModel({ data: data4x5, columnFacets: colFacets1Level });
     vm.metaState.set("test", "loading", true);
     expect(vm.metaState.get("test")).to.deep.equal({ loading: true });
   });
@@ -84,10 +85,10 @@ describe("MetaState", () => {
 
 describe("GridDataViewModel.getSlice", () => {
   describe("1 column facet level, no row facets", () => {
-    let vm: GridDataViewModel;
+    let vm: PivotDataViewModel;
 
     beforeEach(() => {
-      vm = new GridDataViewModel(data4x5, colFacets1Level);
+      vm = new PivotDataViewModel({ data: data4x5, columnFacets: colFacets1Level });
     });
 
     it("should slice full data range", () => {
@@ -185,10 +186,10 @@ describe("GridDataViewModel.getSlice", () => {
   });
 
   describe("2 column facet levels, 3 row facet levels", () => {
-    let vm: GridDataViewModel;
+    let vm: PivotDataViewModel;
 
     beforeEach(() => {
-      vm = new GridDataViewModel(data6x8, colFacets2Levels, rowFacets3Levels);
+      vm = new PivotDataViewModel({ data: data6x8, columnFacets: colFacets2Levels, rowFacets: rowFacets3Levels });
     });
 
     it("should slice full data range with all facets", () => {
@@ -257,5 +258,105 @@ describe("GridDataViewModel.getSlice", () => {
       expect(result.data).to.deep.equal([[500, 501, 502, 503, 504, 505, 506, 507]]);
       expect(result.columnFacets).to.deep.equal([["B", "Z"]]);
     });
+  });
+});
+
+describe("valueFormatter resolution", () => {
+  const trackFormatter = () => "track";
+  const facetFormatter = () => "facet";
+  const deeperFacetFormatter = () => "deeper";
+
+  it("should resolve VTrackDef valueFormatter for its column only", () => {
+    const vm = new PivotDataViewModel({
+      data: data4x5,
+      columnFacets: colFacets1Level,
+      options: { vTrackDefs: [{ valueFormatter: trackFormatter }] },
+    });
+    expect(vm.vTrackDefs[0].valueFormatter).to.equal(trackFormatter);
+    expect(vm.vTrackDefs[1].valueFormatter).to.be.undefined;
+  });
+
+  it("should default every column to the col facet valueFormatter", () => {
+    const vm = new PivotDataViewModel({
+      data: data4x5,
+      columnFacets: colFacets1Level,
+      options: { facetDefs: { row: [], col: [{ valueFormatter: facetFormatter }], axis: "col" } },
+    });
+    for (const def of vm.vTrackDefs) {
+      expect(def.valueFormatter).to.equal(facetFormatter);
+    }
+  });
+
+  it("should prefer VTrackDef valueFormatter over col facet valueFormatter", () => {
+    const vm = new PivotDataViewModel({
+      data: data4x5,
+      columnFacets: colFacets1Level,
+      options: {
+        vTrackDefs: [{ valueFormatter: trackFormatter }],
+        facetDefs: { row: [], col: [{ valueFormatter: facetFormatter }], axis: "col" },
+      },
+    });
+    expect(vm.vTrackDefs[0].valueFormatter).to.equal(trackFormatter);
+    expect(vm.vTrackDefs[1].valueFormatter).to.equal(facetFormatter);
+  });
+
+  it("should pick the deepest col facet level that defines valueFormatter", () => {
+    const vm = new PivotDataViewModel({
+      data: data6x8,
+      columnFacets: colFacets2Levels,
+      options: {
+        facetDefs: {
+          row: [],
+          col: [{ valueFormatter: facetFormatter }, { valueFormatter: deeperFacetFormatter }],
+          axis: "col",
+        },
+      },
+    });
+    for (const def of vm.vTrackDefs) {
+      expect(def.valueFormatter).to.equal(deeperFacetFormatter);
+    }
+  });
+
+  it("should fall back to a shallower col facet level when deeper levels define none", () => {
+    const vm = new PivotDataViewModel({
+      data: data6x8,
+      columnFacets: colFacets2Levels,
+      options: {
+        facetDefs: { row: [], col: [{ valueFormatter: facetFormatter }, {}], axis: "col" },
+      },
+    });
+    for (const def of vm.vTrackDefs) {
+      expect(def.valueFormatter).to.equal(facetFormatter);
+    }
+  });
+
+  it("should leave valueFormatter undefined when none is configured", () => {
+    const vm = new PivotDataViewModel({ data: data4x5, columnFacets: colFacets1Level });
+    for (const def of vm.vTrackDefs) {
+      expect(def.valueFormatter).to.be.undefined;
+    }
+  });
+
+  it("should carry valueFormatter through normalized facet defs", () => {
+    const vm = new PivotDataViewModel({
+      data: data4x5,
+      columnFacets: colFacets1Level,
+      options: { facetDefs: { row: [], col: [{ valueFormatter: facetFormatter }], axis: "col" } },
+    });
+    expect(vm.facetDefs.col[0].valueFormatter).to.equal(facetFormatter);
+  });
+
+  it("should re-resolve valueFormatter on updateData", () => {
+    const vm = new PivotDataViewModel({
+      data: data4x5,
+      columnFacets: colFacets1Level,
+      options: { vTrackDefs: [{ valueFormatter: trackFormatter }] },
+    });
+    vm.updateData({
+      data: data4x5,
+      columnFacets: colFacets1Level,
+      options: { facetDefs: { row: [], col: [{ valueFormatter: facetFormatter }], axis: "col" } },
+    });
+    expect(vm.vTrackDefs[0].valueFormatter).to.equal(facetFormatter);
   });
 });

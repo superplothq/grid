@@ -1,0 +1,107 @@
+---
+title: DuckDBWasmDataSource
+description: SQL data source backed by DuckDB WASM for browser use.
+---
+
+`DuckDBWasmDataSource` is the recommended [SqlDataSource](/grid/docs/datasource/sql-datasource) implementation for browser applications, to load full CSV / JSON data in memory. It runs [DuckDB](https://duckdb.org) compiled to WebAssembly directly in the browser - no server required.
+
+It supports native Arrow ingestion for batch insertion, making `loadData()` and `loadDataFromURL()` fast even for large datasets.
+
+<auto-class-outline path="packages/grid/src/datamodel/duckdb-wasm-datasource.ts" name="DuckDBWasmDataSource" title="Outline" />
+
+## Creating an instance
+
+```ts
+import { DuckDBWasmDataSource } from "grid";
+
+const ds = await DuckDBWasmDataSource.create();
+```
+
+`create()` is async because it downloads and instantiates the DuckDB WASM binary. Default WASM bundles are included with the package - you don't need to configure them.
+
+### Custom WASM bundles
+
+If you self-host the WASM files or need a specific build, pass custom bundle paths:
+
+```ts
+const ds = await DuckDBWasmDataSource.create({
+  mvp: {
+    mainModule: "/wasm/duckdb-mvp.wasm",
+    mainWorker: "/wasm/duckdb-browser-mvp.worker.js",
+  },
+  eh: {
+    mainModule: "/wasm/duckdb-eh.wasm",
+    mainWorker: "/wasm/duckdb-browser-eh.worker.js",
+  },
+});
+```
+
+The `eh` (exception handling) bundle is optional but faster in browsers that support WASM exception handling. DuckDB's `selectBundle` picks the best available bundle automatically.
+
+<Callout type="warn" title="WASM bundle selection">
+DuckDB WASM ships three bundle tiers: **MVP** (minimal, single-threaded), **EH** (adds WASM exception handling, single-threaded), and **COI** (cross-origin isolated, multithreaded via `SharedArrayBuffer`).
+
+The COI bundle requires `Cross-Origin-Embedder-Policy` and `Cross-Origin-Opener-Policy` headers, which can conflict with other resources on the page. The library defaults to **MVP and EH bundles only**, which run single-threaded and need no special headers. This is the right middle ground between performance and deployment simplicity.
+</Callout>
+
+## Loading and querying data
+
+Once created, use the inherited `loadData()` and `loadDataFromURL()` methods from [SqlDataSource](/grid/docs/datasource/sql-datasource):
+
+```ts
+// load from a URL
+await ds.loadDataFromURL({
+  url: "/data/sales.json",
+  type: "json",
+  schema: [
+    { name: "city", type: "dimension" },
+    { name: "revenue", type: "measure", subtype: "decimal" },
+  ],
+});
+
+// query with SQL
+const rows = await ds.execute(`SELECT city, SUM(revenue) as total FROM ${ds.table} GROUP BY city`);
+```
+
+## Sharing across multiple grids
+
+A single `DuckDBWasmDataSource` can power multiple grids (e.g. a pivot table and a flat table on the same page). Use `addRef()` and `release()` to manage the shared <Term id="lifecycle">lifecycle</Term>:
+
+```ts
+const ds = await DuckDBWasmDataSource.create();
+await ds.loadDataFromURL({ url: "/data/sales.json", type: "json" });
+
+// second consumer
+ds.addRef();
+
+// when a consumer is done
+await ds.release();
+
+// when the last consumer releases, the WASM instance and connection are cleaned up
+await ds.release();
+```
+
+## Cleanup
+
+When `release()` is called and the reference count reaches zero, the underlying WASM connection is closed and the DuckDB WASM instance is terminated, freeing memory.
+
+## API Reference
+
+Extends [SqlDataSource](/grid/docs/datasource/sql-datasource#api-reference).
+
+<auto-type-table path="packages/grid/src/datamodel/duckdb-wasm-datasource.ts" name="DuckDBWasmDataSourceOwn" type="Pick<DuckDBWasmDataSource, 'execute' | 'release'>" origname="DuckDBWasmDataSource" />
+
+### Static methods
+
+<auto-type-table path="packages/grid/src/datamodel/duckdb-wasm-datasource.ts" name="DuckDBWasmDataSourceStatic" type="Omit<typeof DuckDBWasmDataSource, 'prototype'>" />
+
+## DuckDBDataSource (Node.js)
+
+`DuckDBDataSource` is the Node.js equivalent, backed by native DuckDB. It has the same API but uses native bindings instead of WASM. It is primarily used for server-side execution and unit testing.
+
+```ts
+import { DuckDBDataSource } from "grid";
+
+const ds = DuckDBDataSource.create(); // synchronous, no WASM to download
+await ds.loadDataFromURL({ url: "https://example.com/sales.json", type: "json" });
+```

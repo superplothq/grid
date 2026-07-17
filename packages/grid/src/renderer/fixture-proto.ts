@@ -1,0 +1,55 @@
+import { GridConfig } from "./grid-config";
+import { GridDataViewModel } from "./grid-data-viewmodel";
+import CellManager from "./cell-manager";
+import { BaseViewModel } from "./layout-proto";
+import { WithCellPlacement } from "./mixins";
+import { BaseSliceResult, ColAutoSizeConfig, HeaderCellContext } from "./types";
+
+export interface BaseFixtureViewModel {
+  offset: number;
+  track: number;
+  suggestedCls: string[];
+}
+
+export default abstract class PFixture {
+  data: GridDataViewModel | undefined;
+  config: GridConfig;
+  cellManager: CellManager;
+  con: HTMLElement;
+
+  constructor(config: GridConfig, con: HTMLElement, cellManager: CellManager) {
+    this.config = config;
+    this.con = con;
+    this.cellManager = cellManager;
+  }
+
+  setData(data: GridDataViewModel): void {
+    this.data = data;
+  }
+
+  abstract viewModelKey(): string;
+
+  abstract getCellsToRender(
+    viewModel: BaseViewModel,
+    fixtureViewModel: BaseFixtureViewModel,
+    sliceData: BaseSliceResult
+  ): {
+    nodesToAppend: HTMLElement[];
+  };
+}
+
+// #region vertical-fixture
+export abstract class PVerticalFixture extends WithCellPlacement(PFixture) {
+  #colSize: ColAutoSizeConfig = { strategy: "max-cell" };
+  get colSize(): ColAutoSizeConfig { return this.#colSize; }
+  set colSize(value: ColAutoSizeConfig) { this.#colSize = value; }
+  abstract headerCell(ctx: HeaderCellContext): HTMLElement | HTMLElement[] | string | null;
+}
+// #endregion vertical-fixture
+
+// #region horizontal-fixture
+export abstract class PHorizontalFixture extends WithCellPlacement(PFixture) {
+  abstract getHeight(): number;
+  headerCell(_ctx: HeaderCellContext): HTMLElement | HTMLElement[] | string | null | undefined { return undefined; }
+}
+// #endregion horizontal-fixture

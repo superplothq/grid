@@ -1,0 +1,82 @@
+---
+title: Column Interaction
+description: Resize columns by dragging their edge, and select cells, columns, and ranges with the pointer.
+datasets: [payroll]
+runtime: static
+tags: [flat]
+---
+
+Beyond styling, the grid ships two built-in pointer interactions for columns:
+**drag-to-resize** and **cell/column/range selection**. Both render their own
+visuals - the resize handle and the blue selection overlay come from the grid's
+stylesheet - so a sample only sets a flag or forwards a click.
+
+This is a different system from the rule-based `selectAll(...)` styling used in
+[Column Selection](/docs/samples/column-selection): that paints cells from facet
+predicates, while the API here selects data-index ranges and draws an overlay.
+
+## Resize columns
+
+Column resizing is on by default: with `enableResizeUI: true`, every column facet
+cell grows a drag handle on its right edge. Dragging it resizes the column and
+double-clicking it auto-fits to content - the grid wires both, so the sample sets
+the flag and nothing else.
+
+```ts
+const grid = new Grid({ enableResizeUI: true }, mount, "flat");   // default is true
+// drag a column's right-edge handle to resize; double-click the handle to auto-fit
+```
+
+`enableResizeUI` is read once at construction, and a manual width is stored on the
+layout, so toggling the handles or resetting to the configured widths is done by
+rebuilding the grid.
+
+Try it below: drag the right edge of any column, or double-click that edge to fit
+the column to its widest cell. Toggle the handles off, or reset the widths, from
+the toolbar.
+
+<SampleDemo id="column-interaction-resize" />
+
+**Source**
+
+```json doc-gen:file
+{ "file": "packages/samples/src/samples/column-interaction/resize.ts", "codeblock": { "lang": "ts" } }
+```
+
+## Select cells, columns, and ranges
+
+The selection API works in data indices and renders a blue overlay itself, so
+after a call there is no `draw()` to make. It is purely programmatic - no pointer
+handling is built in - so the sample forwards clicks and drags to it. Every cell
+carries its data index in `data-*` attributes, which is what maps a DOM target to
+a selection call.
+
+```ts
+// read the index off the clicked cell, then select
+grid.selectColumnByDataIndex(colIndex);           // whole column - columns accumulate
+grid.selectCellByDataIndex(rowIndex, colIndex);    // a single cell
+grid.selectRangeByDataIndex(r1, c1, r2, c2);       // a rectangle - clears other selections
+grid.clearAllSelections();
+```
+
+The indices come straight off the DOM: a data cell exposes `data-croix` /
+`data-cclix` (its data row / column), and a column header exposes `data-hix` (its
+leaf column). A `mousedown` reads them and calls the matching method; a drag
+re-issues `selectRangeByDataIndex` as the pointer moves.
+
+```ts
+const cell = (event.target as Element).closest('[data-cell-type="value"]');
+grid.selectCellByDataIndex(+cell.dataset.croix, +cell.dataset.cclix);
+```
+
+Try it below: click a header to select its column (click more headers to add
+them), click a single cell, or drag across cells to sweep out a range. **Clear**
+removes every selection.
+
+<SampleDemo id="column-interaction-selection" />
+
+**Source**
+
+```json doc-gen:file
+{ "file": "packages/samples/src/samples/column-interaction/selection.ts", "codeblock": { "lang": "ts" } }
+```

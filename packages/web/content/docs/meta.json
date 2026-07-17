@@ -1,0 +1,23 @@
+{
+  "pages": [
+    "---Core Concepts---",
+    "dataflow",
+    "built-for-agents",
+    "fullstack-grid",
+    "pivot-table",
+    "metadata",
+    "---Core Features---",
+    "column",
+    "[Pivot Table](/grid/docs/samples/pivot-table)",
+    "[Hierarchical Tables](/grid/docs/samples/hierarchical-tables)",
+    "[Custom Cell Renderers](/grid/docs/samples/custom-cell-renderers)",
+    "headless",
+    "fixtures",
+    "---Core Components & API---",
+    "datasource",
+    "datamodel",
+    "viewmodel",
+    "renderer",
+    "type-references"
+  ]
+}

@@ -1,0 +1,176 @@
+---
+title: Column Properties
+description: Configure each column of a grid - width, row height, header content, and how cells draw.
+datasets: [payroll]
+runtime: static
+tags: [flat]
+---
+
+Every column in the grid carries its own display settings: how wide it is, how
+tall its rows are, and how each cell draws. These live in a per-column **track
+definition** (`vTrackDefs`). A column's header is configured separately, as part
+of `facetDefs`, which can describe several facet layers in a single definition.
+
+A **facet** is just the grid's word for a header - the two are interchangeable.
+We use the generic term because facets aren't only drawn across the top: in a
+pivot they also run down the side to label rows. So `facetDefs` covers both.
+
+```ts
+grid.data = new FlattenedDataViewModel({
+  ...
+  options: {
+    // one entry per column: width, row height, and how each cell draws
+    vTrackDefs: [{ colSize, cellHeight, renderer }, /* ...one per column */],
+    // header content (icons, badges) is configured here, not on the column
+    facetDefs: { row: [], col: [{ text: "", trackRenderer }], axis: "col" },
+  },
+});
+```
+
+## Column size
+
+A column can fit its widest cell, take a static track width, or size to content
+within a min/max clamp - all set through `colSize`.
+
+```ts
+// fit to the widest cell
+{ strategy: "max-cell" }
+
+// content-sized, but clamped - cap how wide it grows, or give it a floor
+{ strategy: "clamped-width", maxWidthInPx: 160 }
+{ strategy: "clamped-width", minWidthInPx: 240 }
+
+// a static track width - `unit` is "px", "fr", or "%"
+{ strategy: "static", width: 1, unit: "fr" }
+```
+
+Try it below: switch modes in the toolbar. The clamp mode caps the Title column
+at 160px and holds Base Salary to at least 240px, while the rest fit content.
+
+<SampleDemo id="column-properties-col-size" />
+
+**Source**
+
+```json doc-gen:file
+{ "file": "packages/samples/src/samples/column-properties/col-size.ts", "codeblock": { "lang": "ts" } }
+```
+
+## Row density
+
+With plain text columns (no cell renderer), the grid measures each row from its
+rendered content plus cell padding - it never assumes a fixed height. So the way
+to make the table more compact or more spacious is to change the vertical
+padding, the `--cell-padding-y` theme token, on the container the tracks render
+onto. On the next draw the grid re-measures and the whole table tightens or
+relaxes.
+
+```ts
+grid.trackSurfaceContainer.style.setProperty("--cell-padding-y", "3"); // compact
+```
+
+Because the row height is derived from content, this keeps every row tall enough
+for its text at any density. If you instead need to pin a column to an exact
+pixel height, `cellHeight` on a `vTrackDef` does that - but only alongside a
+custom renderer, since the renderer owns how the cell fills that height. We cover
+that in the cell renderer section below.
+
+Try it below: switch between compact, comfortable, and spacious in the toolbar.
+
+<SampleDemo id="column-properties-cell-height" />
+
+**Source**
+
+```json doc-gen:file
+{ "file": "packages/samples/src/samples/column-properties/cell-height.ts", "codeblock": { "lang": "ts" } }
+```
+
+## Header content
+
+A header renderer can flank the column label with extra content: a marker on the
+left and a badge on the right, with the label in the middle. This is a property
+of the header, not of the column's cells. The affixes are ordinary DOM, so they
+can carry their own behaviour - here the left dot anchors a hover tooltip.
+
+```ts
+facetDefs: {
+  row: [],
+  col: [{
+    text: "",
+    trackRenderer: (label) => ({
+      left: marker(),        // shown before the label - anchors the tooltip
+      content: label,        // the label itself
+      right: kindBadge(),    // shown after the label
+    }),
+  }],
+  axis: "col",
+},
+```
+
+The dot owns the tooltip. On `mouseenter` it opens a custom-HTML card - not a
+plain `title` attribute - positioned with fixed coordinates just below the dot so
+the grid's scroll container never crops it:
+
+```ts
+dot.addEventListener("mouseenter", () => {
+  const r = dot.getBoundingClientRect();
+  card.style.top = `${r.bottom + 8}px`;            // open downward from the dot
+  card.style.left = `${r.left + r.width / 2 - 16}px`; // caret lands under the dot
+  document.body.appendChild(card);
+});
+```
+
+Try it below: each header shows a leading marker and a trailing badge naming the
+kind of data in the column. Hover the dot to open a card describing that column.
+
+<SampleDemo id="column-properties-header-affixes" />
+
+**Source**
+
+```json doc-gen:file
+{ "file": "packages/samples/src/samples/column-properties/header-affixes.ts", "codeblock": { "lang": "ts" } }
+```
+
+## Cell renderer
+
+A cell renderer takes over how a column's values are drawn. It returns text or
+DOM for a single cell - so a column can render a bar, a pill, or anything else
+instead of plain text. Unlike a header renderer, a cell has no left/right slots;
+the renderer lays out the whole cell itself. A custom-rendered cell also loses
+the grid's default padding and alignment, so the renderer restores whatever it
+needs.
+
+A `valueFormatter` runs first and turns the raw value into a display string; the
+renderer then receives that string as its `value`, while the untouched number
+stays on `dataCtx.rawValue` (the bar reads it for its width). Here every numeric
+column formats as currency, and the deepest custom renderer decides the layout.
+
+```ts
+const currency = (value) =>
+  typeof value === "number" ? value.toLocaleString("en-US", { style: "currency", currency: "USD" }) : "";
+
+const numberCell = (value, _dataCtx, ctx) => {
+  // set properties individually - `cssText` would wipe the grid-area the layout
+  // sets on this same element
+  ctx.container.style.display = "flex";
+  ctx.container.style.justifyContent = "flex-end";
+  return value; // already the formatted currency string
+};
+
+vTrackDefs: columns.map((column) => ({
+  ...(column.numeric
+    ? { valueFormatter: currency, renderer: column.field === "base_salary" ? salaryBar : numberCell }
+    : {}),
+})),
+```
+
+Try it below: Base Salary draws each value as a proportional bar with the amount,
+the other numeric columns right-align their values, and all of them are formatted
+as `$`-prefixed locale numbers.
+
+<SampleDemo id="column-properties-cell-renderer" />
+
+**Source**
+
+```json doc-gen:file
+{ "file": "packages/samples/src/samples/column-properties/cell-renderer.ts", "codeblock": { "lang": "ts" } }
+```

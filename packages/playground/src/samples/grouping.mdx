@@ -1,0 +1,34 @@
+import GroupedFlatTable from "./components/GroupedFlatTable";
+import { DataSourceProvider } from "./components/DataSourceContext";
+
+# Row Grouping
+
+The flat table supports hierarchical row grouping via the `groupBy` field in `StandardDataFetchAndTransformIR`. Rows are nested under expandable group headers, letting users drill down through multiple levels.
+
+## Configuring groupBy
+
+Pass an array of column names to `groupBy` in the IR. The order defines the nesting hierarchy — here we group by Agency Name, then Work Location Borough, then Leave Status:
+
+```ts
+const ir: StandardDataFetchAndTransformIR = {
+  startRow: 0,
+  endRow: 100,
+  groupPath: [],
+  groupBy: ["Agency Name", "Work Location Borough", "Leave Status as of June 30"],
+  project: schema.map((s) => s.name),
+  sort: [],
+  filter: [],
+};
+```
+
+## How it works
+
+When `groupBy` is non-empty, `SqlStandardTableDataModel` generates SQL with `GROUP BY` clauses and builds a tree of expandable row nodes. Each group header row can be expanded to reveal child groups or leaf rows. The grid handles expand/collapse state internally.
+
+## Try it
+
+Click the arrow on any group row to expand it:
+
+<DataSourceProvider mode="clean">
+  <GroupedFlatTable height="500px" />
+</DataSourceProvider>

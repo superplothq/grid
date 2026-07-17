@@ -1,0 +1,134 @@
+---
+title: Filter
+description: Filter a headless grid from a full-width search fixture and an Excel-style checklist on the Borough header, all owned by the glue code and held on the viewmodel's metaState.
+datasets: [payroll]
+runtime: static
+tags: [flat]
+---
+
+The grid renders whatever rows the viewmodel holds; it never filters for you. A filter
+is transparent to the viewmodel: keeping a subset just produces the same shape with
+fewer rows, which is still data you set on the viewmodel and render. Filtering is
+therefore glue code: you keep the active filter, compute the matching rows, and hand
+them back. When you want the library to prepare that subset for you, a DataModel
+implements filtering and defines the contract for it.
+
+The shared state, the search text and the chosen boroughs, lives on
+`viewModel.metaState`, a namespaced store that survives every `updateData` and is
+readable from anywhere, including the header funnel that lights up when a filter is on.
+
+```ts
+// metaState is the grid's general-purpose store, keyed by a namespace you own.
+// It is a dumb store: values in, values out, with no reactivity - writing to it
+// does not redraw anything by itself.
+viewModel.metaState.set("filter", "query", "engineer");
+viewModel.metaState.set("filter", "boroughs", ["MANHATTAN", "BROOKLYN"]);
+
+// A renderer reads the state it cares about. The Borough header funnel fills in
+// when only a subset of boroughs is selected.
+function boroughHeader() {
+  const { boroughs } = viewModel.metaState.get("filter") ?? {};
+  const active = boroughs && boroughs.length < allBoroughs.length;
+  // ...draw the funnel, filled when active
+}
+
+// Keep the rows that match every part of the filter, hand them back, and draw.
+const rows = allRows.filter((row) => matches(row, viewModel.metaState.get("filter")));
+viewModel.updateData(buildParams(rows));
+grid.draw();
+```
+
+## Custom filter implementation: Search fixture and header checklist
+
+Functionally, this is what the demo does. A full-width search bar rides the top of the
+grid and filters on title or agency as you type. The Borough header carries a funnel
+that opens an Excel-style checklist: all boroughs, no boroughs, or any individual set.
+A small count on the right of the search bar tracks how many rows survive.
+
+None of that is built into the grid. It comes together from two extension points and
+your own glue, in four steps:
+
+- **Register a custom cell renderer, and a fixture.** The Borough header renderer draws
+  the funnel and tags it for the delegated `pointerdown` that opens the popover. The
+  search bar is a top fixture, a full-width band that spans the grid and holds the
+  input and the count.
+- **Own the presentation and logic of filter.** The input and the Excel-style checklist
+  are plain DOM you build; the grid has no filter UI of its own. Each control writes its
+  slice of the filter to `metaState`.
+- **Compute the matching rows, or clear.** The render reads the whole filter back and
+  keeps the rows that match every part of it, or hands all rows through when nothing is
+  set.
+- **Rerender.** `grid.draw()` re-runs the renderers, so the rows, the funnel state, and
+  the count update together.
+
+Both controls funnel into one render that reads the filter back off `metaState`, so
+they compose for free: a search and a borough set apply together without either control
+knowing about the other.
+
+```ts
+// The search bar is a top fixture; its input writes the query to metaState.
+input.addEventListener("input", () => {
+  viewModel.metaState.set("filter", "query", input.value.trim().toLowerCase());
+  render();
+});
+
+// The checklist writes the selected set; "All" and "None" are just presets over it.
+check.addEventListener("change", () => {
+  viewModel.metaState.set("filter", "boroughs", collectChecked());
+  render();
+});
+```
+
+The lifecycle stays one directional throughout: a keystroke or a checkbox only writes
+to `metaState`, and the render reads it back to derive the visible rows. There is no
+second source of truth, so the funnel, the count, and the rows can never disagree.
+
+Try it below: type in the search bar to match a title or agency, or click the funnel on
+the Borough header and pick a subset with the checklist. The two filters compose, and
+the count on the right shows how many rows remain.
+
+<SampleDemo id="headless-filter" />
+
+**Source**
+
+```json doc-gen:file
+{ "file": "packages/samples/src/samples/headless-filter/sample.ts", "codeblock": { "lang": "ts" } }
+```
+
+## Filter via DataModel
+
+This demo filters in memory because it holds every row. In the real world the data
+lives behind a source that should do the filtering itself: a database answers a `WHERE`
+against an index far faster than the browser can scan, and returns only the matching
+rows, so the full set never has to reach the client. That narrowing is a DataModel's
+job.
+
+The DataModel defines the contract for both requesting a filter and retrieving the
+matching data. Filter is one field of its fetch config, sitting alongside sorting,
+grouping, and pagination, so it composes with the rest of the query rather than being a
+separate pass:
+
+```ts
+const params = await model.getViewModelData({
+  startRow: 0,
+  endRow: 100,
+  filter: [
+    { field: "base_salary", op: "gt", value: 90000 },
+    { field: "work_location_borough", op: "eq", value: "MANHATTAN" },
+  ],
+});
+
+viewModel.updateData(params);
+grid.draw();
+```
+
+The glue keeps the same shape: a control writes the filter, now into the config instead
+of `metaState`, the model returns the matching rows, and a draw reflects them. Only the
+narrowing itself moved from your code to the source. A free-text search or a
+multi-select becomes more clauses in the same list, not a different mechanism.
+
+Filtering also means different things for different tables, and the same contract covers
+them. A flat table filters rows; a pivot or grouped table can filter dimensions before
+aggregation or measures after it, and the filter still composes with grouping and
+pagination. Because it is declarative config the DataModel turns into a query, richer
+predicates are more entries, not new machinery you have to build.

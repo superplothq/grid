@@ -1,0 +1,34 @@
+import FlatTable from "./components/FlatTable";
+
+# Getting Started — Flat Data
+
+The grid can render flat tabular data loaded from a URL. In this sample, we load a CSV dataset
+using `loadDataFromURL` and render it as a simple table.
+
+## Loading Data from URL
+
+The datasource provides `loadDataFromURL` to fetch JSON or CSV data, infer column types, and load
+it into the query engine. You can use the `preprocess` callback to transform data before loading —
+here we slice to 50 rows:
+
+```ts
+const ds = await DuckDBWasmDataSource.create();
+const columns = await ds.loadDataFromURL({
+  url: "http://localhost:8912/Citywide_Payroll_Data_....csv",
+  type: "csv",
+  preprocess: (data) => (data as unknown[]).slice(0, 50),
+});
+```
+
+## Loading data as is in a simple table
+
+Wrap your app with `DataSourceProvider` to initialize the datasource once, then use `FlatTable` anywhere inside:
+
+```tsx
+<DataSourceProvider ds={ds}>
+  <FlatTable height="500px" />
+</DataSourceProvider>
+```
+This will render a vanilla table without any filtering / sorting / grouping / faceting UI. We will incrementally add those.
+
+<FlatTable height="500px" />

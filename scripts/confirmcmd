@@ -1,0 +1,25 @@
+#!/usr/bin/env bash
+
+set -u
+
+if [[ $# -ne 1 ]]; then
+  printf "Usage: %s 'command'\n" "${0##*/}" >&2
+  exit 2
+fi
+
+command_to_run=$1
+alphabet=abcdefghijklmnopqrstuvwxyz
+confirmation_key=${alphabet:$((RANDOM % 26)):1}
+
+printf 'Press %s to run: %s\n' "$confirmation_key" "$command_to_run" >&2
+
+pressed_key=''
+IFS= read -r -n 1 pressed_key || true
+printf '\n' >&2
+
+if [[ $pressed_key != "$confirmation_key" ]]; then
+  printf 'Cancelled.\n' >&2
+  exit 1
+fi
+
+exec bash -c "$command_to_run"

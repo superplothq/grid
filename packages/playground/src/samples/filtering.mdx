@@ -1,0 +1,46 @@
+import FilteredGroupedTable from "./components/FilteredGroupedTable";
+import { DataSourceProvider } from "./components/DataSourceContext";
+
+# Filtering
+
+The flat table supports column-level filtering via the `enableFiltering` option in `useFlatGrid`. Each column header gets a filter icon that opens a type-aware popover.
+
+## Filter types
+
+- **Low-cardinality dimensions**: Excel-like checkbox list with search, select all / deselect all, plus a text ops tab
+- **High-cardinality dimensions**: Text operators (contains, starts with, equals, etc.)
+- **Measures**: Numeric operators (greater than, between, etc.)
+- **Date fields**: Two tabs — direct date comparison (before/after/between) and date part extraction (year, month, day, etc.)
+
+## Configuration
+
+Set `cardinality: "low"` or `"high"` on dimension columns in the schema to control which filter UI appears:
+
+```ts
+const schema: DataSchema[] = [
+  { name: "Work Location Borough", type: "dimension", cardinality: "low" },
+  { name: "Agency Name", type: "dimension" },  // defaults to high cardinality UI
+  { name: "Base Salary", type: "measure", aggregateFn: "sum" },
+];
+```
+
+Enable filtering in `useFlatGrid`:
+
+```ts
+const { bindings } = useFlatGrid({
+  dataSource: ds,
+  schema,
+  config,
+  ir,
+  enableFiltering: true,
+  enableSorting: true,
+});
+```
+
+## Try it
+
+Click the filter icon (funnel) on any column header. This example groups by Agency Name and Work Location Borough:
+
+<DataSourceProvider mode="clean">
+  <FilteredGroupedTable height="500px" />
+</DataSourceProvider>

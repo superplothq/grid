@@ -1,0 +1,158 @@
+---
+title: DataSource
+description: Connects to a data source and executes downstream commands to fetch data.
+---
+
+`DataSource<T>` is the interface for running a command against a real data source.
+
+<auto-class-outline path="packages/grid/src/datamodel/datasource.ts" name="DataSource" title="Outline" />
+
+The command type is `T`.
+
+- for SQL-based sources, `T` is usually `string`
+- for API-based sources, `T` can be a valid request object that api accepts
+- for custom sources, `T` can be any command shape your source accepts
+
+**Example:**
+
+Run a SQL query against the data source
+
+```ts
+await sqlDataSource.execute("SELECT city, revenue FROM sales");
+```
+
+Send a request to an API endpoint with given payload
+```ts
+await apiDataSource.execute({
+  endpoint: "/query",
+  method: "GET",
+  body: { groupBy: ["city"] },
+});
+```
+
+A single `DataSource` instance can be shared by multiple <Term id="consumer-of-datasource">consumers</Term>. Use `addRef()` and `release()` to manage that <Term id="lifecycle">lifecycle</Term>. See the <a href="#api-reference">API Reference</a> for details.
+
+## Responsibilities
+
+`DataSource` only does three things:
+
+- accepts a command
+- runs it against the source
+- returns rows
+
+It does not decide which command to run. The caller decides that and passes the command to `execute(...)`.
+
+### What "downstream" means here
+
+Downstream code means code that uses the data source, usually a <Term id="data-model">data model</Term>. That code prepares the command. `DataSource` executes it.
+
+Example flow:
+
+```ts
+const sql = buildQueryFromState(gridState);
+const rows = await dataSource.execute(sql);
+```
+
+## Built-in implementations
+
+This package provides SQL-based implementations:
+
+```text
+DataSource<T>
+└── SqlDataSource
+    ├── DuckDBDataSource
+    └── DuckDBWasmDataSource
+```
+
+That means the built-in sources expect SQL strings.
+
+| Class | What it does |
+| --- | --- |
+| `DataSource<T>` | Base interface for executing a command and returning rows. |
+| `SqlDataSource` | Base class for SQL-backed data sources that execute SQL strings. |
+| `DuckDBDataSource` | SQL data source backed by <a href="https://duckdb.org/" target="_blank" rel="noreferrer">DuckDB</a>. |
+| `DuckDBWasmDataSource` | SQL data source backed by <a href="https://duckdb.org/" target="_blank" rel="noreferrer">DuckDB</a> WASM for browser use. |
+
+## Implementing your own `DataSource`
+
+The library includes built-in API-based and browser WASM SQL-based data sources for common cases. If you need something else, implement `DataSource<T>` yourself or extend an existing data source.
+
+Example: an in-memory JavaScript data source.
+
+```ts
+import { DataSource } from "grid";
+
+interface DataSourceConfig {
+  maxRows: number;
+}
+
+const defaultConfig: DataSourceConfig = {
+  maxRows: 10 ** 6,
+};
+
+type InMemoryCommand = {
+  filter?: (row: Record<string, any>) => boolean;
+  // more operators
+};
+
+class InMemoryJsDataSource implements DataSource<InMemoryCommand> {
+  private rows: Record<string, any>[];
+  private refCount = 1;
+  private config: DataSourceConfig;
+
+  private constructor(rows: Record<string, any>[], config: DataSourceConfig) {
+    this.rows = rows;
+    this.config = config;
+  }
+
+  static create(rows: Record<string, any>[]): DataSource<InMemoryCommand> {
+    return new InMemoryJsDataSource(rows, defaultConfig);
+  }
+
+  addRef(): void {
+    this.refCount++;
+  }
+
+  async execute(command: InMemoryCommand): Promise<Record<string, any>[]> {
+    const rows = command.filter ? this.rows.filter(command.filter) : this.rows;
+    return rows.slice(0, this.config.maxRows);
+  }
+
+  async release(): Promise<void> {
+    this.refCount--;
+    if (this.refCount <= 0) {
+      this.rows = [];
+    }
+  }
+}
+```
+
+<Callout title="Recommendation" type="info">
+  We recommend using `DuckDBWasmDataSource` to load in-memory data. It is more exhaustive and works well with complex grids out of the box with little extra effort.
+</Callout>
+
+## Usage
+
+`DataSource<T>` is an interface. You do not create it directly. Instead, create an instance of a concrete data source class and pass that instance to a data model.
+
+Typical flow:
+
+1. User creates a data source instance.
+
+```ts
+const ds = InMemoryJsDataSource.create(rows);
+```
+
+2. User passes the `DataSource` instance and schema to a data model.
+
+```ts
+const model = new InMemoryJsDataModel(schema, ds);
+```
+
+3. The grid calls the data model functions which in turn calls `dataSource.execute(...)`.
+4. The data source returns rows.
+
+
+## API Reference
+
+<auto-type-table path="packages/grid/src/datamodel/datasource.ts" name="DataSource" />

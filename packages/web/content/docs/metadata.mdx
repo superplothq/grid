@@ -1,0 +1,482 @@
+---
+title: Metadata
+description: How to attach and consume metadata, the data about your data, alongside the grid's main data pipeline. Metadata flows through a resolver/reshaper pattern in the DataModel, gets stored on the ViewModel, and arrives at cell renderers for custom visualization.
+---
+
+Metadata is data about your data. Examples: a column's min/max range for heatmap coloring, a per-cell quality flag ("missing", "mismatched"), a profit percentage per row for a profile bar. The grid does not interpret metadata; it transports it from the DataModel to cell renderers. Your code defines what metadata means and how to display it.
+
+## How metadata flows
+
+Metadata follows the same pipeline as regular data, with two additional user-provided pieces, a **resolver** (what metadata to fetch) and a **reshaper** (how to map it into ViewModel coordinates):
+
+<DocDiagram id="metadata-flow" />
+
+The resolver and reshaper are bundled into a **plumber**, a factory function that takes the current config and returns both. The DataModel calls the plumber on each `getViewModelData`, but this is lightweight (just creates closures). The expensive work (SQL queries, API calls) only happens inside `resolve()`.
+
+## Metadata targets
+
+Metadata can be attached to six targets in the grid:
+
+| Target | Description | Lookup method |
+|--------|-------------|---------------|
+| Column facet cells | Column headers (e.g. "Q1", "revenue") | `getColumnFacetMeta(level, index)` |
+| Row facet cells | Row headers (e.g. "Europe", "Germany") | `getRowFacetMeta(level, index)` |
+| Header cells | Corner cells / axis labels | `getHeaderMeta(axis, level)` |
+| Value cells, per column | Shared by all cells in a data column | `getValueColumnMeta(colIndex)` |
+| Value cells, per row | Shared by all cells in a data row | `getValueRowMeta(rowIndex)` |
+| Value cells, per cell | A single data cell | `getValueCellMeta(colIndex, rowIndex)` |
+
+All lookup methods live on `ViewModelMetadata`, accessible via `viewModel.metadata`. Each returns a `MetadataValue` (`Record<string, unknown>`) or `undefined`. Core never interprets the keys inside `meta`; your code owns the semantics.
+
+## Pivot table metadata
+
+Pivot output is not paginated; one `getData` call returns all rows, one reshape pass produces the full grid. Metadata is resolved once and reshaped once.
+
+### The plumber
+
+The `SqlPivotTableDataModel` constructor takes an optional plumber. The plumber is a factory function that receives the `PivotConfig` and returns a paired `{ resolver, reshaper }`:
+
+```ts
+type PivotMetadataPlumber<T = unknown> = (config: PivotConfig) => PivotMetadataPlumbing<T>;
+
+interface PivotMetadataPlumbing<T> {
+  resolver?: PivotMetadataResolver<T>;
+  reshaper: PivotMetadataReshaper;
+}
+```
+
+The plumber closes over whatever setup it needs and reads `config.metadata` to decide what to produce. `PivotConfig.metadata` is `unknown`, so core passes it through without interpretation.
+
+### Resolver
+
+The resolver tells the DataModel what extra data to fetch alongside the main query. For the SQL pipeline, it returns `SqlSelectExpression[]`, the SQL fragments appended to the SELECT clause:
+
+```ts
+interface SqlSelectExpression {
+  alias: string;  // e.g. "__meta__profit_pct"
+  sql: string;    // e.g. "100.0 * SUM(T.\"profit\") / NULLIF(...)"
+}
+
+interface SqlPivotMetadataResolver extends PivotMetadataResolver<SqlSelectExpression> {
+  resolve(input: SqlPivotMetadataResolverInput): SqlSelectExpression[];
+}
+```
+
+The resolver input provides SQL context: `gridCte` (the CTE name, e.g. `"__d__2"`) and `tableAlias` (`"T"`). The resolver can reference any source column through `T`, even fields not in the pivot config, because the source table is already LEFT JOINed in the main query.
+
+SQL contributions can be aggregate expressions, window functions, CASE expressions, or subqueries. The resolver owns the SQL form; core just drops the expressions into the SELECT list.
+
+### Reshaper
+
+The reshaper maps raw query results into `ViewModelMetadata` coordinates after the local reshape:
+
+```ts
+interface PivotMetadataReshaper {
+  reshape(input: PivotMetadataReshapeInput, metadata: Partial<ViewModelMetadata>): void;
+}
+```
+
+The reshaper receives:
+- `raw` - the raw query result, including `raw.metadata` (a map of alias to column-major arrays)
+- `data` - the final reshaped grid (`data[colIdx][rowIdx]`)
+- `rowIndex` / `colIndex` - maps from dimension key to row/column index
+- `rowFacets` / `colFacets` - the facet arrays
+- `measures`, `rowDimCount`, `colDimCount`
+
+The reshaper writes entries directly into the `metadata` object (e.g. `metadata.valueCells`, `metadata.rowFacets`).
+
+### End-to-end example: profit percentage per row
+
+Goal: show each country's share of its continent's total profit as a percentage in the row header.
+
+**1. Config with metadata field:**
+
+```ts
+const config: PivotConfig = {
+  rows: hierarchy("continent", "country"),
+  columns: "revenue",
+  metadata: { profitField: "profit", groupByField: "continent" },
+};
+```
+
+**2. Plumber factory:**
+
+```ts
+function createProfitPlumber(): PivotMetadataPlumber {
+  return (config: PivotConfig) => {
+    const meta = config.metadata as { profitField: string; groupByField: string } | undefined;
+    if (!meta) return { reshaper: { reshape() {} } };
+
+    return {
+      resolver: {
+        resolve({ gridCte, tableAlias }) {
+          return [{
+            alias: "__meta__profit_pct",
+            sql: `100.0 * SUM(${tableAlias}."${meta.profitField}") / NULLIF(SUM(SUM(${tableAlias}."${meta.profitField}")) OVER (PARTITION BY ${gridCte}."${meta.groupByField}"), 0)`,
+          }];
+        },
+      } as SqlPivotMetadataResolver,
+
+      reshaper: {
+        reshape({ raw, rowIndex, rowDimCount }, metadata) {
+          const profitPct = raw.metadata?.["__meta__profit_pct"];
+          if (!profitPct) return;
+          const numRows = raw.data[0]?.length ?? 0;
+
+          metadata.rowFacets = [];
+          for (let r = 0; r < numRows; r++) {
+            const rowKey = [];
+            for (let d = 0; d < rowDimCount; d++) {
+              rowKey.push(raw.data[d][r] ?? null);
+            }
+            const rowIdx = rowIndex.get(rowKey.join("\0"));
+            if (rowIdx === undefined) continue;
+
+            metadata.rowFacets.push({
+              level: 1,
+              index: rowIdx,
+              meta: { profitPct: profitPct[r] },
+            });
+          }
+        },
+      },
+    };
+  };
+}
+```
+
+**3. Wire it up:**
+
+```ts
+const model = new SqlPivotTableDataModel(schema, ds, createProfitPlumber());
+const params = await model.getViewModelData(config);
+// params.metadata.rowFacets contains profit percentage per country
+const viewModel = new PivotDataViewModel(params);
+grid.data = viewModel;
+grid.draw();
+```
+
+**4. Generated SQL** (the resolver's contribution is the window function):
+
+```sql
+SELECT __d__0."continent", __d__0."country",
+  SUM(T."revenue") AS "revenue",
+  100.0 * SUM(T."profit") / NULLIF(SUM(SUM(T."profit"))
+    OVER (PARTITION BY __d__0."continent"), 0) AS "__meta__profit_pct"
+FROM __d__0
+LEFT JOIN "data" T ON T."continent" = __d__0."continent"
+  AND T."country" = __d__0."country"
+GROUP BY __d__0."continent", __d__0."country"
+ORDER BY MIN(__d__0."__ord__0")
+```
+
+**5. Consume in a facet renderer:**
+
+```ts
+const profitFacetRenderer: FacetCellRenderer = (data, dataCtx) => {
+  const meta = dataCtx.viewModel.metadata?.getRowFacetMeta(dataCtx.level, dataCtx.index);
+  const pct = meta?.profitPct as number | undefined;
+  const label = data ?? "";
+  return pct != null ? `${label} (${pct.toFixed(1)}%)` : label;
+};
+```
+
+## Standard table metadata
+
+Standard table data is paginated via page nodes. Pages are fetched on demand as the user scrolls and evicted when the cache grows too large. This creates two metadata lifetimes:
+
+| Scope | Lifetime | Example |
+|-------|----------|---------|
+| Column metadata | Global to the current query shape. Fetched once, survives page fetches and evictions. Invalidated when the IR changes. | min, max, missing count, distinct count |
+| Page metadata (rows + cells) | Scoped to a page. Fetched alongside page data in the same query. Evicted when the page is evicted. | per-cell quality, per-row markers |
+
+Because of this split, the standard table has two resolvers and two reshapers.
+
+### The plumber
+
+The `SqlStandardTableDataModel` constructor takes an optional plumber. The plumber receives the IR and returns the resolvers and reshapers:
+
+```ts
+type StandardMetadataPlumber = (ir: StandardDataFetchAndTransformIR) => StandardMetadataPlumbing;
+
+interface StandardMetadataPlumbing {
+  global?: {
+    resolver: StandardGlobalMetadataResolver;
+    reshaper: StandardGlobalMetadataReshaper;
+  };
+  pageWise?: {
+    resolver: StandardMetadataResolver<unknown>;
+    reshaper: StandardMetadataReshaper;
+  };
+}
+```
+
+`StandardDataFetchAndTransformIR` gains a `metadata?: unknown` field, the same pattern as `PivotConfig.metadata`. The plumber reads `ir.metadata` to decide what to produce.
+
+### Global resolver + reshaper (column metadata)
+
+The global resolver runs its own query, not through `getData`. It fetches column-level stats (min, max, missing count) that apply to the entire table:
+
+```ts
+interface StandardGlobalMetadataResolver {
+  resolve(input: StandardMetadataResolverInput): Promise<StandardRawMetadata>;
+}
+
+interface StandardGlobalMetadataReshaper {
+  reshape(input: StandardGlobalMetadataReshaperInput): StandardColumnMetadata[];
+}
+```
+
+Column metadata is cached on the model instance. When the IR changes (groupBy, filter, sort), the cache is invalidated and the global resolver runs again.
+
+### Page resolver + reshaper (row and cell metadata)
+
+The page resolver contributes SQL expressions to each `getData` call, same as the pivot resolver. Metadata columns ride along with the page query:
+
+```ts
+interface SqlStandardMetadataResolver extends StandardMetadataResolver<SqlSelectExpression> {
+  resolve(input: SqlStandardMetadataResolverInput): SqlSelectExpression[];
+}
+
+interface StandardMetadataReshaper {
+  reshape(input: StandardMetadataReshaperInput): PageMetadata;
+}
+```
+
+Page metadata is cached on the page node. When a page is evicted, its metadata is lost with it.
+
+### Projection
+
+The ViewModel only sees one contiguous block of rows at a time. The DataModel projects cached column metadata plus visible page metadata into a single `ViewModelMetadata`, translating page-local row indexes into block-relative indexes:
+
+- Column metadata: `colIdx` maps directly to `colIndex`
+- Page row metadata: page-local `rowIdx` becomes `pageStartInBlock + rowIdx`
+- Page cell metadata: same row translation plus direct `colIdx` to `colIndex`
+
+### End-to-end example: cell quality with column profile
+
+Goal: highlight null cells and show column-level stats (total, missing count, min, max).
+
+**1. Config with metadata field:**
+
+```ts
+const ir: StandardDataFetchAndTransformIR = {
+  startRow: 0,
+  endRow: 10,
+  groupPath: [],
+  groupBy: [],
+  project: ["name", "email", "age"],
+  sort: [],
+  filter: [],
+  metadata: { profile: true, quality: { fields: ["email", "age"] } },
+};
+```
+
+**2. Plumber factory:**
+
+```ts
+function createQualityPlumber(): StandardMetadataPlumber {
+  return (ir: StandardDataFetchAndTransformIR) => {
+    const config = ir.metadata as { profile: boolean; quality: { fields: string[] } } | undefined;
+    return {
+      global: {
+        resolver: {
+          async resolve({ ir, dataSource }) {
+            if (!config?.profile) return {};
+            const stats: Record<string, any> = {};
+            for (const field of ir.project) {
+              const [row] = await dataSource!.execute(`
+                SELECT MIN("${field}") AS min_val, MAX("${field}") AS max_val,
+                       COUNT(*) AS total, COUNT("${field}") AS non_null
+                FROM "${dataSource!.table}"
+              `);
+              stats[field] = row;
+            }
+            return { stats };
+          },
+        },
+        reshaper: {
+          reshape({ ir, raw }) {
+            const stats = (raw as { stats: Record<string, any> }).stats;
+            if (!stats) return [];
+            return ir.project.map((field, colIdx) => {
+              const row = stats[field];
+              if (!row) return null;
+              return {
+                colIdx,
+                meta: {
+                  min: row.min_val,
+                  max: row.max_val,
+                  total: Number(row.total),
+                  missing: Number(row.total) - Number(row.non_null),
+                },
+              };
+            }).filter(Boolean) as StandardColumnMetadata[];
+          },
+        },
+      },
+      pageWise: {
+        resolver: {
+          resolve({ table }) {
+            if (!config?.quality) return [];
+            return config.quality.fields.map(field => ({
+              alias: `__meta__${field}__null`,
+              sql: `CASE WHEN "${field}" IS NULL THEN 1 ELSE 0 END`,
+            }));
+          },
+        } as SqlStandardMetadataResolver,
+        reshaper: {
+          reshape({ ir, pageMetadata }) {
+            const cells: StandardPageCellMetadata[] = [];
+            for (const field of config?.quality?.fields ?? []) {
+              const colIdx = ir.project.indexOf(field);
+              if (colIdx === -1) continue;
+              const nullFlags = pageMetadata[`__meta__${field}__null`];
+              if (!nullFlags) continue;
+              for (let rowIdx = 0; rowIdx < nullFlags.length; rowIdx++) {
+                if (nullFlags[rowIdx] === 1) {
+                  cells.push({ rowIdx, colIdx, meta: { quality: "missing" } });
+                }
+              }
+            }
+            return { cells };
+          },
+        },
+      },
+    };
+  };
+}
+```
+
+**3. Wire it up:**
+
+```ts
+const model = new SqlStandardTableDataModel(schema, ds, { pageSize: 5 }, createQualityPlumber());
+const params = await model.getViewModelData(ir);
+// params.metadata.valueColumns has column stats
+// params.metadata.valueCells has per-cell quality flags
+const viewModel = new FlattenedDataViewModel(params);
+grid.data = viewModel;
+grid.draw();
+```
+
+**4. What happens on scroll:**
+
+When the user scrolls to new rows, `getViewModelData` is called with a new `startRow`/`endRow`. Column metadata is already cached, so the global resolver is not called again. New pages are fetched with the page resolver's SQL contributions. Evicted pages lose their metadata. The projection step reassembles everything into a fresh `ViewModelMetadata` aligned with the current data block.
+
+## Consuming metadata in renderers
+
+### Native cell renderer
+
+The `CellRenderer` signature receives a `ValueCellDataContext` as its second argument. This provides `viewModel`, `rowIndex`, and `colIndex`, everything needed to look up metadata:
+
+```ts
+type CellRenderer<T> = (
+  data: T,
+  dataCtx: ValueCellDataContext,
+  ctx: RendererContext,
+) => string | HTMLElement | HTMLElement[] | void;
+```
+
+Example, a heatmap renderer using per-column metadata:
+
+```ts
+const heatmapRenderer: CellRenderer<number> = (data, dataCtx, ctx) => {
+  const colMeta = dataCtx.viewModel.metadata?.getValueColumnMeta(dataCtx.colIndex);
+  if (colMeta && data != null) {
+    const min = colMeta.min as number;
+    const max = colMeta.max as number;
+    const intensity = (data - min) / (max - min);
+    ctx.container.style.background = `rgba(25, 118, 210, ${intensity})`;
+  }
+  return data == null ? "" : String(data);
+};
+```
+
+Example, a quality renderer using per-cell metadata:
+
+```ts
+const qualityRenderer: CellRenderer<unknown> = (data, dataCtx, ctx) => {
+  const cellMeta = dataCtx.viewModel.metadata?.getValueCellMeta(
+    dataCtx.colIndex, dataCtx.rowIndex,
+  );
+  if (cellMeta?.quality === "missing") ctx.container.style.background = "#e5e7eb";
+  if (cellMeta?.quality === "mismatched") ctx.container.style.background = "#fee2e2";
+  return data == null ? "" : String(data);
+};
+```
+
+### Facet cell renderer
+
+Facet renderers already receive `viewModel` via `FacetDataContext`. They can look up facet-level metadata directly:
+
+```ts
+const profileFacetRenderer: FacetCellRenderer = (data, dataCtx) => {
+  const meta = dataCtx.viewModel.metadata?.getColumnFacetMeta(
+    dataCtx.level, dataCtx.index,
+  );
+  if (meta) {
+    const pct = ((meta.valid as number) / (meta.total as number) * 100).toFixed(0);
+    return `${data ?? ""} (${pct}% valid)`;
+  }
+  return data ?? "";
+};
+```
+
+### React cell component
+
+The React adapter forwards metadata context into `CellProps`. A React cell component receives `viewModel`, `rowIndex`, and `colIndex`:
+
+```tsx
+interface CellProps<T = any> {
+  value: T;
+  cell: HTMLElement;
+  viewModel: GridDataViewModel;
+  rowIndex: number;
+  colIndex: number;
+}
+
+function QualityCell({ value, viewModel, rowIndex, colIndex }: CellProps) {
+  const meta = viewModel.metadata?.getValueCellMeta(colIndex, rowIndex);
+  const style = meta?.quality === "missing"
+    ? { background: "#e5e7eb" }
+    : undefined;
+  return <span style={style}>{value ?? ""}</span>;
+}
+```
+
+## Local-only metadata (no resolver)
+
+Not all metadata needs a resolver. When metadata can be computed entirely from the page data, skip the resolver and let the reshaper derive it from `rowData`:
+
+```ts
+function createLocalQualityPlumber(
+  rules: Map<string, (v: any) => boolean>,
+): StandardMetadataPlumber {
+  return (ir) => ({
+    pageWise: {
+      resolver: { resolve: () => [] },
+      reshaper: {
+        reshape({ ir, rowData }) {
+          const cells: StandardPageCellMetadata[] = [];
+          for (let col = 0; col < rowData.length; col++) {
+            const validate = rules.get(ir.project[col]);
+            if (!validate) continue;
+            for (let row = 0; row < (rowData[col]?.length ?? 0); row++) {
+              const value = rowData[col][row];
+              if (value == null || value === "") {
+                cells.push({ rowIdx: row, colIdx: col, meta: { quality: "missing" } });
+              } else if (!validate(value)) {
+                cells.push({ rowIdx: row, colIdx: col, meta: { quality: "mismatched" } });
+              }
+            }
+          }
+          return { cells };
+        },
+      },
+    },
+  });
+}
+```
+
+The reshaper runs after every page fetch. No SQL is added to the query; the reshaper reads `rowData` directly.

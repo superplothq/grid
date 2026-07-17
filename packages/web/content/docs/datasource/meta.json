@@ -1,0 +1,5 @@
+{
+  "title": "DataSource",
+  "defaultOpen": true,
+  "pages": ["sql-datasource"]
+}

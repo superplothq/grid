@@ -1,0 +1,35 @@
+import CurrencyConversionTable from "./components/CurrencyConversionTable";
+import { DataSourceProvider } from "./components/DataSourceContext";
+
+# Custom Button
+
+Add interactive buttons to column headers using a custom facet track renderer. This example adds a currency conversion toggle (USD/INR) to measure columns, using `applyTransform` / `resetTransform` from `useFlatGrid` to transform the data on the fly.
+
+## How it works
+
+The column facet renderer reads the current currency from `viewModel.metaState` and renders a toggle button. On click it:
+
+1. Updates `metaState` with the new currency
+2. Calls `applyTransform(colIndex, fn)` to transform the column data
+3. Calls `render(viewModel)` to trigger a grid re-render
+
+Resetting calls `resetTransform(colIndex)` which re-derives the viewmodel from the original raw data without the transform.
+
+```tsx
+// In the facet renderer:
+const next = currency === "USD" ? "INR" : "USD";
+viewModel.metaState.set("currency", colName, next);
+
+if (next === "INR") {
+  applyTransform(colIndex, (v) => v != null ? v * 83.5 : v);
+} else {
+  resetTransform(colIndex);
+}
+render(viewModel);
+```
+
+Click the **USD** / **INR** button on the measure column headers to convert:
+
+<DataSourceProvider mode="clean">
+  <CurrencyConversionTable height="300px" />
+</DataSourceProvider>

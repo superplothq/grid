@@ -86,3 +86,10 @@ Thumbs.db
 
 # temporary until specs is fixed
 specs/
+
+# Fumadocs
+.source
+.vercel
+next-env.d.ts
+out/
+.next/

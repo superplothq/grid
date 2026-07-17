@@ -1,0 +1,5 @@
+{
+  "title": "DataModel",
+  "defaultOpen": true,
+  "pages": ["pivot-table-datamodel", "standard-table-datamodel"]
+}

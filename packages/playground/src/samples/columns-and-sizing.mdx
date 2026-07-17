@@ -1,0 +1,38 @@
+import ColumnsAndSizingTable from "./components/ColumnsAndSizingTable";
+import ExcludeColumnFacetsTable from "./components/ExcludeColumnFacetsTable";
+import { DataSourceProvider } from "./components/DataSourceContext";
+
+# Columns and Sizing
+
+Render only specific columns by passing `project` to `SimpleTable`, and control their width with `vTrackDefs`.
+
+## Static Sizing
+
+Each column below uses the `static` strategy with `fr` units. The grid fits within the container with no horizontal scrolling. `Regular Gross Paid` gets `2fr` — twice the width of the name columns:
+
+```tsx
+const PROJECT = ["First Name", "Last Name", "Regular Gross Paid"];
+const V_TRACK_DEFS = [
+  { colSize: { strategy: "static", width: 1, unit: "fr" } },
+  { colSize: { strategy: "static", width: 1, unit: "fr" } },
+  { colSize: { strategy: "static", width: 2, unit: "fr" } },
+];
+
+<SimpleTable project={PROJECT} vTrackDefs={V_TRACK_DEFS} />
+```
+
+<DataSourceProvider mode="clean">
+  <ColumnsAndSizingTable height="200px" />
+</DataSourceProvider>
+
+## Exclude Column Facets
+
+When `excludeColumnFacets` is `true`, the column header text is excluded from auto-sizing width calculations. Toggle the setting below on the `"Leave Status as of June 30"` column to see the difference — with it **ON**, the column width is determined only by cell data, not the long header text.
+
+```tsx
+{colSize: {strategy: "max-cell", excludeColumnFacets: true}}
+```
+
+<DataSourceProvider mode="clean">
+  <ExcludeColumnFacetsTable height="200px" />
+</DataSourceProvider>

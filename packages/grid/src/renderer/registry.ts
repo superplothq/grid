@@ -1,4 +1,4 @@
-import {GridWin, Constructor, Theme} from "./types";
+import { GridWin, Constructor, Theme } from "./types";
 
 const win = window  as unknown as GridWin;
 

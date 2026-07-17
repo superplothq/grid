@@ -1,0 +1,30 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "web",
+      "runtimeExecutable": "yarn",
+      "runtimeArgs": ["workspace", "web", "dev:preview"],
+      "port": 3334,
+      "autoPort": true
+    },
+    {
+      "name": "web-static",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["serve", "packages/web/out", "-l", "3336"],
+      "port": 3336
+    },
+    {
+      "name": "docs-static",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["serve", "packages/docs/out", "-l", "3335"],
+      "port": 3335
+    },
+    {
+      "name": "playground",
+      "runtimeExecutable": "yarn",
+      "runtimeArgs": ["workspace", "playground", "start", "--port", "3001"],
+      "port": 3001
+    }
+  ]
+}

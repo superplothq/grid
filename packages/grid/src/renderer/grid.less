@@ -21,34 +21,34 @@
   /* Base cell styling */
 .cell {
   padding: calc(var(--cell-padding-y) * 1px) calc(var(--cell-padding-x) * 1px);
-  border-left: calc(var(--vertical-border-width) * 1px) solid var(--vertical-border-color);
   margin: 0;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  font-family: var(--font-family);
   font-size: calc(var(--font-size) * 1px);
   font-weight: var(--font-weight);
   display: flex;
   align-items: center;
 
-  &.l-edge, &.nl-edge {
-    border-left: none;
-  }
+  &.fixture-spacer {
+    z-index: 10000 !important;
 
-  &.r-edge {
-    border-right: calc(var(--vertical-border-width) * 1px) solid var(--vertical-border-color);
-  }
+    &.intersect-left {
+      border-right: calc(var(--vertical-border-width) * 1px) solid var(--vertical-border-color);
+    }
 
-  &.b-edge {
-    border-bottom: calc(var(--horizontal-border-width) * 1px) solid var(--horizontal-border-color) !important;
+    &.intersect-right {
+      border-left: calc(var(--vertical-border-width) * 1px) solid var(--vertical-border-color);
+    }
   }
 
   &.facet-b-edge, &.header-b-edge {
-    border-bottom: calc(var(--data-left-border-width) * 1px) solid var(--data-left-border-color) !important;
+    border-bottom: calc(var(--data-top-border-width) * 1px) solid var(--data-top-border-color) !important;
   }
 
-  &.facet-r-edge, &.header-r-edge {
-    border-right: calc(var(--data-top-border-width) * 1px) solid var(--data-top-border-color) !important;
+  &.facet-r-edge {
+    border-right: calc(var(--data-left-border-width) * 1px) solid var(--data-left-border-color) !important;
   }
 
   &.col-facet {
@@ -59,29 +59,17 @@
     border-bottom: calc(var(--horizontal-border-width) * 1px) solid var(--horizontal-border-color);
     font-weight: var(--column-facet-font-weight);
     color: var(--column-facet-text-color);
+    overflow: visible;
 
-    /* show resize handler */
-    &::after {
-      content: '';
-      position: absolute;
-      top: 0;
-      right: 0;
-      width: 0px;
-      height: 100%;
-      cursor: col-resize;
-    }
-
-    &:hover::after {
-      background: #21212196;
-      width: 4px;
-      transition: width 0.2s ease-in-out;
+    &.r-edge {
+      overflow: hidden;
     }
 
     &.skp-sz {
       contain: inline-size;
     }
 
-    > .content {
+    .content {
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
@@ -94,13 +82,32 @@
     position: sticky;
     z-index: 15;
     color: var(--column-facet-text-color);
-    border-bottom: calc(var(--horizontal-border-width) * 1px) solid var(--horizontal-border-color);
+    border-top: calc(var(--horizontal-border-width) * 1px) solid var(--horizontal-border-color);
+    border-right: calc(var(--vertical-border-width) * 1px) solid var(--vertical-border-color);
+
+    &.first {
+      border-top: none !important;
+    }
+
+    &.last {
+      border-bottom: calc(var(--horizontal-border-width) * 1px) solid var(--horizontal-border-color);
+    }
 
     > .content {
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
       min-width: 0;
+    }
+
+    &.grouped-row {
+      padding-left: calc(var(--cell-padding-x) * 1px);
+      margin-left: calc(var(--depth, 0) * 16px);
+      justify-content: flex-start;
+    }
+
+    &.sticky-row {
+      z-index: 18;
     }
   }
 
@@ -109,6 +116,7 @@
       display: flex;
       gap: 0.65rem;
       justify-content: center;
+      max-width: 100%;
       align-items: center;
     }
   }
@@ -117,11 +125,30 @@
     justify-content: end;
     background: var(--value-background-color);
     color: var(--value-text-color);
-    border-bottom: calc(var(--horizontal-border-width) * 1px) solid var(--horizontal-border-color);
+    font-variant-numeric: tabular-nums;
+    border-top: calc(var(--horizontal-border-width) * 1px) solid var(--horizontal-border-color);
+    border-right: calc(var(--vertical-border-width) * 1px) solid var(--vertical-border-color);
 
     &.custom-rendered {
       justify-content: center;
       padding: 0;
+    }
+
+    &.sticky-row {
+      position: sticky;
+      z-index: 18;
+    }
+
+    &.first {
+      border-top: none !important;
+    }
+
+    &.last {
+      border-bottom: calc(var(--horizontal-border-width) * 1px) solid var(--horizontal-border-color);
+    }
+
+    &.r-edge {
+      border-right: none;
     }
   }
 
@@ -130,19 +157,100 @@
     color: var(--facet-header-font-color);
     font-size: calc(var(--facet-header-font-size) * 1px);
     font-weight: var(--facet-header-font-weight);
+    border-bottom: calc(var(--horizontal-border-width) * 1px) solid var(--horizontal-border-color);
+
+    &.bottom-fixture {
+      border-bottom: none;
+      border-top: calc(var(--horizontal-border-width) * 1px) solid var(--horizontal-border-color);
+    }
+  }
+
+  &.left-fixture, &.right-fixture, &.top-fixture, &.bottom-fixture {
+    position: sticky;
+  }
+
+  &.top-fixture, &.bottom-fixture {
+    border-bottom: 1px solid var(--horizontal-border-color);
+    z-index: 9000;
+
+    &.h-fixed {
+      z-index: 30;
+    }
+
+    &.header:not(.fixture-spacer) {
+      border-right: calc(var(--vertical-border-width) * 1px) solid var(--vertical-border-color);
+    }
+
+    &.intersect-left, &.intersect-right {
+      z-index: 9999;
+    }
+  }
+
+  &.right-fixture.data {
+    &[data-right-sticky-track-index="0"] {
+      border-left: calc(var(--vertical-border-width) * 1px) solid var(--vertical-border-color);
+    }
+
+    &.last-fixture {
+      border-right: none;
+    }
+  }
+
+  &.left-fixture, &.right-fixture {
+    z-index: 15;
+    border-top: none;
+
+    &.header {
+      overflow: visible;
+    }
   }
 
   &.corner {
     position: sticky;
-    z-index: 30;
+    overflow: visible;
   }
 
   &.selection-overlay {
     pointer-events: none;
-    background: rgba(0, 120, 215, 0.1);
-    border: 2px solid #0078d7;
+    background: rgba(59, 130, 246, 0.08);
+    border: 2px solid #3b82f6;
     z-index: 5;
     position: relative;
     box-sizing: border-box;
+  }
+
+  &.col-facet, &.corner {
+    > .resize-handle {
+      position: absolute;
+      right: -4px;
+      width: 8px;
+      height: 70%;
+      z-index: 1;
+
+      &::after {
+        content: "";
+        position: absolute;
+        top: 0;
+        left: 50%;
+        width: 2px;
+        border-radius: 2px;
+        height: 100%;
+        background: var(--vertical-border-color);
+        transform: translateX(-50%);
+        transition: width 0.2s ease-in-out;
+      }
+    }
+
+    &.r-edge > .resize-handle {
+      right: -2px;
+    }
+
+    &:hover > .resize-handle::after {
+      width: 4px;
+    }
+
+    > .resize-handle:hover {
+      cursor: col-resize;
+    }
   }
 }

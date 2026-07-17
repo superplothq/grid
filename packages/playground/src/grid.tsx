@@ -1,7 +1,8 @@
 import React, { useEffect, useRef, useState } from "react";
 import "grid/dist/grid.css";
-import Grid, { GridDataViewModel, LayoutEvents, SelectionPayload, VTrackDef, ColAutoSizeConfig, createChartRenderer, CellRenderer, FacetCellRenderer } from "grid/dist/renderer";
+import Grid, { PivotDataViewModel, FlattenedDataViewModel, createRowMeta, LayoutEvents, SelectionPayload, VTrackDef, ColAutoSizeConfig, createChartRenderer, CellRenderer, FacetCellRenderer, PVerticalFixture, PHorizontalFixture, BaseFixtureViewModel, BaseViewModel, BaseSliceResult, FacetHeaderContext } from "grid/dist/renderer";
 import feather from "feather-icons";
+import {CellToMeasure} from "grid/dist/renderer/types";
 
 interface TwoKeyData {
   primary: string;
@@ -64,6 +65,254 @@ const colFacetRenderer: FacetCellRenderer = (data, ctx) => {
   };
 };
 
+class LineNumberFixture extends PVerticalFixture {
+  viewModelKey(): string {
+    return "lineNumber";
+  }
+
+  headerCell(): HTMLElement {
+    const el = document.createElement("span");
+    el.textContent = "#";
+    el.style.fontWeight = "bold";
+    return el;
+  }
+
+  getCellsToRender(viewModel: BaseViewModel, fixtureViewModel: BaseFixtureViewModel, sliceData: BaseSliceResult): {
+    nodesToAppend: HTMLElement[];
+  } {
+    const nodesToAppend: HTMLElement[] = [];
+    const numColFacetLevels = this.data!.numColFacetLevels;
+    const fixturesTopLen = (viewModel as any).fixtures?.top?.length ?? 0;
+
+    for (let j = 0; j < sliceData.sliceNumRows; j++) {
+      const rowIndex = viewModel.y0 + j;
+      const key = `ln-${rowIndex}`;
+      const startEndCellCls = `${j === 0 ? " first" : ""}${j === sliceData.sliceNumRows - 1 ? " last" : ""}`;
+
+      const [cell, needAppend, contentDirty] = this.placeCellInDom({
+        key,
+        gridRow: fixturesTopLen + numColFacetLevels + j + 1,
+        gridCol: fixtureViewModel.track,
+        hintContentDirty: true,
+        // TODO add standard classnames from layout
+        cls:  `${fixtureViewModel.suggestedCls.join(' ')} data${startEndCellCls}`,
+        extraStyles: {
+          left: fixtureViewModel.offset,
+        },
+      });
+
+      if (contentDirty) {
+        cell.textContent = String(rowIndex + 1);
+        cell.style.fontSize = "11px";
+        cell.style.color = "#888";
+        cell.style.textAlign = "right";
+        cell.style.paddingRight = "6px";
+      }
+
+      if (needAppend) nodesToAppend.push(cell);
+    }
+
+    return { nodesToAppend };
+  }
+}
+
+class CheckboxFixture extends PVerticalFixture {
+  viewModelKey(): string {
+    return "checkbox";
+  }
+
+  headerCell(): HTMLElement {
+    const cb = document.createElement("input");
+    cb.type = "checkbox";
+    return cb;
+  }
+
+  getCellsToRender(viewModel: BaseViewModel, fixtureViewModel: BaseFixtureViewModel, sliceData: BaseSliceResult): {
+    nodesToAppend: HTMLElement[];
+  } {
+    const nodesToAppend: HTMLElement[] = [];
+    const numColFacetLevels = this.data!.numColFacetLevels;
+    const fixturesTopLen = (viewModel as any).fixtures?.top?.length ?? 0;
+
+    for (let j = 0; j < sliceData.sliceNumRows; j++) {
+      const rowIndex = viewModel.y0 + j;
+      const key = `chk-${rowIndex}`;
+      const startEndCellCls = `${j === 0 ? " first" : ""}${j === sliceData.sliceNumRows - 1 ? " last" : ""}`;
+
+      const [cell, needAppend, contentDirty] = this.placeCellInDom({
+        key,
+        gridRow: fixturesTopLen + numColFacetLevels + j + 1,
+        gridCol: fixtureViewModel.track,
+        hintContentDirty: true,
+        cls: `${fixtureViewModel.suggestedCls.join(' ')} data${startEndCellCls}`,
+        extraStyles: {
+          left: fixtureViewModel.offset,
+        },
+      });
+
+      if (contentDirty) {
+        const cb = document.createElement("input");
+        cb.type = "checkbox";
+        cell.replaceChildren(cb);
+      }
+
+      if (needAppend) nodesToAppend.push(cell);
+    }
+
+    return { nodesToAppend };
+  }
+}
+
+class FilterFixture extends PHorizontalFixture {
+  viewModelKey(): string {
+    return "filter";
+  }
+
+  getHeight(): number {
+    return 28;
+  }
+
+  headerCell(ctx: FacetHeaderContext): HTMLElement | null {
+    const input = document.createElement("input");
+    input.type = "text";
+    input.placeholder = "Filter...";
+    input.style.cssText = "width:48px;height:100%;border:none;outline:none;font-size:11px;padding:2px 4px;box-sizing:border-box;background:transparent;";
+    return input;
+  }
+
+  getCellsToRender(viewModel: BaseViewModel, fixtureViewModel: BaseFixtureViewModel, sliceData: BaseSliceResult): {
+    nodesToAppend: HTMLElement[];
+  } {
+    const nodesToAppend: HTMLElement[] = [];
+    const vm = viewModel as any;
+    const numRowFacetLevels = this.data!.numRowFacetLevels;
+    const leftFixtureCount = vm.fixtures?.left?.length ?? 0;
+
+    for (let i = 0; i < sliceData.sliceNumCols; i++) {
+      const colIndex = viewModel.x0 + i;
+      const key = `filter-col-${colIndex}`;
+      const gridCol = leftFixtureCount + numRowFacetLevels + i + 1;
+      const [cell, needAppend, contentDirty] = this.placeCellInDom({
+        key,
+        gridRow: fixtureViewModel.track,
+        gridCol,
+        hintContentDirty: true,
+        cls: `header ${fixtureViewModel.suggestedCls.join(" ")}`,
+        extraStyles: {
+          top: fixtureViewModel.offset,
+        },
+      });
+      if (contentDirty) {
+        const input = document.createElement("input");
+        input.type = "text";
+        input.placeholder = "Filter...";
+        input.style.cssText = "width:100%;height:100%;border:none;outline:none;font-size:11px;padding:2px 4px;box-sizing:border-box;background:transparent;";
+        cell.replaceChildren(input);
+        cell.style.borderRight = "1px solid var(--vertical-border-color)";
+      }
+      needAppend && nodesToAppend.push(cell);
+    }
+
+    return { nodesToAppend };
+  }
+}
+
+class AggregationFixture extends PHorizontalFixture {
+  viewModelKey(): string {
+    return "aggregation";
+  }
+
+  getHeight(): number {
+    return 28;
+  }
+
+  headerCell(): null { return null; }
+
+  getCellsToRender(viewModel: BaseViewModel, fixtureViewModel: BaseFixtureViewModel, sliceData: BaseSliceResult): {
+    nodesToAppend: HTMLElement[];
+  } {
+    const nodesToAppend: HTMLElement[] = [];
+    const vm = viewModel as any;
+    const numRowFacetLevels = this.data!.numRowFacetLevels;
+    const fixedLeftPositions: number[] = vm.fixedLeftVTrackPositions ?? [];
+    const leftFixtureCount = vm.fixtures?.left?.length ?? 0;
+    const totalCols = leftFixtureCount + numRowFacetLevels + this.data!.numCols;
+
+    const key = "agg-bar";
+    const [cell, needAppend, contentDirty] = this.placeCellInDom({
+      key,
+      gridRow: fixtureViewModel.track,
+      gridCol: leftFixtureCount + 1,
+      cls: `header ${fixtureViewModel.suggestedCls.join(" ")} h-fixed`,
+      hintContentDirty: true,
+      extraStyles: {
+        bottom: fixtureViewModel.offset,
+        left: fixedLeftPositions[leftFixtureCount] ?? 0,
+        colspan: numRowFacetLevels + sliceData.sliceNumCols,
+      },
+    });
+    if (contentDirty) {
+      cell.style.cssText += "font-size:11px;padding:4px 8px;white-space:nowrap;";
+      cell.textContent = "Total: 1,234,567  |  Avg: 42.3  |  Min: 1  |  Max: 999";
+    }
+    if (needAppend) {
+      cell.dataset.bottomFixtureNodeType = "h-sticky";
+      nodesToAppend.push(cell);
+    }
+
+    return { nodesToAppend };
+  }
+}
+
+class BottomDetailFixture extends PHorizontalFixture {
+  viewModelKey(): string {
+    return "bottom-detail";
+  }
+
+  getHeight(): number {
+    return 28;
+  }
+
+  headerCell(ctx: FacetHeaderContext): HTMLElement | null {
+    const span = document.createElement("span");
+    span.style.cssText = "font-size:11px;padding:2px 4px;";
+    span.textContent = `#${ctx.level + 1}`;
+    return span;
+  }
+
+  getCellsToRender(viewModel: BaseViewModel, fixtureViewModel: BaseFixtureViewModel, sliceData: BaseSliceResult): {
+    nodesToAppend: HTMLElement[];
+  } {
+    const nodesToAppend: HTMLElement[] = [];
+    const vm = viewModel as any;
+    const numRowFacetLevels = this.data!.numRowFacetLevels;
+    const leftFixtureCount = vm.fixtures?.left?.length ?? 0;
+
+    for (let i = 0; i < sliceData.sliceNumCols; i++) {
+      const colIndex = viewModel.x0 + i;
+      const key = `btm-detail-col-${colIndex}`;
+      const gridCol = leftFixtureCount + numRowFacetLevels + i + 1;
+      const [cell, needAppend, contentDirty] = this.placeCellInDom({
+        key,
+        gridRow: fixtureViewModel.track,
+        gridCol,
+        hintContentDirty: true,
+        cls: `header ${fixtureViewModel.suggestedCls.join(" ") }`,
+        extraStyles: {
+          bottom: fixtureViewModel.offset,
+        },
+      });
+      if (contentDirty) {
+        cell.style.cssText += "font-size:11px;padding:2px 4px;";
+        cell.textContent = `${Math.floor(Math.random() * 1000)}`;
+      }
+      needAppend && nodesToAppend.push(cell);
+    }
+
+    return { nodesToAppend };
+  }
+}
+
 // Declare the custom element for TypeScript
 declare global {
   namespace JSX {
@@ -115,13 +364,13 @@ const NullFacetDemo: React.FC = () => {
       data.push(colData);
     }
 
-    const grid = new Grid({}, ref.current);
-    grid.data = new GridDataViewModel(
+    const grid = new Grid({ fixtures: { top: [/* FilterFixture */], left: [/*CheckboxFixture, LineNumberFixture*/], bottom: [AggregationFixture, BottomDetailFixture], right: [CheckboxFixture, LineNumberFixture] } }, ref.current);
+    grid.data = new PivotDataViewModel({
       data,
-      [colFacetLevel0, colFacetLevel1, colFacetLevel2],
-      [rowFacetLevel0, rowFacetLevel1, rowFacetLevel2],
-      { facetDefs: { row: [{ trackRenderer: rowFacetRenderer }], col: [{ trackRenderer: colFacetRenderer }], axis: 'col' } }
-    );
+      columnFacets: [colFacetLevel0, colFacetLevel1, colFacetLevel2],
+      rowFacets: [rowFacetLevel0, rowFacetLevel1, rowFacetLevel2],
+      options: { facetDefs: { row: [{ trackRenderer: rowFacetRenderer }], col: [{ trackRenderer: colFacetRenderer }], axis: 'col' } },
+    });
     grid.draw();
   }, []);
 
@@ -146,7 +395,7 @@ const GridPlayground: React.FC = () => {
   const defaultColFacetConfig = "2;3;3";
   const defaultCellSizeConfig = "";
   const defaultColSizeConfigExample = `0,2:[strategy=max;excludeColumnFacets=1]
-5-8:[strategy=fixed;widthInPx=90]`;
+5-8:[strategy=fixed;maxWidthInPx=90]`;
 
   const [rowFacetConfig, setRowFacetConfig] = useState(() =>
     localStorage.getItem("grid_rowFacetConfig") ?? defaultRowFacetConfig
@@ -163,9 +412,13 @@ const GridPlayground: React.FC = () => {
   const [appliedColSizeConfig, setAppliedColSizeConfig] = useState(() =>
     localStorage.getItem("grid_colSizeConfig") ?? ""
   );
+  const [layoutMode, setLayoutMode] = useState<"pivot" | "grouped">(() =>
+    (localStorage.getItem("grid_layoutMode") as "pivot" | "grouped") ?? "pivot"
+  );
   const [totalDataPoints, setTotalDataPoints] = useState(0);
   const [showHeaders, setShowHeaders] = useState(false);
   const showHeadersRef = useRef(false);
+  const gridLayoutModeRef = useRef<"pivot" | "grouped">("pivot");
   const [events, setEvents] = useState<Array<{ name: string; payload: unknown }>>([]);
   const [perfMetrics, setPerfMetrics] = useState<LayoutEvents['debug_perf:metrics'] | null>(null);
 
@@ -175,6 +428,9 @@ const GridPlayground: React.FC = () => {
   const [colSelection, setColSelection] = useState("");
   const [rowSelection, setRowSelection] = useState("");
   const [activeSelections, setActiveSelections] = useState<Map<string, { label: string; unsub: () => void }>>(new Map());
+
+  // ScrollTo state
+  const [scrollToIndex, setScrollToIndex] = useState("");
 
   const handleRowFacetChange = (value: string) => {
     setRowFacetConfig(value);
@@ -260,6 +516,20 @@ const GridPlayground: React.FC = () => {
     handleSelect(gridRef.current.selectRowByDataIndex(rowIndex));
   };
 
+  const handleScrollToRow = () => {
+    if (!gridRef.current || !scrollToIndex.trim()) return;
+    const idx = parseInt(scrollToIndex.trim(), 10);
+    if (isNaN(idx)) return;
+    gridRef.current.scrollTo("row", idx);
+  };
+
+  const handleScrollToCol = () => {
+    if (!gridRef.current || !scrollToIndex.trim()) return;
+    const idx = parseInt(scrollToIndex.trim(), 10);
+    if (isNaN(idx)) return;
+    gridRef.current.scrollTo("column", idx);
+  };
+
   const generateRandomNumber = (minDigits: number, maxDigits: number): string => {
     const digits = Math.floor(Math.random() * (maxDigits - minDigits + 1)) + minDigits;
     const min = Math.pow(10, digits - 1);
@@ -342,9 +612,8 @@ const GridPlayground: React.FC = () => {
       // Build ColAutoSizeConfig
       const colSizeConfig: ColAutoSizeConfig = settings.strategy === "fixed"
         ? {
-            strategy: "fixed-width",
+            strategy: "clamped-width",
             excludeColumnFacets: settings.excludeColumnFacets === "1",
-            ...(settings.widthInPx && { widthInPx: parseInt(settings.widthInPx, 10) }),
             ...(settings.minWidthInPx && { minWidthInPx: parseInt(settings.minWidthInPx, 10) }),
             ...(settings.maxWidthInPx && { maxWidthInPx: parseInt(settings.maxWidthInPx, 10) }),
           }
@@ -499,7 +768,9 @@ const GridPlayground: React.FC = () => {
 
     // Create or update grid
     if (!gridRef.current) {
-      gridRef.current = new Grid({}, gridConRef.current);
+      const layoutType = layoutMode === "grouped" ? "flat" : "pivot";
+      gridRef.current = new Grid({ fixtures: { top: [FilterFixture], left: [LineNumberFixture/*CheckboxFixture, LineNumberFixture*/], bottom: [AggregationFixture, BottomDetailFixture], right: [CheckboxFixture] } }, gridConRef.current, layoutType);
+      gridLayoutModeRef.current = layoutMode;
       for (const e of ['renderComplete', 'selectionAdded', 'selectionRemoved']) {
         gridRef.current.on(e as any, (payload) => {
           setEvents((prev) => [{ name: e, payload }, ...prev.slice(0, 49)]);
@@ -537,21 +808,59 @@ const GridPlayground: React.FC = () => {
     }
 
     console.log("Generated data:", { totalRows, totalCols, rowFacets: rowFacetLevelMajor, colFacets: colFacetLevelMajor, data });
-    gridRef.current.data = new GridDataViewModel(data, colFacetLevelMajor, rowFacetLevelMajor, {
-      vTrackDefs,
-      facetDefs: {
-        row: rowFacets.map((_, i) => ({ trackRenderer: rowFacetRenderer, ...(showHeadersRef.current && { text: `Row ${i}` }) })),
-        col: colFacets.map((_, i) => ({ trackRenderer: colFacetRenderer, ...(showHeadersRef.current && { text: `Col ${i}` }) })),
-        axis: 'col',
-      },
-    });
+
+    if (layoutMode === "grouped" && rowFacets.length > 0) {
+      const flatRowFacet: (string | null)[] = [];
+      const flatRowMetaBytes: number[] = [];
+      const flatData: (string | number[] | TwoKeyData | ThreeKeyData)[][] = [];
+      for (let c = 0; c < totalCols; c++) flatData.push([]);
+
+      const emitTree = (depth: number) => {
+        if (depth === rowFacets.length) return;
+        const isLeaf = depth === rowFacets.length - 1;
+        for (let i = 0; i < rowFacets[depth]; i++) {
+          flatRowFacet.push(`RF${depth}_${i}`);
+          flatRowMetaBytes.push(createRowMeta(depth, isLeaf, !isLeaf));
+          for (let c = 0; c < totalCols; c++) {
+            flatData[c].push(generateRandomNumber(4, 7));
+          }
+          emitTree(depth + 1);
+        }
+      };
+      emitTree(0);
+
+      const flatRowMeta = new Uint8Array(flatRowMetaBytes);
+      gridRef.current.data = new FlattenedDataViewModel({
+        data: flatData, columnFacets: colFacetLevelMajor, rowFacet: flatRowFacet, rowMeta: flatRowMeta,
+        options: {
+          vTrackDefs,
+          facetDefs: {
+            row: [{ trackRenderer: rowFacetRenderer, ...(showHeadersRef.current && { text: "Row" }) }],
+            col: colFacets.map((_, i) => ({ trackRenderer: colFacetRenderer, ...(showHeadersRef.current && { text: `Col ${i}` }) })),
+            axis: 'col',
+          },
+        },
+      });
+    } else {
+      gridRef.current.data = new PivotDataViewModel({
+        data, columnFacets: colFacetLevelMajor, rowFacets: rowFacetLevelMajor,
+        options: {
+          vTrackDefs,
+          facetDefs: {
+            row: rowFacets.map((_, i) => ({ trackRenderer: rowFacetRenderer, ...(showHeadersRef.current && { text: `Row ${i}` }) })),
+            col: colFacets.map((_, i) => ({ trackRenderer: colFacetRenderer, ...(showHeadersRef.current && { text: `Col ${i}` }) })),
+            axis: 'col',
+          },
+        },
+      });
+    }
     gridRef.current.draw();
   };
 
-  // Generate grid on page load with current input values
+  // Generate grid on page load and when layout mode changes
   useEffect(() => {
     handleGenerate();
-  }, []);
+  }, [layoutMode]);
 
   return (
     <>
@@ -600,6 +909,13 @@ const GridPlayground: React.FC = () => {
         <button onClick={handleReset}>Reset</button>
         <button onClick={() => { showHeadersRef.current = !showHeadersRef.current; setShowHeaders(showHeadersRef.current); handleGenerate(); }}>
           {showHeaders ? "Hide Headers" : "Show Headers"}
+        </button>
+        <button onClick={() => {
+          const next = layoutMode === "pivot" ? "grouped" : "pivot";
+          setLayoutMode(next);
+          localStorage.setItem("grid_layoutMode", next);
+        }}>
+          Layout: {layoutMode === "pivot" ? "Pivot" : "Grouped"}
         </button>
         <span> Total data points: {totalDataPoints}</span>
       </div>
@@ -674,8 +990,21 @@ const GridPlayground: React.FC = () => {
           ))}
         </div>
       )}
+      <div style={{ marginTop: "4px" }}>
+        <label>
+          Scroll To Index:
+          <input
+            type="text"
+            value={scrollToIndex}
+            onChange={(e) => setScrollToIndex(e.target.value)}
+            placeholder="0"
+          />
+        </label>
+        <button onClick={handleScrollToRow}>Scroll to Row</button>
+        <button onClick={handleScrollToCol}>Scroll to Column</button>
+      </div>
       <hr/>
-      <div style={{
+      <div key={layoutMode} style={{
         position: "relative",
         background: "white",
         height: "calc(100vh - 400px)",
@@ -685,7 +1014,12 @@ const GridPlayground: React.FC = () => {
         padding: 0,
         boxSizing: "border-box",
         contain: "layout style",
-      }} ref={gridConRef}>
+      }} ref={(el) => {
+        if (el && el !== gridConRef.current) {
+          (gridConRef as React.MutableRefObject<HTMLDivElement | null>).current = el;
+          gridRef.current = null;
+        }
+      }}>
       </div>
       <details>
         <summary>Perf</summary>

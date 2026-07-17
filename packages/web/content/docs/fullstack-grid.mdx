@@ -1,0 +1,35 @@
+---
+title: Fullstack Grid
+description: Preparing a grid's data is as hard as rendering it. SuperPlot facilitates agentic development across the full path from query to pixels, generating server code for your frameworks and ORMs.
+---
+
+A grid is a view of data, but the data has to be shaped somewhere. SuperPlot lets a single agent reliably build that shaping end to end, from the query to the pixels, instead of coordinating a separate frontend and backend.
+
+## Rendering the grid is half the story
+
+Rendering a grid is only half the problem. The other half lives in the backend, and it is rarely trivial.
+
+Even a basic grid needs pagination, filtering, search, and editing. Each of those has to be implemented on the server, correctly, and often across several frameworks and ORMs. Traditionally this work falls to the backend team, or to a fullstack engineer on a smaller team. That split adds communication loops, because the contract between frontend and backend is seldom fixed while the grid is still being built, contrary to what both sides expect at the start.
+
+As a result, much of the effort goes into backend plumbing rather than the grid itself. For anything beyond a trivial table this is a month of work. Grouping, expand and collapse, pivots, and OLAP cubes all have to operate in tandem with pagination, search, filtering, editing, and dimensional projection, and every combination has to produce a correct query.
+
+From a software engineering standpoint, none of this is new. The contract is sealed at the HTTP layer, and the job of mapping storage to query (retrieval, transformation, and mutation) and then to that HTTP contract has always been written by hand. The difficulty concentrates in the query layer: to support the full combinatorial set of states the contract allows, it becomes tricky, bug prone, and time consuming to build.
+
+## With agents, the boundaries of work are shifting
+
+Agentic development is blurring the line between frontend and backend roles. Engineers already work against the same systems and data, separated only by access policy. An agent driving the frontend and an agent driving the backend largely see the same infrastructure, with different permissions.
+
+For teams working this way, SuperPlot generates the backend code, across frameworks and ORMs, that the frontend needs to talk to. This only works on top of strong contracts and stable data structures. As a proof point, SuperPlot ships a DuckDB WASM engine that runs entirely in the browser when your dataset fits in browser memory, using the same contracts it would use against a server.
+
+Because a coding agent understands these contracts and can inspect your toolchain, it generates this code in a few shots, with the right evals ensuring correctness, performance, and other metrics. Where we once shipped frameworks built for fixed purposes and maintained long-lived adapters to make them talk, an agent can now build a cheap, throwaway adapter for each specific purpose.
+
+## Our approach
+
+On the frontend, SuperPlot provides strong, fixed primitives for the grid. On the backend, it does not impose a runtime. Instead it opens up code generation tuned to your toolchain and infrastructure through its skills. Data storage, access, and tooling are opinionated, as they should be, so we generate code that fits them rather than forcing a single abstraction onto every stack.
+
+We plan to add evals that test and score this generated code, so the codegen can be measured and improved automatically over time.
+
+## The benefits
+
+- One unified way to build complex grids, without spending months on backend implementation.
+- A fast, cheap, purpose-built adapter that does exactly one thing well.

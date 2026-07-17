@@ -1,0 +1,164 @@
+---
+title: Grouped and tree tables
+description: Render hierarchical rows from grouped data or tree data.
+datasets: []
+runtime: static
+tags: [flat]
+---
+
+The [`FlattenedDataViewModel`](/grid/docs/dataflow) normally renders a flat,
+non-pivot table. But it also carries one **packed metadata byte per row** that
+encodes the row's nesting depth, whether it is a leaf, and whether it is expanded,
+and with that it can render a grouped table that shows a hierarchy. The `"flat"`
+renderer reads the byte to indent each row and to ask a row-facet renderer for its
+marker. A flat table is really just the special case of a grouped table where
+every row sits at the same depth.
+
+```ts
+import { FlattenedDataViewModel, createRowMeta } from "grid/dist/renderer";
+
+// createRowMeta(depth, isLeaf, isExpanded) packs the three fields into one byte.
+grid.data = new FlattenedDataViewModel({
+  data: [[3_677_000], [38_100]],           // column-major data cells
+  columnFacets: [["Population", "Mortality"]],
+  rowFacet: ["Europe", "Berlin"],          // the label per row; the hierarchy lives here
+  rowMeta: new Uint8Array([
+    createRowMeta(0, false, true),         // group row: depth 0, has children, open
+    createRowMeta(1, true, false),         // leaf row: depth 1, no children
+  ]),
+  options: { facetDefs: { row: [{ text: "Region", trackRenderer }], col: [{ text: "" }], axis: "col" } },
+});
+```
+
+Expand and collapse are a **pure viewmodel refresh**. The viewmodel's
+`expand`, `collapse`, and `toggleExpand` methods only flip the metadata bit - they
+do not add or remove child rows. So a click walks the source hierarchy, re-emits
+just the rows that sit under an open branch, and swaps them in with
+`updateData` followed by a `draw`. Both tables below share one engine that does
+exactly this; only the data and the marker glyph differ.
+
+**Source**
+
+```json doc-gen:file
+{ "file": "packages/samples/src/samples/hierarchical-tables/table.ts", "codeblock": { "lang": "ts" } }
+```
+
+## Grouped table
+
+A grouped table nests aggregates: continent over country over city, with
+**Population** and **Mortality** measured at each city and rolled up as sums into
+the country and continent rows above. Every group row owns a **chevron**; a leaf
+city owns none. Clicking the chevron flips that node's `expanded` flag and rebuilds
+the visible rows.
+
+```ts
+// The row-facet renderer owns the marker and reads the row's unpacked metadata.
+function trackRenderer(label, ctx) {
+  if (ctx.flatMeta.isLeaf) return { left: spacer(), content: label };   // city: no marker
+  const chevron = makeChevron(ctx.flatMeta.isExpanded);
+  chevron.addEventListener("click", () => {
+    visibleNodes[ctx.index].expanded = !visibleNodes[ctx.index].expanded;
+    viewModel.updateData(flatten(tree));   // re-emit open branches, then grid.draw()
+    grid.draw();
+  });
+  return { left: chevron, content: label };
+}
+```
+
+Try it below: click a continent's chevron to reveal its countries, then a country
+to reveal its cities. The Population and Mortality columns on a group row always
+equal the sum of everything currently beneath it.
+
+<SampleDemo id="grouped-table" />
+
+**Source**
+
+```json doc-gen:file
+{ "file": "packages/samples/src/samples/hierarchical-tables/grouped.ts", "codeblock": { "lang": "ts" } }
+```
+
+## Tree table
+
+On the surface a tree table looks much like the grouped one: folders are group
+rows that toggle with a **+/-** box, and files are leaves that show their size and
+nothing to click. What differs is the **data preparation**. Instead of a fixed
+continent, country, city shape, the directory nests to an arbitrary depth, so the
+tree has to be walked and flattened level by level with no assumption about how
+deep it goes. Yet from the viewmodel's perspective nothing changes: the same
+**packed metadata byte** describes every row, `createRowMeta` packs up to 15
+levels, and the renderer indents each by its depth. That is the payoff of the
+design. An unbounded hierarchy and a fixed two-level one flow through the exact
+same viewmodel contract.
+
+```ts
+// Same engine, a different marker. The +/- box replaces the chevron.
+buildHierarchicalTable(el, {
+  facetLabel: "Path",
+  marker: "plusminus",
+  columns: [{ label: "Size", format: bytes }],
+  tree: FILES,   // folders roll up size; files are leaves carrying [sizeInBytes]
+});
+```
+
+Try it below: expand `src`, then `components`, to walk down the tree. A folder's
+Size is the total of every file under it.
+
+<SampleDemo id="tree-table" />
+
+**Source**
+
+```json doc-gen:file
+{ "file": "packages/samples/src/samples/hierarchical-tables/tree.ts", "codeblock": { "lang": "ts" } }
+```
+
+## Driving it from a DataModel
+
+Both tables keep the whole hierarchy in memory, so the viewmodel is the only layer
+they need. When the rows live behind an external datasource, such as an API or an
+in-browser WASM database, or there are simply too many to hold at once, a
+`StandardTableDataModel` sits in front of the viewmodel.
+It produces the very same `FlattenedDataViewModelParams`, so the renderer and the
+metadata byte never change. What it adds is lazy fetching, expand and collapse over
+a query, and a paged cache.
+
+### Expand and collapse
+
+`expand(groupPath)` and `collapse(groupPath)` take the group's value path, for
+example `["Europe", "Germany"]`, and each returns the refreshed
+`FlattenedDataViewModelParams` to hand straight to `viewModel.updateData(...)`
+before a `draw` - exactly the shape our in-memory `rebuild` uses. The difference is
+where the child rows come from. Expansion is **progressive**: each call drills one
+level deeper, so `expand(["USA"])` reveals states and `expand(["USA", "California"])`
+then reveals cities, fetching that level's rows on first open. `collapse` only flips
+a flag and keeps the children in cache, so re-expanding a collapsed group is a cache
+hit with no query.
+
+### Pagination
+
+`getViewModelData(ir)` is the single entry point. The IR carries the requested
+`startRow` and `endRow` alongside `groupBy`, `sort`, `filter`, and `project`. The
+model does not fetch the whole table: it fetches only the pages that overlap the
+requested range and serves the rest from cache. It returns the full contiguous
+loaded block with an `offsetTop`, so the renderer can size the scrollbar against the
+virtual row count and position the loaded rows within it. Changing `groupBy`,
+`filter`, `sort`, or `project` resets the cache, since those change which rows exist.
+
+### How expand and collapse pack with page management
+
+The cache is the piece that lets the two features coexist. `pages` is not a flat
+list but a **tree** of `PageNode`s: each node holds a fixed slice of rows
+(`config.pageSize`), with its `data` left `null` until the range is scrolled into
+view. Expanding a group row creates a nested subtree of child pages under that row's
+`expandedRows` entry, so the cache mirrors the group hierarchy and **every expanded
+branch is paged independently**. Collapsing hides a subtree but keeps it cached.
+When the total fetched page count crosses `config.maxNumPageBeforeEviction`, the
+pages furthest from the current scroll position are evicted first, so a deep, long
+session stays bounded in memory.
+
+### Class outline
+
+<auto-class-outline
+  path="packages/grid/src/datamodel/standard-table-datamodel.ts"
+  name="StandardTableDataModel"
+  exclude="StandardMetadataPlumber,StandardMetadataResolver,StandardColumnMetadata,GridDataViewModelOptions,DataSchema,FlattenedDataViewModelParams,GetRowsResponse,ColumnRangeValues"
+/>

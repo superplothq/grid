@@ -1,0 +1,49 @@
+import PaginatedFlatTable from "./components/PaginatedFlatTable";
+
+# Pagination
+
+Page-by-page viewing for flat tables. Enable it with `enablePageView: true` and `displayPageSize` on `useFlatGrid`.
+
+## Enabling pagination
+
+```tsx
+const {bindings, pageView, loading, error, fetchPage} = useFlatGrid({
+  dataSource: ds,
+  schema,
+  config: { schema, pageSize: 10 },
+  ir,
+  enablePageView: true,
+  displayPageSize: 10,
+  enableSorting: true,
+  facetDefs: {row: [{text: ""}], col: [{text: ""}], axis: "col"},
+});
+```
+
+## Rendering the pagination bar
+
+`useFlatGrid` returns a `pageView` object with all the state and actions needed. Pass it to the `<PageView />` component:
+
+```tsx
+return (
+  <div>
+    <DataGrid {...bindings} layout="flat" />
+    {pageView && <PageView {...pageView} />}
+  </div>
+);
+```
+
+## How it works
+
+- The grid displays one page at a time (`offsetTop=0`, `totalRows` = page row count)
+- `goToPage(n)` fetches rows for that page and updates the viewmodel
+- Sorting resets to page 0 automatically
+- `fetchPage` is a no-op when page view is enabled — all navigation goes through `goToPage`
+- Page size can be changed at runtime via the dropdown
+
+## Try it
+
+import { DataSourceProvider } from "./components/DataSourceContext";
+
+<DataSourceProvider mode="clean">
+  <PaginatedFlatTable height="500px" />
+</DataSourceProvider>

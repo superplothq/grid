@@ -9,19 +9,25 @@
     "lint": "eslint . --ext .ts,.tsx"
   },
   "dependencies": {
+    "@mdx-js/loader": "^3.1.1",
+    "@mdx-js/react": "^3.1.1",
     "datamodel": "1.0.0",
     "feather-icons": "^4.29.2",
+    "frameworks": "1.0.0",
     "grid": "1.0.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
-    "react-router-dom": "^6.15.0"
+    "react-router-dom": "^6.15.0",
+    "rehype-autolink-headings": "^7.1.0",
+    "rehype-pretty-code": "^0.14.3",
+    "rehype-slug": "^6.0.0",
+    "shiki": "^4.0.2"
   },
   "devDependencies": {
     "@types/feather-icons": "^4.29.4",
     "@types/react": "^18.2.0",
     "@types/react-dom": "^18.2.0",
     "@types/react-router-dom": "^5.3.3",
-    "copy-webpack-plugin": "^11.0.0",
     "css-loader": "^6.8.1",
     "html-webpack-plugin": "^5.5.3",
     "source-map-loader": "^5.0.0",

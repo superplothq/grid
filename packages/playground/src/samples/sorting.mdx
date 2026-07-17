@@ -1,0 +1,63 @@
+import FlatTable from "./components/FlatTable";
+
+# Sorting
+
+Column sorting is built into the grid as a composable feature. Enable it with `enableSorting: true` on `useFlatGrid`, and sort icons appear in every column header.
+
+## Enabling sorting
+
+Pass `enableSorting` to `useFlatGrid`:
+
+```tsx
+const {bindings, loading, error, fetchPage} = useFlatGrid({
+  dataSource: ds,
+  schema,
+  config,
+  ir,
+  enableSorting: true,
+  facetDefs: {row: [{text: ""}], col: [{text: ""}], axis: "col"},
+});
+```
+
+When `enableSorting` is true, the grid installs a default column track renderer (`SortableColumnRenderer`) that places a `<Sort />` icon next to each column name. Clicking the icon cycles through ascending, descending, and unsorted.
+
+## How it works
+
+Sort state is stored in `viewModel.metaState` under the `"sort"` namespace. When the user clicks a sort icon:
+
+1. The `<Sort />` component computes the new sort entries
+2. Writes them to `viewModel.metaState`
+3. Fetches sorted data via `model.getViewModelData({...ir, sort: newEntries})`
+4. Updates the view model and re-renders the grid
+
+No React state is involved in the data flow — the entire cycle is imperative.
+
+## Sort interactions
+
+- **Click** — Single sort. Replaces all existing sorts with this column. Cycles through ascending → descending → unsorted.
+- **Shift+Click** — Multi sort. Adds this column to the existing sort stack (or cycles it if already present). Use this to sort by multiple columns at once.
+- **Cmd+Click** — Reset. Removes this column from the sort criteria.
+
+## Composable `<Sort />` component
+
+`<Sort />` is a standalone building block, not a full renderer. You can compose it with other UI in a custom column renderer:
+
+```tsx
+import { Sort } from "frameworks/dist/react";
+
+function CustomColumnRenderer({ value, viewModel, render, index }: FacetCellProps) {
+  const schema = viewModel.schema![index];
+  return (
+    <div>
+      <span>{value}</span>
+      <Sort schema={schema} viewModel={viewModel} render={render} />
+    </div>
+  );
+}
+```
+
+## Try it
+
+Click any column header's sort icon to sort the data:
+
+<FlatTable height="500px" />
