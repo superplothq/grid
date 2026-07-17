@@ -16,7 +16,7 @@ export function FaqSection({ items }: { items: FaqItem[] }) {
             <summary>
               <h3>{item.question}</h3>
             </summary>
-            <p>{item.answer}</p>
+            <p>{item.answerNode ?? item.answer}</p>
           </details>
         </section>
       ))}

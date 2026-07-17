@@ -24,6 +24,9 @@ export const metadata: Metadata = {
   },
   description:
     'Create advanced grids, pivots, and data views using prompts, typed APIs, and composable primitives.',
+  icons: {
+    icon: '/favicon.png',
+  },
   openGraph: {
     siteName,
     type: 'website',

@@ -46,12 +46,32 @@
       }
       document.documentElement.dataset.copyEnhanced = '';
       var label = button.textContent;
+      var isBridge = button.classList.contains('bridge-copy-button');
+      var isIcon = button.hasAttribute('data-copy-icon');
+      var copiedLabel = isBridge ? 'Copied. Now paste it in your agent.' : 'copied ✓';
       button.addEventListener('click', function () {
-        navigator.clipboard.writeText(source.textContent).then(function () {
-          button.textContent = 'copied ✓';
+        var text = source.textContent;
+        if (isBridge || isIcon) {
+          text = text.replace(/\s+/g, ' ').trim();
+        }
+        navigator.clipboard.writeText(text).then(function () {
+          if (isIcon) {
+            button.classList.add('is-copied');
+            window.setTimeout(function () {
+              button.classList.remove('is-copied');
+            }, 1600);
+            return;
+          }
+          button.textContent = copiedLabel;
+          if (isBridge && button.parentElement) {
+            button.parentElement.classList.add('bridge-copied');
+          }
           window.setTimeout(function () {
             button.textContent = label;
-          }, 1600);
+            if (isBridge && button.parentElement) {
+              button.parentElement.classList.remove('bridge-copied');
+            }
+          }, 2600);
         });
       });
     });

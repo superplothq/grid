@@ -1,9 +1,20 @@
+import type { ReactNode } from 'react';
+import Link from 'next/link';
 import signalInboxConversation from 'samples/src/demos/signal-inbox/conversation.json';
 import marketPulseConversation from 'samples/src/demos/market-pulse/conversation.json';
 import serverMonitorConversation from 'samples/src/demos/server-monitor/conversation.json';
 import revenueRecognitionConversation from 'samples/src/demos/revenue-recognition/conversation.json';
 import pivotStudioConversation from 'samples/src/demos/pivot-studio/conversation.json';
-import { docsPath, gridDocsPath, gridDemosPath, ourApproachPath, siteUrl } from './site-config';
+import {
+  contactPath,
+  docsPath,
+  githubUrl,
+  gridBasePath,
+  gridDocsPath,
+  gridDemosPath,
+  ourApproachPath,
+  siteUrl,
+} from './site-config';
 
 export type DemoKey =
   | 'sales'
@@ -64,29 +75,19 @@ export interface FaqItem {
   hashPath: `faq/${string}`;
   question: string;
   answer: string;
+  answerNode?: ReactNode;
 }
 
 export interface ComparisonRow {
   dimension: string;
-  superplot: string;
-  traditional: string;
+  agent: string;
+  human: string;
 }
 
-export interface GetStartedStep {
-  title: string;
-  body: string;
-  code?: string;
-}
 
-export const copyToAgentPrompt = `Add the SuperPlot grid to this project.
-
-1. Install the packages: yarn add @superplot/grid @superplot/react
-2. Create a SQL datasource for my data (DuckDB WASM in the browser, native DuckDB in Node.js) and load my dataset with loadData().
-3. Wrap the app in DataSourceProvider and render a pivot table with usePivotGrid and the DataGrid component.
-4. Express the pivot layout with table algebra operators: cross, hierarchy, and concat.
-5. If I ask for a flat table instead, use useFlatGrid with row grouping.
-
-Docs: ${siteUrl}${gridDocsPath}`;
+export const copyToAgentPrompt = `I want to set up @superplot/grid. Read
+${siteUrl}${gridBasePath}/setup-skill.md
+and follow its instructions.`;
 
 export interface StackBarItem {
   name: string;
@@ -265,117 +266,138 @@ export const features: FeatureLink[] = [
 ];
 
 export const comparisonRows: ComparisonRow[] = [
-  { dimension: 'Primary consumer', superplot: 'Coding agents and developers, via prompts and typed APIs', traditional: 'Developers, via imperative configuration' },
-  { dimension: 'Data pipeline', superplot: 'Fullstack: SQL datasource through datamodel to renderer', traditional: 'Frontend component fed by app-assembled data' },
-  { dimension: 'Pivot layout definition', superplot: 'Table algebra expressions (cross, hierarchy, concat)', traditional: 'Nested option objects and callbacks' },
-  { dimension: 'UI coupling', superplot: 'Headless core with framework bindings', traditional: 'Rendered component with framework lock-in' },
+  {
+    dimension: 'Use cases & personalization',
+    agent: 'Supports a far wider range of use cases and deeper personalization',
+    human: 'Targets the common, high-value cases; the long tail is traded away for speed and simplicity',
+  },
+  {
+    dimension: 'Abstraction',
+    agent: 'Exposes the real abstractions the library is built on',
+    human: "Wraps them in config options and layers of convenience abstraction - not because humans can't handle the real thing, but because it is optimized for fast value creation",
+  },
+  {
+    dimension: 'Primitives',
+    agent: 'Programmatic access with tight control at each extension point',
+    human: 'Primitives that are quick and easy to implement, but lose extensibility',
+  },
+  {
+    dimension: 'Surface area',
+    agent: 'Once the abstraction is set, the surface stays small; the concepts you compose stay domain-specific',
+    human: 'A combinatorial surface of options to cover every domain-specific case',
+  },
 ];
 
 export const comparisonNote =
-  'Draft scaffold. This comparison describes architectural intent, not benchmarked claims about specific products. A sourced feature and performance matrix will replace it in a later iteration.';
+  'Building for agents changes three things: the primitives a library exposes, the architecture choices it supports, and how the work around the library is done - its documentation, tests, and evals.';
+
+export const comparisonCloser =
+  'A library built for agents can be used just as well by humans. In fact, given time and patience, a human will use it even better than an agent.';
+
+const setupSkillUrl = `${siteUrl}${gridBasePath}/setup-skill.md`;
+const installationPath = `${gridDocsPath}/installation/`;
 
 export const faqItems: FaqItem[] = [
   {
     hashPath: 'faq/who-is-it-for',
     question: 'Who is SuperPlot grid for?',
-    answer: 'SuperPlot is for developers and coding agents who need advanced data grids — pivot tables, tree tables, and large flat tables — without hand-building the data layer. It suits analytics dashboards, internal tools, and data-heavy applications, and it is designed so an AI coding agent can generate and refine grids directly from prompts.',
+    answer:
+      'SuperPlot exposes primitives for agents and is deliberate about what goes into its core. A human developer can work with it just as well, but it is built for agents first.',
   },
   {
     hashPath: 'faq/install',
     question: 'How do I install and get started?',
-    answer: 'Install the headless core and the React bindings with your package manager, for example: yarn add @superplot/grid @superplot/react. Then create a datasource, load your data, and render with the DataGrid component and a hook such as usePivotGrid or useFlatGrid. The fastest path is to copy the prompt in the hero section of this page and let your agent scaffold all three steps.',
+    answer: `Ask your agent to follow ${setupSkillUrl}. For more detail, see the installation guide at ${installationPath}.`,
+    answerNode: (
+      <>
+        Ask your agent to follow{' '}
+        <a href={setupSkillUrl} target="_blank" rel="noopener noreferrer">
+          {setupSkillUrl.replace('https://', '')}
+        </a>
+        . For more detail, see the <Link href={installationPath}>installation guide</Link>.
+      </>
+    ),
   },
   {
     hashPath: 'faq/frameworks',
     question: 'What frameworks and versions are supported?',
-    answer: 'The grid core is headless and framework-independent, with no UI framework dependency. First-party bindings currently target React 18 and expose a DataGrid component plus hooks like usePivotGrid, useFlatGrid, and useDataSource. Data runs on DuckDB — WASM in the browser or native DuckDB in Node.js. Because the core exposes plain typed APIs, bindings for other frameworks can wrap the same contracts.',
+    answer:
+      'We ship React bindings out of the box. Thanks to our architecture, agents can build throwaway adapters for any other framework.',
   },
   {
     hashPath: 'faq/how-different',
     question: 'How is it different from other grids out there?',
-    answer: 'Most grids are frontend components that expect you to bring pre-shaped data. SuperPlot owns the full pipeline — from a SQL datasource, through data modeling, to a virtualized renderer — and expresses pivot layouts as composable table algebra (cross, hierarchy, concat). That makes it fullstack and declarative, and its tight, repeating contracts make it especially easy for coding agents to work with.',
-  },
-  {
-    hashPath: 'faq/features',
-    question: 'What features does SuperPlot grid include?',
-    answer: 'SuperPlot includes virtualized rendering, standard flat tables with grouping, tree tables, pivot tables built on table algebra, SQL-backed query generation, sorting, filtering and pagination, real-time updates, custom cell and header renderers, a built-in metadata layer, and theming. See the features page for the full list and guides.',
+    answer:
+      'It is highly performant, deeply extensible, and extremely flexible, and it handles the full stack of a grid implementation, from data to pixels.',
   },
   {
     hashPath: 'faq/performance',
     question: 'How does it perform with large datasets?',
-    answer: 'Rendering is virtualized: the view model exposes a getSlice() contract so the renderer only draws cells in the visible viewport, and row metadata is packed into typed arrays. Aggregation, filtering, and pagination happen at the SQL layer — DuckDB in the browser or a server database — so the volume of data reaching the renderer stays small even for very large sources.',
+    answer:
+      "With virtualization and our DOM management, over 3M rows render in the browser. When the data comes from a backend, our data model's page cache and eviction mean there is practically no limit.",
   },
   {
     hashPath: 'faq/mobile-responsive',
     question: 'Is it mobile responsive?',
-    answer: 'Yes. The grid renders with a CSS grid layout and virtualized scrolling that works on touch devices, and it exposes sizing and layout configuration so you can adjust column and row density for smaller screens. As with any dense data grid, the best mobile experience comes from choosing which columns and facets to surface at narrow widths.',
+    answer: 'Yes. Our layouts are built on CSS primitives, so they adapt responsively.',
   },
   {
     hashPath: 'faq/customize',
     question: 'Can I customize the look and feel?',
-    answer: 'Yes. The renderer accepts custom cell renderers, header and facet renderers, and fixtures, and the visual output is driven by theme configuration and renderer CSS. Because the core is headless, your application owns the surrounding UI entirely — SuperPlot does not impose a design system.',
+    answer:
+      'We feed agents metadata from our theming system, so you can customize practically anything. Take a look at our demos to see what is possible.',
+    answerNode: (
+      <>
+        We feed agents metadata from our theming system, so you can customize practically anything.
+        Take a look at our <Link href={gridDemosPath}>demos</Link> to see what is possible.
+      </>
+    ),
   },
-  {
-    hashPath: 'faq/accessibility',
-    question: 'Do you support accessibility?',
-    answer: 'Accessibility is a priority and an area of active development. The grid renders semantic, keyboard-reachable DOM, and we are expanding ARIA roles, keyboard navigation, and screen-reader support as the library matures. If you have specific accessibility requirements, reach out — it helps us prioritize.',
-  },
-  {
-    hashPath: 'faq/vs-ag-grid',
-    question: 'How does it compare to AG Grid?',
-    answer: 'AG Grid is a mature, feature-rich grid focused on the frontend: you supply the data and it handles display and interactions. SuperPlot differs by owning the data pipeline too — generating queries from a declarative table-algebra config against a SQL datasource — and by being headless and agent-first. AG Grid is the more established, broadly adopted option today; SuperPlot trades that maturity for a fullstack, composable architecture.',
-  },
-  {
-    hashPath: 'faq/vs-tanstack-table',
-    question: 'How does it compare to TanStack Table?',
-    answer: 'TanStack Table is a headless table library that gives you row and column models and leaves rendering entirely to you; it does not fetch or transform data. SuperPlot is also headless but goes further down the stack — it includes a datasource and data model that generate SQL and produce render-ready view models, plus a renderer for virtualization and pivots. Choose TanStack if you want maximum rendering freedom and will own the data layer yourself; choose SuperPlot if you want the data-to-pixels path handled.',
-  },
-  {
-    hashPath: 'faq/vs-mui-grid',
-    question: 'What about MUI X Data Grid?',
-    answer: 'MUI X Data Grid is a polished React grid tightly integrated with Material UI’s design system, strong for flat tables and form-style data. SuperPlot is design-system-agnostic and headless, centered on pivots and a SQL-backed data pipeline rather than a fixed component look. Pick MUI X if you are standardized on Material UI and want turnkey styling; pick SuperPlot for composable pivots and fullstack data handling.',
-  },
+  // {
+  //   hashPath: 'faq/accessibility',
+  //   question: 'Do you support accessibility?',
+  //   answer:
+  //     'Accessibility is a priority and an area of active development. The grid renders semantic, keyboard-reachable DOM, and we are expanding ARIA roles, keyboard navigation, and screen-reader support as the library matures.',
+  // },
   {
     hashPath: 'faq/pricing',
     question: 'Is SuperPlot grid free to use?',
-    answer: 'SuperPlot is in early preview and developed in the open. Final licensing and any pricing tiers are being confirmed before release — check the GitHub repository for the current status.',
+    answer: 'Yes. It is free and open source under the MIT license. See the GitHub repository.',
+    answerNode: (
+      <>
+        Yes. It is free and open source under the MIT license. See the{' '}
+        <a href={githubUrl} target="_blank" rel="noopener noreferrer">
+          GitHub repository
+        </a>
+        .
+      </>
+    ),
   },
   {
     hashPath: 'faq/production-ready',
     question: 'Is it production ready and actively maintained?',
-    answer: 'SuperPlot is actively developed, and this site is an early preview, so APIs may change between releases. It is not yet recommended for critical production use without pinning versions and reviewing current status. Follow the repository for release milestones and stability updates.',
+    answer: 'Yes. An active and experienced team works behind it.',
   },
   {
     hashPath: 'faq/support',
     question: 'What kind of support do you offer?',
-    answer: 'During the preview, support is community-based through the GitHub repository (issues and discussions) and our Discord. Formal or commercial support options may be introduced as the project matures.',
+    answer: 'Yes. Reach out through our contact page and we will help.',
+    answerNode: (
+      <>
+        Yes. Reach out through our <Link href={contactPath}>contact page</Link> and we will help.
+      </>
+    ),
   },
   {
     hashPath: 'faq/docs-examples',
     question: 'Where can I find documentation and examples?',
-    answer: 'Documentation lives under /grid/docs, with feature guides and a sample catalog under /grid/docs/samples. The demos section on this page shows how agents build each grid conversationally, and the source repository contains additional examples.',
+    answer: 'Explore our live demos and browse the documentation.',
+    answerNode: (
+      <>
+        Explore our live <Link href={gridDemosPath}>demos</Link> and browse the{' '}
+        <Link href={docsPath}>documentation</Link>.
+      </>
+    ),
   },
 ];
 
-export const getStartedSteps: GetStartedStep[] = [
-  {
-    title: 'Install the packages',
-    body: 'Add the headless core and the React bindings to your project.',
-    code: 'yarn add @superplot/grid @superplot/react',
-  },
-  {
-    title: 'Load your data',
-    body: 'Create a datasource and ingest your dataset in column-major form. It runs on DuckDB WASM in the browser and native DuckDB in Node.js.',
-    code: `const dataSource = new DuckDBWasmDataSource('orders');
-await dataSource.loadData(columns);`,
-  },
-  {
-    title: 'Render a grid',
-    body: 'Describe the layout with table algebra and hand the viewmodel to the grid — or let your agent do all three steps from a prompt.',
-    code: `const grid = usePivotGrid(dataSource, {
-  rows: hierarchy('region'),
-  columns: hierarchy('year', 'quarter'),
-  values: [sum('revenue')],
-});`,
-  },
-];

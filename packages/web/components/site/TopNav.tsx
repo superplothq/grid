@@ -1,5 +1,6 @@
 import Link from 'next/link';
-import { gridBasePath, navItems, siteName } from '@/lib/site-config';
+import { DiscordIcon, GithubIcon } from '@/components/icons/BrandIcons';
+import { discordUrl, githubUrl, gridBasePath, navItems, siteName } from '@/lib/site-config';
 
 export function TopNav() {
   return (
@@ -34,6 +35,24 @@ export function TopNav() {
           </ul>
         </nav>
         <div className="top-nav-actions">
+          <a
+            className="top-nav-icon-link"
+            href={githubUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label="GitHub"
+          >
+            <GithubIcon className="top-nav-icon" />
+          </a>
+          <a
+            className="top-nav-icon-link"
+            href={discordUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label="Discord"
+          >
+            <DiscordIcon className="top-nav-icon" />
+          </a>
           <button
             type="button"
             className="theme-toggle"
