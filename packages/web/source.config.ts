@@ -2,8 +2,12 @@ import { defineConfig, defineDocs } from 'fumadocs-mdx/config';
 import { metaSchema, pageSchema } from 'fumadocs-core/source/schema';
 import { z } from 'zod';
 import { remarkDocGen } from 'fumadocs-docgen';
+import { remarkAutoTypeTable } from 'fumadocs-typescript';
+import { remarkMdxMermaid } from 'fumadocs-core/mdx-plugins';
 import { fileRegionGenerator } from './lib/file-region-generator';
 import { remarkClassOutline } from './lib/remark-class-outline';
+import { remarkTypeTableWithDocs } from './lib/remark-type-table-with-docs';
+import { rehypeGridDocsLinks } from './lib/rehype-grid-docs-links';
 import path from 'node:path';
 
 const projectRoot = path.resolve(process.cwd(), '..', '..');
@@ -44,8 +48,12 @@ export const samples = defineDocs({
 export default defineConfig({
   mdxOptions: {
     remarkPlugins: [
+      [remarkTypeTableWithDocs, { basePath: projectRoot }],
+      [remarkAutoTypeTable, { options: { basePath: projectRoot } }],
       [remarkClassOutline, { basePath: projectRoot }],
       [remarkDocGen, { generators: [fileRegionGenerator({ basePath: projectRoot })] }],
+      remarkMdxMermaid,
     ],
+    rehypePlugins: [rehypeGridDocsLinks],
   },
 });

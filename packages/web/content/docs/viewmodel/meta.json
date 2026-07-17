@@ -1,0 +1,5 @@
+{
+  "title": "ViewModel",
+  "defaultOpen": true,
+  "pages": ["pivot-data-viewmodel", "flattened-data-viewmodel"]
+}

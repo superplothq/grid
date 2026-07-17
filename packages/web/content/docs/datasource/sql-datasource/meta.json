@@ -1,0 +1,5 @@
+{
+  "title": "SqlDataSource",
+  "defaultOpen": true,
+  "pages": ["duckdb-wasm-datasource"]
+}

@@ -1,0 +1,111 @@
+---
+title: Events
+description: All events emitted by the Grid instance - render lifecycle, pagination, viewport changes, selections, and performance metrics.
+---
+
+The `Grid` class is an event emitter. It forwards layout events and adds its own selection events. All events are emitted asynchronously (via `setTimeout`).
+
+## Subscribing to events
+
+```ts
+// Subscribe - returns an unsubscribe function
+const unsub = grid.on("renderComplete", (payload) => {
+  console.log(`Rendered rows ${payload.y0}-${payload.y1}`);
+});
+
+// Unsubscribe
+unsub();
+
+// Or unsubscribe by passing the handler
+grid.off("renderComplete", handler);
+
+// Remove all listeners for an event
+grid.off("renderComplete");
+```
+
+## Grid events
+
+### renderComplete
+
+Fired after every render cycle completes. The payload contains the viewport bounds that were rendered.
+
+```ts
+grid.on("renderComplete", (payload) => {
+  // payload: { x0: number, y0: number, x1: number, y1: number }
+  statusBar.textContent = `Showing rows ${payload.y0}-${payload.y1}`;
+});
+```
+
+Use this for status bars, analytics, or triggering post-render side effects.
+
+### viewDataEmpty
+
+Fired when the viewport extends beyond the loaded data range - the user scrolled past what the viewmodel contains. This is the pagination trigger.
+
+```ts
+grid.on("viewDataEmpty", (payload) => {
+  // payload: { startRow: number, endRow: number }
+  fetchPage(payload.startRow, payload.endRow);
+});
+```
+
+The layout detects this by comparing the logical scroll position against the viewmodel's `offsetTop` and loaded row count. The event is debounced by `GridConfig.dataFetchDebounceMs` (default: 150ms) to prevent flooding the data source during fast scrolling.
+
+### viewModelDataChanged
+
+Forwarded from the viewmodel's `viewportDataChange` callback. Fires when the viewport bounds change during `getViewportData()` calls.
+
+```ts
+grid.on("viewModelDataChanged", (payload) => {
+  // payload: { x0: number, y0: number, x1: number, y1: number }
+});
+```
+
+This fires on the viewmodel side (with a 50ms debounce) whenever `getViewportData` is called with different bounds. Use it for lazy operations that depend on which data is currently visible.
+
+### selectionAdded
+
+Fired when a selection is added via any of the selection methods (`selectCellByDataIndex`, `selectRowByDataIndex`, `selectColumnByDataIndex`, `selectRangeByDataIndex`).
+
+```ts
+grid.on("selectionAdded", (payload) => {
+  // payload: { hash: string, fromRow: number, fromCol: number, toRow: number, toCol: number }
+  console.log(`Selection ${payload.hash}: rows ${payload.fromRow}-${payload.toRow}`);
+});
+```
+
+The `hash` is a stable identifier for the selection, useful for tracking which selection was added or removed.
+
+### selectionRemoved
+
+Fired when a selection is removed - either explicitly via the unsubscribe function returned by a selection method, or implicitly when a new selection of a different type replaces existing ones.
+
+```ts
+grid.on("selectionRemoved", (payload) => {
+  // payload: { hash: string, fromRow: number, fromCol: number, toRow: number, toCol: number }
+  console.log(`Selection ${payload.hash} removed`);
+});
+```
+
+Selection conflict rules:
+- Adding a **range** selection clears all previous selections.
+- Adding a **cell** selection keeps existing cell selections, but clears row/column selections (and vice versa).
+- Selections of the same type accumulate.
+
+### debug_perf:metrics
+
+Render performance data emitted after every render cycle. Useful for debugging render performance.
+
+```ts
+grid.on("debug_perf:metrics", (payload) => {
+  // payload: {
+  //   timeToRender: number,       // ms for this render cycle
+  //   renderCount: number,        // total renders since layout creation
+  //   nodesActive: number,        // cells currently in the DOM
+  //   nodesAppendedInThisFrame: number,
+  //   nodesDeletedInThisFrame: number,
+  //   contentCellRerenderCount: number,
+  //   poolSize: number,           // cells available in the pool
+  // }
+});
+```

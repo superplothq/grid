@@ -1,0 +1,278 @@
+---
+title: Type References
+description: All shared types used across the grid library.
+---
+
+## Schema
+
+<auto-type-table path="packages/grid/src/datamodel/types.ts" name="Schema" />
+
+## DataSchema
+
+Extends [Schema](#schema).
+
+<auto-type-table path="packages/grid/src/datamodel/types.ts" type="Omit<DataSchema, keyof Schema>" name="DataSchemaOwn" origname="DataSchema" />
+
+## SchemaSubtype
+
+```json doc-gen:file
+{ "file": "packages/grid/src/datamodel/types.ts#schema-subtype", "codeblock": { "lang": "ts" } }
+```
+
+## AggregateFn
+
+```json doc-gen:file
+{ "file": "packages/grid/src/datamodel/types.ts#aggregate-fn", "codeblock": { "lang": "ts" } }
+```
+
+## StandardDataFetchAndTransformIR
+
+<auto-type-table path="packages/grid/src/datamodel/types.ts" name="StandardDataFetchAndTransformIR" />
+
+## SortEntry
+
+<auto-type-table path="packages/grid/src/datamodel/types.ts" name="SortEntry" />
+
+## SortDirection
+
+```json doc-gen:file
+{ "file": "packages/grid/src/datamodel/types.ts#sort-direction", "codeblock": { "lang": "ts" } }
+```
+
+## ScalarFilter
+
+<auto-type-table path="packages/grid/src/datamodel/types.ts" name="ScalarFilter" />
+
+## DatePart
+
+```json doc-gen:file
+{ "file": "packages/grid/src/datamodel/types.ts#date-part", "codeblock": { "lang": "ts" } }
+```
+
+## DatePartScalarFilter
+
+Extends [ScalarFilter](#scalarfilter).
+
+<auto-type-table path="packages/grid/src/datamodel/types.ts" type="Omit<DatePartScalarFilter, keyof ScalarFilter>" origname="DatePartScalarFilter" />
+
+## StandardTableConfig
+
+<auto-type-table path="packages/grid/src/datamodel/types.ts" name="StandardTableConfig" />
+
+## GetRowsResponse
+
+<auto-type-table path="packages/grid/src/datamodel/types.ts" name="GetRowsResponse" />
+
+## PageNode
+
+<auto-type-table path="packages/grid/src/datamodel/types.ts" name="PageNode" />
+
+## ExpandedGroup
+
+<auto-type-table path="packages/grid/src/datamodel/types.ts" name="ExpandedGroup" />
+
+## ColumnRangeValues
+
+```json doc-gen:file
+{ "file": "packages/grid/src/datamodel/types.ts#domain-values", "codeblock": { "lang": "ts" } }
+```
+
+## PivotConfig
+
+<auto-type-table path="packages/grid/src/datamodel/types.ts" name="PivotConfig" />
+
+## AxisExpr
+
+```ts
+type AxisExpr =
+  | string
+  | { type: "cross"; children: AxisExpr[] }
+  | { type: "concat"; children: AxisExpr[] }
+  | { type: "hierarchy"; fields: string[] };
+```
+
+A plain string is a column name. `cross`, `concat`, and `hierarchy` are table algebra operators used to compose pivot axes. See [PivotTableDataModel](/grid/docs/datamodel/pivot-table-datamodel#table-algebra-operators) for usage and visual examples.
+
+## AxisConfig
+
+```ts
+type AxisConfig = { expr: AxisExpr; projection?: DimensionalProjectionPath[] };
+```
+
+Wraps an `AxisExpr` with optional [dimensional projection](/grid/docs/datamodel/pivot-table-datamodel#dimensional-projection) to control which values are expanded.
+
+## DimensionalProjectionPath
+
+<auto-type-table path="packages/grid/src/datamodel/types.ts" name="DimensionalProjectionPath" />
+
+## PivotDataFetchAndTransformIR
+
+<auto-type-table path="packages/grid/src/datamodel/types.ts" name="PivotDataFetchAndTransformIR" />
+
+## Measure
+
+<auto-type-table path="packages/grid/src/datamodel/types.ts" name="Measure" />
+
+## PivotRawDataFromSource
+
+<auto-type-table path="packages/grid/src/datamodel/types.ts" name="PivotRawDataFromSource" />
+
+## PivotFilterQuery
+
+<auto-type-table path="packages/grid/src/datamodel/types.ts" name="PivotFilterQuery" />
+
+## TupleFilter
+
+<auto-type-table path="packages/grid/src/datamodel/types.ts" name="TupleFilter" />
+
+## Renderer
+
+### BaseSliceResult
+
+<auto-type-table path="packages/grid/src/renderer/types.ts" name="BaseSliceResult" />
+
+### PivotSliceResult
+
+Extends [BaseSliceResult](#basesliceresult).
+
+<auto-type-table path="packages/grid/src/renderer/types.ts" type="Omit<PivotSliceResult, keyof BaseSliceResult>" origname="PivotSliceResult" />
+
+### FlatSliceResult
+
+Extends [BaseSliceResult](#basesliceresult).
+
+<auto-type-table path="packages/grid/src/renderer/types.ts" type="Omit<FlatSliceResult, keyof BaseSliceResult>" origname="FlatSliceResult" />
+
+### DataViewport
+
+<auto-type-table path="packages/grid/src/renderer/types.ts" name="DataViewport" />
+
+### FacetData
+
+```ts
+type FacetData = (string | null)[][];
+```
+
+An array of facet levels. Each level is an array of values across all columns (for column facets) or all rows (for row facets). `null` means the value is the same as the previous cell at that level (used for merge/span rendering).
+
+### FlatRowMeta
+
+<auto-type-table path="packages/grid/src/renderer/types.ts" name="FlatRowMeta" />
+
+### GridDataViewModelOptions
+
+<auto-type-table path="packages/grid/src/renderer/types.ts" name="GridDataViewModelOptions" />
+
+### VTrackDef
+
+<auto-type-table path="packages/grid/src/renderer/types.ts" name="VTrackDef" />
+
+### ResolvedVTrackDef
+
+Extends [VTrackDef](#vtrackdef). The resolved form after the viewmodel normalizes options - `renderer` and `colSize` are guaranteed present.
+
+<auto-type-table path="packages/grid/src/renderer/types.ts" type="Omit<ResolvedVTrackDef, keyof VTrackDef>" origname="ResolvedVTrackDef" />
+
+### MetaState
+
+<auto-type-table path="packages/grid/src/renderer/grid-data-viewmodel.ts" name="MetaState" />
+
+### ColAutoSizeConfig
+
+```json doc-gen:file
+{ "file": "packages/grid/src/renderer/types.ts#col-auto-size-config", "codeblock": { "lang": "ts" } }
+```
+
+### FacetDef
+
+<auto-type-table path="packages/grid/src/renderer/types.ts" name="FacetDef" />
+
+### GridConfig
+
+<auto-type-table path="packages/grid/src/renderer/grid-config.ts" name="GridConfig" />
+
+### LayoutEvents
+
+Events emitted by the layout engine and forwarded through the [Grid](/grid/docs/renderer) instance.
+
+```ts
+type LayoutEvents = {
+  renderComplete: { x0: number; y0: number; x1: number; y1: number };
+  viewDataEmpty: { startRow: number; endRow: number };
+  viewModelDataChanged: { x0: number; y0: number; x1: number; y1: number };
+  "debug_perf:metrics": {
+    timeToRender: number;
+    renderCount: number;
+    nodesActive: number;
+    nodesAppendedInThisFrame: number;
+    nodesDeletedInThisFrame: number;
+    contentCellRerenderCount: number;
+    poolSize: number;
+  };
+};
+```
+
+### GridEvents
+
+Extends [LayoutEvents](#layoutevents) with selection events. This is the event map for the `Grid` class.
+
+```ts
+type GridEvents = LayoutEvents & {
+  selectionAdded: { hash: string; fromRow: number; fromCol: number; toRow: number; toCol: number };
+  selectionRemoved: { hash: string; fromRow: number; fromCol: number; toRow: number; toCol: number };
+};
+```
+
+### SelectionRule
+
+```ts
+interface SelectionRule {
+  id: number;
+  predicates: PredicateNode[];
+  terminal: TerminalOp;
+}
+```
+
+### PredicateNode
+
+```ts
+type PredicateNode =
+  | { type: "facet"; predicate: FacetPredicate }
+  | { type: "cell"; predicate: CellPredicate };
+```
+
+### FacetPredicate
+
+```ts
+type FacetPredicate = (dim: string, dimVal: string | null, path: [string, string | null][]) => boolean;
+```
+
+A function that tests whether a facet cell matches. `dim` is the dimension name, `dimVal` is the cell's value, and `path` is the ancestor facet values as `[dimName, dimValue]` pairs.
+
+### CellPredicate
+
+```ts
+type CellPredicate = (value: any) => boolean;
+```
+
+A function that tests whether a data cell's value matches.
+
+### TerminalOp
+
+```ts
+type TerminalOp =
+  | { type: "prop"; props: SelectionProps }
+  | { type: "style"; fn: (container: HTMLElement) => void };
+```
+
+### SelectionProps
+
+<auto-type-table path="packages/grid/src/renderer/types.ts" name="SelectionProps" />
+
+## PivotDataViewModelParams
+
+<auto-type-table path="packages/grid/src/renderer/pivot-data-viewmodel.ts" name="PivotDataViewModelParams" />
+
+## FlattenedDataViewModelParams
+
+<auto-type-table path="packages/grid/src/renderer/flattened-data-viewmodel.ts" name="FlattenedDataViewModelParams" />

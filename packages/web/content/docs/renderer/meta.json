@@ -1,0 +1,5 @@
+{
+  "title": "Renderer",
+  "defaultOpen": true,
+  "pages": ["events", "selections", "themes"]
+}
