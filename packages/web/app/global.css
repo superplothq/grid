@@ -20,6 +20,7 @@
   --shadow-panel: 0 1px 2px rgb(0 0 0 / 0.04), 0 8px 24px -12px rgb(0 0 0 / 0.12);
   --grid-line: rgba(11, 15, 12, 0.045);
   --nav-height: 3.75rem;
+  --demo-tabs-height: 3rem;
   --content-width: 72rem;
   --radius: 10px;
   --radius-sm: 7px;
@@ -973,8 +974,13 @@ html[data-theme='dark'] .stack-logo-dark-invert img {
 }
 
 .demo-tabs {
+  position: sticky;
+  top: var(--nav-height);
+  z-index: 5;
   display: flex;
   gap: 0.25rem;
+  padding-top: 0.5rem;
+  background: var(--bg);
   overflow-x: auto;
   overflow-y: hidden;
   overscroll-behavior: contain;
@@ -1012,6 +1018,7 @@ html[data-theme='dark'] .stack-logo-dark-invert img {
 .demo-panel {
   display: none;
   padding: 2rem 0 0.5rem;
+  scroll-margin-top: calc(var(--nav-height) + var(--demo-tabs-height) + 1.25rem);
 }
 
 .demo-panel:target,
