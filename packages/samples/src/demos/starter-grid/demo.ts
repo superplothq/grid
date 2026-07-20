@@ -1,5 +1,5 @@
-import Grid, { FlattenedDataViewModel } from "grid/dist/renderer";
-import type { ValueFormatter } from "grid/dist/renderer";
+import Grid, { FlattenedDataViewModel } from "@superplot/grid/renderer";
+import type { ValueFormatter } from "@superplot/grid/renderer";
 import { createGridMount } from "../../runtime/mount";
 import { syncGridTheme } from "../../runtime/theme";
 import type { SampleValue } from "../../types";

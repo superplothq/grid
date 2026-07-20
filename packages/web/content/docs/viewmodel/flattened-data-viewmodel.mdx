@@ -124,7 +124,7 @@ Bit layout:
 - Bit 2: isExpanded (1 = expanded, 0 = collapsed)
 
 ```ts
-import { createRowMeta } from "grid";
+import { createRowMeta } from "@superplot/grid";
 
 createRowMeta(0, false, true);   // depth=0, group, expanded  → 0b0000_0100 = 4
 createRowMeta(1, true, false);   // depth=1, leaf              → 0b0001_1000 = 24

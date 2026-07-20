@@ -75,8 +75,8 @@ A general-purpose React context that provides access to the datamodel and curren
 
 ```typescript
 import { createContext } from "react";
-import type { FlatTableDataModel } from "grid/dist/index";
-import type { StandardDataFetchAndTransformIR } from "grid/dist/index";
+import type { FlatTableDataModel } from "@superplot/grid";
+import type { StandardDataFetchAndTransformIR } from "@superplot/grid";
 
 export interface DataModelContextValue {
   model: FlatTableDataModel;

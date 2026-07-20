@@ -1,8 +1,8 @@
 import React, {useEffect, useRef, useState} from "react";
-import "grid/dist/grid.css";
-import {DuckDBWasmDataSource, DataSchema, ColumnMetadata} from "grid/dist/index";
-import type {SqlDataSource} from "grid/dist/index";
-import type {StandardDataFetchAndTransformIR, StandardTableConfig} from "grid/dist/index";
+import "@superplot/grid/grid.css";
+import {DuckDBWasmDataSource, DataSchema, ColumnMetadata} from "@superplot/grid";
+import type {SqlDataSource} from "@superplot/grid";
+import type {StandardDataFetchAndTransformIR, StandardTableConfig} from "@superplot/grid";
 import {
   DataGrid,
   useFlatGrid,
@@ -11,7 +11,7 @@ import {
   type CellProps,
   type ColumnDef,
   type DataGridHandle,
-} from "frameworks/dist/react";
+} from "@superplot/react";
 
 const CurrencyCell: React.FC<CellProps<number>> = ({value}) => {
   if (value == null) return <span>—</span>;

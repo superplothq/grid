@@ -119,9 +119,9 @@ If the built-in data models don't fit your use case, extend `DataModel` directly
 Example: a Kanban board data model backed by SQL. Columns are statuses, rows are swimlanes (e.g. priority). Each cell holds an array of task cards.
 
 ```ts
-import { DataModel } from "grid";
-import { SqlDataSource } from "grid";
-import { DataSchema } from "grid";
+import { DataModel } from "@superplot/grid";
+import { SqlDataSource } from "@superplot/grid";
+import { DataSchema } from "@superplot/grid";
 
 type KanbanInput = {
   statusField: string;

@@ -12,7 +12,7 @@ The engine follows a layered pipeline: **DataSource -> DataModel -> DataViewMode
 
 ## Packages
 
-This is a Yarn workspace made up of the following packages:
+This is a Bun workspace made up of the following packages:
 
 - **packages/grid** - Headless grid / pivot table core (TypeScript, DuckDB, SQL-based querying)
 - **packages/frameworks** - Framework bindings (React 18): `DataGrid`, `usePivotGrid`, `useFlatGrid`, `useDataSource`
@@ -23,25 +23,25 @@ This is a Yarn workspace made up of the following packages:
 Install dependencies from the repo root:
 
 ```bash
-yarn install
+bun install
 ```
 
 Build the grid core (compiles TypeScript, builds CSS, and builds the React bindings):
 
 ```bash
-yarn grid:build
+bun run grid:build
 ```
 
 Start the playground to explore samples during development:
 
 ```bash
-yarn start
+bun run start
 ```
 
 Run the public site (which serves the docs and demos locally):
 
 ```bash
-yarn web:start
+bun run web:start
 ```
 
 ## Common scripts
@@ -50,25 +50,25 @@ Run from the repo root:
 
 | Script | What it does |
 | --- | --- |
-| `yarn install` | Install all workspace dependencies |
-| `yarn grid:build` | Build the grid core, CSS, and React bindings |
-| `yarn start` | Start the playground app |
-| `yarn web:start` | Start the SuperPlot web site (docs + demos) |
-| `yarn web:build` | Build the web site (static export) |
-| `yarn lint` | Lint every workspace |
-| `yarn clean` | Remove build output across workspaces |
+| `bun install` | Install all workspace dependencies |
+| `bun run grid:build` | Build the grid core, CSS, and React bindings |
+| `bun run start` | Start the playground app |
+| `bun run web:start` | Start the SuperPlot web site (docs + demos) |
+| `bun run web:build` | Build the web site (static export) |
+| `bun run lint` | Lint every workspace |
+| `bun run clean` | Remove build output across workspaces |
 
 Package-scoped scripts:
 
 ```bash
 # Run grid unit tests
-yarn workspace grid test:unit
+bun --filter @superplot/grid test:unit
 
 # Lint the grid package and auto-fix
-yarn workspace grid lint --fix
+bun --filter @superplot/grid lint --fix
 
 # Type-check the samples package
-yarn workspace samples types:check
+bun --filter samples types:check
 ```
 
 ## Learn more

@@ -1,12 +1,12 @@
 import React, { useEffect, useRef, useState } from "react";
-import "grid/dist/grid.css";
+import "@superplot/grid/grid.css";
 import Grid, {
   PivotDataViewModel,
   FlattenedDataViewModel,
   createRowMeta,
   Selection,
   CellSelection,
-} from "grid/dist/renderer";
+} from "@superplot/grid/renderer";
 
 // 2 row facet levels (region, city), 2 col facet levels (department, measure)
 // 6 rows: 2 cities per region × 3 regions

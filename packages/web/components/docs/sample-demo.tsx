@@ -2,7 +2,7 @@
 
 import { useEffect, useRef } from 'react';
 import { samples, createSampleContext } from 'samples';
-import 'grid/dist/grid.css';
+import '@superplot/grid/grid.css';
 
 export function SampleDemo({ id }: { id: string }) {
   const hostRef = useRef<HTMLDivElement>(null);

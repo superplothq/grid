@@ -1,5 +1,5 @@
-import Grid, { FlattenedDataViewModel } from "grid/dist/renderer";
-import type { CellRenderer, ValueCellDataContext, VTrackDef } from "grid/dist/renderer";
+import Grid, { FlattenedDataViewModel } from "@superplot/grid/renderer";
+import type { CellRenderer, ValueCellDataContext, VTrackDef } from "@superplot/grid/renderer";
 import { scaleLinear } from "d3-scale";
 import { line, area, curveCatmullRom } from "d3-shape";
 import { createGridMount } from "../../runtime/mount";

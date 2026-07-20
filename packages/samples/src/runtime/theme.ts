@@ -1,4 +1,4 @@
-import { getTheme } from "grid/dist/renderer";
+import { getTheme } from "@superplot/grid/renderer";
 
 export type GridThemeName = "light" | "dark";
 

@@ -1,6 +1,6 @@
-import Grid, { FlattenedDataViewModel } from "grid/dist/renderer";
-import type { CellRenderer, RendererContext } from "grid/dist/renderer";
-import type { FlattenedDataViewModelParams } from "grid/dist/renderer/flattened-data-viewmodel";
+import Grid, { FlattenedDataViewModel } from "@superplot/grid/renderer";
+import type { CellRenderer, RendererContext } from "@superplot/grid/renderer";
+import type { FlattenedDataViewModelParams } from "@superplot/grid/renderer/flattened-data-viewmodel";
 import { createGridMount } from "../../runtime/mount";
 import { syncGridTheme } from "../../runtime/theme";
 import { createToolbar, toolbarButton } from "../../runtime/toolbar";

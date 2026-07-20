@@ -1,11 +1,11 @@
 import React, {useCallback} from "react";
-import "grid/dist/grid.css";
-import type {DataSchema, ColumnMetadata} from "grid/dist/index";
-import type {StandardDataFetchAndTransformIR, StandardTableConfig, FlattenedDataViewModelParams} from "grid/dist/index";
+import "@superplot/grid/grid.css";
+import type {DataSchema, ColumnMetadata} from "@superplot/grid";
+import type {StandardDataFetchAndTransformIR, StandardTableConfig, FlattenedDataViewModelParams} from "@superplot/grid";
 import {
   DataGrid, useFlatGrid, SkeletonGrid, GridErrOverlay,
   type FacetCellProps, type CellProps, type ReactFacetDefs,
-} from "frameworks/dist/react";
+} from "@superplot/react";
 import {useDataSource} from "./DataSourceContext";
 import {DataSourceProvider} from "./DataSourceContext";
 import {useTheme} from "./ThemeContext";
@@ -73,7 +73,7 @@ const TemporalCell: React.FC<CellProps> = ({value}) => {
 };
 
 interface InnerProps {
-  ds: import("grid/dist/index").SqlDataSource;
+  ds: import("@superplot/grid").SqlDataSource;
   columns: ColumnMetadata[];
   theme: string;
   height: string;

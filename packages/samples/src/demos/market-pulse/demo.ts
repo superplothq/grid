@@ -1,13 +1,13 @@
 import { scaleLinear } from "d3-scale";
-import Grid, { FlattenedDataViewModel, createRowMeta } from "grid/dist/renderer";
+import Grid, { FlattenedDataViewModel, createRowMeta } from "@superplot/grid/renderer";
 import type {
   CellRenderer,
   ColAutoSizeConfig,
   FacetCellRenderer,
   FacetDataContext,
   ValueCellMetadata,
-} from "grid/dist/renderer";
-import type { FlattenedDataViewModelParams } from "grid/dist/renderer/flattened-data-viewmodel";
+} from "@superplot/grid/renderer";
+import type { FlattenedDataViewModelParams } from "@superplot/grid/renderer/flattened-data-viewmodel";
 import { createGridMount } from "../../runtime/mount";
 import { syncGridTheme } from "../../runtime/theme";
 

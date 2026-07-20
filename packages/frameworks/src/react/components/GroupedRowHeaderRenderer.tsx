@@ -1,8 +1,8 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import type { FacetHeaderProps } from "../types";
-import type { FlatSliceResult, FlatRowMeta } from "grid/dist/renderer";
-import { FlattenedDataViewModel } from "grid/dist/renderer";
-import type { FlattenedDataViewModelParams } from "grid/dist/index";
+import type { FlatSliceResult, FlatRowMeta } from "@superplot/grid/renderer";
+import { FlattenedDataViewModel } from "@superplot/grid/renderer";
+import type { FlattenedDataViewModelParams } from "@superplot/grid";
 import { Sort } from "./Sort";
 import { Filter } from "./Filter";
 import { useDataModelContext } from "./DataModelContext";

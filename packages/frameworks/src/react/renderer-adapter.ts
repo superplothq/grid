@@ -5,8 +5,8 @@
 import { createElement, type FC, type ReactNode } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { flushSync } from "react-dom";
-import type { CellRenderer, RendererContext, ValueCellDataContext } from "grid/dist/renderer";
-import type { FacetCellRenderer, FacetHeaderRenderer, FacetDataContext, FacetRendererContext, FacetHeaderContext } from "grid/dist/renderer";
+import type { CellRenderer, RendererContext, ValueCellDataContext } from "@superplot/grid/renderer";
+import type { FacetCellRenderer, FacetHeaderRenderer, FacetDataContext, FacetRendererContext, FacetHeaderContext } from "@superplot/grid/renderer";
 import type { CellProps, FacetCellProps, FacetHeaderProps } from "./types";
 
 export class ReactCellAdapter {

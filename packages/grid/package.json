@@ -1,8 +1,40 @@
 {
-  "name": "grid",
-  "version": "1.0.0",
+  "name": "@superplot/grid",
+  "version": "0.5.0",
+  "license": "MIT",
+  "files": [
+    "dist"
+  ],
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./renderer": {
+      "types": "./dist/renderer/index.d.ts",
+      "default": "./dist/renderer/index.js"
+    },
+    "./renderer/*": {
+      "types": "./dist/renderer/*.d.ts",
+      "default": "./dist/renderer/*.js"
+    },
+    "./grid.css": "./dist/grid.css"
+  },
+  "typesVersions": {
+    "*": {
+      "renderer": [
+        "dist/renderer/index.d.ts"
+      ],
+      "renderer/*": [
+        "dist/renderer/*"
+      ]
+    }
+  },
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
     "build:css": "node scripts/build-css.js",
     "build": "node scripts/build-css.js && tsc",

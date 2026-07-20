@@ -178,6 +178,7 @@ export const demoUseCases: DemoUseCase[] = [
     demoId: 'pivot-studio',
     conversation: pivotStudioConversation.messages as DemoConversationMessage[],
   },
+  /* Hidden for now - performance / data wrangling / custom filter demos
   {
     key: 'performance',
     hashPath: 'demos/performance',
@@ -230,6 +231,7 @@ export const demoUseCases: DemoUseCase[] = [
       { role: 'agent', body: 'Because the core is headless, your app owns the filter UI completely — the grid only receives the resulting query state.' },
     ],
   },
+  */
 ];
 
 export const principles: Principle[] = [

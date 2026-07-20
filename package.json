@@ -1,17 +1,18 @@
 {
-  "name": "nebula",
-  "version": "1.0.0",
+  "name": "superplot-monorepo",
+  "version": "0.0.0",
   "private": true,
   "workspaces": [
     "packages/*"
   ],
   "scripts": {
-    "start": "yarn workspace playground start",
-    "grid:build": "yarn workspace grid build && yarn workspace grid build:css && yarn workspace frameworks build",
-    "web:start": "yarn workspace web dev",
-    "web:build": "yarn workspace web build",
-    "lint": "yarn workspaces run lint",
-    "clean": "yarn workspaces run clean"
+    "start": "bun --filter playground start",
+    "playground:start": "bun --filter playground start",
+    "grid:build": "bun --filter @superplot/grid build && bun --filter @superplot/react build",
+    "web:start": "bun --filter web dev",
+    "web:build": "rm -rf packages/web/out && bun --filter web build",
+    "lint": "bun --filter '*' lint",
+    "clean": "bun --filter '*' clean"
   },
   "devDependencies": {
     "@typescript-eslint/eslint-plugin": "^6.0.0",
@@ -21,5 +22,5 @@
     "eslint-plugin-react-hooks": "^4.6.0",
     "typescript": "^5.0.0"
   },
-  "packageManager": "yarn@1.22.22+sha1.ac34549e6aa8e7ead463a7407e1c7390f61a6610"
+  "packageManager": "bun@1.3.8"
 }

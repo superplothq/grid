@@ -1,7 +1,7 @@
 import React, {useEffect, useRef, useState} from "react";
-import "grid/dist/grid.css";
-import Grid, {FlattenedDataViewModel, FacetCellRenderer, FacetDataContext, FacetRendererContext, GridDataViewModelOptions} from "grid/dist/renderer";
-import {DuckDBWasmDataSource, SqlStandardTableDataModel, GridData, DataSchema, StandardTableConfig, StandardDataFetchAndTransformIR, FlattenedDataViewModelParams} from "grid/dist/index";
+import "@superplot/grid/grid.css";
+import Grid, {FlattenedDataViewModel, FacetCellRenderer, FacetDataContext, FacetRendererContext, GridDataViewModelOptions} from "@superplot/grid/renderer";
+import {DuckDBWasmDataSource, SqlStandardTableDataModel, GridData, DataSchema, StandardTableConfig, StandardDataFetchAndTransformIR, FlattenedDataViewModelParams} from "@superplot/grid";
 import feather from "feather-icons";
 
 const NUM_GROUPS = 1000;

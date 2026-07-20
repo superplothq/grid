@@ -1,9 +1,9 @@
 import { useRef, useState, useEffect, useCallback, type FC, type ReactNode } from "react";
-import { PivotDataViewModel, type GridDataViewModelOptions, type VTrackDef } from "grid/dist/renderer";
-import { SqlPivotTableDataModel, type DataSchema, type PivotConfig } from "grid/dist/index";
-import type { PivotDataViewModelParams } from "grid/dist/renderer/pivot-data-viewmodel";
-import type { SqlDataSource } from "grid/dist/index";
-import type { FacetDef } from "grid/dist/renderer";
+import { PivotDataViewModel, type GridDataViewModelOptions, type VTrackDef } from "@superplot/grid/renderer";
+import { SqlPivotTableDataModel, type DataSchema, type PivotConfig } from "@superplot/grid";
+import type { PivotDataViewModelParams } from "@superplot/grid/renderer/pivot-data-viewmodel";
+import type { SqlDataSource } from "@superplot/grid";
+import type { FacetDef } from "@superplot/grid/renderer";
 import { ReactCellAdapter } from "../renderer-adapter";
 import type { ColumnDef, ReactFacetDefs } from "../types";
 

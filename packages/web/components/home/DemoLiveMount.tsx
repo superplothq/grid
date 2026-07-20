@@ -2,7 +2,7 @@
 
 import { useEffect, useRef } from 'react';
 import { demos, createSampleContext } from 'samples';
-import 'grid/dist/grid.css';
+import '@superplot/grid/grid.css';
 
 // Homepage demo panels are all kept in the DOM and only shown/hidden via CSS
 // (:target), so a plain mount-on-effect would leave every demo's grid mounted at

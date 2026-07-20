@@ -1,7 +1,7 @@
 import React, {useEffect, useRef, useState} from "react";
-import "grid/dist/grid.css";
-import Grid, {PivotDataViewModel, FacetCellRenderer, FacetDataContext, FacetRendererContext, FacetHeaderRenderer, FacetHeaderContext, GridDataViewModelOptions} from "grid/dist/renderer";
-import {DuckDBWasmDataSource, SqlPivotTableDataModel, cross, hierarchy, GridData, DataSchema, ProjectionState, AxisConfig, DimensionalProjectionPath, SortEntry, Filter, ScalarFilter} from "grid/dist/index";
+import "@superplot/grid/grid.css";
+import Grid, {PivotDataViewModel, FacetCellRenderer, FacetDataContext, FacetRendererContext, FacetHeaderRenderer, FacetHeaderContext, GridDataViewModelOptions} from "@superplot/grid/renderer";
+import {DuckDBWasmDataSource, SqlPivotTableDataModel, cross, hierarchy, GridData, DataSchema, ProjectionState, AxisConfig, DimensionalProjectionPath, SortEntry, Filter, ScalarFilter} from "@superplot/grid";
 import feather from "feather-icons";
 import SortDropdown, {SortEntryConfig} from "./sort-dropdown";
 import FilterDropdown from "./filter-dropdown";

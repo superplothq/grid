@@ -125,7 +125,7 @@ All errors are thrown as `GridError` with a `code`, `message`, and optional `pro
 | 1003 | `GridErrorCode.INVALID_DATA` | Parsed data is not an array |
 
 ```ts
-import { GridError, GridErrorCode } from "grid";
+import { GridError, GridErrorCode } from "@superplot/grid";
 
 try {
   await ds.loadDataFromURL({ url: "https://example.com/data.json", type: "json" });

@@ -310,9 +310,9 @@ Verified pitfalls - hitting these produces silent wrong behavior, so check them:
 
 ## Step 6: verify
 
-- `yarn workspace samples types:check` must pass.
+- `bun --filter samples types:check` must pass.
 - View the demo at `/grid/demos/<id>` (Next 16 allows one dev server per project - if
-  the dev server is busy, use `yarn workspace web build` +
+  the dev server is busy, use `bun --filter web build` +
   `node packages/web/serve-out.mjs`; do not start a second dev server).
 - Compare against the reference images aspect-by-aspect using the step 2
   inventory; note deliberate deviations.

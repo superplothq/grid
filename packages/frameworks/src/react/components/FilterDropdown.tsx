@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from "react";
-import type { DataSchema, ScalarFilter, DatePartScalarFilter, ColumnRangeValues, DatePart } from "grid/dist/index";
-import { getTheme, type Theme } from "grid/dist/renderer";
+import type { DataSchema, ScalarFilter, DatePartScalarFilter, ColumnRangeValues, DatePart } from "@superplot/grid";
+import { getTheme, type Theme } from "@superplot/grid/renderer";
 
 export interface FilterDropdownProps {
   schema: DataSchema;

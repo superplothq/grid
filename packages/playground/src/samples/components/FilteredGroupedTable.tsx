@@ -1,10 +1,10 @@
 import React, {useCallback, useRef, useState} from "react";
-import "grid/dist/grid.css";
-import type {DataSchema, ColumnMetadata} from "grid/dist/index";
-import type {StandardDataFetchAndTransformIR, StandardTableConfig} from "grid/dist/index";
-import {FlattenedDataViewModel} from "grid/dist/renderer";
-import type {FacetCellProps} from "frameworks/dist/react";
-import {DataGrid, useFlatGrid, SkeletonGrid, GridErrOverlay, useDataModelContext} from "frameworks/dist/react";
+import "@superplot/grid/grid.css";
+import type {DataSchema, ColumnMetadata} from "@superplot/grid";
+import type {StandardDataFetchAndTransformIR, StandardTableConfig} from "@superplot/grid";
+import {FlattenedDataViewModel} from "@superplot/grid/renderer";
+import type {FacetCellProps} from "@superplot/react";
+import {DataGrid, useFlatGrid, SkeletonGrid, GridErrOverlay, useDataModelContext} from "@superplot/react";
 import {useDataSource} from "./DataSourceContext";
 import {useTheme} from "./ThemeContext";
 
@@ -94,7 +94,7 @@ const FilteredGroupedTable: React.FC<FilteredGroupedTableProps> = ({height = "50
 };
 
 interface FilteredGroupedTableInnerProps {
-  ds: import("grid/dist/index").SqlDataSource;
+  ds: import("@superplot/grid").SqlDataSource;
   columns: ColumnMetadata[];
   theme: string;
   height: string;

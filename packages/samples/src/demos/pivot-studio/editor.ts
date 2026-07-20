@@ -1,4 +1,4 @@
-import type { AxisExpr } from "grid/dist/index";
+import type { AxisExpr } from "@superplot/grid";
 import { getCompletions, parseExpression, validateAxis } from "./algebra";
 import type { Completion } from "./algebra";
 

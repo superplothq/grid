@@ -5,7 +5,7 @@
 When a consumer installs the grid library and imports it, the DuckDB WASM assets are resolved automatically — no manual setup required.
 
 ```ts
-import { BrowserInMemoryDataModel } from "grid";
+import { BrowserInMemoryDataModel } from "@superplot/grid";
 
 const model = await BrowserInMemoryDataModel.create(gridData);
 ```

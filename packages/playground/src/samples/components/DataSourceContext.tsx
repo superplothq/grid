@@ -1,5 +1,5 @@
 import React, {createContext, useContext, useEffect, useState} from "react";
-import {DuckDBWasmDataSource, ColumnMetadata, DataSchema} from "grid/dist/index";
+import {DuckDBWasmDataSource, ColumnMetadata, DataSchema} from "@superplot/grid";
 
 interface DataSourceReady {
   status: "ready";

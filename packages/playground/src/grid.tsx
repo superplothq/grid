@@ -1,8 +1,8 @@
 import React, { useEffect, useRef, useState } from "react";
-import "grid/dist/grid.css";
-import Grid, { PivotDataViewModel, FlattenedDataViewModel, createRowMeta, LayoutEvents, SelectionPayload, VTrackDef, ColAutoSizeConfig, createChartRenderer, CellRenderer, FacetCellRenderer, PVerticalFixture, PHorizontalFixture, BaseFixtureViewModel, BaseViewModel, BaseSliceResult, FacetHeaderContext } from "grid/dist/renderer";
+import "@superplot/grid/grid.css";
+import Grid, { PivotDataViewModel, FlattenedDataViewModel, createRowMeta, LayoutEvents, SelectionPayload, VTrackDef, ColAutoSizeConfig, createChartRenderer, CellRenderer, FacetCellRenderer, PVerticalFixture, PHorizontalFixture, BaseFixtureViewModel, BaseViewModel, BaseSliceResult, FacetHeaderContext } from "@superplot/grid/renderer";
 import feather from "feather-icons";
-import {CellToMeasure} from "grid/dist/renderer/types";
+import {CellToMeasure} from "@superplot/grid/renderer/types";
 
 interface TwoKeyData {
   primary: string;

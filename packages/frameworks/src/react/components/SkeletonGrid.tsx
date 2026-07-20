@@ -1,5 +1,5 @@
 import { type FC, type ReactNode, type CSSProperties, useMemo } from "react";
-import { getTheme, type Theme } from "grid/dist/renderer";
+import { getTheme, type Theme } from "@superplot/grid/renderer";
 
 interface ISkeletonGrid {
   icon: ReactNode;

@@ -1,7 +1,7 @@
 import React, { useCallback, useState, useRef } from "react";
 import { createPortal } from "react-dom";
-import type { GridDataViewModel } from "grid/dist/renderer";
-import type { DataSchema, ScalarFilter, ColumnRangeValues } from "grid/dist/index";
+import type { GridDataViewModel } from "@superplot/grid/renderer";
+import type { DataSchema, ScalarFilter, ColumnRangeValues } from "@superplot/grid";
 import { useDataModelContext } from "./DataModelContext";
 import { FilterDropdown } from "./FilterDropdown";
 
