@@ -1,5 +1,5 @@
-import type { PivotMetadataPlumber, PivotMetadataReshapeInput } from "grid/dist/index";
-import type { ViewModelMetadata } from "grid/dist/renderer";
+import type { PivotMetadataPlumber, PivotMetadataReshapeInput } from "@superplot/grid";
+import type { ViewModelMetadata } from "@superplot/grid/renderer";
 
 // Metadata plumbing that computes, per measure, the average / min / max of its
 // value cells across the LEAF (non-aggregated) rows, and flags which rows are

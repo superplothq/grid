@@ -20,6 +20,7 @@
   --shadow-panel: 0 1px 2px rgb(0 0 0 / 0.04), 0 8px 24px -12px rgb(0 0 0 / 0.12);
   --grid-line: rgba(11, 15, 12, 0.045);
   --nav-height: 3.75rem;
+  --demo-tabs-height: 3rem;
   --content-width: 72rem;
   --radius: 10px;
   --radius-sm: 7px;
@@ -301,6 +302,23 @@ html[data-enhanced] .theme-toggle {
   align-items: center;
   gap: 0.6rem;
   flex-shrink: 0;
+}
+
+.top-nav-icon-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+  transition: color 0.15s ease;
+}
+
+.top-nav-icon-link:hover {
+  color: var(--text);
+}
+
+.top-nav-icon {
+  width: 1.15rem;
+  height: 1.15rem;
 }
 
 /* Visually hidden, but kept in the accessibility tree and operable so the
@@ -616,6 +634,7 @@ html[data-copy-enhanced] [data-copy-target] {
   display: flex;
   align-items: center;
   gap: 0.6rem;
+  min-width: 0;
   margin: 0;
   font-family: var(--font-mono);
   font-size: 0.72rem;
@@ -623,6 +642,18 @@ html[data-copy-enhanced] [data-copy-target] {
   text-transform: uppercase;
   letter-spacing: 0.09em;
   color: var(--code-muted);
+}
+
+.bridge-panel-title-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 20rem;
+  transition: max-width 0.35s ease;
+}
+
+.bridge-copied .bridge-panel-title-text {
+  max-width: 1.5rem;
 }
 
 .bridge-panel-title::before {
@@ -647,6 +678,107 @@ html[data-copy-enhanced] [data-copy-target] {
   overflow-y: auto;
   user-select: text;
   font-size: 0.8rem;
+}
+
+.bridge-steps {
+  margin: 0;
+  padding: 1.3rem 1.3rem 1.3rem 2.5rem;
+  display: grid;
+  gap: 1.35rem;
+  font-family: var(--font-mono);
+  font-size: 0.85rem;
+  line-height: 1.6;
+  color: var(--code-text);
+}
+
+.bridge-steps li {
+  padding-left: 0.35rem;
+}
+
+.bridge-steps li::marker {
+  color: var(--accent);
+  font-variant-numeric: tabular-nums;
+}
+
+.bridge-highlight {
+  font-weight: 500;
+  color: #4ade80;
+  white-space: pre-line;
+}
+
+.bridge-highlight-block {
+  display: block;
+  margin-top: 0.4rem;
+}
+
+.copy-icon-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  vertical-align: middle;
+  padding: 0;
+  margin-left: 0.1rem;
+  border: none;
+  background: transparent;
+  color: #4ade80;
+  cursor: pointer;
+}
+
+.copy-icon-button svg {
+  width: 0.95rem;
+  height: 0.95rem;
+}
+
+.copy-icon-button:hover {
+  filter: brightness(1.15);
+}
+
+.copy-icon-check {
+  display: none;
+}
+
+.copy-icon-button.is-copied .copy-icon-copy {
+  display: none;
+}
+
+.copy-icon-button.is-copied .copy-icon-check {
+  display: inline;
+}
+
+.bridge-footnote {
+  margin: 0.9rem 0 0;
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+.bridge-footnote .bridge-highlight {
+  color: var(--accent);
+}
+
+.bridge-copy-button {
+  flex-shrink: 0;
+  max-width: 7.5rem;
+  padding: 0.35rem 0.8rem;
+  font-size: 0.75rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  background: transparent;
+  border-color: #4ade80;
+  color: #4ade80;
+  transition: max-width 0.35s ease, background 0.15s ease, border-color 0.15s ease,
+    color 0.15s ease, transform 0.15s ease;
+}
+
+.bridge-copied .bridge-copy-button {
+  max-width: 20rem;
+}
+
+.bridge-copy-button:hover {
+  background: color-mix(in srgb, #4ade80 12%, transparent);
+  border-color: #4ade80;
+  color: #4ade80;
 }
 
 .bridge-panel .hero-ctas {
@@ -842,8 +974,13 @@ html[data-theme='dark'] .stack-logo-dark-invert img {
 }
 
 .demo-tabs {
+  position: sticky;
+  top: var(--nav-height);
+  z-index: 5;
   display: flex;
   gap: 0.25rem;
+  padding-top: 0.5rem;
+  background: var(--bg);
   overflow-x: auto;
   overflow-y: hidden;
   overscroll-behavior: contain;
@@ -881,6 +1018,7 @@ html[data-theme='dark'] .stack-logo-dark-invert img {
 .demo-panel {
   display: none;
   padding: 2rem 0 0.5rem;
+  scroll-margin-top: calc(var(--nav-height) + var(--demo-tabs-height) + 1.25rem);
 }
 
 .demo-panel:target,
@@ -1287,6 +1425,106 @@ html[data-theme='dark'] .stack-logo-dark-invert img {
   margin-bottom: 0.85rem;
 }
 
+.team-grid {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-width: 44rem;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.team-member {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  background: var(--bg-raised);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1.4rem;
+}
+
+.team-avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 3rem;
+  height: 3rem;
+  border-radius: 50%;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-family: var(--font-mono);
+  font-weight: 600;
+  font-size: 1rem;
+  margin-bottom: 0.9rem;
+}
+
+.team-name {
+  font-size: 0.95rem;
+  font-weight: 600;
+  margin: 0 0 0.5rem;
+}
+
+.team-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin: 0;
+}
+
+.team-links a {
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  font-weight: 500;
+}
+
+.doc-link-card,
+.doc-link-card:hover {
+  text-decoration: none;
+}
+
+.doc-link-card {
+  display: block;
+  max-width: 360px;
+  margin: 1.6rem 0;
+  padding: 0.85rem 1.1rem;
+  border: 1px solid var(--accent);
+  border-radius: 12px;
+  background: var(--bg-raised);
+  transition: background 0.15s ease;
+}
+
+.doc-link-card:hover {
+  background: color-mix(in srgb, var(--accent) 9%, var(--bg-raised));
+}
+
+.doc-link-card-head {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.35rem;
+}
+
+.doc-link-card-icon {
+  flex-shrink: 0;
+  width: 1.2rem;
+  height: 1.2rem;
+  color: var(--accent);
+}
+
+.doc-link-card-title {
+  font-weight: 600;
+  color: var(--text);
+}
+
+.doc-link-card-text {
+  display: block;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+  line-height: 1.45;
+}
+
 .card[data-active] {
   border-color: var(--accent);
   box-shadow: 0 0 0 1px var(--accent), 0 0 24px -8px var(--accent-glow);
@@ -1348,6 +1586,24 @@ html[data-theme='dark'] .stack-logo-dark-invert img {
   color: var(--text-secondary);
 }
 
+.comparison-closer {
+  margin: 1.75rem 0 0;
+  max-width: 46rem;
+  font-size: 1.05rem;
+  line-height: 1.65;
+  color: var(--text);
+}
+
+#comparison .table-scroll {
+  max-width: 54rem;
+}
+
+@media (max-width: 640px) {
+  #comparison .table-scroll {
+    max-width: 100%;
+  }
+}
+
 .faq-item {
   border-bottom: 1px solid var(--border);
 }
@@ -1403,16 +1659,18 @@ html[data-theme='dark'] .stack-logo-dark-invert img {
   counter-reset: step;
   display: grid;
   gap: 0;
+  min-width: 0;
   max-width: 46rem;
 }
 
-.get-started-steps li {
+.get-started-steps > li {
   counter-increment: step;
   position: relative;
+  min-width: 0;
   padding: 0 0 2rem 3rem;
 }
 
-.get-started-steps li::before {
+.get-started-steps > li::before {
   content: counter(step, decimal-leading-zero);
   position: absolute;
   left: 0;
@@ -1427,7 +1685,7 @@ html[data-theme='dark'] .stack-logo-dark-invert img {
   padding: 0.3rem 0.45rem;
 }
 
-.get-started-steps li:not(:last-child)::after {
+.get-started-steps > li:not(:last-child)::after {
   content: '';
   position: absolute;
   left: 1.05rem;
@@ -1446,6 +1704,53 @@ html[data-theme='dark'] .stack-logo-dark-invert img {
   color: var(--text-muted);
   font-size: 0.9rem;
   margin: 0 0 0.7rem;
+}
+
+.get-started-agents {
+  --stack-bar-bg: var(--bg);
+  margin-top: 0.5rem;
+  padding: 0.3rem 0;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+}
+
+.marquee-track-logos li {
+  gap: 0;
+}
+
+.marquee-track-logos li::after {
+  background: transparent;
+}
+
+.code-copy {
+  position: relative;
+}
+
+.code-copy pre {
+  margin: 0;
+  padding-right: 4.25rem;
+}
+
+.code-copy-button {
+  position: absolute;
+  top: 0.55rem;
+  right: 0.55rem;
+  z-index: 1;
+  padding: 0.3rem 0.7rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid #4ade80;
+  background: color-mix(in srgb, var(--code-bg) 82%, transparent);
+  color: #4ade80;
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.code-copy-button:hover {
+  background: color-mix(in srgb, #4ade80 14%, var(--code-bg));
 }
 
 .route-hero {
@@ -1714,6 +2019,7 @@ html[data-theme='dark'] .stack-logo-dark-invert img {
   display: grid;
   grid-template-columns: 2fr 1fr 1fr 1fr 1fr;
   gap: 2rem;
+  padding-bottom: 2rem;
 }
 
 .site-footer p {
@@ -1795,6 +2101,10 @@ html[data-theme='dark'] .stack-logo-dark-invert img {
   }
 
   .card-grid-3 {
+    grid-template-columns: 1fr;
+  }
+
+  .team-grid {
     grid-template-columns: 1fr;
   }
 

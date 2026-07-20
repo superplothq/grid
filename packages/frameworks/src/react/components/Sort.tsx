@@ -1,7 +1,7 @@
 import React, { useCallback, useState } from "react";
-import type { GridDataViewModel } from "grid/dist/renderer";
-import { FlattenedDataViewModel } from "grid/dist/renderer";
-import type { DataSchema, SortEntry, SortDirection } from "grid/dist/index";
+import type { GridDataViewModel } from "@superplot/grid/renderer";
+import { FlattenedDataViewModel } from "@superplot/grid/renderer";
+import type { DataSchema, SortEntry, SortDirection } from "@superplot/grid";
 import { useDataModelContext } from "./DataModelContext";
 
 const SORT_META_NS = "sort";

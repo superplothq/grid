@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Structure
 
-This is a yarn workspace with following packages:
+This is a Bun workspace with following packages:
 
 - **packages/grid**: High performant Grid / pivot table implementation — headless core that exposes APIs for data modeling, viewmodel construction, and rendering
 - **packages/frameworks**: Framework-specific bindings (currently React 18) that wrap the headless grid core into components
@@ -19,15 +19,15 @@ This is a yarn workspace with following packages:
 - **playground**: React 18, TypeScript, Webpack 5, ESLint
 - **web**: Next.js 16 (static export), React 19, fumadocs (core/mdx/ui), Tailwind 4 (loaded only via `app/docs/docs.css`)
 - **docs**: Next.js 16 (static export), React 19, fumadocs, Tailwind 4
-- **samples**: TypeScript only — depends on `grid` (deep-imports `grid/dist/renderer` to avoid pulling DuckDB), no framework dependency
+- **samples**: TypeScript only — depends on `grid` (deep-imports `@superplot/grid/renderer` to avoid pulling DuckDB), no framework dependency
 
 ### package.json scripts
-- grid unit tests: yarn workspace grid test:unit
-- grid lint: yarn workspace grid lint --fix
-- build: yarn workspace grid build && yarn workspace grid build:css
-- playground build: yarn workspace playground build
-- samples type check: yarn workspace samples types:check
-- web build: yarn workspace web build (emits raw sample sources to public/samples first)
+- grid unit tests: bun --filter @superplot/grid test:unit
+- grid lint: bun --filter @superplot/grid lint --fix
+- build: bun --filter @superplot/grid build
+- playground build: bun --filter playground build
+- samples type check: bun --filter samples types:check
+- web build: bun --filter web build (emits raw sample sources to public/samples first)
 
 ### Development Server
 Already setup by the user and running.
@@ -79,8 +79,8 @@ See `docs/pivot-data-pipeline.md` and `docs/flat-table-pipeline.md` for full pip
 - If you are writing test, do NOT add number for text inside describe or it.
 - Do NOT write comments unless explicity asked to do so. But do NOT remove any existing comments.
 - Do NOT address TODO in code comments unless explicity asked to do so.
-- Run lint `yarn workspace grid lint --fix 2>&1` to fix autofixable lints and report the rest which you can try fixing manually
+- Run lint `bun --filter @superplot/grid lint --fix 2>&1` to fix autofixable lints and report the rest which you can try fixing manually
 - Do NOT run playground build
 - All packages use TypeScript with strict mode enabled
-- The workspace uses yarn workspaces for dependency management
+- The workspace uses Bun workspaces for dependency management
 - ESLint: grid/frameworks/playground use eslint 8 (legacy .eslintrc); web/docs use eslint 9 flat config with eslint-config-next. Keep web/docs on eslint ^9 — eslint 10 breaks eslint-config-next's plugin stack (eslint-plugin-react supports up to ^9.7)

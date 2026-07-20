@@ -1,5 +1,5 @@
-import { registerTheme } from "grid/dist/renderer";
-import type { Theme } from "grid/dist/renderer";
+import { registerTheme } from "@superplot/grid/renderer";
+import type { Theme } from "@superplot/grid/renderer";
 import type { GridThemeName } from "../../runtime/theme";
 
 // A dedicated Tableau-flavoured theme pair (cool slate neutrals, a muted blue

@@ -32,22 +32,63 @@ export function Hero({
       <div className="hero-bridge">
         <div className="bridge-panel">
           <div className="bridge-panel-header">
-            <p className="bridge-panel-title">Copy to your agent</p>
+            <p className="bridge-panel-title">
+              <span className="bridge-panel-title-text">Install via your agent</span>
+            </p>
             <button
               type="button"
-              className="button button-ghost"
+              className="button bridge-copy-button"
               data-copy-target="agent-prompt"
             >
               Copy prompt
             </button>
           </div>
-          <pre id="agent-prompt" className="bridge-prompt" tabIndex={0}>
-            <code>{copyToAgentPrompt}</code>
-          </pre>
+          <ol className="bridge-steps">
+            <li>
+              Paste this following line in your agent:{' '}
+              <span id="agent-prompt" className="bridge-highlight bridge-highlight-block">
+                {copyToAgentPrompt}
+              </span>
+            </li>
+            <li>
+              Converse with your agent to create a grid for yourself. Here is a start up prompt{' '}
+              <button
+                type="button"
+                className="copy-icon-button"
+                data-copy-icon=""
+                data-copy-target="grid-prompt"
+                aria-label="Copy prompt"
+              >
+                <svg
+                  className="copy-icon-copy"
+                  viewBox="0 0 24 24"
+                  fill="currentColor"
+                  aria-hidden="true"
+                >
+                  <path d="M16 1H4a2 2 0 0 0-2 2v12h2V3h12V1zm3 4H8a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2z" />
+                </svg>
+                <svg
+                  className="copy-icon-check"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2.5"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  aria-hidden="true"
+                >
+                  <path d="M20 6 9 17l-5-5" />
+                </svg>
+              </button>
+              <span id="grid-prompt" className="bridge-highlight bridge-highlight-block">
+                Make me a grid to surprise me.
+              </span>
+            </li>
+          </ol>
           <div className="hero-ctas">
             <a className="button button-secondary" href={githubUrl}>
               <GithubIcon className="button-icon" />
-              GitHub
+              MIT Licensed on GitHub
             </a>
             <a className="button button-secondary" href={discordUrl}>
               <DiscordIcon className="button-icon" />
@@ -55,6 +96,9 @@ export function Hero({
             </a>
           </div>
         </div>
+        <p className="bridge-footnote">
+          <code className="bridge-highlight">/superplot help</code> to see available skills
+        </p>
       </div>
     </section>
   );

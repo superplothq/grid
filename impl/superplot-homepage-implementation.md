@@ -381,8 +381,8 @@ Root scripts should add web-specific commands because current scripts only inclu
 ```json
 // package.json scripts
 {
-  "web:start": "yarn workspace web dev",
-  "web:build": "yarn workspace web build"
+  "web:start": "bun --filter web dev",
+  "web:build": "bun --filter web build"
 }
 ```
 

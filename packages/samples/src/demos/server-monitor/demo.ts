@@ -1,6 +1,6 @@
 import { scaleLinear } from "d3-scale";
 import { area, curveCatmullRom, line } from "d3-shape";
-import Grid, { FlattenedDataViewModel, PVerticalFixture, registerTheme } from "grid/dist/renderer";
+import Grid, { FlattenedDataViewModel, PVerticalFixture, registerTheme } from "@superplot/grid/renderer";
 import type {
   BaseFixtureViewModel,
   BaseSliceResult,
@@ -12,8 +12,8 @@ import type {
   GridDataViewModel,
   Theme,
   ValueCellDataContext,
-} from "grid/dist/renderer";
-import type { FlattenedDataViewModelParams } from "grid/dist/renderer/flattened-data-viewmodel";
+} from "@superplot/grid/renderer";
+import type { FlattenedDataViewModelParams } from "@superplot/grid/renderer/flattened-data-viewmodel";
 import { syncCustomGridTheme } from "../../runtime/theme";
 import type { GridThemeName } from "../../runtime/theme";
 import { createTickRandom, generateServers, HISTORY_LEN, STATUSES, tickServers } from "./data";

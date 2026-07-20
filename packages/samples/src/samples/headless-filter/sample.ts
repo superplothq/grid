@@ -1,6 +1,6 @@
-import Grid, { FlattenedDataViewModel, PHorizontalFixture } from "grid/dist/renderer";
-import type { BaseFixtureViewModel, BaseSliceResult, BaseViewModel, CellRenderer, RendererContext } from "grid/dist/renderer";
-import type { FlattenedDataViewModelParams } from "grid/dist/renderer/flattened-data-viewmodel";
+import Grid, { FlattenedDataViewModel, PHorizontalFixture } from "@superplot/grid/renderer";
+import type { BaseFixtureViewModel, BaseSliceResult, BaseViewModel, CellRenderer, RendererContext } from "@superplot/grid/renderer";
+import type { FlattenedDataViewModelParams } from "@superplot/grid/renderer/flattened-data-viewmodel";
 import { createGridMount } from "../../runtime/mount";
 import { resolveGridTheme, syncGridTheme } from "../../runtime/theme";
 import type { SampleContext, SampleRow } from "../../types";

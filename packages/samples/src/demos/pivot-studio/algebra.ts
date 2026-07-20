@@ -1,4 +1,4 @@
-import type { AxisExpr } from "grid/dist/index";
+import type { AxisExpr } from "@superplot/grid";
 import { FIELDS } from "./data";
 
 // The table-algebra editors let the user type expressions like

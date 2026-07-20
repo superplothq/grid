@@ -1,4 +1,4 @@
-import Grid, { LayoutType } from "grid/dist/renderer";
+import Grid, { LayoutType } from "@superplot/grid/renderer";
 
 // Lays out the sample host as a vertical stack (so a toolbar and the grid read as
 // separate blocks with the page background showing through the gap) and returns a

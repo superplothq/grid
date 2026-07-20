@@ -1,4 +1,4 @@
-import Grid, { FlattenedDataViewModel } from "grid/dist/renderer";
+import Grid, { FlattenedDataViewModel } from "@superplot/grid/renderer";
 import { createToolbar, toolbarButton } from "../../runtime/toolbar";
 import { syncGridTheme } from "../../runtime/theme";
 import type { SampleContext, SampleRow } from "../../types";

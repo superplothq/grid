@@ -1,7 +1,7 @@
 import { createContext, useContext } from "react";
-import type { StandardTableDataModel } from "grid/dist/index";
-import type { StandardDataFetchAndTransformIR, SortEntry, ScalarFilter, ColumnRangeValues } from "grid/dist/index";
-import type Grid from "grid/dist/renderer";
+import type { StandardTableDataModel } from "@superplot/grid";
+import type { StandardDataFetchAndTransformIR, SortEntry, ScalarFilter, ColumnRangeValues } from "@superplot/grid";
+import type Grid from "@superplot/grid/renderer";
 
 export interface GridConfig {
   enableSorting?: boolean;

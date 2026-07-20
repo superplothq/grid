@@ -37,7 +37,7 @@ The three operators `cross`, `concat`, and `hierarchy` compose fields from data 
 `cross(a, b)` produces every combination of values from `a` and `b` fields from data. Each argument becomes a facet level; all combinations are enumerated.
 
 ```ts
-import { cross } from "grid";
+import { cross } from "@superplot/grid";
 
 // Quarter and Product are two columns in the data
 // cross produces every quarter paired with every product
@@ -82,7 +82,7 @@ cross("Quarter", "Profit")
 `concat(a, b)` places the values from `a` and `b` side by side on the same facet level. No combinations are generated; values are simply laid out in sequence.
 
 ```ts
-import { concat } from "grid";
+import { concat } from "@superplot/grid";
 
 // Quarter values followed by Product values, all on one level
 concat("Quarter", "Product")
@@ -116,7 +116,7 @@ concat("Profit", "Sales")
 `hierarchy(a, b)` nests `b` under `a`, but only shows combinations that actually exist in the data. Unlike `cross` (which enumerates all possible combinations), `hierarchy` produces only observed parent-child pairs.
 
 ```ts
-import { hierarchy } from "grid";
+import { hierarchy } from "@superplot/grid";
 
 // Months nested under their actual quarter
 hierarchy("Quarter", "Month")
@@ -362,7 +362,7 @@ This sorts regions by total revenue descending, while countries within each regi
 A `PivotConfig` using all fields - rows with dimensional projection, columns with table algebra, filtering, and sorting:
 
 ```ts
-import { cross, concat, hierarchy } from "grid";
+import { cross, concat, hierarchy } from "@superplot/grid";
 
 const config: PivotConfig = {
   rows: {
@@ -393,8 +393,8 @@ PivotTableDataModel is abstract. You must implement two methods:
 - `resolveFacetValues(query: PivotFilterQuery)` - returns distinct or grouped values for the requested fields. Used by filter UIs to populate dropdowns with available values. See `PivotFilterQuery`
 
 ```ts
-import { PivotTableDataModel, cross, hierarchy } from "grid";
-import { DataSchema, PivotDataFetchAndTransformIR, PivotRawDataFromSource, PivotFilterQuery } from "grid";
+import { PivotTableDataModel, cross, hierarchy } from "@superplot/grid";
+import { DataSchema, PivotDataFetchAndTransformIR, PivotRawDataFromSource, PivotFilterQuery } from "@superplot/grid";
 
 class MyPivotDataModel extends PivotTableDataModel {
   private dataSource: MyDataSource;

@@ -1,5 +1,7 @@
 {
   "pages": [
+    "---Getting Started---",
+    "installation",
     "---Core Concepts---",
     "dataflow",
     "built-for-agents",

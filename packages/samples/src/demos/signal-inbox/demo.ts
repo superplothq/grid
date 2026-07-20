@@ -1,4 +1,4 @@
-import Grid, { FlattenedDataViewModel, PVerticalFixture } from "grid/dist/renderer";
+import Grid, { FlattenedDataViewModel, PVerticalFixture } from "@superplot/grid/renderer";
 import type {
   BaseFixtureViewModel,
   BaseSliceResult,
@@ -7,8 +7,8 @@ import type {
   ColAutoSizeConfig,
   FacetCellRenderer,
   FacetHeaderContext,
-} from "grid/dist/renderer";
-import type { FlattenedDataViewModelParams } from "grid/dist/renderer/flattened-data-viewmodel";
+} from "@superplot/grid/renderer";
+import type { FlattenedDataViewModelParams } from "@superplot/grid/renderer/flattened-data-viewmodel";
 import { createGridMount } from "../../runtime/mount";
 import { syncGridTheme } from "../../runtime/theme";
 

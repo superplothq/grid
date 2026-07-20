@@ -90,7 +90,7 @@ createRowMeta(1, false, false)  // depth 1 group, collapsed → 0x10
 ### Constructing the viewmodel
 
 ```typescript
-import { FlattenedDataViewModel, createRowMeta } from "grid";
+import { FlattenedDataViewModel, createRowMeta } from "@superplot/grid";
 
 const viewModel = new FlattenedDataViewModel(
   data,           // any[][] — column-major: data[colIndex][rowIndex]

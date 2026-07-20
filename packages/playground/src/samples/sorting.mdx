@@ -43,7 +43,7 @@ No React state is involved in the data flow — the entire cycle is imperative.
 `<Sort />` is a standalone building block, not a full renderer. You can compose it with other UI in a custom column renderer:
 
 ```tsx
-import { Sort } from "frameworks/dist/react";
+import { Sort } from "@superplot/react";
 
 function CustomColumnRenderer({ value, viewModel, render, index }: FacetCellProps) {
   const schema = viewModel.schema![index];

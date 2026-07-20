@@ -1,5 +1,5 @@
-import Grid, { FlattenedDataViewModel, createRowMeta } from "grid/dist/renderer";
-import type { FacetCellRenderer, FacetDataContext, FacetRendererContext, FacetCellContent, CellRenderer, RendererContext } from "grid/dist/renderer";
+import Grid, { FlattenedDataViewModel, createRowMeta } from "@superplot/grid/renderer";
+import type { FacetCellRenderer, FacetDataContext, FacetRendererContext, FacetCellContent, CellRenderer, RendererContext } from "@superplot/grid/renderer";
 import { createGridMount } from "../../runtime/mount";
 import { syncGridTheme } from "../../runtime/theme";
 

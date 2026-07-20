@@ -1,11 +1,11 @@
 import React, {useEffect, useRef, useState} from "react";
-import "grid/dist/grid.css";
-import type {DataSchema, ColumnMetadata} from "grid/dist/index";
-import type {StandardDataFetchAndTransformIR, StandardTableConfig} from "grid/dist/index";
+import "@superplot/grid/grid.css";
+import type {DataSchema, ColumnMetadata} from "@superplot/grid";
+import type {StandardDataFetchAndTransformIR, StandardTableConfig} from "@superplot/grid";
 import {
   DataGrid, useFlatGrid, SkeletonGrid, GridErrOverlay,
   type ColumnDef, type ReactFacetDefs, type DataGridHandle,
-} from "frameworks/dist/react";
+} from "@superplot/react";
 import {useDataSource} from "./DataSourceContext";
 import {useTheme} from "./ThemeContext";
 
@@ -50,7 +50,7 @@ const ExcludeColumnFacetsInner: React.FC<{height: string; exclude: boolean}> = (
 };
 
 interface GridProps {
-  ds: import("grid/dist/index").SqlDataSource;
+  ds: import("@superplot/grid").SqlDataSource;
   schema: DataSchema[];
   theme: string;
   height: string;

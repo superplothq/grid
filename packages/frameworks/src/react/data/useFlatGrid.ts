@@ -1,9 +1,9 @@
 import React, { useRef, useState, useEffect, useCallback, createElement, type FC, type ReactNode } from "react";
-import { FlattenedDataViewModel, type GridDataViewModelOptions, type VTrackDef } from "grid/dist/renderer";
-import type { FacetPredicate, SelectionProps, ColAutoSizeConfig } from "grid/dist/renderer";
-import { SqlStandardTableDataModel, type FlattenedDataViewModelParams, type StandardDataFetchAndTransformIR, type StandardTableConfig, type DataSchema, type SortEntry, type ScalarFilter, type ColumnRangeValues } from "grid/dist/index";
-import type { SqlDataSource } from "grid/dist/index";
-import type { FacetDef } from "grid/dist/renderer";
+import { FlattenedDataViewModel, type GridDataViewModelOptions, type VTrackDef } from "@superplot/grid/renderer";
+import type { FacetPredicate, SelectionProps, ColAutoSizeConfig } from "@superplot/grid/renderer";
+import { SqlStandardTableDataModel, type FlattenedDataViewModelParams, type StandardDataFetchAndTransformIR, type StandardTableConfig, type DataSchema, type SortEntry, type ScalarFilter, type ColumnRangeValues } from "@superplot/grid";
+import type { SqlDataSource } from "@superplot/grid";
+import type { FacetDef } from "@superplot/grid/renderer";
 import { ReactCellAdapter } from "../renderer-adapter";
 import type { ColumnDef, CellProps, FacetCellProps, DataGridHandle, ReactFacetDefs, ReactFacetDef } from "../types";
 import { SortableColumnRenderer } from "../components/SortableColumnRenderer";

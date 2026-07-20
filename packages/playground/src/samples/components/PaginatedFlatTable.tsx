@@ -1,9 +1,9 @@
 import React, {useCallback, useRef, useState} from "react";
-import "grid/dist/grid.css";
-import type {DataSchema, ColumnMetadata} from "grid/dist/index";
-import type {StandardDataFetchAndTransformIR, StandardTableConfig} from "grid/dist/index";
-import type {FacetCellProps} from "frameworks/dist/react";
-import {DataGrid, useFlatGrid, PageView, SkeletonGrid, GridErrOverlay, useDataModelContext} from "frameworks/dist/react";
+import "@superplot/grid/grid.css";
+import type {DataSchema, ColumnMetadata} from "@superplot/grid";
+import type {StandardDataFetchAndTransformIR, StandardTableConfig} from "@superplot/grid";
+import type {FacetCellProps} from "@superplot/react";
+import {DataGrid, useFlatGrid, PageView, SkeletonGrid, GridErrOverlay, useDataModelContext} from "@superplot/react";
 import {useDataSource} from "./DataSourceContext";
 import {useTheme} from "./ThemeContext";
 
@@ -49,7 +49,7 @@ const ExpandCollapseRenderer: React.FC<FacetCellProps> = ({value, path, viewMode
       const result = flatMeta!.isExpanded
         ? await model.collapse(path as string[])
         : await model.expand(path as string[]);
-      (viewModel as import("grid/dist/renderer").FlattenedDataViewModel).updateData(result);
+      (viewModel as import("@superplot/grid/renderer").FlattenedDataViewModel).updateData(result);
       render(viewModel);
     }
 
@@ -90,7 +90,7 @@ const PaginatedFlatTable: React.FC<PaginatedFlatTableProps> = ({height = "500px"
 };
 
 interface PaginatedFlatTableInnerProps {
-  ds: import("grid/dist/index").SqlDataSource;
+  ds: import("@superplot/grid").SqlDataSource;
   columns: ColumnMetadata[];
   theme: string;
   height: string;

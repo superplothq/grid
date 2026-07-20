@@ -136,8 +136,8 @@ Each `<id>/index.mdx` frontmatter is validated by web's `source.config.ts`
 
 ### Checks
 
-- Type check: `yarn workspace samples types:check`
-- Lint: `yarn workspace samples lint`
+- Type check: `bun --filter samples types:check`
+- Lint: `bun --filter samples lint`
 - Samples pin to the workspace `grid`, so a grid API change surfaces here at
   `types:check` — keep it green.
 
@@ -146,7 +146,7 @@ Each `<id>/index.mdx` frontmatter is validated by web's `source.config.ts`
 1. **Create the directory** `src/samples/<id>/` (kebab-case id = slug = registry key).
 
 2. **`sample.ts`** — the executable. How every sample drives the grid:
-   - **Deep-import `grid/dist/renderer`** (not the package root) so the sample doesn't
+   - **Import `@superplot/grid/renderer`** (not the package root) so the sample doesn't
      pull in DuckDB.
    - **Build the grid inline** (`new Grid({}, mount, "flat" | "pivot")`) so the grid
      setup is visible in the shown source. `runtime/` helpers are for *shared, boring
@@ -286,8 +286,8 @@ Each `<id>/index.mdx` frontmatter is validated by web's `source.config.ts`
 10. **Shared logic?** if a second sample needs the same helper, hoist it into
     `runtime/` — never import from a sibling sample.
 
-11. Run `yarn workspace samples types:check` and rebuild web
-    (`yarn workspace web build`) to verify the page renders.
+11. Run `bun --filter samples types:check` and rebuild web
+    (`bun --filter web build`) to verify the page renders.
 
 ## Consumption (web /docs) {#consumption-web-docs}
 
@@ -348,7 +348,7 @@ put the sample at the *same* level (no hierarchy). Use the group-folder pattern 
 `packages/web/app/docs/docs.css` (web) — all sidebar styling/layout overrides, keyed on
 fumadocs' stable ids (`#nd-sidebar`, `#nd-docs-layout`, `#nd-toc`): width, colors,
 fonts, stickiness, header row. Note: `docs.css` HMR is flaky under Turbopack — after
-edits, verify via `yarn workspace web build` + static serve, or hard-refresh.
+edits, verify via `bun --filter web build` + static serve, or hard-refresh.
 
 ## Notes
 

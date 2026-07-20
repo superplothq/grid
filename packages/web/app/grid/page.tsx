@@ -14,7 +14,6 @@ import {
   demoUseCases,
   faqItems,
   features,
-  getStartedSteps,
   principles,
   stackItems,
 } from '@/lib/home-content';
@@ -43,7 +42,11 @@ export default function GridPage() {
       </section>
       <ComparisonScaffold />
       <FaqSection items={faqItems} />
-      <GetStartedSection steps={getStartedSteps} primaryHref={gridDocsPath} />
+      <GetStartedSection
+        agents={agentItems}
+        agentPrompt={copyToAgentPrompt}
+        primaryHref={gridDocsPath}
+      />
     </main>
   );
 }

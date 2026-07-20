@@ -1,8 +1,8 @@
 import React from "react";
-import "grid/dist/grid.css";
-import type {DataSchema, ColumnMetadata} from "grid/dist/index";
-import type {StandardDataFetchAndTransformIR, StandardTableConfig} from "grid/dist/index";
-import {DataGrid, useFlatGrid, SkeletonGrid, GridErrOverlay} from "frameworks/dist/react";
+import "@superplot/grid/grid.css";
+import type {DataSchema, ColumnMetadata} from "@superplot/grid";
+import type {StandardDataFetchAndTransformIR, StandardTableConfig} from "@superplot/grid";
+import {DataGrid, useFlatGrid, SkeletonGrid, GridErrOverlay} from "@superplot/react";
 import {useDataSource} from "./DataSourceContext";
 import {useTheme} from "./ThemeContext";
 
@@ -31,7 +31,7 @@ const FlatTable: React.FC<FlatTableProps> = ({height = "500px"}) => {
 };
 
 interface FlatTableInnerProps {
-  ds: import("grid/dist/index").SqlDataSource;
+  ds: import("@superplot/grid").SqlDataSource;
   columns: ColumnMetadata[];
   theme: string;
   height: string;

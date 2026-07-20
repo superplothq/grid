@@ -1,4 +1,4 @@
-import type { ScalarFilter, SortEntry } from "grid/dist/index";
+import type { ScalarFilter, SortEntry } from "@superplot/grid";
 import { FIELDS } from "./data";
 
 // Lightweight, theme-adaptive popups for the corner sort/filter icons. A single

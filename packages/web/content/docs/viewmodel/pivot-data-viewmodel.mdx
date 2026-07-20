@@ -82,7 +82,7 @@ Swaps the internal data arrays and re-initializes options without constructing a
 [`PivotTableDataModel.getViewModelData()`](/grid/docs/datamodel/pivot-table-datamodel#how-it-works) returns `PivotDataViewModelParams`. Pass it to the constructor on first load, then use `updateData` for subsequent refreshes:
 
 ```ts
-import { PivotDataViewModel } from "grid";
+import { PivotDataViewModel } from "@superplot/grid";
 
 // First load - construct the viewmodel
 const params = await pivotDataModel.getViewModelData(pivotConfig);

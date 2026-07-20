@@ -5,7 +5,7 @@ import {
   forwardRef,
   useState,
 } from "react";
-import Grid from "grid/dist/renderer";
+import Grid from "@superplot/grid/renderer";
 import type { DataGridProps, DataGridHandle } from "./types";
 import { PageLoadingIndicator } from "./components/PageLoadingIndicator";
 

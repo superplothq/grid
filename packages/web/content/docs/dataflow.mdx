@@ -210,7 +210,7 @@ The DataModel is where business logic lives: pivoting, grouping, aggregation, pa
 Takes a `PivotConfig` with table algebra operators (`cross`, `hierarchy`, `concat`), generates queries against the DataSource, reshapes flat query results into a 2D pivot grid, and produces `PivotDataViewModelParams`.
 
 ```ts
-import { cross, hierarchy } from "grid";
+import { cross, hierarchy } from "@superplot/grid";
 
 const config: PivotConfig = {
   // Nested hierarchy on rows: region > country (only observed combinations appear)
@@ -425,7 +425,7 @@ await ds.release(); // count reaches 0, resources freed
 Construct a ViewModel manually from any data source without using a DataModel at all. Use case: you have a custom data format (e.g. a spreadsheet library, a WebSocket stream) and want to render it in the grid without fitting it into the DataModel abstraction.
 
 ```ts
-import { FlattenedDataViewModel, createRowMeta } from "grid";
+import { FlattenedDataViewModel, createRowMeta } from "@superplot/grid";
 
 // Build params from your own data source
 const params: FlattenedDataViewModelParams = {

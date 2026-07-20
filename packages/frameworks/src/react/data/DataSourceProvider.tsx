@@ -1,6 +1,6 @@
 import { createContext, type FC, type ReactNode } from "react";
-import type { SqlDataSource, ColumnMetadata } from "grid/dist/index";
-import type { DataSchema } from "grid/dist/index";
+import type { SqlDataSource, ColumnMetadata } from "@superplot/grid";
+import type { DataSchema } from "@superplot/grid";
 
 export interface DataSourceContextValue {
   dataSource: SqlDataSource;

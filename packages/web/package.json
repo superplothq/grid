@@ -18,13 +18,13 @@
     "fumadocs-mdx": "14.3.1",
     "fumadocs-typescript": "^5.2.6",
     "fumadocs-ui": "16.8.3",
-    "grid": "1.0.0",
+    "@superplot/grid": "workspace:*",
     "lucide-react": "^1.9.0",
     "mermaid": "^11.14.0",
     "next": "16.2.10",
     "react": "^19.2.5",
     "react-dom": "^19.2.5",
-    "samples": "0.0.0"
+    "samples": "workspace:*"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4.2.4",

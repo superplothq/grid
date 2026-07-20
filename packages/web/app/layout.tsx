@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import { Inter, JetBrains_Mono } from 'next/font/google';
+import Script from 'next/script';
 import { SiteFooter } from '@/components/site/SiteFooter';
 import { TopNav } from '@/components/site/TopNav';
 import { siteName, siteUrl } from '@/lib/site-config';
@@ -24,6 +25,9 @@ export const metadata: Metadata = {
   },
   description:
     'Create advanced grids, pivots, and data views using prompts, typed APIs, and composable primitives.',
+  icons: {
+    icon: '/favicon.png',
+  },
   openGraph: {
     siteName,
     type: 'website',
@@ -37,6 +41,15 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en" className={`${inter.variable} ${jetbrainsMono.variable}`} suppressHydrationWarning>
       <body>
+        <Script async src="https://www.googletagmanager.com/gtag/js?id=G-30RQPV4NV0" />
+        <Script id="google-analytics">
+          {`
+            window.dataLayer = window.dataLayer || [];
+            function gtag(){dataLayer.push(arguments);}
+            gtag('js', new Date());
+            gtag('config', 'G-30RQPV4NV0');
+          `}
+        </Script>
         <script
           dangerouslySetInnerHTML={{
             __html:

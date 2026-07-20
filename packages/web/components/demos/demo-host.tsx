@@ -2,7 +2,7 @@
 
 import { useEffect, useRef } from 'react';
 import { demos, createSampleContext } from 'samples';
-import 'grid/dist/grid.css';
+import '@superplot/grid/grid.css';
 
 // Mirrors components/docs/sample-demo.tsx: dynamic-import the demo module and run
 // its mount in an effect, with strict-mode-safe cleanup. Demos are self-contained

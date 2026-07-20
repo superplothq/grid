@@ -1,5 +1,5 @@
 import React, { useMemo } from "react";
-import { getTheme, type Theme } from "grid/dist/renderer";
+import { getTheme, type Theme } from "@superplot/grid/renderer";
 
 const PAGE_SIZE_OPTIONS = [10, 25, 50, 100];
 

@@ -1,5 +1,5 @@
 import type { FC, ComponentType } from "react";
-import type Grid from "grid/dist/renderer";
+import type Grid from "@superplot/grid/renderer";
 import type {
   GridDataViewModel,
   SelectionPayload,
@@ -8,7 +8,7 @@ import type {
   VTrackDef,
   FacetDef,
   FlatRowMeta,
-} from "grid/dist/renderer";
+} from "@superplot/grid/renderer";
 
 export type { GridDataViewModel };
 

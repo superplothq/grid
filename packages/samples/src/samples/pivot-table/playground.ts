@@ -1,18 +1,18 @@
-import Grid, { PivotDataViewModel } from "grid/dist/renderer";
+import Grid, { PivotDataViewModel } from "@superplot/grid/renderer";
 import type {
   CellRenderer,
   GridDataViewModelOptions,
   RendererContext,
   ValueCellDataContext,
   VTrackDef,
-} from "grid/dist/renderer";
-import type { PivotDataViewModelParams } from "grid/dist/renderer/pivot-data-viewmodel";
-import { DuckDBWasmDataSource, SqlPivotTableDataModel } from "grid/dist/index";
+} from "@superplot/grid/renderer";
+import type { PivotDataViewModelParams } from "@superplot/grid/renderer/pivot-data-viewmodel";
+import { DuckDBWasmDataSource, SqlPivotTableDataModel } from "@superplot/grid";
 import type {
   AxisExpr,
   DimensionalProjectionPath,
   PivotConfig,
-} from "grid/dist/index";
+} from "@superplot/grid";
 import { syncCustomGridTheme } from "../../runtime/theme";
 import type { GridThemeName } from "../../runtime/theme";
 import {

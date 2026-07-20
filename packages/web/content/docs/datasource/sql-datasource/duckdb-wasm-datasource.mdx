@@ -12,7 +12,7 @@ It supports native Arrow ingestion for batch insertion, making `loadData()` and 
 ## Creating an instance
 
 ```ts
-import { DuckDBWasmDataSource } from "grid";
+import { DuckDBWasmDataSource } from "@superplot/grid";
 
 const ds = await DuckDBWasmDataSource.create();
 ```
@@ -100,7 +100,7 @@ Extends [SqlDataSource](/grid/docs/datasource/sql-datasource#api-reference).
 `DuckDBDataSource` is the Node.js equivalent, backed by native DuckDB. It has the same API but uses native bindings instead of WASM. It is primarily used for server-side execution and unit testing.
 
 ```ts
-import { DuckDBDataSource } from "grid";
+import { DuckDBDataSource } from "@superplot/grid";
 
 const ds = DuckDBDataSource.create(); // synchronous, no WASM to download
 await ds.loadDataFromURL({ url: "https://example.com/sales.json", type: "json" });

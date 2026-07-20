@@ -57,8 +57,8 @@ collapse the many rows behind a cell into a single value: `sum` on this page, bu
 they are grouped rather than reduced.
 
 ```ts
-import { DuckDBWasmDataSource, SqlPivotTableDataModel } from "grid";
-import type { DataSchema } from "grid";
+import { DuckDBWasmDataSource, SqlPivotTableDataModel } from "@superplot/grid";
+import type { DataSchema } from "@superplot/grid";
 
 const schema: DataSchema[] = [
   { name: "region",   displayName: "Region",   type: "dimension" },
@@ -98,7 +98,7 @@ every possible pairing, `hierarchy` produces only observed pairs, which is what
 makes it a drill-down. It takes plain dimension fields, never measures.
 
 ```ts
-import { hierarchy } from "grid";
+import { hierarchy } from "@superplot/grid";
 
 // Months nested under their actual quarter
 hierarchy("Quarter", "Month")
@@ -140,7 +140,7 @@ nested headers, and crossing a dimension with a measure repeats the measure unde
 each dimension value.
 
 ```ts
-import { cross } from "grid";
+import { cross } from "@superplot/grid";
 
 // every quarter paired with every product
 cross("Quarter", "Product")
@@ -177,7 +177,7 @@ sequence. It works on measures, to show several metrics at once, and on dimensio
 to place two breakdowns side by side.
 
 ```ts
-import { concat } from "grid";
+import { concat } from "@superplot/grid";
 
 // Profit and Sales as adjacent columns
 concat("Profit", "Sales")
@@ -232,7 +232,7 @@ measure like `mrr` is a valid column axis on its own. The config passes each axi
 straight through to the DataModel:
 
 ```ts
-import { cross, hierarchy, concat } from "grid";
+import { cross, hierarchy, concat } from "@superplot/grid";
 
 const config: PivotConfig = {
   rows: "region",

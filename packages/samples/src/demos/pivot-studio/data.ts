@@ -1,4 +1,4 @@
-import type { DataSchema } from "grid/dist/index";
+import type { DataSchema } from "@superplot/grid";
 
 // A self-contained SaaS-subscriptions dataset: five dimensions (region ▸ country
 // form a natural drill-down hierarchy, plus plan, industry, and acquisition

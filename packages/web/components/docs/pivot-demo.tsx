@@ -2,7 +2,7 @@
 
 import { useEffect, useRef } from 'react';
 import { loadPivotPlayground } from 'samples';
-import 'grid/dist/grid.css';
+import '@superplot/grid/grid.css';
 
 export function PivotDemo({ rows, columns }: { rows: string; columns: string }) {
   const hostRef = useRef<HTMLDivElement>(null);

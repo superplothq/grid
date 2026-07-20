@@ -1,6 +1,6 @@
 import React, {useState, useMemo} from "react";
 import feather from "feather-icons";
-import type {ScalarFilter} from "grid/dist/index";
+import type {ScalarFilter} from "@superplot/grid";
 
 export interface FilterDropdownProps {
   field: string;

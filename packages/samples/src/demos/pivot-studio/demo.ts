@@ -1,4 +1,4 @@
-import Grid, { PivotDataViewModel } from "grid/dist/renderer";
+import Grid, { PivotDataViewModel } from "@superplot/grid/renderer";
 import type {
   FacetCellRenderer,
   FacetDataContext,
@@ -10,9 +10,9 @@ import type {
   VTrackDef,
   ValueCellDataContext,
   RendererContext,
-} from "grid/dist/renderer";
-import type { PivotDataViewModelParams } from "grid/dist/renderer/pivot-data-viewmodel";
-import { DuckDBWasmDataSource, SqlPivotTableDataModel, ProjectionState } from "grid/dist/index";
+} from "@superplot/grid/renderer";
+import type { PivotDataViewModelParams } from "@superplot/grid/renderer/pivot-data-viewmodel";
+import { DuckDBWasmDataSource, SqlPivotTableDataModel, ProjectionState } from "@superplot/grid";
 import type {
   AxisExpr,
   DimensionalProjectionPath,
@@ -20,7 +20,7 @@ import type {
   ScalarFilter,
   Filter,
   PivotConfig,
-} from "grid/dist/index";
+} from "@superplot/grid";
 import { createStatsPlumber } from "./stats";
 import { syncCustomGridTheme } from "../../runtime/theme";
 import type { GridThemeName } from "../../runtime/theme";

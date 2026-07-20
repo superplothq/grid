@@ -15,7 +15,7 @@ marker. A flat table is really just the special case of a grouped table where
 every row sits at the same depth.
 
 ```ts
-import { FlattenedDataViewModel, createRowMeta } from "grid/dist/renderer";
+import { FlattenedDataViewModel, createRowMeta } from "@superplot/grid/renderer";
 
 // createRowMeta(depth, isLeaf, isExpanded) packs the three fields into one byte.
 grid.data = new FlattenedDataViewModel({

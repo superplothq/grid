@@ -179,7 +179,7 @@ const columns = await ds.loadDataFromURL({
 | `DuckDBWasmDataSource` | Browser | DuckDB WASM |
 
 ```ts
-import { DuckDBWasmDataSource } from "grid";
+import { DuckDBWasmDataSource } from "@superplot/grid";
 
 const ds = await DuckDBWasmDataSource.create();
 await ds.loadDataFromURL({
@@ -200,7 +200,7 @@ Here's an example using [PGLite](https://pglite.dev) (Postgres compiled to WASM)
 ```ts
 import { PGlite } from "@electric-sql/pglite";
 import * as arrow from "apache-arrow";
-import { SqlDataSource } from "grid";
+import { SqlDataSource } from "@superplot/grid";
 
 class PGLiteDataSource extends SqlDataSource {
   private db: PGlite;

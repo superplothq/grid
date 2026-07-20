@@ -64,8 +64,8 @@ StandardTableDataModel is abstract. You must implement two methods:
 - `getRangeOfColumn(field: string)` - returns the distinct values or range for a column (used for filtering)
 
 ```ts
-import { StandardTableDataModel } from "grid";
-import { DataSchema, StandardTableConfig, StandardDataFetchAndTransformIR, GetRowsResponse, ColumnRangeValues } from "grid";
+import { StandardTableDataModel } from "@superplot/grid";
+import { DataSchema, StandardTableConfig, StandardDataFetchAndTransformIR, GetRowsResponse, ColumnRangeValues } from "@superplot/grid";
 
 class MyTableDataModel extends StandardTableDataModel {
   private dataSource: MyDataSource;

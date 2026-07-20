@@ -235,7 +235,7 @@ The grid ships a few renderers so common cells need no custom code:
   header renderers; both return the value as a string, with `null` becoming `""`.
 
 ```ts
-import { createChartRenderer } from "grid/dist/renderer";
+import { createChartRenderer } from "@superplot/grid/renderer";
 
 const sparkline = createChartRenderer({ chartType: "line", color: "#1976d2" });
 const barChart = createChartRenderer({ chartType: "bar", minWidth: 100, minHeight: 24 });
@@ -263,7 +263,7 @@ before measurement, so you pass a React component and it is wrapped as a rendere
 
 ```tsx
 import type { FC } from "react";
-import type { CellProps } from "frameworks";
+import type { CellProps } from "@superplot/react";
 
 const PercentCell: FC<CellProps<number>> = ({ value }) => (
   <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
