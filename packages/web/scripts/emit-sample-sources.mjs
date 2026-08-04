@@ -79,3 +79,7 @@ fs.mkdirSync(outDir, { recursive: true });
 fs.writeFileSync(path.join(outDir, 'index.txt'), `# Samples\n\n${index}\n`);
 
 console.log(`emitted sources for ${entries.length} sample(s) to public/samples`);
+
+const agentsGuide = path.resolve(webRoot, '../grid/AGENTS.md');
+fs.copyFileSync(agentsGuide, path.join(webRoot, 'public/grid/agents.md'));
+console.log('copied grid AGENTS.md to public/grid/agents.md');

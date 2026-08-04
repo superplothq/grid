@@ -1,31 +1,99 @@
 # SuperPlot Grid - setup skill
 
-You are a coding agent setting up `@superplot/grid` in the user's project. Follow this file top to bottom. Latest release: `@superplot/grid@0.5.0`.
+Here is the guide to set up `@superplot/grid` in a project. Follow it top to bottom.
 
 ## What you are installing
 
 SuperPlot is a headless, high performance data grid. At its core it is two things and the seam between them:
 
 - A **DataViewModel** - a thin, render-ready structure that holds the data (`FlattenedDataViewModel` for standard tables, `PivotDataViewModel` for pivots).
-- A **Renderer** - the `Grid` instance that turns that structure into DOM, with virtualization, cell recycling, and column sizing built in.
+- A **Renderer** - the `Grid` instance. It provides the layout engine, the render cycle (`draw()`), scroll handling, virtualization, cell recycling/pooling, column auto-sizing, selections, and themes. DataViewModel feeds data for drawing.
 
-It deliberately ships **no** sort menu, filter popup, or pagination bar. You compose those peripheral components in glue code against a small typed contract. Data flows one way: the state you hold -> viewmodel -> `grid.draw()`. The grid is always a pure function of your state.
+Upstream of that seam sits a **data layer** that produces viewmodel data for you:
+
+- **DataModel** - a client-side data modelling contract (fetch raw data, page caching with eviction, row grouping with progressive expand/collapse, sorting, filtering, pivot aggregation, reshape it for the viewmodel).
+- **DataSource** - the execution contract behind a DataModel. Built-in implementations run SQL over in-browser DuckDB WASM, loading CSV / JSON data (in-memory or from a URL). Any other source - a REST or GraphQL API where the server does the transformation, or anything else - is connected by adhering to the contract (per-protocol built-in API implementations are planned).
+
+Using a DataModel / DataSource is optional (although recommended).
+
+It deliberately ships **no** UI components like sort menu, filter popup, or pagination bar. You compose those peripheral components in glue code against a small typed contract. Data flows one way: the state you hold -> viewmodel -> `grid.draw()`. The grid is always a pure function of your state.
 
 ## Step 0 - clarify requirements with the user
 
-Before writing code, ask the user whatever is not already clear from their request:
+Before writing code, resolve the data source (0.1) and the remaining questions (0.2). Ask the user only what is not already clear from their request.
 
-1. **Data** - where does it come from? An in-memory array, an API, or SQL over DuckDB WASM?
-2. **Shape** - a standard table (one row per record), or a pivot (aggregated rows x columns)?
-3. **Interactions** - sorting, filtering, pagination, row grouping, selection? How should each look?
-4. **Theme** - light, dark, or following the app's theme?
-5. **Placement** - which framework, and which page/component should host the grid?
+### 0.1 Data - decision procedure
+
+Two questions decide everything. **D1 - who executes queries?** Either the client can hold the full dataset (DuckDB WASM does all sort/filter/group/page locally), or the server owns querying (the API datamodel/datasource is the path). **D2 - is the shape known?** Either a schema is provided, or a sample must be examined to infer it.
+
+Follow this procedure to answer them:
+
+```text
+START
+  ask: "Where does the data live?"
+  |
+  |-- "in a JS object / array in the app"
+  |       D1 = client (full data already in memory)
+  |       --> RESOLVE_SCHEMA
+  |
+  |-- "at a URL serving JSON / CSV"
+  |       fetch once and EXAMINE the response:
+  |         - returns the complete dataset?     --> D1 = client
+  |             (ingest via DuckDB WASM loadDataFromURL)
+  |             --> RESOLVE_SCHEMA
+  |         - accepts query/paging params,
+  |           returns partial slices?           --> it is actually a REST endpoint,
+  |                                                 go to the REST branch
+  |
+  |-- "behind a REST endpoint that does the querying"
+  |       D1 = server
+  |       clarify before coding:
+  |         - which operations does the server support?
+  |           (filter / sort / groupBy / pagination / aggregation)
+  |         - request & response shape (payload contract)
+  |       --> RESOLVE_SCHEMA
+  |
+  |-- anything else / unclear
+          PROBE loop - keep asking until the answers place it in a branch above:
+            - where is the data actually coming from?
+            - is the FULL dataset obtainable at once, or only pages/slices?
+                (full --> D1 = client; pages only --> D1 = server)
+            - can we fetch a sample row set to examine?
+          if it genuinely fits none of the above:
+            - can the full data be downloaded once and handed to DuckDB WASM?
+                yes --> treat as WASM_LOCAL (custom fetch/parse glue, then loadData)
+            - otherwise --> CUSTOM
+
+RESOLVE_SCHEMA (D2, runs for every branch)
+  schema provided by user?          --> use it
+  else: examine sample rows and infer
+        (measure vs dimension, temporal/nominal/integer/decimal),
+        confirm inferred schema with the user
+
+TERMINAL STATES
+  WASM_LOCAL   -- full data + DuckDB WASM datasource + SQL datamodels
+  API_SERVER   -- server owns querying (REST, GraphQL, ...). Implement a thin
+                  DataSource/DataModel for that protocol against the contract;
+                  built-in API implementations are planned but not shipped yet
+  CUSTOM       -- reach here only when full download is infeasible AND the server
+                  cannot query (e.g. dumb paging over a huge dataset, live
+                  streaming feeds, data locked in another client-side store)
+```
+
+Do not start coding until you have reached a terminal state and resolved the schema.
+
+### 0.2 Remaining questions
+
+1. **Shape** - a standard table (one row per record), or a pivot (aggregated rows x columns)?
+2. **Interactions** - sorting, filtering, pagination, row grouping, selection? How should each look?
+3. **Theme** - light, dark, or following the app's theme?
+4. **Placement** - which framework, and which page/component should host the grid?
 
 Sensible defaults if the user has no opinion: in-memory standard table, sortable column headers, light theme.
 
 ## Step 1 - install
 
-Detect the package manager from the lockfile and install:
+If `@superplot/grid` is already in the project's dependencies, skip the install and keep the installed version. Otherwise, detect the package manager from the lockfile and install:
 
 ```sh
 npm install @superplot/grid    # or: bun add / pnpm add / yarn add
@@ -33,142 +101,15 @@ npm install @superplot/grid    # or: bun add / pnpm add / yarn add
 
 TypeScript types ship with the package. It works under strict mode.
 
-## Step 2 - import rules
+## Step 2 - read the guide that ships with the package
 
-- For viewmodel-driven grids (the common case), deep-import from **`@superplot/grid/renderer`**. Do NOT import the package root for this - the root entry pulls the DuckDB WASM datasource stack into the bundle.
-- Import the root `@superplot/grid` only when you use the SQL layers (`DuckDBWasmDataSource`, `SqlStandardTableDataModel`, `SqlPivotTableDataModel`).
-- Import the stylesheet once, wherever your bundler accepts CSS imports: `import "@superplot/grid/grid.css"`.
-- The renderer touches the DOM, so it is browser-only. In SSR frameworks (Next.js etc.) construct the grid in client-side code only.
+The full programming guide - import rules, the viewmodel/renderer contract, the interaction update path, renderer gotchas, framework glue, themes, and the SQL/pivot layers - ships inside the package, version-matched to what is installed:
 
-## Step 3 - minimal working grid
+**Read `node_modules/@superplot/grid/AGENTS.md` and follow it.**
 
-```ts
-import Grid, { FlattenedDataViewModel } from "@superplot/grid/renderer";
-import type { FlattenedDataViewModelParams } from "@superplot/grid/renderer/flattened-data-viewmodel";
-import "@superplot/grid/grid.css";
+If you cannot locate the file, fetch https://superplot.dev/grid/agents.md instead.
 
-const COLUMNS = ["name", "city", "revenue"];
-
-function buildParams(rows: Record<string, unknown>[]): FlattenedDataViewModelParams {
-  return {
-    // Column-major: one inner array per column, holding that column's value for every row.
-    data: COLUMNS.map((field) => rows.map((row) => row[field] ?? null)),
-    // Header labels. One level for a plain table; extra levels create grouped headers.
-    columnFacets: [COLUMNS],
-    // Sizes the scrollbar. With server paging, also pass offsetTop for the loaded block.
-    totalRows: rows.length,
-  };
-}
-
-// The mount element must have an explicit height, overflow auto, and position relative.
-const mount = document.getElementById("grid")!;
-mount.style.cssText = "position:relative;height:400px;overflow:auto;";
-
-const grid = new Grid({ theme: "light" }, mount, "flat"); // layout: "flat" | "pivot"
-const viewModel = new FlattenedDataViewModel(buildParams(rows));
-grid.data = viewModel;
-grid.draw();
-```
-
-Contract notes:
-
-- `data` is **column-major**. Getting this wrong is the most common mistake - `data[colIndex][rowIndex]`, not row objects.
-- Columns auto-size to content by default. To make columns share the full width instead, pass `options.vTrackDefs` with `colSize: { strategy: "static", width: 1, unit: "fr" }` per column.
-- Per-column formatting and custom cells also go through `options.vTrackDefs` (`valueFormatter`, `renderer`).
-
-## Step 4 - interactions: the one update path
-
-Whatever the interaction (sort, filter, page, group), the response is always the same three moves:
-
-1. Hold the interaction state on `viewModel.metaState` - a namespaced key-value store that survives data updates: `metaState.set("sort", "field", "name")`, `metaState.get("sort")`, `metaState.clear("sort")`.
-2. Derive new rows from that state and call `viewModel.updateData(buildParams(derivedRows))`. The viewmodel is **persistent** - never construct a new one per update.
-3. Call `grid.draw()`. `metaState` has no reactivity; `draw()` is what re-runs rendering.
-
-```ts
-function render(): void {
-  const sort = viewModel.metaState.get("sort") as { field: string; dir: "asc" | "desc" } | undefined;
-  let view = allRows;
-  if (sort) {
-    const factor = sort.dir === "asc" ? 1 : -1;
-    view = allRows.slice().sort((a, b) => compare(a[sort.field], b[sort.field]) * factor);
-  }
-  viewModel.updateData(buildParams(view));
-  grid.draw();
-}
-```
-
-Renderer gotchas that will bite you if skipped:
-
-- Cells are recycled on every draw, so per-cell `onclick` handlers get swallowed. Attach **delegated** `pointerdown`/`click` listeners on the mount element and match targets via `data-*` attributes you set in your renderers.
-- Custom header renderers (`options.facetDefs.col[].trackRenderer`) are also called with a synthetic sample string during layout measurement. Return `""` when the value is not one of your known fields.
-- A custom cell renderer must return `""` (not `undefined`) to clear a cell, otherwise the recycled cell keeps its stale content.
-
-Do not invent sort/filter/pagination UI from scratch. Fetch the canonical end-to-end implementations and adapt them:
-
-- Sort: https://superplot.dev/grid/docs/samples/headless-sort
-- Filter: https://superplot.dev/grid/docs/samples/headless-filter
-- Pagination: https://superplot.dev/grid/docs/samples/headless-paginate
-
-## Framework glue (React example)
-
-Construct the grid once per mounted container and keep the viewmodel out of framework state:
-
-```tsx
-"use client";
-import { useEffect, useRef } from "react";
-import Grid, { FlattenedDataViewModel } from "@superplot/grid/renderer";
-import "@superplot/grid/grid.css";
-
-export function DataGrid({ rows }: { rows: Row[] }) {
-  const mountRef = useRef<HTMLDivElement>(null);
-  const stateRef = useRef<{ grid: Grid; viewModel: FlattenedDataViewModel }>(null);
-
-  useEffect(() => {
-    const grid = new Grid({}, mountRef.current!, "flat");
-    const viewModel = new FlattenedDataViewModel(buildParams(rows));
-    grid.data = viewModel;
-    grid.draw();
-    stateRef.current = { grid, viewModel };
-    return () => {
-      stateRef.current = null;
-      mountRef.current?.replaceChildren();
-    };
-  }, []);
-
-  useEffect(() => {
-    if (!stateRef.current) return;
-    stateRef.current.viewModel.updateData(buildParams(rows));
-    stateRef.current.grid.draw();
-  }, [rows]);
-
-  return <div ref={mountRef} style={{ position: "relative", height: 400, overflow: "auto" }} />;
-}
-```
-
-The same shape applies to any framework: create once on mount, push updates through `updateData` + `draw()`, tear down on unmount.
-
-## Themes
-
-- Built-in themes: `"light"` and `"dark"`, chosen via the `theme` field of the config passed to the `Grid` constructor.
-- Custom themes: `registerTheme(name, tokens)` from `@superplot/grid/renderer`, then pass that name as `theme`.
-- To switch theme on a live grid (e.g. following an app-wide dark mode toggle), re-apply the theme tokens as CSS custom properties on `grid.trackSurfaceContainer`. See https://superplot.dev/grid/docs/renderer/themes for the token list and pattern.
-
-## Pivot tables and SQL-backed grids
-
-For aggregated pivots or SQL-driven tables, use the optional data layers from the package root `@superplot/grid`:
-
-- `DuckDBWasmDataSource` stores data in in-browser DuckDB and executes SQL.
-- `SqlStandardTableDataModel` produces `FlattenedDataViewModel`s with grouping and pagination handled for you.
-- `SqlPivotTableDataModel` takes a `PivotConfig` built from table algebra operators (`cross`, `hierarchy`, `concat`) and produces `PivotDataViewModel`s.
-
-Read these before implementing:
-
-- Pivot pipeline: https://superplot.dev/grid/docs/pivot-table
-- Datasource layer: https://superplot.dev/grid/docs/datasource
-- Datamodel layer: https://superplot.dev/grid/docs/datamodel
-- Fullstack (server-backed) grids: https://superplot.dev/grid/docs/fullstack-grid
-
-## Step 5 - verify
+## Step 3 - verify
 
 1. Build or start the dev server and open the page. The grid should render rows inside its scroll container.
 2. Scroll: rows should virtualize smoothly with no blank flashes at normal speed.
@@ -177,10 +118,7 @@ Read these before implementing:
 
 ## Reference
 
+- Full agent guide (same content as the packaged AGENTS.md): https://superplot.dev/grid/agents.md
 - Docs index for agents (fetch this for the full page list): https://superplot.dev/grid/docs/llms.txt
 - Docs home: https://superplot.dev/grid/docs/
-- Headless programming model: https://superplot.dev/grid/docs/headless
-- Viewmodel contract: https://superplot.dev/grid/docs/viewmodel
-- Renderer, events, selections: https://superplot.dev/grid/docs/renderer
-- Type references: https://superplot.dev/grid/docs/type-references
 - npm: https://www.npmjs.com/package/@superplot/grid
