@@ -1,5 +1,6 @@
 import { StandardTableDataModel } from "./standard-table-datamodel";
 import { SqlDataSource } from "./sql-datasource";
+import { computeOutputColumns, toColumnMajor } from "./utils";
 import { DataSchema, DatePartScalarFilter, ColumnRangeValues, StandardTableConfig, StandardDataFetchAndTransformIR, GetRowsResponse, ScalarFilter, SortEntry, StandardMetadataResolver, SqlStandardMetadataResolver, SqlStandardMetadataResolverInput, StandardMetadataPlumber, StandardMetadataResolverInput } from "./types";
 
 export class SqlStandardTableDataModel extends StandardTableDataModel {
@@ -36,20 +37,7 @@ export class SqlStandardTableDataModel extends StandardTableDataModel {
     }
 
     const totalRowCount = Number(rows[0].__total__);
-    const depth = ir.groupPath.length;
-    const isGroupLevel = depth < ir.groupBy.length;
-    const groupField = isGroupLevel ? ir.groupBy[depth] : null;
-
-    const measureCols = ir.project.filter((p) => {
-      if (p === groupField) return false;
-      const def = this.getColumn(p);
-      return def && def.aggregateFn;
-    });
-    const outputColumns = isGroupLevel
-      ? [groupField!, ...measureCols]
-      : ir.project;
-
-    const rowData = this.toColumnMajor(rows, outputColumns);
+    const rowData = toColumnMajor(rows, computeOutputColumns(ir, this.schemaInfo));
 
     const metadata: Record<string, any[]> | undefined =
       metadataContributions.length > 0
@@ -223,20 +211,6 @@ export class SqlStandardTableDataModel extends StandardTableDataModel {
     case "notEmpty": return `"${f.field}" IS NOT NULL`;
     default: return "1=1";
     }
-  }
-
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  private toColumnMajor(rows: Record<string, any>[], columns: string[]): any[][] {
-    const filtered = columns.filter((c) => c !== "__total__");
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const result: any[][] = filtered.map(() => []);
-    for (const row of rows) {
-      for (let i = 0; i < filtered.length; i++) {
-        const val = row[filtered[i]];
-        result[i].push(typeof val === "bigint" ? Number(val) : val);
-      }
-    }
-    return result;
   }
 
   private escapeSQL(value: string): string {

@@ -7,8 +7,9 @@ export type SqlColumnType = "VARCHAR" | "INTEGER" | "DOUBLE" | "TIMESTAMP";
  * DataSource instance. Use `addRef` / `release` to manage ownership.
  *
  * @typeParam T - The query request type (e.g. `string` for SQL-based sources, js object for API based sources).
+ * @typeParam TResult - What one `execute` call resolves to.
  */
-export interface DataSource<T> {
+export interface DataSource<T, TResult = Record<string, any>[]> {
   /**
    * Execute a command against the data source and return the result.
    *
@@ -18,9 +19,9 @@ export interface DataSource<T> {
    * - Custom sources: whatever command shape your source accepts
    *
    * @param req - The command to execute. Its type is determined by `T`.
-   * @returns An array of key-value records. The layout (row-major vs column-major) is up to the implementation — the data model consuming the result handles the transformation.
+   * @returns The response, determined by `TResult`. Defaults to an array of key-value records. The layout (row-major vs column-major) is up to the implementation — the data model consuming the result handles the transformation.
    */
-  execute(req: T): Promise<Record<string, any>[]>;
+  execute(req: T): Promise<TResult>;
 
   /**
    * Increment the reference count. Call this when a new consumer

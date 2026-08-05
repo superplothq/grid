@@ -1,4 +1,5 @@
-import { DataSchema } from "./types";
+import { DataSchema, SchemaInfo } from "./types";
+import { getColumn } from "./utils";
 
 /**
  * Abstract base class that fetches raw data from a [DataSource](/docs/datasource) and transforms it into a structure the renderer can display.
@@ -23,17 +24,19 @@ export abstract class DataModel<TInput, TViewModelData> {
   }
 
   /**
+   * The schema lookup state consumed by the pure schema utilities (`getColumn`, `computeOutputColumns`).
+   */
+  protected get schemaInfo(): SchemaInfo {
+    return { schema: this.schema, schemaIndex: this.schemaIndex };
+  }
+
+  /**
    * Look up a column definition by name. Throws if the column does not exist in the schema.
    *
    * @param name - The column name to look up.
    */
   protected getColumn(name: string): DataSchema {
-    const index = this.schemaIndex.get(name);
-    const column = index === undefined ? undefined : this.schema[index];
-    if (!column) {
-      throw new Error(`Column "${name}" not found in schema. Available columns: ${Array.from(this.schemaIndex.keys()).join(", ")}`);
-    }
-    return column;
+    return getColumn(name, this.schemaInfo);
   }
 
   /**

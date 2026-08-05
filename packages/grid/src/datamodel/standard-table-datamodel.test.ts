@@ -124,6 +124,24 @@ describe("StandardTableDataModel (real DuckDB)", () => {
     ]);
   });
 
+  it("should produce correct viewmodel when projecting a subset of measures", async () => {
+    const model = await makeModel();
+    const vm = await model.getViewModel(makeIR({ project: ["units_sold"] }));
+
+    expect(vm.numRows).to.equal(2);
+    const slice = vm.getSlice(0, 0, 1, 2);
+    expect(slice.rowFacets).to.deep.equal(["Europe", "North America"]);
+    expect(slice.data).to.deep.equal([[171, 236]]);
+  });
+
+  it("should produce correct viewmodel when measures are projected in a different order than the schema", async () => {
+    const model = await makeModel();
+    const vm = await model.getViewModel(makeIR({ project: ["units_sold", "revenue"] }));
+
+    const slice = vm.getSlice(0, 0, 2, 2);
+    expect(slice.data).to.deep.equal([[171, 236], [7380, 9820]]);
+  });
+
   it("should expand a group and show child facets", async () => {
     const model = await makeModel();
     await model.getViewModel(makeIR());
