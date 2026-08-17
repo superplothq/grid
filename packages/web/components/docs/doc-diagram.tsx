@@ -8,7 +8,7 @@ const diagrams = {
   dataflow: {
     file: 'grid-dataflow-diag.svg',
     label:
-      'The grid is four layers glued together by code an agent writes. A DataSource connects to storage (an API server, an in-browser WASM database, or in-memory data) and forwards the config or query it is handed. The DataModel asks the DataSource to prepare data for a config and returns it ready to render. The DataViewModel receives that data along with any local transform or formatting hooks. The Renderer, the grid instance, draws it and calls the event handlers that establish interactivity. The DataSource, DataModel, DataViewModel, and Renderer together make up the headless grid.',
+      'The grid is four core components glued together by code an agent writes. A DataSource connects to storage (an API server, an in-browser WASM database, or in-memory data) and forwards the config or query it is handed. The DataModel asks the DataSource to prepare data for a config and returns it ready to render. The DataViewModel receives that data along with any local transform or formatting hooks. The Renderer, the grid instance, draws it and calls the event handlers that establish interactivity. The DataSource, DataModel, DataViewModel, and Renderer together make up the headless grid.',
   },
   'metadata-flow': {
     file: 'grid-metadata-flow.svg',

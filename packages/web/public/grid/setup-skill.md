@@ -6,17 +6,22 @@ Here is the guide to set up `@superplot/grid` in a project. Follow it top to bot
 
 SuperPlot is a headless, high performance data grid. At its core it is two things and the seam between them:
 
-- A **DataViewModel** - a thin, render-ready structure that holds the data (`FlattenedDataViewModel` for standard tables, `PivotDataViewModel` for pivots).
-- A **Renderer** - the `Grid` instance. It provides the layout engine, the render cycle (`draw()`), scroll handling, virtualization, cell recycling/pooling, column auto-sizing, selections, and themes. DataViewModel feeds data for drawing.
+- A **DataViewModel** - a thin, render-ready structure that holds the data in column major format (`FlattenedDataViewModel` for standard tables, `PivotDataViewModel` for pivots).
+- A **Renderer** - the `Grid` instance. It provides the layout engine, the render cycle (`draw()`), scroll handling, virtualization, cell recycling/pooling, column auto-sizing, selections, themes and other ui related behaviour / operation. DataViewModel feeds data for drawing.
 
 Upstream of that seam sits a **data layer** that produces viewmodel data for you:
 
 - **DataModel** - a client-side data modelling contract (fetch raw data, page caching with eviction, row grouping with progressive expand/collapse, sorting, filtering, pivot aggregation, reshape it for the viewmodel).
-- **DataSource** - the execution contract behind a DataModel. Built-in implementations run SQL over in-browser DuckDB WASM, loading CSV / JSON data (in-memory or from a URL). Any other source - a REST or GraphQL API where the server does the transformation, or anything else - is connected by adhering to the contract (per-protocol built-in API implementations are planned).
+- **DataSource** - Connects to source of data and transparently pass (request to source and result from source)
+  data between datamodel and source.
 
 Using a DataModel / DataSource is optional (although recommended).
 
-It deliberately ships **no** UI components like sort menu, filter popup, or pagination bar. You compose those peripheral components in glue code against a small typed contract. Data flows one way: the state you hold -> viewmodel -> `grid.draw()`. The grid is always a pure function of your state.
+It deliberately ships **no** UI components like sort menu, filter popup, or pagination bar. You compose those peripheral components in glue code based on user's requirement against a small typed contract.
+
+## Dataflow
+
+Data flows one way: the state you hold in glue code -> viewmodel -> `grid.draw()`. The grid is always a pure function of your state. viewmodel -> grid is very fast (hot path), it's expected that during update (interaction / data receive etc) viewmodel is updated and passed to grid for redrawing.
 
 ## Step 0 - clarify requirements with the user
 
