@@ -56,10 +56,11 @@ export type {
 export { Selection, CellSelection } from "./select-all";
 export { registerTheme, getTheme } from "./registry";
 export { GridDataViewModel, MetaState } from "./grid-data-viewmodel";
+export type { ViewModelInitParams } from "./grid-data-viewmodel";
 export { PivotDataViewModel } from "./pivot-data-viewmodel";
 export { FlattenedDataViewModel, createRowMeta } from "./flattened-data-viewmodel";
 export type { BaseViewModel } from "./layout-proto";
-export type { LayoutEvents } from "./standard-layout";
+export type { LayoutEvents, ViewDataEmptyPayload } from "./standard-layout";
 export { PVerticalFixture, PHorizontalFixture } from "./fixture-proto";
 export type { BaseFixtureViewModel } from "./fixture-proto";
 export type { EventEmitter };
@@ -337,12 +338,17 @@ export default class Grid extends GridWithEvents {
     return new Selection(this.#ruleStore, [{ type: "facet", predicate }]);
   }
 
-  /** Triggers a synchronous render cycle: calculates the viewport, fetches the data slice, renders cells, auto-sizes columns, and emits `renderComplete`. Throws if `data` has not been set. */
+  /** Triggers a synchronous render cycle: calculates the viewport, fetches the data slice, renders cells, auto-sizes columns, and emits `renderComplete`. Throws if `data` has not been set. When the viewmodel is blank (`isDataLoaded()` is `false`), nothing is rendered - the grid emits `viewDataEmpty` with reason `no-data` and returns, leaving the consumer to fetch data or show its own empty state. */
   draw(): void {
+    if (!this.#data) throw new Error("Data is not set!");
+
+    if (!this.#data.isDataLoaded()) {
+      this.emit("viewDataEmpty", { reason: "no-data" });
+      return;
+    }
+
     const startTime = performance.now();
     this.#renderCount++;
-
-    if (!this.#data) throw new Error("Data is not set!");
 
     this.#layout.setSelectAllRules(this.#ruleStore.rules);
     const viewModel = this.#layout.calculateViewModel();

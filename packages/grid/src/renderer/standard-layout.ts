@@ -30,6 +30,12 @@ import {
 import { evaluateRulesForDataCell, evaluateRulesForFacetCell } from "./select-all";
 import { computeMerges, MergeState } from "./utils";
 
+// `no-data` carries no row range: the grid returns before the layout runs, so no viewport has been
+// calculated. `out-of-range` reports the visible rows that fall outside the loaded block.
+export type ViewDataEmptyPayload =
+  | { reason: "no-data" }
+  | { reason: "out-of-range"; startRow: number; endRow: number };
+
 export type LayoutEvents = {
   renderComplete: {
     x0: number;
@@ -37,10 +43,7 @@ export type LayoutEvents = {
     x1: number;
     y1: number;
   };
-  viewDataEmpty: {
-    startRow: number;
-    endRow: number;
-  };
+  viewDataEmpty: ViewDataEmptyPayload;
   viewModelDataChanged: {
     x0: number;
     y0: number;
@@ -1908,7 +1911,7 @@ export default class StandardLayout extends StandardLayoutBase {
       if (this.#viewDataEmptyTimer !== null) clearTimeout(this.#viewDataEmptyTimer);
       this.#viewDataEmptyTimer = setTimeout(() => {
         this.#viewDataEmptyTimer = null;
-        this.emit("viewDataEmpty", { startRow: logicalY0, endRow: logicalY1 });
+        this.emit("viewDataEmpty", { reason: "out-of-range", startRow: logicalY0, endRow: logicalY1 });
       }, this.config.dataFetchDebounceMs);
     }
 

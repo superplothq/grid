@@ -1,6 +1,7 @@
 import { expect } from "chai";
 import { MetaState } from "./grid-data-viewmodel";
 import { PivotDataViewModel } from "./pivot-data-viewmodel";
+import { FlattenedDataViewModel, createRowMeta } from "./flattened-data-viewmodel";
 
 const colFacets2Levels: string[][] = [
   ["A", "A", "A", "B", "B", "B"],
@@ -358,5 +359,315 @@ describe("valueFormatter resolution", () => {
       options: { facetDefs: { row: [], col: [{ valueFormatter: facetFormatter }], axis: "col" } },
     });
     expect(vm.vTrackDefs[0].valueFormatter).to.equal(facetFormatter);
+  });
+});
+
+const flatColFacets: string[][] = [
+  ["name", "value"],
+];
+const flatRowFacet: (string | null)[] = ["G0", null, null, "G1", null];
+const flatRowMeta = new Uint8Array([
+  createRowMeta(0, false, true),
+  createRowMeta(1, true, false),
+  createRowMeta(1, true, false),
+  createRowMeta(0, false, true),
+  createRowMeta(1, true, false),
+]);
+
+function expectBlank(vm: PivotDataViewModel | FlattenedDataViewModel): void {
+  expect(vm.isDataLoaded()).to.be.false;
+  expect(vm.isEmpty()).to.be.true;
+  expect(vm.numRows).to.equal(0);
+  expect(vm.numCols).to.equal(0);
+  expect(vm.totalRows).to.equal(0);
+  expect(vm.offsetTop).to.equal(0);
+  expect(vm.numColFacetLevels).to.equal(0);
+  expect(vm.numRowFacetLevels).to.equal(0);
+  expect(vm.columnFacets).to.deep.equal([]);
+  expect(vm.rowFacets).to.deep.equal([]);
+  expect(vm.vTrackDefs).to.deep.equal([]);
+  expect(vm.facetDefs.col).to.deep.equal([]);
+  expect(vm.facetDefs.row).to.deep.equal([]);
+  expect(vm.viewport).to.deep.equal({ x0: 0, y0: 0, x1: 0, y1: 0 });
+  expect(vm.metadata.getValueCellMeta(0, 0)).to.be.undefined;
+}
+
+describe("createBlank", () => {
+  it("should report a pivot viewmodel as empty and not loaded", () => {
+    expectBlank(PivotDataViewModel.createBlank());
+  });
+
+  it("should report a flat viewmodel as empty and not loaded", () => {
+    expectBlank(FlattenedDataViewModel.createBlank());
+  });
+
+  it("should return an empty slice", () => {
+    const vm = PivotDataViewModel.createBlank();
+    const slice = vm.getSlice(0, 0, 0, 0);
+    expect(slice.numRows).to.equal(0);
+    expect(slice.numCols).to.equal(0);
+    expect(slice.sliceNumRows).to.equal(0);
+    expect(slice.sliceNumCols).to.equal(0);
+    expect(slice.rowFacets).to.deep.equal([]);
+  });
+
+  it("should report a constructed viewmodel as loaded", () => {
+    const vm = new PivotDataViewModel({ data: data4x5, columnFacets: colFacets1Level });
+    expect(vm.isDataLoaded()).to.be.true;
+    expect(vm.isEmpty()).to.be.false;
+  });
+
+  it("should report a viewmodel constructed with zero rows as loaded but empty", () => {
+    const vm = new PivotDataViewModel({ data: [[], [], [], []], columnFacets: colFacets1Level });
+    expect(vm.isDataLoaded()).to.be.true;
+    expect(vm.isEmpty()).to.be.true;
+    expect(vm.numCols).to.equal(4);
+  });
+});
+
+describe("blank then load", () => {
+  it("should hold pivot data after updateData", () => {
+    const vm = PivotDataViewModel.createBlank();
+    vm.updateData({ data: data6x8, columnFacets: colFacets2Levels, rowFacets: rowFacets3Levels });
+
+    expect(vm.isDataLoaded()).to.be.true;
+    expect(vm.isEmpty()).to.be.false;
+    expect(vm.numRows).to.equal(8);
+    expect(vm.numCols).to.equal(6);
+    expect(vm.totalRows).to.equal(8);
+    expect(vm.numColFacetLevels).to.equal(2);
+    expect(vm.numRowFacetLevels).to.equal(3);
+    expect(vm.vTrackDefs.length).to.equal(6);
+    expect(vm.facetDefs.col.length).to.equal(2);
+    expect(vm.facetDefs.row.length).to.equal(3);
+  });
+
+  it("should slice pivot data after updateData", () => {
+    const vm = PivotDataViewModel.createBlank();
+    vm.updateData({ data: data6x8, columnFacets: colFacets2Levels, rowFacets: rowFacets3Levels });
+
+    const slice = vm.getSlice(0, 0, 2, 2);
+    expect(slice.data).to.deep.equal([[0, 1], [100, 101]]);
+    expect(slice.columnFacets).to.deep.equal([["A", "X"], ["A", "Y"]]);
+    expect(slice.rowFacets).to.deep.equal([["R0", "S0", "T0"], ["R0", "S0", "T1"]]);
+  });
+
+  it("should hold flat data after updateData", () => {
+    const vm = FlattenedDataViewModel.createBlank();
+    vm.updateData({
+      data: makeData(2, 5), columnFacets: flatColFacets, rowFacet: flatRowFacet, rowMeta: flatRowMeta,
+      totalRows: 200, offsetTop: 100,
+    });
+
+    expect(vm.isDataLoaded()).to.be.true;
+    expect(vm.isEmpty()).to.be.false;
+    expect(vm.numRows).to.equal(5);
+    expect(vm.numCols).to.equal(2);
+    expect(vm.totalRows).to.equal(200);
+    expect(vm.offsetTop).to.equal(100);
+    expect(vm.numRowFacetLevels).to.equal(1);
+    expect(vm.vTrackDefs.length).to.equal(2);
+    expect(vm.facetDefs.row.length).to.equal(1);
+  });
+
+  it("should slice flat data after updateData", () => {
+    const vm = FlattenedDataViewModel.createBlank();
+    vm.updateData({ data: makeData(2, 5), columnFacets: flatColFacets, rowFacet: flatRowFacet, rowMeta: flatRowMeta });
+
+    const slice = vm.getSlice(0, 0, 2, 2);
+    expect(slice.data).to.deep.equal([[0, 1], [100, 101]]);
+    expect(slice.rowFacets).to.deep.equal(["G0", null]);
+    expect(slice.rowMeta).to.deep.equal([
+      { depth: 0, isLeaf: false, isExpanded: true },
+      { depth: 1, isLeaf: true, isExpanded: false },
+    ]);
+  });
+
+  it("should keep options injected at createBlank when updateData omits them", () => {
+    const renderer = () => "x";
+    const vm = FlattenedDataViewModel.createBlank({
+      options: { vTrackDefs: [{ renderer }] },
+      schema: [{ name: "name", type: "dimension" }],
+    });
+    expect(vm.vTrackDefs).to.deep.equal([]);
+
+    vm.updateData({ data: makeData(2, 5), columnFacets: flatColFacets });
+
+    expect(vm.vTrackDefs.length).to.equal(2);
+    expect(vm.vTrackDefs[0].renderer).to.equal(renderer);
+    expect(vm.vTrackDefs[0].isCustom).to.be.true;
+    expect(vm.vTrackDefs[1].isCustom).to.be.false;
+    expect(vm.schema).to.deep.equal([{ name: "name", type: "dimension" }]);
+  });
+
+  it("should keep the facet axis when updateData omits options", () => {
+    const vm = PivotDataViewModel.createBlank({
+      options: { facetDefs: { row: [], col: [], axis: "row" } },
+    });
+    vm.updateData({ data: data6x8, columnFacets: colFacets2Levels, rowFacets: rowFacets3Levels });
+
+    expect(vm.facetDefs.axis).to.equal("row");
+  });
+
+  it("should apply options passed with the first updateData", () => {
+    const renderer = () => "x";
+    const vm = PivotDataViewModel.createBlank();
+    vm.updateData({
+      data: data4x5, columnFacets: colFacets1Level,
+      options: { vTrackDefs: [{ renderer }] },
+    });
+
+    expect(vm.vTrackDefs.length).to.equal(4);
+    expect(vm.vTrackDefs[0].renderer).to.equal(renderer);
+    expect(vm.vTrackDefs[0].isCustom).to.be.true;
+    expect(vm.vTrackDefs[1].isCustom).to.be.false;
+  });
+});
+
+describe("blank then load then blank", () => {
+  it("should return a pivot viewmodel to the blank state on reset", () => {
+    const vm = PivotDataViewModel.createBlank();
+    vm.updateData({ data: data6x8, columnFacets: colFacets2Levels, rowFacets: rowFacets3Levels });
+    vm.reset();
+
+    expectBlank(vm);
+  });
+
+  it("should return a flat viewmodel to the blank state on reset", () => {
+    const vm = FlattenedDataViewModel.createBlank();
+    vm.updateData({
+      data: makeData(2, 5), columnFacets: flatColFacets, rowFacet: flatRowFacet, rowMeta: flatRowMeta,
+      totalRows: 200, offsetTop: 100,
+    });
+    vm.reset();
+
+    expectBlank(vm);
+  });
+
+  it("should drop metadata on reset", () => {
+    const vm = PivotDataViewModel.createBlank();
+    vm.updateData({
+      data: data4x5, columnFacets: colFacets1Level,
+      metadata: { valueCells: [{ colIndex: 0, rowIndex: 0, meta: { flag: true } }] },
+    });
+    expect(vm.metadata.getValueCellMeta(0, 0)).to.deep.equal({ flag: true });
+
+    vm.reset();
+    expect(vm.metadata.getValueCellMeta(0, 0)).to.be.undefined;
+  });
+
+  it("should preserve metaState across reset", () => {
+    const vm = PivotDataViewModel.createBlank();
+    vm.metaState.set("ns", "sort", "asc");
+    vm.updateData({ data: data4x5, columnFacets: colFacets1Level });
+    vm.reset();
+
+    expect(vm.metaState.get("ns")).to.deep.equal({ sort: "asc" });
+  });
+
+  it("should preserve registered callbacks across reset", () => {
+    const vm = PivotDataViewModel.createBlank();
+    let calls = 0;
+    vm.register("viewportDataChange", () => { calls++; });
+    vm.updateData({ data: data4x5, columnFacets: colFacets1Level });
+    vm.reset();
+    vm.updateData({ data: data4x5, columnFacets: colFacets1Level });
+    vm.getViewportData(0, 0, 2, 2);
+
+    return new Promise<void>((resolve) => {
+      setTimeout(() => {
+        expect(calls).to.equal(1);
+        resolve();
+      }, 80);
+    });
+  });
+
+  it("should keep rendering options across reset", () => {
+    const renderer = () => "x";
+    const vm = FlattenedDataViewModel.createBlank({ options: { vTrackDefs: [{ renderer }] } });
+    vm.updateData({ data: makeData(2, 5), columnFacets: flatColFacets });
+    vm.reset();
+    vm.updateData({ data: makeData(2, 3), columnFacets: flatColFacets });
+
+    expect(vm.vTrackDefs[0].renderer).to.equal(renderer);
+    expect(vm.vTrackDefs[0].isCustom).to.be.true;
+  });
+
+  it("should keep schema across reset", () => {
+    const schema = [{ name: "name", type: "dimension" as const }];
+    const vm = FlattenedDataViewModel.createBlank({ schema });
+    vm.updateData({ data: makeData(2, 5), columnFacets: flatColFacets });
+    vm.reset();
+
+    expect(vm.schema).to.equal(schema);
+  });
+
+  it("should reload after reset", () => {
+    const vm = FlattenedDataViewModel.createBlank();
+    vm.updateData({ data: makeData(2, 5), columnFacets: flatColFacets, rowFacet: flatRowFacet, rowMeta: flatRowMeta });
+    vm.reset();
+    vm.updateData({ data: makeData(3, 2), columnFacets: [["a", "b", "c"]] });
+
+    expect(vm.isDataLoaded()).to.be.true;
+    expect(vm.isEmpty()).to.be.false;
+    expect(vm.numCols).to.equal(3);
+    expect(vm.numRows).to.equal(2);
+    expect(vm.numRowFacetLevels).to.equal(0);
+    expect(vm.vTrackDefs.length).to.equal(3);
+  });
+});
+
+describe("blank then load empty data then blank", () => {
+  it("should stay loaded when pivot data has no rows", () => {
+    const vm = PivotDataViewModel.createBlank();
+    vm.updateData({ data: [[], [], [], []], columnFacets: colFacets1Level });
+
+    expect(vm.isDataLoaded()).to.be.true;
+    expect(vm.isEmpty()).to.be.true;
+    expect(vm.numRows).to.equal(0);
+    expect(vm.numCols).to.equal(4);
+    expect(vm.totalRows).to.equal(0);
+    expect(vm.numColFacetLevels).to.equal(1);
+    expect(vm.vTrackDefs.length).to.equal(4);
+  });
+
+  it("should stay loaded when flat data has no rows", () => {
+    const vm = FlattenedDataViewModel.createBlank();
+    vm.updateData({ data: [[], []], columnFacets: flatColFacets, rowFacet: [], rowMeta: new Uint8Array([]) });
+
+    expect(vm.isDataLoaded()).to.be.true;
+    expect(vm.isEmpty()).to.be.true;
+    expect(vm.numRows).to.equal(0);
+    expect(vm.numCols).to.equal(2);
+    expect(vm.numRowFacetLevels).to.equal(1);
+  });
+
+  it("should slice headers with no rows", () => {
+    const vm = PivotDataViewModel.createBlank();
+    vm.updateData({ data: [[], [], [], []], columnFacets: colFacets1Level });
+
+    const slice = vm.getSlice(0, 0, 4, 0);
+    expect(slice.sliceNumRows).to.equal(0);
+    expect(slice.sliceNumCols).to.equal(4);
+    expect(slice.columnFacets).to.deep.equal([["P"], ["Q"], ["R"], ["S"]]);
+    expect(slice.data).to.deep.equal([[], [], [], []]);
+  });
+
+  it("should return to the blank state on reset after an empty load", () => {
+    const vm = PivotDataViewModel.createBlank();
+    vm.updateData({ data: data4x5, columnFacets: colFacets1Level });
+    vm.updateData({ data: [[], [], [], []], columnFacets: colFacets1Level });
+    vm.reset();
+
+    expectBlank(vm);
+  });
+
+  it("should return to the blank state on reset after an empty flat load", () => {
+    const vm = FlattenedDataViewModel.createBlank();
+    vm.updateData({ data: makeData(2, 5), columnFacets: flatColFacets, rowFacet: flatRowFacet, rowMeta: flatRowMeta });
+    vm.updateData({ data: [[], []], columnFacets: flatColFacets, rowFacet: [], rowMeta: new Uint8Array([]) });
+    vm.reset();
+
+    expectBlank(vm);
   });
 });

@@ -8,6 +8,7 @@ import type {
   VTrackDef,
   FacetDef,
   FlatRowMeta,
+  ViewDataEmptyPayload,
 } from "@superplot/grid/renderer";
 
 export type { GridDataViewModel };
@@ -73,7 +74,7 @@ export interface DataGridProps {
   onCellRelease?: (key: string, cell: HTMLElement) => void;
   onBeforeMeasure?: () => void;
   onRenderComplete?: (viewport: { x0: number; y0: number; x1: number; y1: number }) => void;
-  onViewDataEmpty?: (payload: { startRow: number; endRow: number }) => void;
+  onViewDataEmpty?: (payload: ViewDataEmptyPayload) => void;
   onSelectionAdded?: (payload: SelectionPayload) => void;
   onSelectionRemoved?: (payload: SelectionPayload) => void;
 }

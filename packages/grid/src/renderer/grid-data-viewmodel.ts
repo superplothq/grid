@@ -5,9 +5,20 @@ import { DataSchema } from "../datamodel/types";
 const defaultColAutoSize: ColAutoSizeConfig = { strategy: "max-cell" };
 const defaultStaticColSize: IColAutoSizeStrategyStatic = { strategy: "static", width: 1, unit: "fr" };
 const VIEWPORT_CALLBACK_DEBOUNCE_MS = 50;
+const EMPTY_VIEWPORT: DataViewport = { x0: 0, y0: 0, x1: 0, y1: 0 };
 
 export interface ViewModelCallbacks {
   viewportDataChange: (viewport: DataViewport) => void;
+}
+
+/**
+ * The part of a viewmodel's params that describes the grid rather than the data. Subclass params interfaces extend this, and `createBlank` accepts it so a viewmodel can be configured once, before any data exists.
+ */
+export interface ViewModelInitParams {
+  /** Rendering configuration for columns and facet levels. Resolved into `vTrackDefs` and `facetDefs`, and remembered - an `updateData` that omits it keeps the last one. */
+  options?: GridDataViewModelOptions;
+  /** [`DataSchema`](/docs/api-references/type-references#dataschema) definitions for the columns in `data`. */
+  schema?: DataSchema[];
 }
 
 /**
@@ -76,12 +87,15 @@ export abstract class GridDataViewModel {
   #staticStrategy!: boolean;
   #totalRows: number | undefined;
   #offsetTop: number | undefined;
-  #viewport: DataViewport = { x0: 0, y0: 0, x1: 0, y1: 0 };
+  // null means nothing has been rendered yet, or new data invalidated the last render. Any real
+  // viewport is a valid value including all zeros, so the null is what separates the two.
+  #viewport: DataViewport | null = null;
   #callbacks: { [K in keyof ViewModelCallbacks]: Set<ViewModelCallbacks[K]> } = {
     viewportDataChange: new Set(),
   };
-  #lastCallbackViewport: DataViewport | null = null;
   #viewportCallbackTimer: ReturnType<typeof setTimeout> | null = null;
+  #options: GridDataViewModelOptions | undefined;
+  #dataLoaded = true;
   /** [`DataSchema`](/docs/api-references/type-references#dataschema) definitions for the columns in `data`. */
   schema?: DataSchema[];
   /** Namespaced key-value store for arbitrary state that persists across `updateData` calls. See [`MetaState`](/docs/api-references/type-references#metastate). */
@@ -98,7 +112,7 @@ export abstract class GridDataViewModel {
 
   constructor(data: any[][], columnFacets: FacetData) {
     this.#numCols = data.length;
-    this.#numRows = data[0].length;
+    this.#numRows = data[0]?.length ?? 0;
     this.#colFacets = columnFacets;
     this.data = data;
     this.metadata = {
@@ -149,11 +163,78 @@ export abstract class GridDataViewModel {
    * @param columnFacets - Column header values. `columnFacets[level][colIndex]`.
    */
   protected updateBase(data: any[][], columnFacets: FacetData): void {
-    this.#lastCallbackViewport = null;
+    this.#viewport = null;
     this.#numCols = data.length;
-    this.#numRows = data[0].length;
+    this.#numRows = data[0]?.length ?? 0;
     this.#colFacets = columnFacets;
     this.data = data;
+    this.#dataLoaded = true;
+  }
+
+  /**
+   * Creates a blank viewmodel with no data, no columns, and no facets. The only state where `isDataLoaded()` returns `false`.
+   * Fill it later via `updateData`.
+   * Use this function to create a viewmodel to set up the viewmodel while the data is in flight.
+   * @param params - Grid configuration to apply up front. `options` survives the first `updateData` even when that call omits it.
+   */
+  static createBlank<T extends GridDataViewModel>(
+    this: new (params: ViewModelInitParams & { data: any[][]; columnFacets: FacetData }) => T,
+    params?: ViewModelInitParams,
+  ): T {
+    const viewModel = new this({ ...params, data: [], columnFacets: [] });
+    viewModel.#dataLoaded = false;
+    return viewModel;
+  }
+
+  /**
+   * Returns the viewmodel to its blank state - drops data, facets, pagination, metadata, and the pending viewport callback,
+   * then re-resolves rendering options against the now-empty structure.
+   * Configuration survives: the remembered `options`, `schema`, `metaState` and registered callbacks are all preserved,
+   * so the next `updateData` renders the same way even when it carries data only.
+   */
+  reset(): void {
+    this.applyReset();
+    this.#numCols = 0;
+    this.#numRows = 0;
+    this.#colFacets = [];
+    this.data = [];
+    this.#totalRows = undefined;
+    this.#offsetTop = undefined;
+    this.#viewport = null;
+    if (this.#viewportCallbackTimer !== null) {
+      clearTimeout(this.#viewportCallbackTimer);
+      this.#viewportCallbackTimer = null;
+    }
+    this.mergeMetadata({
+      valueCells: undefined,
+      valueColumns: undefined,
+      valueRows: undefined,
+      columnFacets: undefined,
+      rowFacets: undefined,
+      headers: undefined,
+    });
+    this.init(undefined);
+    this.#dataLoaded = false;
+  }
+
+  /** Clears subclass-owned row state. Called by `reset()` to perform subclass related resetting. */
+  protected abstract applyReset(): void;
+
+  /**
+    * `true` when the loaded data has no rows. Here data loading is completed but there is no rows in the data.
+    * This is different than `isDataLoaded` where the data loading to viewmodel is not done yet.
+    * For a blank ViewModel, this returns true because it’s empty by definition.
+    */
+  isEmpty(): boolean {
+    return this.#numRows === 0;
+  }
+
+  /** 
+    * Detcts a blank viewmodel where data is not loaded yet.
+    * `false` only for a viewmodel produced by `createBlank()` or `reset()` that has not been filled since.
+    */
+  isDataLoaded(): boolean {
+    return this.#dataLoaded;
   }
 
   /**
@@ -168,15 +249,18 @@ export abstract class GridDataViewModel {
 
   /**
    * Resolves [`GridDataViewModelOptions`](/docs/api-references/type-references#griddataviewmodeloptions) into `vTrackDefs` and `facetDefs`. Propagates static sizing strategy to all columns/facets if any column or facet uses it. Called by subclass constructors and `updateData` methods.
-   * @param options - Rendering options, or `undefined` to use defaults (textRenderer, max-cell sizing).
+   * The last options passed are remembered, so a data-only `updateData` re-resolves against the existing configuration
+   * instead of falling back to defaults.
+   * @param options - Rendering options, or `undefined` to reuse the remembered ones (defaults when none were ever passed).
    */
   protected init(options: GridDataViewModelOptions | undefined): void {
-    const resolved = this.normalizeOptions(options);
+    this.#options = options ?? this.#options;
+    const resolved = this.normalizeOptions(this.#options);
     this.#resolvedVTrackDefs = resolved.vTrackDefs;
     this.#facetDefs = {
       row: resolved.rowFacetDefs,
       col: resolved.colFacetDefs,
-      axis: options?.facetDefs?.axis ?? "col",
+      axis: this.#options?.facetDefs?.axis ?? "col",
     };
     this.#staticStrategy = this.#resolvedVTrackDefs.some(d => d.colSize.strategy === "static") ||
       this.#facetDefs.row.some(d => d.colSize?.strategy === "static");
@@ -389,28 +473,27 @@ export abstract class GridDataViewModel {
    * @returns The slice result from `getSlice`.
    */
   getViewportData(x0: number, y0: number, x1: number, y1: number): BaseSliceResult {
+    const prev = this.#viewport;
     this.#viewport = { x0, y0, x1, y1 };
     const result = this.getSlice(x0, y0, x1, y1);
 
-    const prev = this.#lastCallbackViewport;
     if (prev && prev.x0 === x0 && prev.y0 === y0 && prev.x1 === x1 && prev.y1 === y1) {
       return result;
     }
-    this.#lastCallbackViewport = { x0, y0, x1, y1 };
 
     if (this.#viewportCallbackTimer !== null) clearTimeout(this.#viewportCallbackTimer);
     this.#viewportCallbackTimer = setTimeout(() => {
       this.#viewportCallbackTimer = null;
-      const vp = this.#viewport;
+      const vp = this.#viewport!;
       for (const cb of this.#callbacks.viewportDataChange) cb(vp);
     }, VIEWPORT_CALLBACK_DEBOUNCE_MS);
 
     return result;
   }
 
-  /** The most recent viewport bounds passed to `getViewportData`. */
+  /** The most recent viewport bounds passed to `getViewportData`. All zeros before the first render, and after an `updateData` until the next one. */
   get viewport(): DataViewport {
-    return this.#viewport;
+    return this.#viewport ?? EMPTY_VIEWPORT;
   }
 
   /**

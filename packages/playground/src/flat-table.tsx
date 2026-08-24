@@ -218,6 +218,7 @@ const FlatTablePlayground: React.FC = () => {
       let pendingVP: {startRow: number; endRow: number} | null = null;
 
       grid.on("viewDataEmpty", (vp) => {
+        if (vp.reason === "no-data") return;
         pendingVP = vp;
         if (throttleTimer) return;
         throttleTimer = setTimeout(async () => {

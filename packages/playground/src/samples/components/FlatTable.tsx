@@ -74,7 +74,7 @@ const FlatTableInner: React.FC<FlatTableInnerProps> = ({ds, columns, theme, heig
         {...bindings}
         layout="flat"
         theme={theme}
-        onViewDataEmpty={({startRow, endRow}) => fetchPage(startRow, endRow)}
+        onViewDataEmpty={(p) => { if (p.reason === "out-of-range") fetchPage(p.startRow, p.endRow); }}
       />
     </div>
   );

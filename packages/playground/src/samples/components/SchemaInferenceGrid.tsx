@@ -146,7 +146,7 @@ const SchemaInferenceGridInner: React.FC<InnerProps> = ({ds, columns, theme, hei
         {...bindings}
         layout="flat"
         theme={theme}
-        onViewDataEmpty={({startRow, endRow}) => fetchPage(startRow, endRow)}
+        onViewDataEmpty={(p) => { if (p.reason === "out-of-range") fetchPage(p.startRow, p.endRow); }}
       />
     </div>
   );

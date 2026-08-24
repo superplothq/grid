@@ -141,7 +141,7 @@ const FilteredGroupedTableInner: React.FC<FilteredGroupedTableInnerProps> = ({ds
         {...bindings}
         layout="flat"
         theme={theme}
-        onViewDataEmpty={({startRow, endRow}) => fetchPage(startRow, endRow)}
+        onViewDataEmpty={(p) => { if (p.reason === "out-of-range") fetchPage(p.startRow, p.endRow); }}
       />
     </div>
   );

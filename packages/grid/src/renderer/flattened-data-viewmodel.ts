@@ -1,6 +1,5 @@
-import { FlatSliceResult, GridDataViewModelOptions, FacetData, FlatRowMeta, ViewModelMetadata } from "./types";
-import { GridDataViewModel } from "./grid-data-viewmodel";
-import type { DataSchema } from "../datamodel/types";
+import { FlatSliceResult, FacetData, FlatRowMeta, ViewModelMetadata } from "./types";
+import { GridDataViewModel, ViewModelInitParams } from "./grid-data-viewmodel";
 
 const DEPTH_SHIFT = 4;
 const DEPTH_MASK  = 0xF0;
@@ -25,7 +24,7 @@ export function createRowMeta(depth: number, isLeaf: boolean, isExpanded: boolea
 /**
  * The view model output produced by [`StandardTableDataModel`](/docs/datamodel/standard-table-datamodel). Contains the flattened row data ready for the renderer.
  */
-export interface FlattenedDataViewModelParams {
+export interface FlattenedDataViewModelParams extends ViewModelInitParams {
   /** Column-major data arrays for the visible rows. Each inner array holds all values for one column - e.g. 3 rows with columns `[name, age]` is `[["Alice", "Bob", "Carol"], [30, 25, 28]]`. This data is always contiguous (no gaps) - only pages that form a contiguous block around the current scroll position are included. Column-major layout supports large datasets efficiently as the renderer can access and iterate a single column array without touching other columns. */
   data: any[][];
   /** Column header labels. The layout uses this to render hierarchical column headers - each level is an array of labels. For standard tables, there is only one level and all columns are leaf-level headers. */
@@ -34,10 +33,6 @@ export interface FlattenedDataViewModelParams {
   rowFacet?: (string | null)[];
   /** Packed row metadata byte array encoding depth, isLeaf, and isExpanded per row. */
   rowMeta?: Uint8Array;
-  /** Renderer options forwarded from `setViewModelOptions`. */
-  options?: GridDataViewModelOptions;
-  /** [`DataSchema`](/docs/api-references/type-references#dataschema) definitions. */
-  schema?: DataSchema[];
   /** Total number of rows the data source has, including expanded children. This is larger than the rows in `data` since pages are lazy loaded - only a contiguous subset is present in `data`. The renderer uses this for scrollbar sizing and virtual scroll calculations. */
   totalRows?: number;
   /** Number of rows in the data source that precede the returned `data` block. Since pages are lazy loaded, the page cache can have holes - only a contiguous block around the current scroll position is included in `data`. `offsetTop` tells the renderer how many rows come before this block, so it can position the rendered rows correctly within the full virtual scroll area. */
@@ -119,8 +114,14 @@ export class FlattenedDataViewModel extends GridDataViewModel {
     this.updateBase(params.data, params.columnFacets);
     this.#rowFacet = params.rowFacet;
     this.#rowMeta = params.rowMeta;
+    this.init(params.options);
     this.updatePagination(params.totalRows, params.offsetTop);
     if (params.metadata) this.mergeMetadata(params.metadata);
+  }
+
+  protected applyReset(): void {
+    this.#rowFacet = undefined;
+    this.#rowMeta = undefined;
   }
 
   /**
