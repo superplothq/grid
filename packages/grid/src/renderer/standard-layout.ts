@@ -12,7 +12,7 @@ import { GridConfig } from "./grid-config";
 import { GridDataViewModel } from "./grid-data-viewmodel";
 import PLayout, { BaseViewModel, RenderCtx } from "./layout-proto";
 import { addOrReplaceChildren, WithCellPlacement, WithEvents } from "./mixins";
-import { getTheme } from "./registry";
+import { applyThemeTokens } from "./themes";
 import {
   CellToMeasure,
   FacetCellContent,
@@ -269,12 +269,16 @@ export default class StandardLayout extends StandardLayoutBase {
   }
 
   #applyTheme(): void {
-    const theme = getTheme(this.config.theme);
-    if (!theme) return;
-    for (const [key, value] of Object.entries(theme)) {
-      const cssVar = "--" + key.replace(/[A-Z]/g, m => "-" + m.toLowerCase());
-      this.#con.style.setProperty(cssVar, String(value));
-    }
+    applyThemeTokens(this.#con, this.config.theme);
+  }
+
+  /**
+   * Drops the scroll area a previous render created, so nothing already drawn can be scrolled to.
+   * The rendered cells are left for the next render's diff to reuse.
+   */
+  collapseScrollArea(): void {
+    this.#virtualPanelEl.style.width = "0px";
+    this.#virtualPanelEl.style.height = "0px";
   }
   // Validation rules:
   // 1. top and bottom fixetures need to implement PHorizontalFixture i.e. they are laid out horizontally parallel to

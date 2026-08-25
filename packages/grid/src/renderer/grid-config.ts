@@ -1,4 +1,5 @@
 import { LayoutFixtureClasses } from "./types";
+import { blankGridLoadingRenderer, LoadingRenderer } from "./loading-renderers";
 
 /**
  * Configuration for the grid renderer. Pass a partial `GridConfig` to the `Grid` constructor; missing fields use [defaultConfig](/docs/renderer#gridconfig).
@@ -20,6 +21,8 @@ export interface GridConfig {
   columnAutosizingStrategyOnScroll: "dynamic" | "max-seen";
   /** Debounce interval in milliseconds for the `viewDataEmpty` event. Prevents flooding the data source with fetch requests during fast scrolling. Default: `150`. */
   dataFetchDebounceMs: number;
+  /** Draws the surface shown while the viewmodel holds no data. Called once when the grid enters that state, with a container that fills the mount point. Default: [`blankGridLoadingRenderer`](/docs/renderer/loading). */
+  loadingRenderer: LoadingRenderer;
 }
 
 export const defaultConfig: GridConfig = {
@@ -30,6 +33,7 @@ export const defaultConfig: GridConfig = {
   theme: "light",
   columnAutosizingStrategyOnScroll: "max-seen",
   dataFetchDebounceMs: 150,
+  loadingRenderer: blankGridLoadingRenderer,
   fixtures: {
     top: [],
     left: [],

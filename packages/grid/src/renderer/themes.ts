@@ -1,5 +1,5 @@
 import { Theme } from "./types";
-import { registerTheme } from "./registry";
+import { getTheme, registerTheme } from "./registry";
 
 export const lightTheme: Theme = {
   cellPaddingY: 7,
@@ -59,3 +59,13 @@ export const darkTheme: Theme = {
 
 registerTheme("light", lightTheme);
 registerTheme("dark", darkTheme);
+
+/** Writes a registered theme onto an element as CSS custom properties, camelCase keys becoming `--kebab-case`. */
+export function applyThemeTokens(el: HTMLElement, name: string): void {
+  const theme = getTheme(name);
+  if (!theme) return;
+  for (const [key, value] of Object.entries(theme)) {
+    const cssVar = "--" + key.replace(/[A-Z]/g, m => "-" + m.toLowerCase());
+    el.style.setProperty(cssVar, String(value));
+  }
+}

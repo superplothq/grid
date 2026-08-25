@@ -3,10 +3,10 @@ import { GridConfig, defaultConfig } from "./grid-config";
 import CellManager from "./cell-manager";
 import { addToRegistry } from "./registry";
 import { Constructor, FacetPredicate } from "./types";
-import "./themes";
+import { applyThemeTokens } from "./themes";
 import StandardLayout, { LayoutEvents } from "./standard-layout";
 import GroupedRowLayout from "./grouped-row-layout";
-import { WithEvents, EventEmitter } from "./mixins";
+import { WithEvents, EventEmitter, addOrReplaceChildren } from "./mixins";
 import { SelectionRuleStore, Selection } from "./select-all";
 
 export type LayoutType = "pivot" | "flat";
@@ -76,6 +76,11 @@ export {
   type CellRenderer,
   type RendererContext,
 } from "./cell-renderers";
+export {
+  blankGridLoadingRenderer,
+  type LoadingRenderer,
+  type LoadingRendererContext,
+} from "./loading-renderers";
 
 export type SelectionPayload = {
   hash: string;
@@ -117,6 +122,9 @@ export default class Grid extends GridWithEvents {
   #renderCount = 0;
   #selections: Map<string, [fromRow: number, fromCol: number, toRow: number, toCol: number]> = new Map();
   #ruleStore: SelectionRuleStore;
+  #scheduleDrawPending = false;
+  #mountPoint: HTMLElement;
+  #loadingEl: HTMLElement | undefined;
 
   constructor(config: Partial<GridConfig>, mountPoint: HTMLElement, layoutType: LayoutType = "pivot", opts?: {
     onCellRelease?: (key: string, cell: HTMLElement) => void;
@@ -124,11 +132,22 @@ export default class Grid extends GridWithEvents {
   }) {
     super();
     this.#config = { ...defaultConfig, ...config };
+    this.#mountPoint = mountPoint;
+    // Absolute against the mount point rather than in flow: `.grid-clip` already fills the host's
+    // height, so an in-flow sibling would start a full viewport below the visible area. The mount only
+    // needs a positioning context when it has none - callers commonly mount into an `absolute; inset: 0`
+    // element, and overwriting that would leave the grid without its dimensions.
+    if (getComputedStyle(this.#mountPoint).position === "static") {
+      this.#mountPoint.style.position = "relative";
+    }
+
 
     this.#cellManager = new CellManager();
     if (opts?.onCellRelease) this.#cellManager.onRelease = opts.onCellRelease;
+    // TODO[beforeRelease] do it gracefully
     const LayoutClass = layoutType === "flat" ? GroupedRowLayout : StandardLayout;
     this.#layout = new LayoutClass(this.#config, mountPoint, this.#cellManager);
+    // TODO[beforeRelease] make it part of the layout opts
     if (opts?.onBeforeMeasure) this.#layout.onBeforeMeasure = opts.onBeforeMeasure;
 
     this.#ruleStore = new SelectionRuleStore(() => this.draw());
@@ -305,12 +324,16 @@ export default class Grid extends GridWithEvents {
     });
   }
 
-  #scheduleDrawPending = false;
-
-  /** Sets the viewmodel that provides data for rendering. After setting, call `draw()` to trigger the first render. Reassign after `updateData()` to push new data into the grid. */
+  // TODO[beforeRelease] all the other methods are call as setData() ; here also do the same. Remove the pattern setter
+  // pattern. So is getData() below
+  /**
+   * Sets the viewmodel that provides data for rendering. After setting, call `draw()` to trigger the first render.
+   * Reassign after `updateData()` to push new data into the grid. A blank viewmodel is held back from the layout -
+   * it has no columns or facet defs to lay out - so a grid started blank must be reassigned once the viewmodel is filled.
+   */
   set data(value: GridDataViewModel) {
     this.#data = value;
-    this.#layout.setData(value);
+    if (value.isDataLoaded()) this.#layout.setData(value);
   }
 
   /** Returns the current viewmodel, or `undefined` if none has been set. */
@@ -323,6 +346,7 @@ export default class Grid extends GridWithEvents {
     return this.#layout.gridContainer;
   }
 
+  // TODO[beforeRelease] usage pattern
   /** Schedules a draw on the next animation frame. Multiple calls before the frame fires are coalesced into a single render. */
   scheduleDraw(): void {
     if (this.#scheduleDrawPending) return;
@@ -343,9 +367,14 @@ export default class Grid extends GridWithEvents {
     if (!this.#data) throw new Error("Data is not set!");
 
     if (!this.#data.isDataLoaded()) {
+      this.#showLoading();
       this.emit("viewDataEmpty", { reason: "no-data" });
       return;
     }
+
+    this.#hideLoading();
+    if (this.#layout.data !== this.#data) this.#layout.setData(this.#data);
+
 
     const startTime = performance.now();
     this.#renderCount++;
@@ -353,6 +382,35 @@ export default class Grid extends GridWithEvents {
     this.#layout.setSelectAllRules(this.#ruleStore.rules);
     const viewModel = this.#layout.calculateViewModel();
     this.#layout.render(viewModel, { t1: startTime });
+  }
+
+  // The container is built on first use and kept for the life of the grid: `config.loadingRenderer` may
+  // hand it to a framework (a React root binds to the element), so it must not be recreated per draw.
+  #showLoading(): void {
+    this.#layout.collapseScrollArea();
+
+    if (this.#loadingEl) {
+      this.#loadingEl.style.display = "block";
+      return;
+    }
+
+    this.#loadingEl = document.createElement("div");
+    Object.assign(this.#loadingEl.style, {
+      position: "absolute",
+      inset: "0",
+      overflow: "hidden",
+      zIndex: "1",
+      display: "block",
+    });
+    applyThemeTokens(this.#loadingEl, this.#config.theme);
+    this.#mountPoint.shadowRoot!.appendChild(this.#loadingEl);
+
+    const content = this.#config.loadingRenderer({ container: this.#loadingEl });
+    if (content !== undefined) addOrReplaceChildren(this.#loadingEl, content);
+  }
+
+  #hideLoading(): void {
+    if (this.#loadingEl) this.#loadingEl.style.display = "none";
   }
 
   #makeSelectionId(fromRow: number, fromCol: number, toRow: number, toCol: number): string {

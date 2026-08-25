@@ -40,7 +40,7 @@ export interface UseFlatGridOptions {
 export type TransformFn = (val: any) => any;
 
 export interface GridBindings {
-  ref: React.RefObject<DataGridHandle>;
+  ref: React.RefObject<DataGridHandle | null>;
   data: FlattenedDataViewModel | null;
   pageLoadingInProgress: boolean;
   onCellRelease: (key: string, cell: HTMLElement) => void;
@@ -60,7 +60,7 @@ export interface PageViewState {
 export interface UseFlatGridResult {
   bindings: GridBindings;
   viewModel: FlattenedDataViewModel | null;
-  gridRef: React.RefObject<DataGridHandle>;
+  gridRef: React.RefObject<DataGridHandle | null>;
   loading: boolean;
   error: Error | null;
   fetchPage: (startRow: number, endRow: number) => Promise<void>;
