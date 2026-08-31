@@ -68,13 +68,13 @@ export interface LayoutFixtures {
   right: Array<PVerticalFixture>;
 }
 
-type SelectionProposal = [startRow: number, startCol: number, endRow: number, endCol: number][];
+type HighlightProposal = [startRow: number, startCol: number, endRow: number, endCol: number][];
 
 interface ViewModelProposal {
-  selections?: SelectionProposal;
+  highlights?: HighlightProposal;
 }
 
-export interface SelectionState {
+export interface HighlightState {
   fromRow: number;
   fromCol: number;
   toRow: number;
@@ -93,7 +93,7 @@ export interface ViewModel extends BaseViewModel {
   fixedTopHTrackPositions: number[];
   fixedBottomHTrackPositions: number[];
   colFacetsTopPositions: number[];
-  selections: SelectionState[];
+  highlights: HighlightState[];
   fixtures: LayoutFixtures;
   logicalStartRow: number;
   logicalEndRow: number;
@@ -845,11 +845,11 @@ export default class StandardLayout extends StandardLayoutBase {
       ? this.calculateHorizontalViewModelForFitContainer()
       : this.calculateHorizontalViewModel();
 
-    // Resolve selections from proposal
-    const selections: SelectionState[] = [];
-    const selProp = this.#proposal.selections || [];
-    for (const [startRow, startCol, endRow, endCol] of selProp) {
-      selections.push({
+    // Resolve highlights from proposal
+    const highlights: HighlightState[] = [];
+    const proposed = this.#proposal.highlights || [];
+    for (const [startRow, startCol, endRow, endCol] of proposed) {
+      highlights.push({
         fromRow: startRow,
         fromCol: startCol,
         toRow: Math.min(endRow, this.data.numRows - 1),   // Resolve Infinity
@@ -873,7 +873,7 @@ export default class StandardLayout extends StandardLayoutBase {
       fixedTopHTrackPositions: vsVertical.fixedTopHTrackPositions,
       fixedBottomHTrackPositions: vsVertical.fixedBottomHTrackPositions,
       colFacetsTopPositions: vsVertical.colFacetsTopPositions,
-      selections,
+      highlights,
       fixtures: this.#fixtures,
       logicalStartRow: vsVertical.logicalStartRow,
       logicalEndRow: vsVertical.logicalEndRow,
@@ -1409,19 +1409,19 @@ export default class StandardLayout extends StandardLayoutBase {
       }
     }
 
-    // draw selections if present
-    for (const sel of viewModel.selections) {
-      const visFromRow = Math.max(sel.fromRow, viewModel.y0);
-      const visToRow = Math.min(sel.toRow, viewModel.y1 - 1);
-      const visFromCol = Math.max(sel.fromCol, viewModel.x0);
-      const visToCol = Math.min(sel.toCol, viewModel.x1 - 1);
+    // draw highlights if present
+    for (const hl of viewModel.highlights) {
+      const visFromRow = Math.max(hl.fromRow, viewModel.y0);
+      const visToRow = Math.min(hl.toRow, viewModel.y1 - 1);
+      const visFromCol = Math.max(hl.fromCol, viewModel.x0);
+      const visToCol = Math.min(hl.toCol, viewModel.x1 - 1);
 
       if (visFromRow > visToRow || visFromCol > visToCol) continue;
 
-      const [el, needAppend, selContentDirty] = this.placeCellInDom({
-        key: `sel-${sel.fromRow};${sel.toRow};${sel.fromCol};${sel.toCol}`,
+      const [el, needAppend, hlContentDirty] = this.placeCellInDom({
+        key: `hl-${hl.fromRow};${hl.toRow};${hl.fromCol};${hl.toCol}`,
         hintContentDirty,
-        cls: "selection-overlay",
+        cls: "highlight-overlay",
         gridRow: gridRowOffset + (visFromRow - viewModel.y0) + 1,
         gridCol: numLeftVFixedTrack + (visFromCol - viewModel.x0) + 1,
         extraStyles: {
@@ -1429,7 +1429,7 @@ export default class StandardLayout extends StandardLayoutBase {
           colspan: visToCol - visFromCol + 1,
         },
       });
-      if (selContentDirty) {
+      if (hlContentDirty) {
         addOrReplaceChildren(el, "");
       }
 

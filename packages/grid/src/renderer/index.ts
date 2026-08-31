@@ -82,7 +82,7 @@ export {
   type LoadingRendererContext,
 } from "./loading-renderers";
 
-export type SelectionPayload = {
+export type HighlightPayload = {
   hash: string;
   fromRow: number;
   fromCol: number;
@@ -91,15 +91,15 @@ export type SelectionPayload = {
 };
 
 export type GridEvents = LayoutEvents & {
-  selectionAdded: SelectionPayload;
-  selectionRemoved: SelectionPayload;
+  highlightAdded: HighlightPayload;
+  highlightRemoved: HighlightPayload;
 };
 
 class GridBase {}
 const GridWithEvents = WithEvents<GridEvents>()(GridBase);
 
-export type SelectionType = "cell" | "row" | "column" | "range";
-export type SelectionResult = [hash: string, unsub: () => void] | null;
+export type HighlightType = "cell" | "row" | "column" | "range";
+export type HighlightResult = [hash: string, unsub: () => void] | null;
 
 function fastHash(str: string): string {
   let hash = 5381;
@@ -111,8 +111,8 @@ function fastHash(str: string): string {
 
 /**
  * The public entry point for the grid renderer. Wraps a layout engine (`StandardLayout` or `GroupedRowLayout`),
- * a cell pool, and a selection rule store. Set a [GridDataViewModel](/docs/viewmodel) via the `data` setter, then
- * call `draw()` to render. The Grid forwards all [layout events](/docs/renderer/events) and adds selection events.
+ * a cell pool, and a matching rule store. Set a [GridDataViewModel](/docs/viewmodel) via the `data` setter, then
+ * call `draw()` to render. The Grid forwards all [layout events](/docs/renderer/events) and adds highlight events.
  */
 export default class Grid extends GridWithEvents {
   #config: GridConfig;
@@ -120,7 +120,7 @@ export default class Grid extends GridWithEvents {
   #cellManager: CellManager;
   #layout: StandardLayout;
   #renderCount = 0;
-  #selections: Map<string, [fromRow: number, fromCol: number, toRow: number, toCol: number]> = new Map();
+  #highlights: Map<string, [fromRow: number, fromCol: number, toRow: number, toCol: number]> = new Map();
   #ruleStore: MatchingRuleStore;
   #scheduleDrawPending = false;
   #mountPoint: HTMLElement;
@@ -413,147 +413,147 @@ export default class Grid extends GridWithEvents {
     if (this.#loadingEl) this.#loadingEl.style.display = "none";
   }
 
-  #makeSelectionId(fromRow: number, fromCol: number, toRow: number, toCol: number): string {
+  #makeHighlightId(fromRow: number, fromCol: number, toRow: number, toCol: number): string {
     const r = (v: number) => v === Infinity ? "inf" : String(v);
     return `${r(fromRow)};${r(toRow)};${r(fromCol)};${r(toCol)}`;
   }
 
-  #getSelectionType(fromRow: number, fromCol: number, toRow: number, toCol: number): SelectionType {
+  #getHighlightType(fromRow: number, fromCol: number, toRow: number, toCol: number): HighlightType {
     if (fromRow === toRow && fromCol === toCol) return "cell";
     if (fromCol === 0 && toCol === Infinity) return "row";
     if (fromRow === 0 && toRow === Infinity) return "column";
     return "range";
   }
 
-  #getCurrentSelectionType(): SelectionType | null {
-    const first = this.#selections.values().next().value;
+  #getCurrentHighlightType(): HighlightType | null {
+    const first = this.#highlights.values().next().value;
     if (!first) return null;
-    return this.#getSelectionType(first[0], first[1], first[2], first[3]);
+    return this.#getHighlightType(first[0], first[1], first[2], first[3]);
   }
 
-  #resolveConflictsAndAddSelection(fromRow: number, fromCol: number, toRow: number, toCol: number): {
+  #resolveConflictsAndAddHighlight(fromRow: number, fromCol: number, toRow: number, toCol: number): {
     id: string;
     hash: string;
     isDuplicate: boolean;
-    removed: SelectionPayload[];
-    added: SelectionPayload[]
+    removed: HighlightPayload[];
+    added: HighlightPayload[]
   } {
-    const newType = this.#getSelectionType(fromRow, fromCol, toRow, toCol);
-    const currentType = this.#getCurrentSelectionType();
-    const id = this.#makeSelectionId(fromRow, fromCol, toRow, toCol);
+    const newType = this.#getHighlightType(fromRow, fromCol, toRow, toCol);
+    const currentType = this.#getCurrentHighlightType();
+    const id = this.#makeHighlightId(fromRow, fromCol, toRow, toCol);
     const hash = fastHash(id);
 
-    if (this.#selections.has(id)) {
+    if (this.#highlights.has(id)) {
       return { id, hash, isDuplicate: true, removed: [], added: [] };
     }
 
-    const removed: SelectionPayload[] = [];
+    const removed: HighlightPayload[] = [];
 
-    // if range selection: then all previous selections are cleared including range
-    // if cell selection: only keep if previous selection is cell
-    // if col selection: only keep if previous selection is col
-    // if row selection: only keep if previous selection is row
+    // if range highlight: then all previous highlights are cleared including range
+    // if cell highlight: only keep if previous highlight is cell
+    // if col highlight: only keep if previous highlight is col
+    // if row highlight: only keep if previous highlight is row
     if (newType === "range" || (currentType && currentType !== newType)) {
-      for (const [existingId, selection] of this.#selections) {
-        removed.push({ hash: fastHash(existingId), fromRow: selection[0], fromCol: selection[1], toRow: selection[2], toCol: selection[3] });
+      for (const [existingId, highlight] of this.#highlights) {
+        removed.push({ hash: fastHash(existingId), fromRow: highlight[0], fromCol: highlight[1], toRow: highlight[2], toCol: highlight[3] });
       }
-      this.#selections.clear();
+      this.#highlights.clear();
     }
 
-    this.#selections.set(id, [fromRow, fromCol, toRow, toCol]);
-    const added: SelectionPayload[] = [{ hash, fromRow, fromCol, toRow, toCol }];
+    this.#highlights.set(id, [fromRow, fromCol, toRow, toCol]);
+    const added: HighlightPayload[] = [{ hash, fromRow, fromCol, toRow, toCol }];
     return { id, hash, isDuplicate: false, removed, added };
   }
 
-  #raiseSelectionEvents(result: { removed: SelectionPayload[]; added: SelectionPayload[] }): void {
+  #raiseHighlightEvents(result: { removed: HighlightPayload[]; added: HighlightPayload[] }): void {
     for (const r of result.removed) {
-      this.emit("selectionRemoved", r);
+      this.emit("highlightRemoved", r);
     }
     for (const a of result.added) {
-      this.emit("selectionAdded", a);
+      this.emit("highlightAdded", a);
     }
   }
 
-  #syncSelectionsToLayout(): void {
-    const selectionsArray = Array.from(this.#selections.values());
-    this.#layout.viewModelProposal({ selections: selectionsArray });
+  #syncHighlightsToLayout(): void {
+    const highlightsArray = Array.from(this.#highlights.values());
+    this.#layout.viewModelProposal({ highlights: highlightsArray });
   }
 
-  /** Selects a single cell by its data row and column index. Returns `[hash, unsub]` where `hash` identifies the selection and `unsub()` removes it. Returns `null` if the cell is already selected. Emits `selectionAdded`; calling `unsub()` emits `selectionRemoved`. */
-  selectCellByDataIndex(row: number, col: number): SelectionResult {
-    const result = this.#resolveConflictsAndAddSelection(row, col, row, col);
+  /** Highlights a single cell by its data row and column index. Returns `[hash, unsub]` where `hash` identifies the highlight and `unsub()` removes it. Returns `null` if the cell is already highlighted. Emits `highlightAdded`; calling `unsub()` emits `highlightRemoved`. */
+  highlightCellByDataIndex(row: number, col: number): HighlightResult {
+    const result = this.#resolveConflictsAndAddHighlight(row, col, row, col);
     if (result.isDuplicate) return null;
 
-    this.#syncSelectionsToLayout();
+    this.#syncHighlightsToLayout();
     this.draw();
-    this.#raiseSelectionEvents(result);
+    this.#raiseHighlightEvents(result);
 
     return [result.hash, () => {
-      if (!this.#selections.has(result.id)) return;
-      this.#selections.delete(result.id);
-      this.#syncSelectionsToLayout();
+      if (!this.#highlights.has(result.id)) return;
+      this.#highlights.delete(result.id);
+      this.#syncHighlightsToLayout();
       this.draw();
-      this.#raiseSelectionEvents({ removed: result.added, added: [] });
+      this.#raiseHighlightEvents({ removed: result.added, added: [] });
     }];
   }
 
-  /** Selects a rectangular range of cells. Coordinates are normalized (min/max) internally. A range selection clears all previous selections. Returns `[hash, unsub]` or `null` if already selected. */
-  selectRangeByDataIndex(fromRow: number, fromCol: number, toRow: number, toCol: number): SelectionResult {
+  /** Highlights a rectangular range of cells. Coordinates are normalized (min/max) internally. A range highlight clears all previous highlights. Returns `[hash, unsub]` or `null` if already highlighted. */
+  highlightRangeByDataIndex(fromRow: number, fromCol: number, toRow: number, toCol: number): HighlightResult {
     // Normalize to ensure from <= to
     const normFromRow = Math.min(fromRow, toRow);
     const normFromCol = Math.min(fromCol, toCol);
     const normToRow = Math.max(fromRow, toRow);
     const normToCol = Math.max(fromCol, toCol);
 
-    const result = this.#resolveConflictsAndAddSelection(normFromRow, normFromCol, normToRow, normToCol);
+    const result = this.#resolveConflictsAndAddHighlight(normFromRow, normFromCol, normToRow, normToCol);
     if (result.isDuplicate) return null;
 
-    this.#syncSelectionsToLayout();
+    this.#syncHighlightsToLayout();
     this.draw();
-    this.#raiseSelectionEvents(result);
+    this.#raiseHighlightEvents(result);
 
     return [result.hash, () => {
-      if (!this.#selections.has(result.id)) return;
-      this.#selections.delete(result.id);
-      this.#syncSelectionsToLayout();
+      if (!this.#highlights.has(result.id)) return;
+      this.#highlights.delete(result.id);
+      this.#syncHighlightsToLayout();
       this.draw();
-      this.#raiseSelectionEvents({ removed: result.added, added: [] });
+      this.#raiseHighlightEvents({ removed: result.added, added: [] });
     }];
   }
 
-  /** Selects an entire column by its data index (all rows from 0 to Infinity). Column selections accumulate; adding a non-column selection clears them. Returns `[hash, unsub]` or `null` if already selected. */
-  selectColumnByDataIndex(colIndex: number): SelectionResult {
-    const result = this.#resolveConflictsAndAddSelection(0, colIndex, Infinity, colIndex);
+  /** Highlights an entire column by its data index (all rows from 0 to Infinity). Column highlights accumulate; adding a non-column highlight clears them. Returns `[hash, unsub]` or `null` if already highlighted. */
+  highlightColumnByDataIndex(colIndex: number): HighlightResult {
+    const result = this.#resolveConflictsAndAddHighlight(0, colIndex, Infinity, colIndex);
     if (result.isDuplicate) return null;
 
-    this.#syncSelectionsToLayout();
+    this.#syncHighlightsToLayout();
     this.draw();
-    this.#raiseSelectionEvents(result);
+    this.#raiseHighlightEvents(result);
 
     return [result.hash, () => {
-      if (!this.#selections.has(result.id)) return;
-      this.#selections.delete(result.id);
-      this.#syncSelectionsToLayout();
+      if (!this.#highlights.has(result.id)) return;
+      this.#highlights.delete(result.id);
+      this.#syncHighlightsToLayout();
       this.draw();
-      this.#raiseSelectionEvents({ removed: result.added, added: [] });
+      this.#raiseHighlightEvents({ removed: result.added, added: [] });
     }];
   }
 
-  /** Selects an entire row by its data index (all columns from 0 to Infinity). Row selections accumulate; adding a non-row selection clears them. Returns `[hash, unsub]` or `null` if already selected. */
-  selectRowByDataIndex(rowIndex: number): SelectionResult {
-    const result = this.#resolveConflictsAndAddSelection(rowIndex, 0, rowIndex, Infinity);
+  /** Highlights an entire row by its data index (all columns from 0 to Infinity). Row highlights accumulate; adding a non-row highlight clears them. Returns `[hash, unsub]` or `null` if already highlighted. */
+  highlightRowByDataIndex(rowIndex: number): HighlightResult {
+    const result = this.#resolveConflictsAndAddHighlight(rowIndex, 0, rowIndex, Infinity);
     if (result.isDuplicate) return null;
 
-    this.#syncSelectionsToLayout();
+    this.#syncHighlightsToLayout();
     this.draw();
-    this.#raiseSelectionEvents(result);
+    this.#raiseHighlightEvents(result);
 
     return [result.hash, () => {
-      if (!this.#selections.has(result.id)) return;
-      this.#selections.delete(result.id);
-      this.#syncSelectionsToLayout();
+      if (!this.#highlights.has(result.id)) return;
+      this.#highlights.delete(result.id);
+      this.#syncHighlightsToLayout();
       this.draw();
-      this.#raiseSelectionEvents({ removed: result.added, added: [] });
+      this.#raiseHighlightEvents({ removed: result.added, added: [] });
     }];
   }
 
@@ -567,10 +567,10 @@ export default class Grid extends GridWithEvents {
     }
   }
 
-  /** Removes all active cell/row/column/range selections and triggers a re-render. */
-  clearAllSelections(): void {
-    this.#selections.clear();
-    this.#syncSelectionsToLayout();
+  /** Removes all active cell/row/column/range highlights and triggers a re-render. */
+  clearAllHighlights(): void {
+    this.#highlights.clear();
+    this.#syncHighlightsToLayout();
     this.draw();
   }
 

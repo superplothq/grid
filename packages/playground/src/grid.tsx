@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import "@superplot/grid/grid.css";
-import Grid, { PivotDataViewModel, FlattenedDataViewModel, createRowMeta, LayoutEvents, SelectionPayload, VTrackDef, ColAutoSizeConfig, createChartRenderer, CellRenderer, FacetCellRenderer, PVerticalFixture, PHorizontalFixture, BaseFixtureViewModel, BaseViewModel, BaseSliceResult, FacetHeaderContext } from "@superplot/grid/renderer";
+import Grid, { PivotDataViewModel, FlattenedDataViewModel, createRowMeta, LayoutEvents, HighlightPayload, VTrackDef, ColAutoSizeConfig, createChartRenderer, CellRenderer, FacetCellRenderer, PVerticalFixture, PHorizontalFixture, BaseFixtureViewModel, BaseViewModel, BaseSliceResult, FacetHeaderContext } from "@superplot/grid/renderer";
 import feather from "feather-icons";
 import {CellToMeasure} from "@superplot/grid/renderer/types";
 
@@ -422,12 +422,12 @@ const GridPlayground: React.FC = () => {
   const [events, setEvents] = useState<Array<{ name: string; payload: unknown }>>([]);
   const [perfMetrics, setPerfMetrics] = useState<LayoutEvents['debug_perf:metrics'] | null>(null);
 
-  // Selection state
-  const [cellSelection, setCellSelection] = useState("");
-  const [rangeSelection, setRangeSelection] = useState("");
-  const [colSelection, setColSelection] = useState("");
-  const [rowSelection, setRowSelection] = useState("");
-  const [activeSelections, setActiveSelections] = useState<Map<string, { label: string; unsub: () => void }>>(new Map());
+  // Highlight state
+  const [cellHighlight, setCellHighlight] = useState("");
+  const [rangeHighlight, setRangeHighlight] = useState("");
+  const [colHighlight, setColHighlight] = useState("");
+  const [rowHighlight, setRowHighlight] = useState("");
+  const [activeHighlights, setActiveHighlights] = useState<Map<string, { label: string; unsub: () => void }>>(new Map());
 
   // ScrollTo state
   const [scrollToIndex, setScrollToIndex] = useState("");
@@ -458,26 +458,26 @@ const GridPlayground: React.FC = () => {
 
   const unsubFnsRef = useRef<Map<string, () => void>>(new Map());
 
-  const formatSelectionLabel = (p: SelectionPayload): string => {
+  const formatHighlightLabel = (p: HighlightPayload): string => {
     if (p.fromRow === p.toRow && p.fromCol === p.toCol) return `Cell(${p.fromRow},${p.fromCol})`;
     if (p.fromCol === 0 && p.toCol === Infinity) return `Row(${p.fromRow})`;
     if (p.fromRow === 0 && p.toRow === Infinity) return `Col(${p.fromCol})`;
     return `Range(${p.fromRow},${p.fromCol},${p.toRow},${p.toCol})`;
   };
 
-  const handleSelectionAdded = (payload: SelectionPayload) => {
+  const handleSelectionAdded = (payload: HighlightPayload) => {
     const unsub = unsubFnsRef.current.get(payload.hash);
     if (!unsub) return;
-    setActiveSelections(prev => {
+    setActiveHighlights(prev => {
       const next = new Map(prev);
-      next.set(payload.hash, { label: formatSelectionLabel(payload), unsub });
+      next.set(payload.hash, { label: formatHighlightLabel(payload), unsub });
       return next;
     });
   };
 
-  const handleSelectionRemoved = (payload: SelectionPayload) => {
+  const handleSelectionRemoved = (payload: HighlightPayload) => {
     unsubFnsRef.current.delete(payload.hash);
-    setActiveSelections(prev => {
+    setActiveHighlights(prev => {
       const next = new Map(prev);
       next.delete(payload.hash);
       return next;
@@ -489,31 +489,31 @@ const GridPlayground: React.FC = () => {
   };
 
   const handleSelectCell = () => {
-    if (!gridRef.current || !cellSelection.trim()) return;
-    const parts = cellSelection.split(",").map(s => parseInt(s.trim(), 10));
+    if (!gridRef.current || !cellHighlight.trim()) return;
+    const parts = cellHighlight.split(",").map(s => parseInt(s.trim(), 10));
     if (parts.length !== 2 || parts.some(isNaN)) return;
-    handleSelect(gridRef.current.selectCellByDataIndex(parts[0], parts[1]));
+    handleSelect(gridRef.current.highlightCellByDataIndex(parts[0], parts[1]));
   };
 
   const handleSelectRange = () => {
-    if (!gridRef.current || !rangeSelection.trim()) return;
-    const parts = rangeSelection.split(",").map(s => parseInt(s.trim(), 10));
+    if (!gridRef.current || !rangeHighlight.trim()) return;
+    const parts = rangeHighlight.split(",").map(s => parseInt(s.trim(), 10));
     if (parts.length !== 4 || parts.some(isNaN)) return;
-    handleSelect(gridRef.current.selectRangeByDataIndex(parts[0], parts[1], parts[2], parts[3]));
+    handleSelect(gridRef.current.highlightRangeByDataIndex(parts[0], parts[1], parts[2], parts[3]));
   };
 
   const handleSelectColumn = () => {
-    if (!gridRef.current || !colSelection.trim()) return;
-    const colIndex = parseInt(colSelection.trim(), 10);
+    if (!gridRef.current || !colHighlight.trim()) return;
+    const colIndex = parseInt(colHighlight.trim(), 10);
     if (isNaN(colIndex)) return;
-    handleSelect(gridRef.current.selectColumnByDataIndex(colIndex));
+    handleSelect(gridRef.current.highlightColumnByDataIndex(colIndex));
   };
 
   const handleSelectRow = () => {
-    if (!gridRef.current || !rowSelection.trim()) return;
-    const rowIndex = parseInt(rowSelection.trim(), 10);
+    if (!gridRef.current || !rowHighlight.trim()) return;
+    const rowIndex = parseInt(rowHighlight.trim(), 10);
     if (isNaN(rowIndex)) return;
-    handleSelect(gridRef.current.selectRowByDataIndex(rowIndex));
+    handleSelect(gridRef.current.highlightRowByDataIndex(rowIndex));
   };
 
   const handleScrollToRow = () => {
@@ -771,7 +771,7 @@ const GridPlayground: React.FC = () => {
       const layoutType = layoutMode === "grouped" ? "flat" : "pivot";
       gridRef.current = new Grid({ fixtures: { top: [FilterFixture], left: [LineNumberFixture/*CheckboxFixture, LineNumberFixture*/], bottom: [AggregationFixture, BottomDetailFixture], right: [CheckboxFixture] } }, gridConRef.current, layoutType);
       gridLayoutModeRef.current = layoutMode;
-      for (const e of ['renderComplete', 'selectionAdded', 'selectionRemoved']) {
+      for (const e of ['renderComplete', 'highlightAdded', 'highlightRemoved']) {
         gridRef.current.on(e as any, (payload) => {
           setEvents((prev) => [{ name: e, payload }, ...prev.slice(0, 49)]);
         });
@@ -779,8 +779,8 @@ const GridPlayground: React.FC = () => {
       gridRef.current.on('debug_perf:metrics', (payload) => {
         setPerfMetrics(payload);
       });
-      gridRef.current.on('selectionAdded', handleSelectionAdded);
-      gridRef.current.on('selectionRemoved', handleSelectionRemoved);
+      gridRef.current.on('highlightAdded', handleSelectionAdded);
+      gridRef.current.on('highlightRemoved', handleSelectionRemoved);
     }
 
     // Create renderers for chart columns (columns where last facet is CF2_1)
@@ -940,8 +940,8 @@ const GridPlayground: React.FC = () => {
           Cell <span style={{fontSize: '10px'}}>(row,col)</span>:
           <input
             type="text"
-            value={cellSelection}
-            onChange={(e) => setCellSelection(e.target.value)}
+            value={cellHighlight}
+            onChange={(e) => setCellHighlight(e.target.value)}
             placeholder="0,0"
           />
         </label>
@@ -951,8 +951,8 @@ const GridPlayground: React.FC = () => {
           Range <span style={{fontSize: '10px'}}>(fromRow,fromCol,toRow,toCol)</span>:
           <input
             type="text"
-            value={rangeSelection}
-            onChange={(e) => setRangeSelection(e.target.value)}
+            value={rangeHighlight}
+            onChange={(e) => setRangeHighlight(e.target.value)}
             placeholder="0,0,2,2"
           />
         </label>
@@ -962,8 +962,8 @@ const GridPlayground: React.FC = () => {
           Column:
           <input
             type="text"
-            value={colSelection}
-            onChange={(e) => setColSelection(e.target.value)}
+            value={colHighlight}
+            onChange={(e) => setColHighlight(e.target.value)}
             placeholder="0"
           />
         </label>
@@ -973,17 +973,17 @@ const GridPlayground: React.FC = () => {
           Row:
           <input
             type="text"
-            value={rowSelection}
-            onChange={(e) => setRowSelection(e.target.value)}
+            value={rowHighlight}
+            onChange={(e) => setRowHighlight(e.target.value)}
             placeholder="0"
           />
         </label>
         <button onClick={handleSelectRow}>Select</button>
       </div>
-      {activeSelections.size > 0 && (
+      {activeHighlights.size > 0 && (
         <div>
-          Active Selections:{" "}
-          {Array.from(activeSelections.entries()).map(([hash, { label, unsub }]) => (
+          Active Highlights:{" "}
+          {Array.from(activeHighlights.entries()).map(([hash, { label, unsub }]) => (
             <button key={hash} onClick={unsub} style={{ marginRight: "4px" }}>
               {label} (Clear)
             </button>

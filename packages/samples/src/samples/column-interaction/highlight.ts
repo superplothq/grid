@@ -17,7 +17,7 @@ const GRID_HEIGHT = 420;
 
 export function mount(el: HTMLElement, ctx: SampleContext): () => void {
   const gridMount = createGridMount(el, GRID_HEIGHT);
-  // Resize UI off so a header click always selects the column rather than
+  // Resize UI off so a header click always highlights the column rather than
   // catching the resize handle on the cell's edge.
   const grid = new Grid({ enableResizeUI: false }, gridMount, "flat");
   const disposeTheme = syncGridTheme(grid);
@@ -37,17 +37,17 @@ export function mount(el: HTMLElement, ctx: SampleContext): () => void {
     grid.draw();
   });
 
-  // The selection API is programmatic: it maps data indices to a blue overlay and
-  // redraws on its own. Here pointer events drive it - a header click selects the
-  // whole column (columns accumulate), a plain cell click selects one cell, and a
-  // drag selects a range (which clears any previous selection).
+  // The highlight API is programmatic: it maps data indices to a blue overlay and
+  // redraws on its own. Here pointer events drive it - a header click highlights the
+  // whole column (columns accumulate), a plain cell click highlights one cell, and a
+  // drag highlights a range (which clears any previous highlight).
   let anchor: { row: number; col: number } | null = null;
   let dragged = false;
 
   const onMouseDown = (event: MouseEvent): void => {
     const header = closestOfType(event.target, "column-facet");
     if (header) {
-      grid.selectColumnByDataIndex(parseInt(header.dataset.hix!, 10));
+      grid.highlightColumnByDataIndex(parseInt(header.dataset.hix!, 10));
       return;
     }
     const cell = closestOfType(event.target, "value");
@@ -66,11 +66,11 @@ export function mount(el: HTMLElement, ctx: SampleContext): () => void {
     const here = cellIndex(cell);
     if (!dragged && here.row === anchor.row && here.col === anchor.col) return;
     dragged = true;
-    grid.selectRangeByDataIndex(anchor.row, anchor.col, here.row, here.col);
+    grid.highlightRangeByDataIndex(anchor.row, anchor.col, here.row, here.col);
   };
 
   const onMouseUp = (): void => {
-    if (anchor && !dragged) grid.selectCellByDataIndex(anchor.row, anchor.col);
+    if (anchor && !dragged) grid.highlightCellByDataIndex(anchor.row, anchor.col);
     anchor = null;
     document.removeEventListener("mousemove", onMouseMove);
     document.removeEventListener("mouseup", onMouseUp);
@@ -86,7 +86,7 @@ export function mount(el: HTMLElement, ctx: SampleContext): () => void {
   toolbar.append(hint, clear);
   el.append(toolbar, gridMount);
 
-  clear.addEventListener("click", () => grid.clearAllSelections());
+  clear.addEventListener("click", () => grid.clearAllHighlights());
 
   return () => {
     disposed = true;
@@ -102,7 +102,7 @@ export function mount(el: HTMLElement, ctx: SampleContext): () => void {
 
 // The layout tags every cell with its type; data cells also carry their data
 // row/column index (`croix`/`cclix`) and column facet cells their leaf column
-// index (`hix`). Reading those turns a DOM target into a selection call.
+// index (`hix`). Reading those turns a DOM target into a highlight call.
 function closestOfType(target: EventTarget | null, type: "value" | "column-facet"): HTMLElement | null {
   return target instanceof Element ? target.closest<HTMLElement>(`[data-cell-type="${type}"]`) : null;
 }

@@ -218,8 +218,8 @@ Extends [LayoutEvents](#layoutevents) with selection events. This is the event m
 
 ```ts
 type GridEvents = LayoutEvents & {
-  selectionAdded: { hash: string; fromRow: number; fromCol: number; toRow: number; toCol: number };
-  selectionRemoved: { hash: string; fromRow: number; fromCol: number; toRow: number; toCol: number };
+  highlightAdded: { hash: string; fromRow: number; fromCol: number; toRow: number; toCol: number };
+  highlightRemoved: { hash: string; fromRow: number; fromCol: number; toRow: number; toCol: number };
 };
 ```
 

@@ -32,16 +32,16 @@ function WithSideEffects<T extends new (...args: any[]) => WithSideEffectsBase>(
   };
 }
 
-class SelectionBase {
+class MatchingBase {
   ruleIds: number[];
   constructor(public owner: MatchingRuleStore, public predicates: PredicateNode[], ruleIds?: number[]) {
     this.ruleIds = ruleIds ?? [];
   }
 }
 
-const SelectionWithSideEffects = WithSideEffects(SelectionBase);
+const MatchingWithSideEffects = WithSideEffects(MatchingBase);
 
-export class Matching extends SelectionWithSideEffects {
+export class Matching extends MatchingWithSideEffects {
   matchAll(predicate: FacetPredicate): Matching {
     return new Matching(this.owner, [...this.predicates, { type: "facet", predicate }], this.ruleIds);
   }
@@ -51,4 +51,4 @@ export class Matching extends SelectionWithSideEffects {
   }
 }
 
-export class CellMatching extends WithSideEffects(SelectionBase) {}
+export class CellMatching extends WithSideEffects(MatchingBase) {}

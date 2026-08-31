@@ -334,7 +334,7 @@ describe("Matching fluent API", () => {
     expect(store.rules).to.have.length(0);
   });
 
-  it("should share ruleIds across chained selections", () => {
+  it("should share ruleIds across chained highlights", () => {
     const store = new MatchingRuleStore(() => {});
     const sel = new Matching(store, [{ type: "facet", predicate: () => true }]);
 

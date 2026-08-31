@@ -19,7 +19,7 @@ const GRID_HEIGHT = 420;
 const COL_FR = [2, 2, 1, 1, 1];
 
 // The locales the header dropdown switches between. Each builds a currency
-// formatter; the choice drives the selection override applied on the next draw.
+// formatter; the choice drives the matching override applied on the next draw.
 const LOCALES = [
   { id: "en-US", label: "USD", currency: "USD" },
   { id: "de-DE", label: "EUR", currency: "EUR" },

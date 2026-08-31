@@ -20,8 +20,8 @@ export const DataGrid = forwardRef<DataGridHandle, DataGridProps>(function DataG
     onBeforeMeasure,
     onRenderComplete,
     onViewDataEmpty,
-    onSelectionAdded,
-    onSelectionRemoved,
+    onHighlightAdded,
+    onHighlightRemoved,
   } = props;
 
   const containerRef = useRef<HTMLDivElement>(null);
@@ -32,10 +32,10 @@ export const DataGrid = forwardRef<DataGridHandle, DataGridProps>(function DataG
   onRenderCompleteRef.current = onRenderComplete;
   const onViewDataEmptyRef = useRef(onViewDataEmpty);
   onViewDataEmptyRef.current = onViewDataEmpty;
-  const onSelectionAddedRef = useRef(onSelectionAdded);
-  onSelectionAddedRef.current = onSelectionAdded;
-  const onSelectionRemovedRef = useRef(onSelectionRemoved);
-  onSelectionRemovedRef.current = onSelectionRemoved;
+  const onHighlightAddedRef = useRef(onHighlightAdded);
+  onHighlightAddedRef.current = onHighlightAdded;
+  const onHighlightRemovedRef = useRef(onHighlightRemoved);
+  onHighlightRemovedRef.current = onHighlightRemoved;
   const onCellReleaseRef = useRef(onCellRelease);
   onCellReleaseRef.current = onCellRelease;
   const onBeforeMeasureRef = useRef(onBeforeMeasure);
@@ -54,8 +54,8 @@ export const DataGrid = forwardRef<DataGridHandle, DataGridProps>(function DataG
 
     grid.on("renderComplete", (payload) => onRenderCompleteRef.current?.(payload));
     grid.on("viewDataEmpty", (payload) => onViewDataEmptyRef.current?.(payload));
-    grid.on("selectionAdded", (payload) => onSelectionAddedRef.current?.(payload));
-    grid.on("selectionRemoved", (payload) => onSelectionRemovedRef.current?.(payload));
+    grid.on("highlightAdded", (payload) => onHighlightAddedRef.current?.(payload));
+    grid.on("highlightRemoved", (payload) => onHighlightRemovedRef.current?.(payload));
 
     setGridInstance((c) => c + 1);
 

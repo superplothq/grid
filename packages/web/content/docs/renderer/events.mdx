@@ -1,9 +1,9 @@
 ---
 title: Events
-description: All events emitted by the Grid instance - render lifecycle, pagination, viewport changes, selections, and performance metrics.
+description: All events emitted by the Grid instance - render lifecycle, pagination, viewport changes, highlights, and performance metrics.
 ---
 
-The `Grid` class is an event emitter. It forwards layout events and adds its own selection events. All events are emitted asynchronously (via `setTimeout`).
+The `Grid` class is an event emitter. It forwards layout events and adds its own highlight events. All events are emitted asynchronously (via `setTimeout`).
 
 ## Subscribing to events
 
@@ -63,34 +63,34 @@ grid.on("viewModelDataChanged", (payload) => {
 
 This fires on the viewmodel side (with a 50ms debounce) whenever `getViewportData` is called with different bounds. Use it for lazy operations that depend on which data is currently visible.
 
-### selectionAdded
+### highlightAdded
 
-Fired when a selection is added via any of the selection methods (`selectCellByDataIndex`, `selectRowByDataIndex`, `selectColumnByDataIndex`, `selectRangeByDataIndex`).
+Fired when a highlight is added via any of the highlight methods (`highlightCellByDataIndex`, `highlightRowByDataIndex`, `highlightColumnByDataIndex`, `highlightRangeByDataIndex`).
 
 ```ts
-grid.on("selectionAdded", (payload) => {
+grid.on("highlightAdded", (payload) => {
   // payload: { hash: string, fromRow: number, fromCol: number, toRow: number, toCol: number }
   console.log(`Matching ${payload.hash}: rows ${payload.fromRow}-${payload.toRow}`);
 });
 ```
 
-The `hash` is a stable identifier for the selection, useful for tracking which selection was added or removed.
+The `hash` is a stable identifier for the highlight, useful for tracking which highlight was added or removed.
 
-### selectionRemoved
+### highlightRemoved
 
-Fired when a selection is removed - either explicitly via the unsubscribe function returned by a selection method, or implicitly when a new selection of a different type replaces existing ones.
+Fired when a highlight is removed - either explicitly via the unsubscribe function returned by a highlight method, or implicitly when a new highlight of a different type replaces existing ones.
 
 ```ts
-grid.on("selectionRemoved", (payload) => {
+grid.on("highlightRemoved", (payload) => {
   // payload: { hash: string, fromRow: number, fromCol: number, toRow: number, toCol: number }
   console.log(`Matching ${payload.hash} removed`);
 });
 ```
 
 Matching conflict rules:
-- Adding a **range** selection clears all previous selections.
-- Adding a **cell** selection keeps existing cell selections, but clears row/column selections (and vice versa).
-- Selections of the same type accumulate.
+- Adding a **range** highlight clears all previous highlights.
+- Adding a **cell** highlight keeps existing cell highlights, but clears row/column highlights (and vice versa).
+- Highlights of the same type accumulate.
 
 ### debug_perf:metrics
 
