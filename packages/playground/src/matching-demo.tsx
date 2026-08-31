@@ -4,8 +4,8 @@ import Grid, {
   PivotDataViewModel,
   FlattenedDataViewModel,
   createRowMeta,
-  Selection,
-  CellSelection,
+  Matching,
+  CellMatching,
 } from "@superplot/grid/renderer";
 
 // 2 row facet levels (region, city), 2 col facet levels (department, measure)
@@ -52,7 +52,7 @@ const FLAT_DATA: (number | null)[][] = [
   [null, 435, 315, null, 480, 390, null, 525, 445],
 ];
 
-type ActiveSelection = { label: string; ref: Selection | CellSelection };
+type ActiveMatching = { label: string; ref: Matching | CellMatching };
 
 const btnStyle: React.CSSProperties = {
   padding: "6px 12px",
@@ -69,13 +69,13 @@ const activeBtnStyle: React.CSSProperties = {
   borderColor: "#4285f4",
 };
 
-const SelectionDemo: React.FC = () => {
+const MatchingDemo: React.FC = () => {
   const gridConRef = useRef<HTMLDivElement>(null);
   const gridRef = useRef<Grid | null>(null);
   const [layoutMode, setLayoutMode] = useState<"pivot" | "flat">("pivot");
-  const [activeSelections, setActiveSelections] = useState<ActiveSelection[]>([]);
-  const activeSelectionsRef = useRef(activeSelections);
-  activeSelectionsRef.current = activeSelections;
+  const [activeMatchings, setActiveMatchings] = useState<ActiveMatching[]>([]);
+  const activeMatchingsRef = useRef(activeMatchings);
+  activeMatchingsRef.current = activeMatchings;
 
   const createGrid = (mode: "pivot" | "flat") => {
     const wrapper = gridConRef.current!;
@@ -122,30 +122,30 @@ const SelectionDemo: React.FC = () => {
   }, []);
 
   const handleToggleLayout = () => {
-    for (const s of activeSelectionsRef.current) s.ref.undo();
-    setActiveSelections([]);
+    for (const s of activeMatchingsRef.current) s.ref.undo();
+    setActiveMatchings([]);
     const next = layoutMode === "pivot" ? "flat" : "pivot";
     setLayoutMode(next);
     createGrid(next);
   };
 
-  const isActive = (label: string) => activeSelections.some(s => s.label === label);
+  const isActive = (label: string) => activeMatchings.some(s => s.label === label);
 
-  const toggle = (label: string, create: () => Selection | CellSelection) => {
-    const existing = activeSelectionsRef.current.find(s => s.label === label);
+  const toggle = (label: string, create: () => Matching | CellMatching) => {
+    const existing = activeMatchingsRef.current.find(s => s.label === label);
     if (existing) {
       existing.ref.undo();
-      setActiveSelections(prev => prev.filter(s => s.label !== label));
+      setActiveMatchings(prev => prev.filter(s => s.label !== label));
     } else {
       const ref = create();
-      setActiveSelections(prev => [...prev, { label, ref }]);
+      setActiveMatchings(prev => [...prev, { label, ref }]);
     }
   };
 
   const handleColHeader = () => {
     const grid = gridRef.current!;
     toggle("col-header", () =>
-      grid.selectAll((dim, dimVal) => dim === "department" && dimVal === "Engineering")
+      grid.matchAll((dim, dimVal) => dim === "department" && dimVal === "Engineering")
         .style((el) => {
           el.style.backgroundColor = "#e3f2fd";
         })
@@ -155,7 +155,7 @@ const SelectionDemo: React.FC = () => {
   const handleRowHeader = () => {
     const grid = gridRef.current!;
     toggle("row-header", () =>
-      grid.selectAll((dim) => dim === "city")
+      grid.matchAll((dim) => dim === "city")
         .prop({
           trackRenderer: (data) => {
             const span = document.createElement("span");
@@ -176,8 +176,8 @@ const SelectionDemo: React.FC = () => {
     const maxVal = Math.max(...allValues);
 
     toggle("cell-conditional", () =>
-      grid.selectAll(() => true)
-        .selectAllCell((v) => typeof v === "number" && v > 500)
+      grid.matchAll(() => true)
+        .matchAllCell((v) => typeof v === "number" && v > 500)
         .prop({
           cellRenderer: (value: number) => {
             const t = (value - minVal) / (maxVal - minVal);
@@ -196,7 +196,7 @@ const SelectionDemo: React.FC = () => {
 
   return (
     <>
-      <h2>Selection API Demo</h2>
+      <h2>Matching API Demo</h2>
       <p style={{ fontSize: 13, color: "#666", margin: "4px 0 12px" }}>
         rows: hierarchy(region, city) &nbsp;|&nbsp; columns: cross(department, measure[revenue, cost])
       </p>
@@ -236,4 +236,4 @@ const SelectionDemo: React.FC = () => {
   );
 };
 
-export default SelectionDemo;
+export default MatchingDemo;

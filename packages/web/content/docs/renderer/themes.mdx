@@ -163,7 +163,7 @@ registerTheme("custom", {
 });
 
 // Use in a selection rule style function:
-grid.selectAll((dim, val) => val === "Total")
+grid.matchAll((dim, val) => val === "Total")
   .style((el) => {
     el.style.backgroundColor = "var(--highlight-color)";
   });

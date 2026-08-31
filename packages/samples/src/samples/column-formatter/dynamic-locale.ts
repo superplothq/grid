@@ -1,4 +1,4 @@
-import Grid, { FlattenedDataViewModel, Selection } from "@superplot/grid/renderer";
+import Grid, { FlattenedDataViewModel, Matching } from "@superplot/grid/renderer";
 import type { FacetCellRenderer, ValueFormatter } from "@superplot/grid/renderer";
 import { createGridMount } from "../../runtime/mount";
 import { syncGridTheme } from "../../runtime/theme";
@@ -36,15 +36,15 @@ export function mount(el: HTMLElement, ctx: SampleContext): () => void {
   el.append(gridMount);
 
   // Re-target the Pay columns' data cells with the chosen locale's formatter.
-  // `selectAll` matches the Pay group header, `selectAllCell` extends onto its
+  // `matchAll` matches the Pay group header, `matchAllCell` extends onto its
   // data cells, and `prop` overrides their formatter. It is just a rule the
   // renderer reads on the next draw, so switching locales swaps one rule and
   // redraws - the viewmodel is never rebuilt.
-  let active: Selection | null = null;
+  let active: Matching | null = null;
   const applyLocale = (): void => {
     active?.undo();
-    active = grid.selectAll((_dim, value) => value === PAY_GROUP);
-    active.selectAllCell(() => true).prop({ valueFormatter: localeFormatter(localeId) });
+    active = grid.matchAll((_dim, value) => value === PAY_GROUP);
+    active.matchAllCell(() => true).prop({ valueFormatter: localeFormatter(localeId) });
     grid.draw();
   };
 

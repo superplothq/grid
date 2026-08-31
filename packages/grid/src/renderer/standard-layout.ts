@@ -25,9 +25,9 @@ import {
   IColAutoSizeStrategyClampedWidth,
   IColAutoSizeStrategyStatic,
   PivotSliceResult,
-  SelectionRule,
+  MatchingRule,
 } from "./types";
-import { evaluateRulesForDataCell, evaluateRulesForFacetCell } from "./select-all";
+import { evaluateRulesForDataCell, evaluateRulesForFacetCell } from "./match-all";
 import { computeMerges, MergeState } from "./utils";
 
 // `no-data` carries no row range: the grid returns before the layout runs, so no viewport has been
@@ -158,7 +158,7 @@ export default class StandardLayout extends StandardLayoutBase {
   #proposal: ViewModelProposal = {};
   #fixtures: LayoutFixtures;
   #fixtureMeasurements = { top: [] as number[], topTotal: 0, bottom: [] as number[], bottomTotal: 0 };
-  #selectAllRules: readonly SelectionRule[] = [];
+  #matchingRules: readonly MatchingRule[] = [];
   #appliedSelStyleProps = new WeakMap<HTMLElement, string[]>();
   #isStaticStrategy = false;
   #viewportDataChangeUnsub: (() => void) | null = null;
@@ -180,17 +180,17 @@ export default class StandardLayout extends StandardLayoutBase {
     Object.assign(this.#proposal, proposal);
   }
 
-  setSelectAllRules(rules: readonly SelectionRule[]): void {
-    this.#selectAllRules = rules;
+  setMatchingRules(rules: readonly MatchingRule[]): void {
+    this.#matchingRules = rules;
   }
 
-  protected get selectAllRules(): readonly SelectionRule[] {
-    return this.#selectAllRules;
+  protected get matchingRules(): readonly MatchingRule[] {
+    return this.#matchingRules;
   }
 
   protected resolveFacetOverrides(facetPath: (string | null)[], facetDefs: FacetDef[]): { trackRenderer: FacetCellRenderer | undefined; styleFns: ((el: HTMLElement) => void)[] } {
-    if (this.#selectAllRules.length === 0) return { trackRenderer: undefined, styleFns: [] };
-    const result = evaluateRulesForFacetCell(this.#selectAllRules, facetPath, facetDefs);
+    if (this.#matchingRules.length === 0) return { trackRenderer: undefined, styleFns: [] };
+    const result = evaluateRulesForFacetCell(this.#matchingRules, facetPath, facetDefs);
     return { trackRenderer: result.effectiveTrackRenderer, styleFns: result.styleFns };
   }
 
@@ -1859,11 +1859,11 @@ export default class StandardLayout extends StandardLayoutBase {
           let renderer = colDef.renderer;
           let valueFormatter = colDef.valueFormatter;
           let dataStyleFns: ((el: HTMLElement) => void)[] = [];
-          if (this.selectAllRules.length > 0 && sliceData.rowFacets && sliceData.columnFacets) {
+          if (this.matchingRules.length > 0 && sliceData.rowFacets && sliceData.columnFacets) {
             const rowPath = sliceData.rowFacets[j];
             const colPath = sliceData.columnFacets[i];
             const result = evaluateRulesForDataCell(
-              this.selectAllRules,
+              this.matchingRules,
               rowPath, colPath,
               this.data!.facetDefs.row, this.data!.facetDefs.col,
               value

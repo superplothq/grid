@@ -1,4 +1,4 @@
-import Grid, { FlattenedDataViewModel, Selection } from "@superplot/grid/renderer";
+import Grid, { FlattenedDataViewModel, Matching } from "@superplot/grid/renderer";
 import { createGridMount } from "../../runtime/mount";
 import { createToolbar, toolbarSelect } from "../../runtime/toolbar";
 import { syncGridTheme } from "../../runtime/theme";
@@ -30,16 +30,16 @@ export function mount(el: HTMLElement, ctx: SampleContext): () => void {
   const disposeTheme = syncGridTheme(grid);
   let disposed = false;
 
-  // Paint the Extra expense cells above the threshold red. `selectAll` matches the
-  // group's header, `selectAllCell` narrows the selection to the data cells whose
+  // Paint the Extra expense cells above the threshold red. `matchAll` matches the
+  // group's header, `matchAllCell` narrows the selection to the data cells whose
   // value crosses the threshold, and `style` colours them. `undo` drops the
   // previous flagging so a new threshold does not stack on the old one.
-  let active: Selection | null = null;
+  let active: Matching | null = null;
   const highlight = (threshold: number): void => {
     active?.undo();
-    active = grid.selectAll((_dim, value) => value === EXTRA_EXPENSE);
+    active = grid.matchAll((_dim, value) => value === EXTRA_EXPENSE);
     active
-      .selectAllCell((value) => typeof value === "number" && value > threshold)
+      .matchAllCell((value) => typeof value === "number" && value > threshold)
       .style((cell) => {
         cell.style.color = "#ef4444";
         cell.style.fontWeight = "600";

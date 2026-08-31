@@ -1,7 +1,7 @@
-import { PredicateNode, SelectionRule, TerminalOp } from "../types";
+import { PredicateNode, MatchingRule, TerminalOp } from "../types";
 
-export class SelectionRuleStore {
-  #rules: SelectionRule[] = [];
+export class MatchingRuleStore {
+  #rules: MatchingRule[] = [];
   #nextId = 0;
   #onRuleChange: () => void;
   #pending = false;
@@ -31,7 +31,7 @@ export class SelectionRuleStore {
     this.#scheduleChange();
   }
 
-  get rules(): readonly SelectionRule[] {
+  get rules(): readonly MatchingRule[] {
     return this.#rules;
   }
 }

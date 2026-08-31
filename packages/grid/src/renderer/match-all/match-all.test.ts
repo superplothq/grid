@@ -1,8 +1,8 @@
 import { expect } from "chai";
 import { matchesFacetPredicate, matchesAllFacetPredicates, evaluateRulesForDataCell, evaluateRulesForFacetCell } from "./evaluate";
-import { SelectionRuleStore } from "./rule-store";
-import { Selection } from "./selection";
-import { FacetDef, FacetPredicateNode, SelectionRule } from "../types";
+import { MatchingRuleStore } from "./rule-store";
+import { Matching } from "./matching";
+import { FacetDef, FacetPredicateNode, MatchingRule } from "../types";
 
 const makeFacetDef = (text: string): FacetDef => ({
   text,
@@ -84,7 +84,7 @@ describe("evaluateRulesForDataCell", () => {
 
   it("should return matching renderer", () => {
     const customRenderer = () => "custom";
-    const rules: SelectionRule[] = [{
+    const rules: MatchingRule[] = [{
       id: 0,
       predicates: [{ type: "facet", predicate: (dim) => dim === "region" }, { type: "cell", predicate: () => true }],
       terminal: { type: "prop", props: { cellRenderer: customRenderer } },
@@ -95,7 +95,7 @@ describe("evaluateRulesForDataCell", () => {
 
   it("should collect style functions", () => {
     const styleFn = () => {};
-    const rules: SelectionRule[] = [{
+    const rules: MatchingRule[] = [{
       id: 0,
       predicates: [{ type: "facet", predicate: (dim) => dim === "region" }, { type: "cell", predicate: () => true }],
       terminal: { type: "style", fn: styleFn },
@@ -106,7 +106,7 @@ describe("evaluateRulesForDataCell", () => {
 
   it("should apply cell predicate filtering", () => {
     const customRenderer = () => "custom";
-    const rules: SelectionRule[] = [{
+    const rules: MatchingRule[] = [{
       id: 0,
       predicates: [
         { type: "facet", predicate: () => true },
@@ -121,7 +121,7 @@ describe("evaluateRulesForDataCell", () => {
   it("should use last-write-wins for renderer", () => {
     const renderer1 = () => "r1";
     const renderer2 = () => "r2";
-    const rules: SelectionRule[] = [
+    const rules: MatchingRule[] = [
       { id: 0, predicates: [{ type: "facet", predicate: () => true }, { type: "cell", predicate: () => true }], terminal: { type: "prop", props: { cellRenderer: renderer1 } } },
       { id: 1, predicates: [{ type: "facet", predicate: () => true }, { type: "cell", predicate: () => true }], terminal: { type: "prop", props: { cellRenderer: renderer2 } } },
     ];
@@ -131,7 +131,7 @@ describe("evaluateRulesForDataCell", () => {
 
   it("should return matching valueFormatter", () => {
     const valueFormatter = () => "formatted";
-    const rules: SelectionRule[] = [{
+    const rules: MatchingRule[] = [{
       id: 0,
       predicates: [{ type: "facet", predicate: (dim) => dim === "region" }, { type: "cell", predicate: () => true }],
       terminal: { type: "prop", props: { valueFormatter } },
@@ -142,7 +142,7 @@ describe("evaluateRulesForDataCell", () => {
 
   it("should apply cell predicate filtering to valueFormatter", () => {
     const valueFormatter = () => "formatted";
-    const rules: SelectionRule[] = [{
+    const rules: MatchingRule[] = [{
       id: 0,
       predicates: [
         { type: "facet", predicate: () => true },
@@ -157,7 +157,7 @@ describe("evaluateRulesForDataCell", () => {
   it("should use last-write-wins for valueFormatter", () => {
     const formatter1 = () => "f1";
     const formatter2 = () => "f2";
-    const rules: SelectionRule[] = [
+    const rules: MatchingRule[] = [
       { id: 0, predicates: [{ type: "facet", predicate: () => true }, { type: "cell", predicate: () => true }], terminal: { type: "prop", props: { valueFormatter: formatter1 } } },
       { id: 1, predicates: [{ type: "facet", predicate: () => true }, { type: "cell", predicate: () => true }], terminal: { type: "prop", props: { valueFormatter: formatter2 } } },
     ];
@@ -168,7 +168,7 @@ describe("evaluateRulesForDataCell", () => {
   it("should resolve renderer and valueFormatter from the same rule", () => {
     const customRenderer = () => "custom";
     const valueFormatter = () => "formatted";
-    const rules: SelectionRule[] = [{
+    const rules: MatchingRule[] = [{
       id: 0,
       predicates: [{ type: "facet", predicate: () => true }, { type: "cell", predicate: () => true }],
       terminal: { type: "prop", props: { cellRenderer: customRenderer, valueFormatter } },
@@ -180,7 +180,7 @@ describe("evaluateRulesForDataCell", () => {
 
   it("should not apply valueFormatter from rules without cell predicates", () => {
     const valueFormatter = () => "formatted";
-    const rules: SelectionRule[] = [{
+    const rules: MatchingRule[] = [{
       id: 0,
       predicates: [{ type: "facet", predicate: () => true }],
       terminal: { type: "prop", props: { valueFormatter } },
@@ -195,7 +195,7 @@ describe("evaluateRulesForFacetCell", () => {
 
   it("should return matching track renderer", () => {
     const trackRenderer = () => ({ content: "custom" });
-    const rules: SelectionRule[] = [{
+    const rules: MatchingRule[] = [{
       id: 0,
       predicates: [{ type: "facet", predicate: (dim) => dim === "region" }],
       terminal: { type: "prop", props: { trackRenderer } },
@@ -206,7 +206,7 @@ describe("evaluateRulesForFacetCell", () => {
 
   it("should skip rules with cell predicates", () => {
     const trackRenderer = () => ({ content: "custom" });
-    const rules: SelectionRule[] = [{
+    const rules: MatchingRule[] = [{
       id: 0,
       predicates: [
         { type: "facet", predicate: () => true },
@@ -219,11 +219,11 @@ describe("evaluateRulesForFacetCell", () => {
   });
 });
 
-describe("SelectionRuleStore", () => {
+describe("MatchingRuleStore", () => {
   it("should add and remove rules", async () => {
     let callCount = 0;
     const onChange = () => { callCount++; };
-    const store = new SelectionRuleStore(onChange);
+    const store = new MatchingRuleStore(onChange);
 
     const id = store.addRule(
       [{ type: "facet", predicate: () => true }],
@@ -242,7 +242,7 @@ describe("SelectionRuleStore", () => {
   });
 
   it("should assign unique ids", () => {
-    const store = new SelectionRuleStore(() => {});
+    const store = new MatchingRuleStore(() => {});
     const id1 = store.addRule([], { type: "prop", props: {} });
     const id2 = store.addRule([], { type: "prop", props: {} });
     expect(id1).to.not.equal(id2);
@@ -250,7 +250,7 @@ describe("SelectionRuleStore", () => {
 
   it("should batch multiple addRule calls into single onChange", async () => {
     let callCount = 0;
-    const store = new SelectionRuleStore(() => { callCount++; });
+    const store = new MatchingRuleStore(() => { callCount++; });
 
     store.addRule([], { type: "prop", props: {} });
     store.addRule([], { type: "prop", props: {} });
@@ -262,29 +262,29 @@ describe("SelectionRuleStore", () => {
   });
 });
 
-describe("Selection fluent API", () => {
-  it("should build predicate chain with selectAll", () => {
-    const store = new SelectionRuleStore(() => {});
-    const sel = new Selection(store, [{ type: "facet", predicate: () => true }]);
+describe("Matching fluent API", () => {
+  it("should build predicate chain with matchAll", () => {
+    const store = new MatchingRuleStore(() => {});
+    const sel = new Matching(store, [{ type: "facet", predicate: () => true }]);
 
-    const sel2 = sel.selectAll((dim) => dim === "year");
+    const sel2 = sel.matchAll((dim) => dim === "year");
     expect(sel2.predicates).to.have.length(2);
     expect(sel2.predicates[0].type).to.equal("facet");
     expect(sel2.predicates[1].type).to.equal("facet");
   });
 
-  it("should build predicate chain with selectAllCell", () => {
-    const store = new SelectionRuleStore(() => {});
-    const sel = new Selection(store, [{ type: "facet", predicate: () => true }]);
+  it("should build predicate chain with matchAllCell", () => {
+    const store = new MatchingRuleStore(() => {});
+    const sel = new Matching(store, [{ type: "facet", predicate: () => true }]);
 
-    const cellSel = sel.selectAllCell((v) => v > 50);
+    const cellSel = sel.matchAllCell((v) => v > 50);
     expect(cellSel.predicates).to.have.length(2);
     expect(cellSel.predicates[1].type).to.equal("cell");
   });
 
   it("should create rules via prop() and return self for chaining", () => {
-    const store = new SelectionRuleStore(() => {});
-    const sel = new Selection(store, [{ type: "facet", predicate: () => true }]);
+    const store = new MatchingRuleStore(() => {});
+    const sel = new Matching(store, [{ type: "facet", predicate: () => true }]);
 
     const result = sel.prop({ cellRenderer: () => "test" });
     expect(result).to.equal(sel);
@@ -295,8 +295,8 @@ describe("Selection fluent API", () => {
   });
 
   it("should create rules via group() and return self for chaining", () => {
-    const store = new SelectionRuleStore(() => {});
-    const sel = new Selection(store, [{ type: "facet", predicate: () => true }]);
+    const store = new MatchingRuleStore(() => {});
+    const sel = new Matching(store, [{ type: "facet", predicate: () => true }]);
 
     const result = sel.group("highlight");
     expect(result).to.equal(sel);
@@ -308,8 +308,8 @@ describe("Selection fluent API", () => {
   });
 
   it("should create rules via style() and return self for chaining", () => {
-    const store = new SelectionRuleStore(() => {});
-    const sel = new Selection(store, [{ type: "facet", predicate: () => true }]);
+    const store = new MatchingRuleStore(() => {});
+    const sel = new Matching(store, [{ type: "facet", predicate: () => true }]);
 
     const result = sel.style(() => {});
     expect(result).to.equal(sel);
@@ -319,14 +319,14 @@ describe("Selection fluent API", () => {
     expect(store.rules).to.have.length(0);
   });
 
-  it("should chain prop().style().selectAllCell().prop()", () => {
-    const store = new SelectionRuleStore(() => {});
-    const sel = new Selection(store, [{ type: "facet", predicate: () => true }]);
+  it("should chain prop().style().matchAllCell().prop()", () => {
+    const store = new MatchingRuleStore(() => {});
+    const sel = new Matching(store, [{ type: "facet", predicate: () => true }]);
 
     const chain = sel
       .prop({ cellRenderer: () => "r1" })
       .style(() => {})
-      .selectAllCell((v) => v > 50)
+      .matchAllCell((v) => v > 50)
       .prop({ cellRenderer: () => "r2" });
 
     expect(store.rules).to.have.length(3);
@@ -335,10 +335,10 @@ describe("Selection fluent API", () => {
   });
 
   it("should share ruleIds across chained selections", () => {
-    const store = new SelectionRuleStore(() => {});
-    const sel = new Selection(store, [{ type: "facet", predicate: () => true }]);
+    const store = new MatchingRuleStore(() => {});
+    const sel = new Matching(store, [{ type: "facet", predicate: () => true }]);
 
-    const sel2 = sel.selectAll(() => true);
+    const sel2 = sel.matchAll(() => true);
     sel.prop({ cellRenderer: () => "a" });
     sel2.prop({ cellRenderer: () => "b" });
 
@@ -351,13 +351,13 @@ describe("Selection fluent API", () => {
 
   it("should batch draw for full chain", async () => {
     let callCount = 0;
-    const store = new SelectionRuleStore(() => { callCount++; });
-    const sel = new Selection(store, [{ type: "facet", predicate: () => true }]);
+    const store = new MatchingRuleStore(() => { callCount++; });
+    const sel = new Matching(store, [{ type: "facet", predicate: () => true }]);
 
     sel
       .prop({ cellRenderer: () => "r1" })
       .style(() => {})
-      .selectAllCell((v) => v > 50)
+      .matchAllCell((v) => v > 50)
       .prop({ cellRenderer: () => "r2" });
 
     expect(callCount).to.equal(0);

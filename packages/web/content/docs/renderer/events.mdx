@@ -70,7 +70,7 @@ Fired when a selection is added via any of the selection methods (`selectCellByD
 ```ts
 grid.on("selectionAdded", (payload) => {
   // payload: { hash: string, fromRow: number, fromCol: number, toRow: number, toCol: number }
-  console.log(`Selection ${payload.hash}: rows ${payload.fromRow}-${payload.toRow}`);
+  console.log(`Matching ${payload.hash}: rows ${payload.fromRow}-${payload.toRow}`);
 });
 ```
 
@@ -83,11 +83,11 @@ Fired when a selection is removed - either explicitly via the unsubscribe functi
 ```ts
 grid.on("selectionRemoved", (payload) => {
   // payload: { hash: string, fromRow: number, fromCol: number, toRow: number, toCol: number }
-  console.log(`Selection ${payload.hash} removed`);
+  console.log(`Matching ${payload.hash} removed`);
 });
 ```
 
-Selection conflict rules:
+Matching conflict rules:
 - Adding a **range** selection clears all previous selections.
 - Adding a **cell** selection keeps existing cell selections, but clears row/column selections (and vice versa).
 - Selections of the same type accumulate.

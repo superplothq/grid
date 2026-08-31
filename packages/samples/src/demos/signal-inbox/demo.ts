@@ -330,7 +330,7 @@ export function mount(el: HTMLElement): () => void {
     }, LOAD_DELAY_MS);
   }
 
-  // Selection / fit / contacted only mutate metaState (already written by the handler,
+  // Matching / fit / contacted only mutate metaState (already written by the handler,
   // keyed by id) - no new data, so just redraw and let the renderers read it back.
   function refresh(): void {
     grid.draw();

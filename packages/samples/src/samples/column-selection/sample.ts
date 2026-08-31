@@ -1,4 +1,4 @@
-import Grid, { FlattenedDataViewModel, Selection } from "@superplot/grid/renderer";
+import Grid, { FlattenedDataViewModel, Matching } from "@superplot/grid/renderer";
 import { createGridMount } from "../../runtime/mount";
 import { createToolbar, toolbarButton, toolbarColorInput, toolbarSelect } from "../../runtime/toolbar";
 import { syncGridTheme } from "../../runtime/theme";
@@ -54,18 +54,18 @@ export function mount(el: HTMLElement, ctx: SampleContext): () => void {
   });
 
   // ---- The highlight: select a column by name, then tint its cells.
-  // `selectAll` matches the column's header (its "track" header) by header text;
-  // `selectAllCell` extends the same selection onto the column's data cells.
+  // `matchAll` matches the column's header (its "track" header) by header text;
+  // `matchAllCell` extends the same selection onto the column's data cells.
   // Holds the active selection so it can be undone before the next one is applied.
-  let active: Selection | null = null;
+  let active: Matching | null = null;
 
   const applyHighlight = (columnLabel: string, color: string): void => {
     active?.undo();
-    active = grid.selectAll((_dim, value) => value === columnLabel);
+    active = grid.matchAll((_dim, value) => value === columnLabel);
     active.style((cell) => {
       cell.style.background = headerCellBackground(color);
     });
-    active.selectAllCell(() => true).style((cell) => {
+    active.matchAllCell(() => true).style((cell) => {
       cell.style.background = dataCellBackground(color);
     });
   };

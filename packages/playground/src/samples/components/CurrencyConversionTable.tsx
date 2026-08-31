@@ -6,7 +6,7 @@ import {
   DataGrid, useFlatGrid, SkeletonGrid, GridErrOverlay,
   type ColumnDef, type FacetCellProps, type ReactFacetDefs,
 } from "@superplot/react";
-import type {SelectionDef} from "@superplot/react";
+import type {MatchingRuleDef} from "@superplot/react";
 import {useDataSource} from "./DataSourceContext";
 import {useTheme} from "./ThemeContext";
 
@@ -153,7 +153,7 @@ const CurrencyConversionGrid: React.FC<GridProps> = ({ds, schema, theme, height}
     return map;
   }, []);
 
-  const selections = useMemo<SelectionDef[]>(() => [{
+  const matchingRules = useMemo<MatchingRuleDef[]>(() => [{
     predicate: MEASURE_PREDICATE,
     trackRenderer: globalMode ? GlobalCurrencyButton : CurrencyButton,
   }], [globalMode]);
@@ -165,7 +165,7 @@ const CurrencyConversionGrid: React.FC<GridProps> = ({ds, schema, theme, height}
     ir,
     columns: COLUMNS,
     facetDefs: FACET_DEFS,
-    selections,
+    matchingRules,
   });
 
   useEffect(() => {

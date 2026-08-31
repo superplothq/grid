@@ -3,7 +3,7 @@ import {
   FacetPredicate,
   FacetPredicateNode,
   FacetDef,
-  SelectionRule,
+  MatchingRule,
   FacetCellRenderer,
   ValueFormatter,
 } from "../types";
@@ -46,7 +46,7 @@ export function matchesAllFacetPredicates(
 }
 
 export function evaluateRulesForDataCell(
-  rules: readonly SelectionRule[],
+  rules: readonly MatchingRule[],
   rowPath: (string | null)[],
   colPath: (string | null)[],
   rowFacetDefs: FacetDef[],
@@ -84,7 +84,7 @@ export function evaluateRulesForDataCell(
 }
 
 export function evaluateRulesForFacetCell(
-  rules: readonly SelectionRule[],
+  rules: readonly MatchingRule[],
   facetPath: (string | null)[],
   facetDefs: FacetDef[]
 ): { effectiveTrackRenderer?: FacetCellRenderer; styleFns: ((el: HTMLElement) => void)[] } {

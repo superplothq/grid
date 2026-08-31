@@ -296,7 +296,7 @@ export interface ValueCellDataContext {
 export type FacetPredicate = (dim: string, dimVal: string | null, path: [string, string | null][]) => boolean;
 export type CellPredicate = (value: any) => boolean;
 
-export interface SelectionProps {
+export interface MatchingRuleProps {
   cellRenderer?: CellRenderer<any>;
   trackRenderer?: FacetCellRenderer;
   colSize?: ColAutoSizeConfig;
@@ -308,10 +308,10 @@ export interface CellPredicateNode { type: "cell"; predicate: CellPredicate; }
 export type PredicateNode = FacetPredicateNode | CellPredicateNode;
 
 export type TerminalOp =
-  | { type: "prop"; props: SelectionProps }
+  | { type: "prop"; props: MatchingRuleProps }
   | { type: "style"; fn: (container: HTMLElement) => void };
 
-export interface SelectionRule {
+export interface MatchingRule {
   id: number;
   predicates: PredicateNode[];
   terminal: TerminalOp;

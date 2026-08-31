@@ -1,5 +1,5 @@
 ---
-title: Column Selection
+title: Column Matching
 description: Select a column by name and run an operation on it.
 datasets: [payroll]
 runtime: static
@@ -10,19 +10,19 @@ This sample renders a simple payroll table - no pivot, no row grouping - with a 
 above it. Pick a column from the dropdown and the grid selects that column, ready for an
 operation to run against it.
 
-Columns are selected with the renderer's `selectAll` API by matching the header text.
-`selectAll` targets the column's header (its "track" header) cells; chaining
-`selectAllCell` extends the same selection onto the column's data cells:
+Columns are selected with the renderer's `matchAll` API by matching the header text.
+`matchAll` targets the column's header (its "track" header) cells; chaining
+`matchAllCell` extends the same selection onto the column's data cells:
 
 ```ts
 // Select a column by its header text.
-const selection = grid.selectAll((_dim, value) => value === "Base Salary");
+const selection = grid.matchAll((_dim, value) => value === "Base Salary");
 
 // Extend the same selection onto that column's data cells.
-selection.selectAllCell(() => true);
+selection.matchAllCell(() => true);
 ```
 
-A `Selection` is just a handle - once you have one you can run an operation on it
+A `Matching` is just a handle - once you have one you can run an operation on it
 (style it, swap its renderer, and so on).
 
 ## Highlight column
@@ -38,7 +38,7 @@ selection.style((cell) => {
 });
 
 // Tint the data cells (stronger mix over the value token).
-selection.selectAllCell(() => true).style((cell) => {
+selection.matchAllCell(() => true).style((cell) => {
   cell.style.background = `color-mix(in srgb, ${color} 28%, var(--value-background-color))`;
 });
 ```

@@ -26,7 +26,7 @@ export type {
   UseFlatGridResult,
   GridBindings,
   TransformFn,
-  SelectionDef,
+  MatchingRuleDef,
   PageViewState,
   UsePivotGridOptions,
   UsePivotGridResult,

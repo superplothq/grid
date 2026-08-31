@@ -84,19 +84,19 @@ facet.
 ## Switch formatters live
 
 A formatter can also be applied as a **selection override**, so switching it live
-never rebuilds the viewmodel. `grid.selectAll(...)` matches the Pay group header,
-`.selectAllCell(...)` extends the selection onto its data cells, and
+never rebuilds the viewmodel. `grid.matchAll(...)` matches the Pay group header,
+`.matchAllCell(...)` extends the selection onto its data cells, and
 `.prop({ valueFormatter })` overrides the formatter there. It is just a rule the
 renderer reads on the next `grid.draw()`. A mini locale dropdown in the Pay group
 header (rendered through the facet's `trackRenderer`) undoes the previous rule and
 applies a new one.
 
 ```ts
-let active: Selection | null = null;
+let active: Matching | null = null;
 const applyLocale = () => {
   active?.undo();                                   // drop the previous locale rule
-  active = grid.selectAll((_dim, value) => value === "Pay");
-  active.selectAllCell(() => true).prop({ valueFormatter: localeFormatter(localeId) });
+  active = grid.matchAll((_dim, value) => value === "Pay");
+  active.matchAllCell(() => true).prop({ valueFormatter: localeFormatter(localeId) });
   grid.draw();                                      // repaint - no new viewmodel
 };
 

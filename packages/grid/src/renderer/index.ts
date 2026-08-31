@@ -7,7 +7,7 @@ import { applyThemeTokens } from "./themes";
 import StandardLayout, { LayoutEvents } from "./standard-layout";
 import GroupedRowLayout from "./grouped-row-layout";
 import { WithEvents, EventEmitter, addOrReplaceChildren } from "./mixins";
-import { SelectionRuleStore, Selection } from "./select-all";
+import { MatchingRuleStore, Matching } from "./match-all";
 
 export type LayoutType = "pivot" | "flat";
 
@@ -41,7 +41,7 @@ export type {
   DataViewport,
   FacetPredicate,
   CellPredicate,
-  SelectionProps,
+  MatchingRuleProps,
   ViewModelMetadata,
   MetadataValue,
   ColumnFacetMetadata,
@@ -53,7 +53,7 @@ export type {
   ValueCellDataContext,
   ValueFormatter,
 } from "./types";
-export { Selection, CellSelection } from "./select-all";
+export { Matching, CellMatching } from "./match-all";
 export { registerTheme, getTheme } from "./registry";
 export { GridDataViewModel, MetaState } from "./grid-data-viewmodel";
 export type { ViewModelInitParams } from "./grid-data-viewmodel";
@@ -121,7 +121,7 @@ export default class Grid extends GridWithEvents {
   #layout: StandardLayout;
   #renderCount = 0;
   #selections: Map<string, [fromRow: number, fromCol: number, toRow: number, toCol: number]> = new Map();
-  #ruleStore: SelectionRuleStore;
+  #ruleStore: MatchingRuleStore;
   #scheduleDrawPending = false;
   #mountPoint: HTMLElement;
   #loadingEl: HTMLElement | undefined;
@@ -150,7 +150,7 @@ export default class Grid extends GridWithEvents {
     // TODO[beforeRelease] make it part of the layout opts
     if (opts?.onBeforeMeasure) this.#layout.onBeforeMeasure = opts.onBeforeMeasure;
 
-    this.#ruleStore = new SelectionRuleStore(() => this.draw());
+    this.#ruleStore = new MatchingRuleStore(() => this.draw());
 
     // Forward layout events to Grid
     this.forwardFrom(this.#layout as unknown as EventEmitter<LayoutEvents>, ["renderComplete", "debug_perf:metrics", "viewDataEmpty", "viewModelDataChanged"]);
@@ -357,9 +357,9 @@ export default class Grid extends GridWithEvents {
     });
   }
 
-  /** Creates a [Selection](/docs/renderer/selections) builder that targets facet cells matching the predicate. Chain `.selectAll()` to add more predicates, then `.style()` or `.prop()` to apply effects. */
-  selectAll(predicate: FacetPredicate): Selection {
-    return new Selection(this.#ruleStore, [{ type: "facet", predicate }]);
+  /** Creates a [Matching](/docs/renderer/match-all) builder that targets facet cells matching the predicate. Chain `.matchAll()` to add more predicates, then `.style()` or `.prop()` to apply effects. */
+  matchAll(predicate: FacetPredicate): Matching {
+    return new Matching(this.#ruleStore, [{ type: "facet", predicate }]);
   }
 
   /** Triggers a synchronous render cycle: calculates the viewport, fetches the data slice, renders cells, auto-sizes columns, and emits `renderComplete`. Throws if `data` has not been set. When the viewmodel is blank (`isDataLoaded()` is `false`), nothing is rendered - the grid emits `viewDataEmpty` with reason `no-data` and returns, leaving the consumer to fetch data or show its own empty state. */
@@ -379,7 +379,7 @@ export default class Grid extends GridWithEvents {
     const startTime = performance.now();
     this.#renderCount++;
 
-    this.#layout.setSelectAllRules(this.#ruleStore.rules);
+    this.#layout.setMatchingRules(this.#ruleStore.rules);
     const viewModel = this.#layout.calculateViewModel();
     this.#layout.render(viewModel, { t1: startTime });
   }
