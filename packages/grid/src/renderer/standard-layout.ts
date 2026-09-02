@@ -1148,7 +1148,7 @@ export default class StandardLayout extends StandardLayoutBase {
     this.#renderFixtureHeaders(fixtures.left, "left", { ...fixtureHeaderOpts, gridColStart: 1 });
 
     // render corner cells which results from intersection of row and column facets
-    let cmnCornerCls = "corner header";
+    const cmnCornerCls = ["corner", "header"];
     for (let hRow = 0; hRow < numColFacetLevels; hRow++) { // each row of header cells
       for (let hCol = 0; hCol < numRowFacetLevels; hCol++) { // each row facet column
         const absCol = hCol + numLeftFixtures;
@@ -1247,7 +1247,6 @@ export default class StandardLayout extends StandardLayoutBase {
       const colIndex = viewModel.x0 + merge.start;
       // TODO[1]
       const colDef = colDefs[colIndex];
-      const skipSizeClass = colDef.colSize.excludeColumnFacets ? " skp-sz" : "";
       const absoluteColIndex = numLeftVFixedTrack + colIndex;
       const key = `col-h-${merge.level}-${absoluteColIndex}`;
       const colspan = merge.spanPrimary;
@@ -1256,13 +1255,12 @@ export default class StandardLayout extends StandardLayoutBase {
       const shouldApplyWidth = isLeafLevel && colspan === 1 && !colDef.colSize.excludeColumnFacets && colDef.colSize.strategy === "clamped-width";
       const clampedSize = shouldApplyWidth ? colDef.colSize as IColAutoSizeStrategyClampedWidth : null;
 
-      let boundaryCellCls = (merge.start + merge.spanPrimary === numDataColsVisible ? "r-edge " : "");
       const [cell, needAppend, contentDirty] = this.placeCellInDom({
         key,
         gridRow: merge.level + 1,
         gridCol: numLeftVFixedTrack + merge.start + 1,
         hintContentDirty,
-        cls: `col-facet header facet ${skipSizeClass}${!isLeafLevel ? " non-leaf" : " facet-b-edge"} ${boundaryCellCls}`,
+        cls: ["col-facet", "header", "facet", colDef.colSize.excludeColumnFacets && "skp-sz", isLeafLevel ? "facet-b-edge" : "non-leaf", merge.start + merge.spanPrimary === numDataColsVisible && "r-edge"],
         extraStyles: {
           colspan,
           top: viewModel.colFacetsTopPositions[merge.level],
@@ -1371,7 +1369,7 @@ export default class StandardLayout extends StandardLayoutBase {
               gridRow: track,
               gridCol: numLeftFixtures + rfLevel + 1,
               hintContentDirty,
-              cls: `header ${side}-fixture intersect-left`,
+              cls: ["header", `${side}-fixture`, "intersect-left"],
               extraStyles: {
                 [side]: offset,
                 left: viewModel.fixedLeftVTrackPositions[stickyTrackIndex],
@@ -1421,7 +1419,7 @@ export default class StandardLayout extends StandardLayoutBase {
       const [el, needAppend, hlContentDirty] = this.placeCellInDom({
         key: `hl-${hl.fromRow};${hl.toRow};${hl.fromCol};${hl.toCol}`,
         hintContentDirty,
-        cls: "highlight-overlay",
+        cls: ["highlight-overlay"],
         gridRow: gridRowOffset + (visFromRow - viewModel.y0) + 1,
         gridCol: numLeftVFixedTrack + (visFromCol - viewModel.x0) + 1,
         extraStyles: {
@@ -1517,7 +1515,7 @@ export default class StandardLayout extends StandardLayoutBase {
       gridRow: opts.gridRow,
       gridCol: opts.gridCol,
       hintContentDirty: opts.hintContentDirty,
-      cls: `header ${opts.hFixtureSide}-fixture fixture-spacer intersect-${opts.stickyRegion}`,
+      cls: ["header", `${opts.hFixtureSide}-fixture`, "fixture-spacer", `intersect-${opts.stickyRegion}`],
       extraStyles: {
         [opts.hFixtureSide]: opts.hFixtureOffset,
         [opts.stickyRegion]: opts.stickyPosition,
@@ -1557,7 +1555,7 @@ export default class StandardLayout extends StandardLayoutBase {
         gridRow: 1,
         gridCol,
         hintContentDirty,
-        cls: `corner header ${side}-fixture${fi === fixtureDefs.length - 1 ? " last-fixture" : ""} header-b-edge`,
+        cls: ["corner", "header", `${side}-fixture`, fi === fixtureDefs.length - 1 && "last-fixture", "header-b-edge"],
         extraStyles: {
           ...(numColFacetLevels > 1 && { rowspan: numColFacetLevels }),
           top: viewModel.colFacetsTopPositions[0],
@@ -1785,13 +1783,12 @@ export default class StandardLayout extends StandardLayoutBase {
 
       const gridRowOffset = viewModel.fixtures.top.length + this.data!.numColFacetLevels;
       const gridColOffset = viewModel.fixtures.left.length;
-      const startEndCellCls = `${merge.start === numDataRowsVisible - 1 ? "last" : ""} ${merge.start === 0 ? "first" : ""}`;
       const [cell, needAppend, contentDirty] = this.placeCellInDom({
         key,
         gridRow: gridRowOffset + merge.start + 1,
         gridCol: gridColOffset + merge.level + 1,
         hintContentDirty,
-        cls: `row-facet facet ${isLeaf ? " facet-r-edge" : " non-leaf"} ${startEndCellCls}`,
+        cls: ["row-facet", "facet", isLeaf ? "facet-r-edge" : "non-leaf", merge.start === numDataRowsVisible - 1 && "last", merge.start === 0 && "first"],
         extraStyles: {
           rowspan: merge.spanPrimary,
           left: viewModel.fixedLeftVTrackPositions[merge.level + gridColOffset],
@@ -1842,14 +1839,12 @@ export default class StandardLayout extends StandardLayoutBase {
         const absoluteRowIndex = this.data!.numColFacetLevels + viewModel.y0 + j;
         const key = `data-${absoluteColIndex}-${absoluteRowIndex}`;
         const value = colData[j];
-        const boundaryCellCls = i === numDataColsVisible - 1 ? "r-edge" : "";
-        const startEndCellCls = `${j === numDataRowsVisible - 1 ? "last" : ""} ${j === 0 ? "first" : ""}`;
         const [cell, needAppend, contentDirty] = this.placeCellInDom({
           key,
           gridRow: gridRowOffset + j + 1,
           gridCol,
           hintContentDirty,
-          cls: `data ${boundaryCellCls} ${colDef.isCustom ? " custom-rendered" : ""} ${startEndCellCls}`,
+          cls: ["data", i === numDataColsVisible - 1 && "r-edge", colDef.isCustom && "custom-rendered", j === numDataRowsVisible - 1 && "last", j === 0 && "first"],
           extraStyles: {},
         });
 

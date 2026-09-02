@@ -10,9 +10,11 @@ export function addOrReplaceChildren(parent: HTMLElement, child: string | HTMLEl
   }
 }
 
+export type CellClassList = (string | false | null | undefined)[];
+
 export interface PlaceCellOpts {
   key: string;
-  cls: string;
+  cls: CellClassList;
   gridRow: number;
   gridCol: number;
   hintContentDirty?: boolean;
@@ -43,7 +45,7 @@ export function WithCellPlacement<TBase extends Constructor<HasCellManager>>(Bas
       const [cell, needAppend] = this.cellManager.acquire(opts.key);
       const contentDirty = needAppend || !opts.hintContentDirty;
 
-      const cellCls = "cell " + opts.cls;
+      const cellCls = ["cell", ...opts.cls].filter(Boolean).join(" ");
       if (cell.className !== cellCls) {
         cell.className = cellCls;
       }

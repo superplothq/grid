@@ -184,12 +184,11 @@ export function mount(el: HTMLElement): () => void {
         if (!row) continue;
         const absoluteRowIndex = numColFacetLevels + viewModel.y0 + j;
         const key = `select-${absoluteRowIndex}`;
-        const edge = `${j === n - 1 ? "last" : ""} ${j === 0 ? "first" : ""}`;
         const [cell, needAppend, contentDirty] = this.placeCellInDom({
           key,
           gridRow: numColFacetLevels + j + 1,
           gridCol: track,
-          cls: `data custom-rendered ${suggestedCls.join(" ")} ${edge}`,
+          cls: ["data", "custom-rendered", ...suggestedCls, j === n - 1 && "last", j === 0 && "first"],
           extraStyles: { left: offset },
         });
         if (contentDirty) {
@@ -239,12 +238,11 @@ export function mount(el: HTMLElement): () => void {
         if (!row) continue;
         const absoluteRowIndex = numColFacetLevels + viewModel.y0 + j;
         const key = `action-${absoluteRowIndex}`;
-        const edge = `${j === n - 1 ? "last" : ""} ${j === 0 ? "first" : ""}`;
         const [cell, needAppend, contentDirty] = this.placeCellInDom({
           key,
           gridRow: numColFacetLevels + j + 1,
           gridCol: track,
-          cls: `data custom-rendered ${suggestedCls.join(" ")} ${edge}`,
+          cls: ["data", "custom-rendered", ...suggestedCls, j === n - 1 && "last", j === 0 && "first"],
           extraStyles: { minWidth: CONTACT_WIDTH, maxWidth: CONTACT_WIDTH },
         });
         if (contentDirty) {

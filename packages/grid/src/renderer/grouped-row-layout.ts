@@ -30,16 +30,12 @@ export default class GroupedRowLayout extends StandardLayout {
       const extraStyles: Record<string, number | string> = {
         left,
       };
-      let cls = "row-facet facet facet-r-edge grouped-row";
-      if (j === 0) cls += " first";
-      if (j === flatSlice.rowFacets.length - 1) cls += " last";
-
       const [cell, needAppend, contentDirty] = this.placeCellInDom({
         key,
         gridRow: gridRowOffset + numColFacetLevels + j + 1,
         gridCol: gridColOffset + 1,
         hintContentDirty,
-        cls,
+        cls: ["row-facet", "facet", "facet-r-edge", "grouped-row", j === 0 && "first", j === flatSlice.rowFacets.length - 1 && "last"],
         extraStyles,
       });
 

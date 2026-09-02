@@ -87,7 +87,6 @@ class LineNumberFixture extends PVerticalFixture {
     for (let j = 0; j < sliceData.sliceNumRows; j++) {
       const rowIndex = viewModel.y0 + j;
       const key = `ln-${rowIndex}`;
-      const startEndCellCls = `${j === 0 ? " first" : ""}${j === sliceData.sliceNumRows - 1 ? " last" : ""}`;
 
       const [cell, needAppend, contentDirty] = this.placeCellInDom({
         key,
@@ -95,7 +94,7 @@ class LineNumberFixture extends PVerticalFixture {
         gridCol: fixtureViewModel.track,
         hintContentDirty: true,
         // TODO add standard classnames from layout
-        cls:  `${fixtureViewModel.suggestedCls.join(' ')} data${startEndCellCls}`,
+        cls: [...fixtureViewModel.suggestedCls, "data", j === 0 && "first", j === sliceData.sliceNumRows - 1 && "last"],
         extraStyles: {
           left: fixtureViewModel.offset,
         },
@@ -137,14 +136,13 @@ class CheckboxFixture extends PVerticalFixture {
     for (let j = 0; j < sliceData.sliceNumRows; j++) {
       const rowIndex = viewModel.y0 + j;
       const key = `chk-${rowIndex}`;
-      const startEndCellCls = `${j === 0 ? " first" : ""}${j === sliceData.sliceNumRows - 1 ? " last" : ""}`;
 
       const [cell, needAppend, contentDirty] = this.placeCellInDom({
         key,
         gridRow: fixturesTopLen + numColFacetLevels + j + 1,
         gridCol: fixtureViewModel.track,
         hintContentDirty: true,
-        cls: `${fixtureViewModel.suggestedCls.join(' ')} data${startEndCellCls}`,
+        cls: [...fixtureViewModel.suggestedCls, "data", j === 0 && "first", j === sliceData.sliceNumRows - 1 && "last"],
         extraStyles: {
           left: fixtureViewModel.offset,
         },
@@ -197,7 +195,7 @@ class FilterFixture extends PHorizontalFixture {
         gridRow: fixtureViewModel.track,
         gridCol,
         hintContentDirty: true,
-        cls: `header ${fixtureViewModel.suggestedCls.join(" ")}`,
+        cls: ["header", ...fixtureViewModel.suggestedCls],
         extraStyles: {
           top: fixtureViewModel.offset,
         },
@@ -243,7 +241,7 @@ class AggregationFixture extends PHorizontalFixture {
       key,
       gridRow: fixtureViewModel.track,
       gridCol: leftFixtureCount + 1,
-      cls: `header ${fixtureViewModel.suggestedCls.join(" ")} h-fixed`,
+      cls: ["header", ...fixtureViewModel.suggestedCls, "h-fixed"],
       hintContentDirty: true,
       extraStyles: {
         bottom: fixtureViewModel.offset,
@@ -297,7 +295,7 @@ class BottomDetailFixture extends PHorizontalFixture {
         gridRow: fixtureViewModel.track,
         gridCol,
         hintContentDirty: true,
-        cls: `header ${fixtureViewModel.suggestedCls.join(" ") }`,
+        cls: ["header", ...fixtureViewModel.suggestedCls],
         extraStyles: {
           bottom: fixtureViewModel.offset,
         },
