@@ -323,7 +323,7 @@ export default class StandardLayout extends StandardLayoutBase {
   // TODO if fixtures are added get height of a row with fixtures as they might increase the size
   #measureRowHeight(): void {
     const facetSample = document.createElement("div");
-    facetSample.className = "cell col-facet facet";
+    facetSample.className = "cell col-facet header";
     facetSample.style.visibility = "hidden";
     // TODO[now] implement custom renderers and includeing renderder void (renderer from framework)
     const sampleMerge: MergeState = { value: "Mgy$123,456", path: "Mgy$123,456", level: 0, start: 0, spanPrimary: 1, spanSecondary: 1 };
@@ -415,10 +415,10 @@ export default class StandardLayout extends StandardLayoutBase {
   }
 
   protected createFacetContainer(cell: HTMLElement): HTMLElement {
-    const existing = cell.querySelector(".f-cell-con") as HTMLElement | null;
+    const existing = cell.querySelector(".cell-slots") as HTMLElement | null;
     if (existing) return existing;
     const container = document.createElement("div");
-    container.className = "f-cell-con";
+    container.className = "cell-slots";
     return container;
   }
 
@@ -1260,7 +1260,7 @@ export default class StandardLayout extends StandardLayoutBase {
         gridRow: merge.level + 1,
         gridCol: numLeftVFixedTrack + merge.start + 1,
         hintContentDirty,
-        cls: ["col-facet", "header", "facet", colDef.colSize.excludeColumnFacets && "skp-sz", isLeafLevel ? "facet-b-edge" : "non-leaf", merge.start + merge.spanPrimary === numDataColsVisible && "r-edge"],
+        cls: ["col-facet", "header", colDef.colSize.excludeColumnFacets && "skp-sz", isLeafLevel ? "facet-b-edge" : "non-leaf", merge.start + merge.spanPrimary === numDataColsVisible && "r-edge"],
         extraStyles: {
           colspan,
           top: viewModel.colFacetsTopPositions[merge.level],
@@ -1788,7 +1788,7 @@ export default class StandardLayout extends StandardLayoutBase {
         gridRow: gridRowOffset + merge.start + 1,
         gridCol: gridColOffset + merge.level + 1,
         hintContentDirty,
-        cls: ["row-facet", "facet", isLeaf ? "facet-r-edge" : "non-leaf", merge.start === numDataRowsVisible - 1 && "last", merge.start === 0 && "first"],
+        cls: ["row-facet", isLeaf ? "facet-r-edge" : "non-leaf", merge.start === numDataRowsVisible - 1 && "last", merge.start === 0 && "first"],
         extraStyles: {
           rowspan: merge.spanPrimary,
           left: viewModel.fixedLeftVTrackPositions[merge.level + gridColOffset],

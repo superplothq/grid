@@ -35,7 +35,7 @@ export default class GroupedRowLayout extends StandardLayout {
         gridRow: gridRowOffset + numColFacetLevels + j + 1,
         gridCol: gridColOffset + 1,
         hintContentDirty,
-        cls: ["row-facet", "facet", "facet-r-edge", "grouped-row", j === 0 && "first", j === flatSlice.rowFacets.length - 1 && "last"],
+        cls: ["row-facet", "facet-r-edge", "grouped-row", j === 0 && "first", j === flatSlice.rowFacets.length - 1 && "last"],
         extraStyles,
       });
 
