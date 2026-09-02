@@ -15,8 +15,8 @@ const COLUMNS = [
 const COL_FR = [1.6, 1.1, 1.1, 1.1, 1.1];
 const GRID_HEIGHT = 420;
 
-// Match the theme's cell padding so custom-rendered cells (which the grid strips
-// padding from) line up with the built-in text cells.
+// The heat bar renderer sets the cell padding itself from the theme variables so
+// its track and label line up with the built-in text cells.
 const CELL_PADDING = "calc(var(--cell-padding-y) * 1px) calc(var(--cell-padding-x) * 1px)";
 
 const number = new Intl.NumberFormat("en-US", { maximumFractionDigits: 0 });

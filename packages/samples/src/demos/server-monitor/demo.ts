@@ -392,7 +392,7 @@ export function mount(el: HTMLElement): () => void {
             key,
             gridRow: numColFacetLevels + j + 1,
             gridCol: track,
-            cls: ["data", "custom-rendered", ...suggestedCls],
+            cls: ["data", ...suggestedCls],
             extraStyles: side === "left" ? { left: offset, minWidth: col.width, maxWidth: col.width } : { minWidth: col.width, maxWidth: col.width },
           });
           if (contentDirty) {

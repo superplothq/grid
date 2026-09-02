@@ -295,14 +295,12 @@ export abstract class GridDataViewModel {
           renderer: def.renderer,
           cellHeight: def.cellHeight,
           sampleData: def.sampleData,
-          isCustom: true,
           colSize: def.colSize ?? defaultColAutoSize,
           valueFormatter: def.valueFormatter ?? facetValueFormatter,
         });
       } else {
         vTrackDefs.push({
           renderer: textRenderer,
-          isCustom: false,
           colSize: def?.colSize ?? defaultColAutoSize,
           valueFormatter: def?.valueFormatter ?? facetValueFormatter,
         });

@@ -495,8 +495,6 @@ describe("blank then load", () => {
 
     expect(vm.vTrackDefs.length).to.equal(2);
     expect(vm.vTrackDefs[0].renderer).to.equal(renderer);
-    expect(vm.vTrackDefs[0].isCustom).to.be.true;
-    expect(vm.vTrackDefs[1].isCustom).to.be.false;
     expect(vm.schema).to.deep.equal([{ name: "name", type: "dimension" }]);
   });
 
@@ -519,8 +517,6 @@ describe("blank then load", () => {
 
     expect(vm.vTrackDefs.length).to.equal(4);
     expect(vm.vTrackDefs[0].renderer).to.equal(renderer);
-    expect(vm.vTrackDefs[0].isCustom).to.be.true;
-    expect(vm.vTrackDefs[1].isCustom).to.be.false;
   });
 });
 
@@ -590,7 +586,6 @@ describe("blank then load then blank", () => {
     vm.updateData({ data: makeData(2, 3), columnFacets: flatColFacets });
 
     expect(vm.vTrackDefs[0].renderer).to.equal(renderer);
-    expect(vm.vTrackDefs[0].isCustom).to.be.true;
   });
 
   it("should keep schema across reset", () => {

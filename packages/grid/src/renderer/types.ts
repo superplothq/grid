@@ -213,7 +213,6 @@ export interface GridDataViewModelOptions {
 
 export interface ResolvedVTrackDef extends VTrackDef {
   renderer: CellRenderer<any>;
-  isCustom: boolean;
   colSize: ColAutoSizeConfig;
   valueFormatter?: ValueFormatter;
 }

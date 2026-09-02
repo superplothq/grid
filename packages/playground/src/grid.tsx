@@ -9,7 +9,8 @@ interface TwoKeyData {
   secondary: string;
 }
 
-const twoKeyRenderer: CellRenderer<TwoKeyData> = (data) => {
+const twoKeyRenderer: CellRenderer<TwoKeyData> = (data, _dataCtx, ctx) => {
+  ctx.container.style.justifyContent = "flex-start";
   if (!data) return "";
   return `<div style="display:flex;flex-direction:column;align-items:flex-start;line-height:1.2">
     <div style="font-weight:bold">${data.primary}</div>
@@ -23,7 +24,8 @@ interface ThreeKeyData {
   third: string;
 }
 
-const threeKeyRenderer: CellRenderer<ThreeKeyData> = (data) => {
+const threeKeyRenderer: CellRenderer<ThreeKeyData> = (data, _dataCtx, ctx) => {
+  ctx.container.style.justifyContent = "flex-start";
   if (!data) return "";
   return `<div style="display:flex;flex-direction:column;align-items:flex-start;line-height:1.2;font-weight:bold">
     <div>${data.first}</div>

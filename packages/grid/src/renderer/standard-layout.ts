@@ -1844,7 +1844,7 @@ export default class StandardLayout extends StandardLayoutBase {
           gridRow: gridRowOffset + j + 1,
           gridCol,
           hintContentDirty,
-          cls: ["data", i === numDataColsVisible - 1 && "r-edge", colDef.isCustom && "custom-rendered", j === numDataRowsVisible - 1 && "last", j === 0 && "first"],
+          cls: ["data", i === numDataColsVisible - 1 && "r-edge", j === numDataRowsVisible - 1 && "last", j === 0 && "first"],
           extraStyles: {},
         });
 
