@@ -1788,7 +1788,7 @@ export default class StandardLayout extends StandardLayoutBase {
         gridRow: gridRowOffset + merge.start + 1,
         gridCol: gridColOffset + merge.level + 1,
         hintContentDirty,
-        cls: ["row-facet", isLeaf ? "facet-r-edge" : "non-leaf", merge.start === numDataRowsVisible - 1 && "last", merge.start === 0 && "first"],
+        cls: ["row-facet", isLeaf ? "facet-r-edge" : "non-leaf", merge.start === numDataRowsVisible - 1 && "row-last", merge.start === 0 && "row-first"],
         extraStyles: {
           rowspan: merge.spanPrimary,
           left: viewModel.fixedLeftVTrackPositions[merge.level + gridColOffset],
@@ -1844,7 +1844,7 @@ export default class StandardLayout extends StandardLayoutBase {
           gridRow: gridRowOffset + j + 1,
           gridCol,
           hintContentDirty,
-          cls: ["data", i === numDataColsVisible - 1 && "r-edge", j === numDataRowsVisible - 1 && "last", j === 0 && "first"],
+          cls: ["data", i === numDataColsVisible - 1 && "r-edge", j === numDataRowsVisible - 1 && "row-last", j === 0 && "row-first"],
           extraStyles: {},
         });
 

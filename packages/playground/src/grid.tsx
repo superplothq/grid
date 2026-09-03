@@ -96,7 +96,7 @@ class LineNumberFixture extends PVerticalFixture {
         gridCol: fixtureViewModel.track,
         hintContentDirty: true,
         // TODO add standard classnames from layout
-        cls: [...fixtureViewModel.suggestedCls, "data", j === 0 && "first", j === sliceData.sliceNumRows - 1 && "last"],
+        cls: [...fixtureViewModel.suggestedCls, "data", j === 0 && "row-first", j === sliceData.sliceNumRows - 1 && "row-last"],
         extraStyles: {
           left: fixtureViewModel.offset,
         },
@@ -144,7 +144,7 @@ class CheckboxFixture extends PVerticalFixture {
         gridRow: fixturesTopLen + numColFacetLevels + j + 1,
         gridCol: fixtureViewModel.track,
         hintContentDirty: true,
-        cls: [...fixtureViewModel.suggestedCls, "data", j === 0 && "first", j === sliceData.sliceNumRows - 1 && "last"],
+        cls: [...fixtureViewModel.suggestedCls, "data", j === 0 && "row-first", j === sliceData.sliceNumRows - 1 && "row-last"],
         extraStyles: {
           left: fixtureViewModel.offset,
         },

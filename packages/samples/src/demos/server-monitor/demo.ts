@@ -402,7 +402,7 @@ export function mount(el: HTMLElement): () => void {
             cell.style.setProperty(vBorderSide, "1px solid var(--vertical-border-color)");
             // The grid CSS forces `border-top: none` on fixture cells, so the row
             // (horizontal) rule stops at the pinned columns. Re-add it inline (skip
-            // the top visible row, matching the .first data cells).
+            // the top visible row, matching the .row-first data cells).
             cell.style.setProperty("border-top", j > 0 ? "1px solid var(--horizontal-border-color)" : "none");
             applyRenderer(cell, col, server, viewModel.y0 + j, this.data!);
             cell.dataset.cellType = "value";

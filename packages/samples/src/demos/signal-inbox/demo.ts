@@ -188,7 +188,7 @@ export function mount(el: HTMLElement): () => void {
           key,
           gridRow: numColFacetLevels + j + 1,
           gridCol: track,
-          cls: ["data", ...suggestedCls, j === n - 1 && "last", j === 0 && "first"],
+          cls: ["data", ...suggestedCls, j === n - 1 && "row-last", j === 0 && "row-first"],
           extraStyles: { left: offset },
         });
         if (contentDirty) {
@@ -242,7 +242,7 @@ export function mount(el: HTMLElement): () => void {
           key,
           gridRow: numColFacetLevels + j + 1,
           gridCol: track,
-          cls: ["data", ...suggestedCls, j === n - 1 && "last", j === 0 && "first"],
+          cls: ["data", ...suggestedCls, j === n - 1 && "row-last", j === 0 && "row-first"],
           extraStyles: { minWidth: CONTACT_WIDTH, maxWidth: CONTACT_WIDTH },
         });
         if (contentDirty) {
