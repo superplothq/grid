@@ -1369,7 +1369,7 @@ export default class StandardLayout extends StandardLayoutBase {
               gridRow: track,
               gridCol: numLeftFixtures + rfLevel + 1,
               hintContentDirty,
-              cls: ["header", `${side}-fixture`, "intersect-left"],
+              cls: ["header", `${side}-fixture`, "fixture-isect-left"],
               extraStyles: {
                 [side]: offset,
                 left: viewModel.fixedLeftVTrackPositions[stickyTrackIndex],
@@ -1515,7 +1515,7 @@ export default class StandardLayout extends StandardLayoutBase {
       gridRow: opts.gridRow,
       gridCol: opts.gridCol,
       hintContentDirty: opts.hintContentDirty,
-      cls: ["header", `${opts.hFixtureSide}-fixture`, "fixture-spacer", `intersect-${opts.stickyRegion}`],
+      cls: ["header", `${opts.hFixtureSide}-fixture`, "fixture-spacer", `fixture-isect-${opts.stickyRegion}`],
       extraStyles: {
         [opts.hFixtureSide]: opts.hFixtureOffset,
         [opts.stickyRegion]: opts.stickyPosition,
