@@ -468,7 +468,7 @@ export default class StandardLayout extends StandardLayoutBase {
   protected appendResizeHandle(cell: HTMLElement, region: "left" | "center" | "right"): HTMLElement {
     const handle = document.createElement("span");
     handle.className = "resize-handle";
-    cell.dataset.cellActionResize = "1";
+    cell.dataset.cellResizeTarget = "1";
     cell.dataset.cellRegion = region;
     cell.appendChild(handle);
     return handle;
@@ -1219,7 +1219,7 @@ export default class StandardLayout extends StandardLayoutBase {
             const handler = this.appendResizeHandle(cell, "left");
             handler.style.height = (88 * (numColFacetLevels - 1))  + "%";
             handler.style.bottom = "4px";
-            handler.dataset.groupFacetResize = "1";
+            handler.dataset.groupTrackResize = "1";
           }
         }
         cell.style.zIndex = `${8888 - hCol}`;
@@ -1942,7 +1942,7 @@ export default class StandardLayout extends StandardLayoutBase {
 
   #getStickyTrackHeaderCell(side: "left" | "right", trackIndex: number): HTMLElement {
     const headerCell = this.#con.querySelector<HTMLElement>(
-      `[data-cell-action-resize][data-${side}-sticky-track-index='${trackIndex}']`
+      `[data-cell-resize-target][data-${side}-sticky-track-index='${trackIndex}']`
     );
     if (!headerCell) {
       throw new Error(`No ${side} sticky track header found for index ${trackIndex} during resize`);

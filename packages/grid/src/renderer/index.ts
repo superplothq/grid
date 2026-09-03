@@ -169,7 +169,7 @@ export default class Grid extends GridWithEvents {
 
     const getResizeTarget = (target: EventTarget | null): HTMLElement | null => {
       if (!(target instanceof HTMLElement)) return null;
-      return target.closest<HTMLElement>("[data-cell-action-resize='1']");
+      return target.closest<HTMLElement>("[data-cell-resize-target='1']");
     };
 
     const findFullColumnRange = (level: number, rightPtr: number): { start: number; end: number } => {
@@ -241,7 +241,7 @@ export default class Grid extends GridWithEvents {
         for (const colIdx of visibleCols) {
           createControllers.push(() => resizeControllers.push({ idx: colIdx, ctrl: this.#layout.changeLeafColWidth(colIdx) }));
         }
-      } else if (region === "left" && (e.target as HTMLElement).dataset.groupFacetResize === "1") {
+      } else if (region === "left" && (e.target as HTMLElement).dataset.groupTrackResize === "1") {
         const numLeftFixtures = this.#layout.numLeftFixedTracks - this.#layout.data!.numRowFacetLevels;
         const numRowFacetLevels = this.#layout.data!.numRowFacetLevels;
         totalColCount = numRowFacetLevels;
@@ -299,7 +299,7 @@ export default class Grid extends GridWithEvents {
 
       const region = cell.dataset.cellRegion as "left" | "center" | "right";
 
-      if (region === "left" && (e.target as HTMLElement).dataset.groupFacetResize === "1") {
+      if (region === "left" && (e.target as HTMLElement).dataset.groupTrackResize === "1") {
         const numLeftFixtures = this.#layout.numLeftFixedTracks - this.#layout.data!.numRowFacetLevels;
         const numRowFacetLevels = this.#layout.data!.numRowFacetLevels;
         for (let i = 0; i < numRowFacetLevels; i++) {
