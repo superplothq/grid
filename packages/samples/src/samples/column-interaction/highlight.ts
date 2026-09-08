@@ -47,7 +47,7 @@ export function mount(el: HTMLElement, ctx: SampleContext): () => void {
   const onMouseDown = (event: MouseEvent): void => {
     const header = closestOfType(event.target, "column-facet");
     if (header) {
-      grid.highlightColumnByDataIndex(parseInt(header.dataset.hix!, 10));
+      grid.highlightColumnByDataIndex(parseInt(header.dataset.col!, 10));
       return;
     }
     const cell = closestOfType(event.target, "value");
@@ -101,12 +101,12 @@ export function mount(el: HTMLElement, ctx: SampleContext): () => void {
 /* ===================================== utils ===================================== */
 
 // The layout tags every cell with its type; data cells also carry their data
-// row/column index (`croix`/`cclix`) and column facet cells their leaf column
-// index (`hix`). Reading those turns a DOM target into a highlight call.
+// row/column index (`data-row`/`data-col`) and column facet cells their leaf column
+// index (`data-col`). Reading those turns a DOM target into a highlight call.
 function closestOfType(target: EventTarget | null, type: "value" | "column-facet"): HTMLElement | null {
   return target instanceof Element ? target.closest<HTMLElement>(`[data-cell-type="${type}"]`) : null;
 }
 
 function cellIndex(cell: HTMLElement): { row: number; col: number } {
-  return { row: parseInt(cell.dataset.croix!, 10), col: parseInt(cell.dataset.cclix!, 10) };
+  return { row: parseInt(cell.dataset.row!, 10), col: parseInt(cell.dataset.col!, 10) };
 }

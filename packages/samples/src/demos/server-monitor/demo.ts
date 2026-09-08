@@ -386,7 +386,7 @@ export function mount(el: HTMLElement): () => void {
         for (let j = 0; j < n; j++) {
           const server = currentRows[viewModel.y0 + j];
           if (!server) continue;
-          const absRow = numColFacetLevels + viewModel.y0 + j;
+          const absRow = viewModel.y0 + j;
           const key = `${side}-${slot}-${absRow}`;
           const [cell, needAppend, contentDirty] = this.placeCellInDom({
             key,
@@ -406,7 +406,7 @@ export function mount(el: HTMLElement): () => void {
             cell.style.setProperty("border-top", j > 0 ? "1px solid var(--horizontal-border-color)" : "none");
             applyRenderer(cell, col, server, viewModel.y0 + j, this.data!);
             cell.dataset.cellType = "value";
-            cell.dataset.croix = String(absRow);
+            cell.dataset.row = String(absRow);
           }
           needAppend && nodesToAppend.push(cell);
         }

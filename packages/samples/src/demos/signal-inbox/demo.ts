@@ -182,7 +182,7 @@ export function mount(el: HTMLElement): () => void {
       for (let j = 0; j < n; j++) {
         const row = currentRows[viewModel.y0 + j];
         if (!row) continue;
-        const absoluteRowIndex = numColFacetLevels + viewModel.y0 + j;
+        const absoluteRowIndex = viewModel.y0 + j;
         const key = `select-${absoluteRowIndex}`;
         const [cell, needAppend, contentDirty] = this.placeCellInDom({
           key,
@@ -199,7 +199,7 @@ export function mount(el: HTMLElement): () => void {
           box.addEventListener("change", () => toggleRow(row.id));
           cell.replaceChildren(box);
           cell.dataset.cellType = "value";
-          cell.dataset.croix = String(absoluteRowIndex);
+          cell.dataset.row = String(absoluteRowIndex);
         }
         needAppend && nodesToAppend.push(cell);
       }
@@ -236,7 +236,7 @@ export function mount(el: HTMLElement): () => void {
       for (let j = 0; j < n; j++) {
         const row = currentRows[viewModel.y0 + j];
         if (!row) continue;
-        const absoluteRowIndex = numColFacetLevels + viewModel.y0 + j;
+        const absoluteRowIndex = viewModel.y0 + j;
         const key = `action-${absoluteRowIndex}`;
         const [cell, needAppend, contentDirty] = this.placeCellInDom({
           key,
@@ -250,7 +250,7 @@ export function mount(el: HTMLElement): () => void {
           cell.style.background = isSelected(row.id) ? ROW_SELECTED_BG : SURFACE;
           cell.replaceChildren(contactButton(isContacted(row.id), () => toggleContact(row.id)));
           cell.dataset.cellType = "value";
-          cell.dataset.croix = String(absoluteRowIndex);
+          cell.dataset.row = String(absoluteRowIndex);
         }
         needAppend && nodesToAppend.push(cell);
       }
@@ -440,7 +440,7 @@ export function mount(el: HTMLElement): () => void {
   const scope = "si-" + allRows.length;
   gridMount.classList.add(scope);
   style.textContent =
-    `.${scope} [data-croix].si-hovered{background:${ROW_HOVER_BG} !important;}` +
+    `.${scope} [data-row].si-hovered{background:${ROW_HOVER_BG} !important;}` +
     "@keyframes si-spin{to{transform:rotate(360deg);}}" +
     ".si-spinner{width:18px;height:18px;border-radius:50%;" +
     `border:2.5px solid color-mix(in srgb, currentColor 18%, transparent);border-top-color:${ACCENT};` +
@@ -448,19 +448,19 @@ export function mount(el: HTMLElement): () => void {
   document.head.appendChild(style);
 
   const onPointerMove = (event: PointerEvent): void => {
-    const cell = (event.target as HTMLElement)?.closest?.<HTMLElement>("[data-croix]");
-    const key = cell ? cell.dataset.croix! : null;
+    const cell = (event.target as HTMLElement)?.closest?.<HTMLElement>("[data-row]");
+    const key = cell ? cell.dataset.row! : null;
     if (key === hoverKey) return;
     setHover(key);
   };
   const onPointerLeave = (): void => setHover(null);
   function setHover(key: string | null): void {
     if (hoverKey !== null) {
-      gridMount.querySelectorAll(`[data-croix="${hoverKey}"]`).forEach((c) => c.classList.remove("si-hovered"));
+      gridMount.querySelectorAll(`[data-row="${hoverKey}"]`).forEach((c) => c.classList.remove("si-hovered"));
     }
     hoverKey = key;
     if (key !== null) {
-      gridMount.querySelectorAll(`[data-croix="${key}"]`).forEach((c) => c.classList.add("si-hovered"));
+      gridMount.querySelectorAll(`[data-row="${key}"]`).forEach((c) => c.classList.add("si-hovered"));
     }
   }
   gridMount.addEventListener("pointermove", onPointerMove);

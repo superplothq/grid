@@ -59,14 +59,14 @@ grid.highlightRangeByDataIndex(r1, c1, r2, c2);       // a rectangle - clears ot
 grid.clearAllHighlights();
 ```
 
-The indices come straight off the DOM: a data cell exposes `data-croix` /
-`data-cclix` (its data row / column), and a column header exposes `data-hix` (its
+The indices come straight off the DOM: a data cell exposes `data-row` /
+`data-col` (its data row / column), and a column header exposes `data-col` (its
 leaf column). A `mousedown` reads them and calls the matching method; a drag
 re-issues `highlightRangeByDataIndex` as the pointer moves.
 
 ```ts
 const cell = (event.target as Element).closest('[data-cell-type="value"]');
-grid.highlightCellByDataIndex(+cell.dataset.croix, +cell.dataset.cclix);
+grid.highlightCellByDataIndex(+cell.dataset.row, +cell.dataset.col);
 ```
 
 Try it below: click a header to select its column (click more headers to add

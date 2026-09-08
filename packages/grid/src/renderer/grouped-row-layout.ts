@@ -67,6 +67,8 @@ export default class GroupedRowLayout extends StandardLayout {
       }
 
       cell.dataset.cellType = "row-facet";
+      cell.dataset.row = String(viewModel.y0 + j);
+      cell.dataset.level = "0";
       // Used by changeLeftStickyTrackWidth to shift subsequent track cells' style.left during live drag
       cell.dataset.leftStickyTrackIndex = String(this.numLeftFixtures);
       needAppend && nodesToAppend.push(cell);

@@ -187,14 +187,14 @@ export default class Grid extends GridWithEvents {
     const getVisibleLeafColumns = (rangeStart: number, rangeEnd: number): number[] => {
       const leafLevel = this.#layout.data!.numColFacetLevels - 1;
       const leafCells = container.querySelectorAll<HTMLElement>(
-        `[data-cell-type='column-facet'][data-facet-level='${leafLevel}']`
+        `[data-cell-type='column-facet'][data-level='${leafLevel}']`
       );
 
       const visibleCols: number[] = [];
       leafCells.forEach(cell => {
-        const hix = parseInt(cell.dataset.hix!, 10);
-        if (hix >= rangeStart && hix <= rangeEnd) {
-          visibleCols.push(hix);
+        const col = parseInt(cell.dataset.col!, 10);
+        if (col >= rangeStart && col <= rangeEnd) {
+          visibleCols.push(col);
         }
       });
 
@@ -215,12 +215,11 @@ export default class Grid extends GridWithEvents {
       let totalColCount = 1;
 
       if (region === "center") {
-        const level = parseInt(cell.dataset.facetLevel!, 10);
+        const level = parseInt(cell.dataset.level!, 10);
         // See the diagram in the comment on standard-layout.ts
         // since for facets level < leaf levels, columns are merged (by applying colspan), rightPtr contains the right
         // most index of the merged column facet value from the data view model.
-        const numLeftFixedTracks = this.#layout.numLeftFixedTracks;
-        const rightPtr = parseInt(cell.dataset.hix!, 10) - numLeftFixedTracks;
+        const rightPtr = parseInt(cell.dataset.col!, 10);
 
         // column facets level = leaf levels provides header cells for data cells. These two essentially create a standard table.
         // Column facets level < leaf levels create hierarchy/nesting and spans over multiple leaf level columns.
@@ -234,7 +233,7 @@ export default class Grid extends GridWithEvents {
         totalColCount = fullRange.end - fullRange.start + 1;
 
         // Find out out of all leaf level nodes over which the column being dragged spans, which columns are in dom
-        const visibleCols = getVisibleLeafColumns(fullRange.start + numLeftFixedTracks, fullRange.end + numLeftFixedTracks);
+        const visibleCols = getVisibleLeafColumns(fullRange.start, fullRange.end);
         // TODO for cells that are not currently in dom atm, but would appear in dom as we scroll / reduce size of columns
         //      we need to update the change in size of columns to be considered as they appears on the dom
 
@@ -316,8 +315,8 @@ export default class Grid extends GridWithEvents {
         this.draw();
       } else if (region === "center") {
         const leafLevel = this.#layout.data!.numColFacetLevels - 1;
-        if (parseInt(cell.dataset.facetLevel!, 10) !== leafLevel) return;
-        const colIdx = parseInt(cell.dataset.hix!, 10);
+        if (parseInt(cell.dataset.level!, 10) !== leafLevel) return;
+        const colIdx = parseInt(cell.dataset.col!, 10);
         this.#layout.autofitLeafColWidth(colIdx);
         this.draw();
       }

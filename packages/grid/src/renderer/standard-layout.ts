@@ -1284,8 +1284,8 @@ export default class StandardLayout extends StandardLayoutBase {
         nonLeafColFacets.push({ cell, mergeStart: merge.start, mergeSpan: merge.spanPrimary });
       }
       cell.dataset.cellType = "column-facet";
-      cell.dataset.facetLevel = String(merge.level);
-      // For a nested column facet which is not at the last level (not leaf nodes), hix is the rightmost column index
+      cell.dataset.level = String(merge.level);
+      // For a nested column facet which is not at the last level (not leaf nodes), data-col is the rightmost column index
       // [f0_0, f0_0, f0_0, f0_0, f1_1, f1_1, f1_1, f1_1]
       // [f1_0, f1_0, f1_1, f1_1, f1_0, f1_0, f1_1, f1_1]
       // [f2_0, f2_1, f2_0, f2_1, f2_0, f2_1, f2_0, f2_1]
@@ -1293,11 +1293,11 @@ export default class StandardLayout extends StandardLayoutBase {
       // | ----------- f0_0--------- | ----------- f0_1--------- |  <- level=0
       // | -- f1_0 --  | -- f1_1 --  | -- f1_0 --  | -- f1_1 --  |  <- level=1
       // | f2_0 | f2_1 | f2_0 | f2_1 | f2_0 | f2_1 | f2_0 | f2_1 |  <- level=2 / leaf nodes
-      // here hix attach to dom node
+      // here data-col attached to dom node
       //   0       1      2       3     4       5     6      7      <- level=2 / leaf nodes
       //           1              3             5            7      <- level=1
       //                          3                          7      <- level=0
-      cell.dataset.hix = String(absoluteColIndex + colspan - 1);
+      cell.dataset.col = String(colIndex + colspan - 1);
       cell.style.zIndex = `${999 - merge.start}`;
       needAppend && nodeAppendList.push(cell);
       if (isLeafLevel) {
@@ -1807,6 +1807,8 @@ export default class StandardLayout extends StandardLayoutBase {
         (cell.firstElementChild as HTMLElement).style.transform = labelOffset !== 0 ? `translateY(${labelOffset}px)` : "";
       }
       cell.dataset.cellType = "row-facet";
+      cell.dataset.row = String(absoluteStart);
+      cell.dataset.level = String(merge.level);
       cell.dataset.leftStickyTrackIndex = String(this.#fixtures.left.length + merge.level);
       needAppend && nodesToAppend.push(cell);
       // NOTE: we don't add row facets for column width measurement as corner cells are sent with for measurement
@@ -1877,8 +1879,8 @@ export default class StandardLayout extends StandardLayoutBase {
           const content = renderer(displayValue, dataCtx, { container: cell, key });
           if (content !== undefined) addOrReplaceChildren(cell, content);
           cell.dataset.cellType = "value";
-          cell.dataset.cclix = String(absoluteColIndex);
-          cell.dataset.croix = String(absoluteRowIndex);
+          cell.dataset.col = String(dataCtx.colIndex);
+          cell.dataset.row = String(dataCtx.rowIndex);
           cell.style.minWidth = clampedSize?.minWidthInPx !== undefined ? `${clampedSize.minWidthInPx}px` : "";
           cell.style.maxWidth = clampedSize?.maxWidthInPx !== undefined ? `${clampedSize.maxWidthInPx}px` : "";
           this.applyCellStyleFns(cell, dataStyleFns);
@@ -1933,7 +1935,7 @@ export default class StandardLayout extends StandardLayoutBase {
   // them that css grid layout manages while creating the nesting/hierarchy.
   #getLeafColCells(colIdx: number): { trackHeaderCell: HTMLElement /* | null; cells: HTMLElement[] */ } {
     const leafLevel = this.data!.numColFacetLevels - 1;
-    const trackHeaderCell = this.#con.querySelector<HTMLElement>(`[data-hix="${colIdx}"][data-facet-level="${leafLevel}"]`);
+    const trackHeaderCell = this.#con.querySelector<HTMLElement>(`[data-col="${colIdx}"][data-level="${leafLevel}"]`);
     if (!trackHeaderCell) {
       throw new Error(`No cells found for column ${colIdx} during resize`);
     }
@@ -2025,19 +2027,17 @@ export default class StandardLayout extends StandardLayoutBase {
   autofitLeafColWidth(colIdx: number): void {
     const { trackHeaderCell } = this.#getLeafColCells(colIdx);
     if (!trackHeaderCell) return;
-    const centerIdx = colIdx - this.#fixtures.left.length - this.data!.numRowFacetLevels;
-    this.#autofitTrack("center", centerIdx, trackHeaderCell, () => this.changeLeafColWidth(colIdx));
+    this.#autofitTrack("center", colIdx, trackHeaderCell, () => this.changeLeafColWidth(colIdx));
   }
 
   changeLeafColWidth(colIdx: number) {
-    const centerIdx = colIdx - this.#fixtures.left.length - this.data!.numRowFacetLevels;
     const { trackHeaderCell } = this.#getLeafColCells(colIdx);
     return this.#changeTrackWidth({
       region: "center",
-      regionIndex: centerIdx,
+      regionIndex: colIdx,
       headerCell: trackHeaderCell,
       onCommit: () => {
-        this.data!.setColSize(centerIdx, { strategy: "clamped-width" });
+        this.data!.setColSize(colIdx, { strategy: "clamped-width" });
       },
     });
   }
