@@ -2,7 +2,7 @@ import { CellRenderer } from "./cell-renderers";
 import { ProjectionState, DataSchema } from "../datamodel/types";
 import { GridDataViewModel } from "./grid-data-viewmodel";
 import { GridConfig } from "./grid-config";
-import CellManager from "./cell-manager";
+import { PlaceCellFn } from "./mixins";
 import PFixture from "./fixture-proto";
 
 export type Constructor<T> = new (...args: any[]) => T;
@@ -223,7 +223,7 @@ export interface CellToMeasure {
   region: "left" | "center" | "right";
 }
 
-export type PFixtureCls = new (config: GridConfig, con: HTMLElement, cellManager: CellManager) => PFixture;
+export type PFixtureCls = new (config: GridConfig, con: HTMLElement, placeCellInDom: PlaceCellFn) => PFixture;
 export interface LayoutFixtureClasses {
   top: PFixtureCls[];
   left: PFixtureCls[];

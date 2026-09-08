@@ -4,10 +4,12 @@ import CellManager from "./cell-manager";
 import { addToRegistry } from "./registry";
 import { Constructor, FacetPredicate } from "./types";
 import { applyThemeTokens } from "./themes";
-import StandardLayout, { LayoutEvents } from "./standard-layout";
+import StandardLayout, { LayoutEvents, CELL_EVENT_NAMES, CellEventName } from "./standard-layout";
 import GroupedRowLayout from "./grouped-row-layout";
 import { WithEvents, EventEmitter, addOrReplaceChildren } from "./mixins";
 import { MatchingRuleStore, Matching } from "./match-all";
+import { resolveFacetSpan } from "./utils";
+import { hoverRectsFor, HoverRect } from "./cell-events";
 
 export type LayoutType = "pivot" | "flat";
 
@@ -81,6 +83,16 @@ export {
   type LoadingRenderer,
   type LoadingRendererContext,
 } from "./loading-renderers";
+export {
+  defaultHoverStyleRenderer,
+  type CellTarget,
+  type CellEventPayload,
+  type HoverRect,
+  type HoverEffect,
+  type HoverStyleRenderer,
+  type HoverStyleContext,
+  type FixtureSide,
+} from "./cell-events";
 
 export type HighlightPayload = {
   hash: string;
@@ -153,9 +165,38 @@ export default class Grid extends GridWithEvents {
     this.#ruleStore = new MatchingRuleStore(() => this.draw());
 
     // Forward layout events to Grid
-    this.forwardFrom(this.#layout as unknown as EventEmitter<LayoutEvents>, ["renderComplete", "debug_perf:metrics", "viewDataEmpty", "viewModelDataChanged"]);
+    this.forwardFrom(this.#layout as unknown as EventEmitter<LayoutEvents>, ["renderComplete", "debug_perf:metrics", "viewDataEmpty", "viewModelDataChanged", ...CELL_EVENT_NAMES]);
 
+    this.#setupBuiltInHover();
     this.#setupResizeHandler();
+  }
+
+  // The layout keeps cell events paused until something listens. Every subscription path (on, off, the
+  // unsubscribe closure returned by on) reports here, so the layout's flags track the listener set.
+  listenersChanged(event: keyof GridEvents): void {
+    if (!(CELL_EVENT_NAMES as readonly string[]).includes(event as string)) return;
+    const cellEvent = event as CellEventName;
+    if (this.hasListeners(cellEvent)) this.#layout.resumeCellEvent(cellEvent);
+    else this.#layout.pauseCellEvent(cellEvent);
+  }
+
+  // The out-of-the-box hover is a consumer of the public events and setHover(), nothing more.
+  #setupBuiltInHover(): void {
+    const effect = this.#config.hoverEffect;
+    if (effect === "none") return;
+    this.on("cellMouseOver", (payload) => this.setHover(hoverRectsFor(payload, effect)));
+    this.on("cellMouseOut", () => this.setHover(null));
+  }
+
+  /**
+   * Applies a transient tint to rectangles of cells without a redraw - the rule is written into a stylesheet that
+   * already-rendered cells match by their data attributes, and is re-clipped to the viewport after every render.
+   * Each rectangle is the intersection of its row and column spans; an omitted axis means the whole axis, so a row is
+   * `{ rows: [i, i] }`, a cell `{ rows: [i, i], cols: [j, j] }`, and a cross two rectangles. Pass `null` to clear.
+   * Independent of highlights: it emits no events and is not affected by highlight conflicts.
+   */
+  setHover(rects: HoverRect[] | null): void {
+    this.#layout.setHover(rects);
   }
 
   #setupResizeHandler(): void {
@@ -170,18 +211,6 @@ export default class Grid extends GridWithEvents {
     const getResizeTarget = (target: EventTarget | null): HTMLElement | null => {
       if (!(target instanceof HTMLElement)) return null;
       return target.closest<HTMLElement>("[data-cell-resize-target='1']");
-    };
-
-    const findFullColumnRange = (level: number, rightPtr: number): { start: number; end: number } => {
-      const facets = this.#layout.data!.columnFacets;
-      const facetValue = facets[level][rightPtr];
-
-      let leftPtr = rightPtr;
-      while (leftPtr > 0 && facets[level][leftPtr - 1] === facetValue) {
-        leftPtr--;
-      }
-
-      return { start: leftPtr, end: rightPtr };
     };
 
     const getVisibleLeafColumns = (rangeStart: number, rangeEnd: number): number[] => {
@@ -228,12 +257,12 @@ export default class Grid extends GridWithEvents {
         // because of virtualization
         const leafLevel = this.#layout.data!.numColFacetLevels - 1;
         const fullRange = level < leafLevel
-          ? findFullColumnRange(level, rightPtr)
-          : { start: rightPtr, end: rightPtr };
-        totalColCount = fullRange.end - fullRange.start + 1;
+          ?  resolveFacetSpan(this.#layout.data!.columnFacets, level, rightPtr)
+          : [rightPtr, rightPtr];
+        totalColCount = fullRange[1] - fullRange[0] + 1;
 
         // Find out out of all leaf level nodes over which the column being dragged spans, which columns are in dom
-        const visibleCols = getVisibleLeafColumns(fullRange.start, fullRange.end);
+        const visibleCols = getVisibleLeafColumns(fullRange[0], fullRange[1]);
         // TODO for cells that are not currently in dom atm, but would appear in dom as we scroll / reduce size of columns
         //      we need to update the change in size of columns to be considered as they appears on the dom
 
@@ -281,6 +310,7 @@ export default class Grid extends GridWithEvents {
 
         if (didDrag) {
           resizeControllers.forEach(c => c.ctrl.commit());
+          this.#layout.suppressNextCellClick();
           this.draw();
         }
       };

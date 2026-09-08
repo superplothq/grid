@@ -140,3 +140,30 @@ export function computeMerges(facetLevel: number, itemCount: number, facets: (st
 
   return results;
 }
+
+// Resolves the full primary-axis span of the facet cell at `index` for `level`, across the whole facet
+// list rather than the visible slice. `facets` is level-major (`facets[level][index]`) as held by the
+// viewmodel, unlike the item-major slices computeMerges consumes. Neighbours belong to the same cell
+// under the same two conditions computeMerges merges them: the path prefix up to `level` is identical
+// (a single level's value would merge X/A with an adjacent Y/A) and the null-driven secondary span below
+// `level` is the same (["A", null] and ["A", "X"] render as two level-0 cells).
+export function resolveFacetSpan(facets: (string | null)[][], level: number, index: number): [from: number, to: number] {
+  const numLevels = facets.length;
+  const secondarySpan = (i: number) => {
+    let span = 1;
+    for (let l = level + 1; l < numLevels && facets[l][i] == null; l++) span++;
+    return span;
+  };
+  const sameCell = (a: number, b: number) => {
+    for (let l = 0; l <= level; l++) {
+      if (facets[l][a] !== facets[l][b]) return false;
+    }
+    return secondarySpan(a) === secondarySpan(b);
+  };
+  const count = facets[level].length;
+  let from = index;
+  while (from > 0 && sameCell(from - 1, index)) from--;
+  let to = index;
+  while (to < count - 1 && sameCell(to + 1, index)) to++;
+  return [from, to];
+}

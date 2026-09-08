@@ -9,6 +9,7 @@ import type {
   FacetDef,
   FlatRowMeta,
   ViewDataEmptyPayload,
+  CellEventPayload,
 } from "@superplot/grid/renderer";
 
 export type { GridDataViewModel };
@@ -77,4 +78,7 @@ export interface DataGridProps {
   onViewDataEmpty?: (payload: ViewDataEmptyPayload) => void;
   onHighlightAdded?: (payload: HighlightPayload) => void;
   onHighlightRemoved?: (payload: HighlightPayload) => void;
+  onCellMouseOver?: (payload: CellEventPayload) => void;
+  onCellMouseOut?: (payload: CellEventPayload) => void;
+  onCellClick?: (payload: CellEventPayload) => void;
 }

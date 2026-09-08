@@ -11,7 +11,7 @@ import { PHorizontalFixture, PVerticalFixture } from "./fixture-proto";
 import { GridConfig } from "./grid-config";
 import { GridDataViewModel } from "./grid-data-viewmodel";
 import PLayout, { BaseViewModel, RenderCtx } from "./layout-proto";
-import { addOrReplaceChildren, WithCellPlacement, WithEvents } from "./mixins";
+import { addOrReplaceChildren, WithCellPlacement, WithEvents, PlaceCellFn, PlaceCellOpts } from "./mixins";
 import { applyThemeTokens } from "./themes";
 import {
   CellToMeasure,
@@ -29,6 +29,7 @@ import {
 } from "./types";
 import { evaluateRulesForDataCell, evaluateRulesForFacetCell } from "./match-all";
 import { computeMerges, MergeState } from "./utils";
+import { CellPointerTracker, resolveCellTarget, CellEventPayload, HoverRect } from "./cell-events";
 
 // `no-data` carries no row range: the grid returns before the layout runs, so no viewport has been
 // calculated. `out-of-range` reports the visible rows that fall outside the loaded block.
@@ -36,7 +37,16 @@ export type ViewDataEmptyPayload =
   | { reason: "no-data" }
   | { reason: "out-of-range"; startRow: number; endRow: number };
 
+export const CELL_EVENT_NAMES = ["cellMouseOver", "cellMouseOut", "cellClick"] as const;
+export type CellEventName = typeof CELL_EVENT_NAMES[number];
+
+// Quiet period after scroll, render or resize activity before the cell under the pointer is re-resolved.
+const POINTER_SETTLE_MS = 100;
+
 export type LayoutEvents = {
+  cellMouseOver: CellEventPayload;
+  cellMouseOut: CellEventPayload;
+  cellClick: CellEventPayload;
   renderComplete: {
     x0: number;
     y0: number;
@@ -122,6 +132,8 @@ interface ResizeState {
 
 
 export default class StandardLayout extends StandardLayoutBase {
+  static #nextGridId = 0;
+  readonly gridId: string;
   // the grid is divided into three regions: left, center and right
   // left region is sticky and hosts fixture + row facets + pinned columns (later)
   // right region is sticky and hosts pinned columns (later) + fixture
@@ -167,17 +179,92 @@ export default class StandardLayout extends StandardLayoutBase {
   // Signature of the current viewmodel's column-sizing config. Used to decide when
   // the measured max-seen widths (`colsWidth.*.indices`) are stale and must be reset.
   #sizingSignature = "";
+  #pointer: CellPointerTracker;
+  #pointerSettleTimer: ReturnType<typeof setTimeout> | null = null;
+  #hoverStyleEl: HTMLElement;
+  #hoverRects: HoverRect[] | null = null;
+  // Cell events start paused; the consumer resumes the ones it has listeners for so pointer resolution
+  // only runs when something will observe it.
+  #cellEventsResumed: Record<CellEventName, boolean> = { cellMouseOver: false, cellMouseOut: false, cellClick: false };
 
   constructor(config: GridConfig, mountPoint: HTMLElement, cellManager: CellManager) {
     super(config, mountPoint, cellManager);
 
-    [this.#con, , this.#virtualPanelEl, this.#gridClipEl] = this.#attachShadowDom();
+    this.gridId = String(StandardLayout.#nextGridId++);
+    [this.#con, , this.#virtualPanelEl, this.#gridClipEl, this.#hoverStyleEl] = this.#attachShadowDom();
+    this.#con.dataset.gridId = this.gridId;
     this.#applyTheme();
     this.#fixtures = this.#validateFixtures();
+    this.#pointer = this.#createPointerTracker();
   }
 
   viewModelProposal(proposal: ViewModelProposal): void {
     Object.assign(this.#proposal, proposal);
+  }
+
+  resumeCellEvent(event: CellEventName): void {
+    this.#cellEventsResumed[event] = true;
+  }
+
+  pauseCellEvent(event: CellEventName): void {
+    this.#cellEventsResumed[event] = false;
+  }
+
+  #createPointerTracker(): CellPointerTracker {
+    const con = this.#con;
+    const resumed = this.#cellEventsResumed;
+    const tracker = new CellPointerTracker({
+      resolve: (cell) => resolveCellTarget(cell, this.data!),
+      // elementFromPoint is document-wide, so an element from another grid or an overlay must not resolve.
+      cellFromTarget: (target) => {
+        if (!(target instanceof HTMLElement) || !con.contains(target)) return null;
+        if (target.closest(".resize-handle")) return null;
+        return target.closest<HTMLElement>(".cell");
+      },
+      elementAt: (x, y) => document.elementFromPoint(x, y),
+      hoverActive: () => this.data !== undefined && (resumed.cellMouseOver || resumed.cellMouseOut) && this.#pointerSettleTimer === null,
+      clickActive: () => this.data !== undefined && resumed.cellClick,
+      onOver: (payload) => this.emit("cellMouseOver", payload),
+      onOut: (payload) => this.emit("cellMouseOut", payload),
+      onClick: (payload) => this.emit("cellClick", payload),
+    });
+    tracker.attach(con);
+    return tracker;
+  }
+
+  // Scroll and render restart the settle timer, and hover resolution is inactive while it is pending, so
+  // inertia scrolling stays quiet until it actually stops. Renders go through it too: re-resolving with
+  // elementFromPoint right after a DOM mutation would force a synchronous layout.
+  #pointerActivity(): void {
+    if (this.#pointerSettleTimer !== null) clearTimeout(this.#pointerSettleTimer);
+    this.#pointerSettleTimer = setTimeout(() => {
+      this.#pointerSettleTimer = null;
+      this.#pointer.refresh();
+    }, POINTER_SETTLE_MS);
+  }
+
+  suppressNextCellClick(): void {
+    this.#pointer.suppressNextClick();
+  }
+
+  /** Writes the hover rule for `rects` into the grid-scoped stylesheet. Re-clipped to the viewport after every render. */
+  setHover(rects: HoverRect[] | null): void {
+    this.#hoverRects = rects;
+    this.#writeHoverStyle();
+  }
+
+  // Assigning identical text still invalidates the sheet, so a redraw that did not move the viewport
+  // would cost a style recalc for nothing.
+  #writeHoverStyle(): void {
+    const css = this.#hoverRects && this.data
+      ? this.config.hoverStyleRenderer(this.#hoverRects, {
+        viewport: this.data.viewport,
+        gridId: this.gridId,
+        numRowFacetLevels: this.data.numRowFacetLevels,
+        numColFacetLevels: this.data.numColFacetLevels,
+      })
+      : "";
+    if (this.#hoverStyleEl.textContent !== css) this.#hoverStyleEl.textContent = css;
   }
 
   setMatchingRules(rules: readonly MatchingRule[]): void {
@@ -265,11 +352,37 @@ export default class StandardLayout extends StandardLayoutBase {
     con.className = "grid-content";
     el.appendChild(con);
 
-    return [con, ...Array.from(el.shadowRoot!.children)] as HTMLElement[];
+    // Cells live in the mount point's light DOM (slotted into the shadow root), so the hover rules must be
+    // a document-level sheet. It sits inside the grid container, scoped by `data-grid-id`.
+    const hoverStyle = document.createElement("style");
+    con.appendChild(hoverStyle);
+
+    return [con, ...Array.from(el.shadowRoot!.children), hoverStyle] as HTMLElement[];
   }
 
   #applyTheme(): void {
     applyThemeTokens(this.#con, this.config.theme);
+  }
+
+  // Fixtures place cells through this closure rather than the cell pool directly, so every fixture cell
+  // carries the same identity attributes as layout-owned cells regardless of what getCellsToRender returns.
+  #createFixturePlaceCell(side: "top" | "left" | "bottom" | "right", index: number): PlaceCellFn {
+    return (opts: PlaceCellOpts) => {
+      const placed = this.placeCellInDom(opts);
+      const cell = placed[0];
+      const data = this.data!;
+      cell.dataset.cellType = "fixture";
+      cell.dataset.fixtureSide = side;
+      cell.dataset.fixtureIndex = String(index);
+      if (side === "left" || side === "right") {
+        const dataRowStart = this.#fixtures.top.length + data.numColFacetLevels + 1;
+        cell.dataset.row = String(opts.gridRow - dataRowStart + data.viewport.y0);
+      } else {
+        const dataColStart = this.#fixtures.left.length + data.numRowFacetLevels + 1;
+        cell.dataset.col = String(opts.gridCol - dataColStart + data.viewport.x0);
+      }
+      return placed;
+    };
   }
 
   /**
@@ -295,8 +408,9 @@ export default class StandardLayout extends StandardLayoutBase {
     };
 
     for (const type of ["top", "left", "bottom", "right"] as const) {
-      for (const FixtureCls of fixtureDefs[type]) {
-        const inst = new FixtureCls(this.config, this.#con, this.cellManager);
+      for (let fi = 0; fi < fixtureDefs[type].length; fi++) {
+        const FixtureCls = fixtureDefs[type][fi];
+        const inst = new FixtureCls(this.config, this.#con, this.#createFixturePlaceCell(type, fi));
         switch (type) {
         case "left":
         case "right":
@@ -1223,6 +1337,9 @@ export default class StandardLayout extends StandardLayoutBase {
           }
         }
         cell.style.zIndex = `${8888 - hCol}`;
+        cell.dataset.cellType = "header";
+        cell.dataset.level = String(hRow);
+        cell.dataset.trackIndex = String(absCol);
         needAppend && nodeAppendList.push(cell);
         const hasHorizontalSpan = shouldSpan && axis === "col";
         if (!hasHorizontalSpan) {
@@ -1388,6 +1505,9 @@ export default class StandardLayout extends StandardLayoutBase {
                 this.populateFacetContainer(cell, headerContainer, headerContent);
               }
             }
+            cell.dataset.cellType = "header";
+            cell.dataset.level = String(rfLevel);
+            cell.dataset.trackIndex = String(stickyTrackIndex);
             cell.dataset.leftStickyTrackIndex = String(stickyTrackIndex);
             needAppend && nodeAppendList.push(cell);
             this.#postRenderAdjustLeftCellsPerLevel[stickyTrackIndex].push(cell);
@@ -1490,6 +1610,8 @@ export default class StandardLayout extends StandardLayoutBase {
 
     this.#postRenderAdjustLeftCellsPerLevel.length = 0;
     this.#postRenderAdjustRightCellsPerLevel.length = 0;
+    this.#writeHoverStyle();
+    this.#pointerActivity();
   }
 
   #addCellRenderResult(result: CellRenderResult): void {
@@ -1522,6 +1644,9 @@ export default class StandardLayout extends StandardLayoutBase {
       },
     });
     cell.dataset[`${opts.stickyRegion}StickyTrackIndex`] = String(opts.stickyTrackIndex);
+    cell.dataset.cellType = "header";
+    cell.dataset.level = "0";
+    cell.dataset.trackIndex = String(opts.stickyTrackIndex);
     return [cell, needAppend];
   }
 
@@ -1576,6 +1701,9 @@ export default class StandardLayout extends StandardLayoutBase {
         handle.style.height = "90%";
       }
       cell.style.zIndex = side === "left" ? `${9999 - fi}` : `${9990 + fi}`;
+      cell.dataset.cellType = "header";
+      cell.dataset.level = "0";
+      cell.dataset.trackIndex = String(fi);
       needAppend && nodeAppendList.push(cell);
       this.#cellsToMeasure.push({ cell, sizeKey: fi, region: side });
       if (!adjustArray[fi]) adjustArray[fi] = [];

@@ -22,6 +22,9 @@ export const DataGrid = forwardRef<DataGridHandle, DataGridProps>(function DataG
     onViewDataEmpty,
     onHighlightAdded,
     onHighlightRemoved,
+    onCellMouseOver,
+    onCellMouseOut,
+    onCellClick,
   } = props;
 
   const containerRef = useRef<HTMLDivElement>(null);
@@ -36,6 +39,12 @@ export const DataGrid = forwardRef<DataGridHandle, DataGridProps>(function DataG
   onHighlightAddedRef.current = onHighlightAdded;
   const onHighlightRemovedRef = useRef(onHighlightRemoved);
   onHighlightRemovedRef.current = onHighlightRemoved;
+  const onCellMouseOverRef = useRef(onCellMouseOver);
+  onCellMouseOverRef.current = onCellMouseOver;
+  const onCellMouseOutRef = useRef(onCellMouseOut);
+  onCellMouseOutRef.current = onCellMouseOut;
+  const onCellClickRef = useRef(onCellClick);
+  onCellClickRef.current = onCellClick;
   const onCellReleaseRef = useRef(onCellRelease);
   onCellReleaseRef.current = onCellRelease;
   const onBeforeMeasureRef = useRef(onBeforeMeasure);
@@ -56,6 +65,9 @@ export const DataGrid = forwardRef<DataGridHandle, DataGridProps>(function DataG
     grid.on("viewDataEmpty", (payload) => onViewDataEmptyRef.current?.(payload));
     grid.on("highlightAdded", (payload) => onHighlightAddedRef.current?.(payload));
     grid.on("highlightRemoved", (payload) => onHighlightRemovedRef.current?.(payload));
+    grid.on("cellMouseOver", (payload) => onCellMouseOverRef.current?.(payload));
+    grid.on("cellMouseOut", (payload) => onCellMouseOutRef.current?.(payload));
+    grid.on("cellClick", (payload) => onCellClickRef.current?.(payload));
 
     setGridInstance((c) => c + 1);
 

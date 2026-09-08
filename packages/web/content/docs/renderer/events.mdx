@@ -3,7 +3,7 @@ title: Events
 description: All events emitted by the Grid instance - render lifecycle, pagination, viewport changes, highlights, and performance metrics.
 ---
 
-The `Grid` class is an event emitter. It forwards layout events and adds its own highlight events. All events are emitted asynchronously (via `setTimeout`).
+The `Grid` class is an event emitter. It forwards layout events, including the cell pointer events, and adds its own highlight events. All events are emitted asynchronously (via `setTimeout`).
 
 ## Subscribing to events
 
@@ -91,6 +91,57 @@ Matching conflict rules:
 - Adding a **range** highlight clears all previous highlights.
 - Adding a **cell** highlight keeps existing cell highlights, but clears row/column highlights (and vice versa).
 - Highlights of the same type accumulate.
+
+### cellMouseOver
+
+Fired when the pointer enters a cell. Fires once per cell: moving between elements inside the same cell does not re-fire it.
+
+```ts
+grid.on("cellMouseOver", (payload) => {
+  // payload: CellTarget & { cell: HTMLElement, originalEvent: MouseEvent }
+  if (payload.cellType === "value") console.log(payload.row, payload.col);
+});
+```
+
+`CellTarget` is a union keyed on `cellType`, mirroring the `data-cell-type` attribute on the cell:
+
+| `cellType` | Fields | Notes |
+|---|---|---|
+| `value` | `row`, `col` | Data cell indices |
+| `row-facet` | `level`, `row`, `toRow` | Full span of the facet value, resolved against the viewmodel, not only the visible part |
+| `column-facet` | `level`, `col`, `toCol` | Same for columns |
+| `header` | `level`, `trackIndex` | Corner cells, fixture headers and fixture spacer cells |
+| `fixture` | `side`, `index`, `row?` / `col?` | `row` for left/right fixtures, `col` for top/bottom |
+
+Emission pauses while the grid scrolls or redraws. Once that activity settles (100ms of quiet) the cell under the pointer is re-resolved, so a cell that scrolled under a stationary cursor still produces an out/over pair. Resolution only runs when at least one listener is registered.
+
+### cellMouseOut
+
+Fired when the pointer leaves a cell, with the same payload shape as `cellMouseOver`. Always precedes the next `cellMouseOver`, and fires when the pointer leaves the grid.
+
+### cellClick
+
+Fired on click with the same payload shape. Clicks on a resize handle, and the click the browser synthesizes at the end of a column drag, are not reported.
+
+```ts
+grid.on("cellClick", ({ cellType, originalEvent, ...target }) => {
+  if (cellType === "value") grid.highlightRowByDataIndex(target.row);
+});
+```
+
+## Hover effect and `setHover`
+
+The grid ships with a hover effect (`GridConfig.hoverEffect`, default `"cross"`) that is itself a listener on `cellMouseOver` / `cellMouseOut` and calls `grid.setHover()`. Set `hoverEffect: "none"` and call `setHover` from your own listeners to get different behavior, for example tinting a whole row on click:
+
+```ts
+grid.on("cellClick", (payload) => {
+  if (payload.cellType === "value") grid.setHover([{ rows: [payload.row, payload.row] }]);
+});
+```
+
+`setHover` takes a list of rectangles. Each is the intersection of its `rows: [from, to]` and `cols: [from, to]` spans, and an omitted axis means the whole axis: `{ rows: [i, i] }` is row i including its leaf facet and fixture cells, `{ cols: [j, j] }` is column j, `{ rows: [i, i], cols: [j, j] }` is the single value cell, and a cross is the two single-axis rectangles together.
+
+`setHover` does not redraw. It writes a CSS rule into a stylesheet scoped to the grid; rendered cells match it through their data attributes, and the rule is re-clipped to the viewport after each render. The rule text comes from `GridConfig.hoverStyleRenderer`; the default mixes the theme's `highlightBaseColor` into each surface's background by `hoverColorMixPercentage`.
 
 ### debug_perf:metrics
 

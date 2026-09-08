@@ -54,6 +54,8 @@ const lightTheme: Theme = {
   dataTopBorderColor: "#ccd0da",
   errOverlayBackgroundColor: "rgba(255, 255, 255, 0.9)",
   errOverlayTextColor: "#d81b60",
+  highlightBaseColor: "#3b82f6",
+  hoverColorMixPercentage: 10,
 };
 ```
 
@@ -85,6 +87,8 @@ const darkTheme: Theme = {
   dataTopBorderColor: "#414559",
   errOverlayBackgroundColor: "rgba(48, 52, 70, 0.9)",
   errOverlayTextColor: "#ff7043",
+  highlightBaseColor: "#60a5fa",
+  hoverColorMixPercentage: 14,
 };
 ```
 
@@ -116,6 +120,8 @@ const darkTheme: Theme = {
 | `dataTopBorderColor` | `--data-top-border-color` | Top border color of the first data row |
 | `errOverlayBackgroundColor` | `--err-overlay-background-color` | Background of error overlay |
 | `errOverlayTextColor` | `--err-overlay-text-color` | Text color of error overlay |
+| `highlightBaseColor` | `--highlight-base-color` | Accent mixed into a cell's background by the hover effect |
+| `hoverColorMixPercentage` | `--hover-color-mix-percentage` | How much of the accent to mix in (0-100) while hovered |
 
 ## Registering a custom theme
 

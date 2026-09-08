@@ -56,7 +56,7 @@ Vertical fixtures occupy a column on the left or right edge of the grid. They sc
 
 <auto-class-outline path="packages/grid/src/renderer/fixture-proto.ts" name="PVerticalFixture" title="Outline" />
 
-- `getCellsToRender` - called on each render cycle with the current viewport. Returns DOM nodes to append to the grid container. Use the cell placement API (inherited from `WithCellPlacement`) to create or reuse cells.
+- `getCellsToRender` - called on each render cycle with the current viewport. Returns DOM nodes to append to the grid container. Use `this.placeCellInDom`, injected by the layout through the constructor, to create or reuse cells. A subclass that declares its own constructor must forward the constructor arguments to `super`.
 - `headerCell` - renders the fixture's header cell in the column facet area (the corner where column headers and the fixture column intersect). Return `null` to skip the header.
 - `colSize` - controls the column width strategy. Defaults to `"max-cell"` (auto-size to content).
 
@@ -99,14 +99,16 @@ class RowNumberFixture extends PVerticalFixture {
     for (let j = 0; j < sliceData.sliceNumRows; j++) {
       const rowIndex = viewModel.y0 + j;
       const key = `row-num-${rowIndex}`;
-      const [cell, needAppend] = this.cellManager.acquire(key);
+      const [cell, needAppend, contentDirty] = this.placeCellInDom({
+        key,
+        gridRow: fixtureViewModel.track + j,
+        gridCol: fixtureViewModel.track,
+        hintContentDirty: true,
+        cls: [...fixtureViewModel.suggestedCls, "data"],
+        extraStyles: { left: fixtureViewModel.offset },
+      });
 
-      cell.className = "cell left-fixture";
-      cell.textContent = String(rowIndex + 1);
-      cell.style.gridRow = String(fixtureViewModel.track + j);
-      cell.style.gridColumn = String(fixtureViewModel.track);
-      cell.style.left = `${fixtureViewModel.offset}px`;
-
+      if (contentDirty) cell.textContent = String(rowIndex + 1);
       if (needAppend) nodesToAppend.push(cell);
     }
     return { nodesToAppend };
@@ -126,6 +128,8 @@ const grid = new Grid(config, mountEl, "flat");
 ```
 
 Multiple fixtures on the same side are stacked in array order. For example, two left fixtures produce two sticky columns on the left edge. Each fixture gets its own grid track and offset position.
+
+`placeCellInDom` is provided by the layout when it instantiates the fixture. Besides acquiring the cell from the pool and positioning it, it stamps the identity attributes every grid cell carries (`data-cell-type="fixture"`, `data-fixture-side`, `data-fixture-index`, and the data `data-row` or `data-col` the cell sits on), so fixture cells take part in [cell events](/grid/docs/renderer/events#cellmouseover) and the hover effect like any other cell.
 
 ## Positioning
 
