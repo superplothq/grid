@@ -314,8 +314,8 @@ export function mount(el: HTMLElement): () => void {
     const renderer: CellRenderer<string> = (data, dataCtx: ValueCellDataContext, ctx: RendererContext) => {
       const container = ctx.container;
       container.style.background = "";
-      // A custom renderer flips the data cell to `.custom-rendered`, which centres
-      // content and zeroes padding — restore right-alignment and padding here.
+      // Alignment and padding are set explicitly: flush right, theme padding on
+      // three sides and a tighter 3px on the right.
       container.style.justifyContent = "flex-end";
       container.style.fontFamily = "\"SF Mono\", ui-monospace, Menlo, Consolas, monospace";
       container.style.fontVariantNumeric = "tabular-nums";

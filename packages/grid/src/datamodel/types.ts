@@ -240,7 +240,9 @@ export type DimSpec =
   | { type: "concat"; children: DimSpec[] };
 
 /**
- * Intermediate representation passed to [`PivotTableDataModel.getData`](/docs/datamodel/pivot-table-datamodel#api-reference). Contains the dimensional structure and measures to aggregate. The subclass interprets this to produce grouped, aggregated data.
+ * Intermediate representation passed to [`PivotTableDataModel.getData`](/docs/datamodel/pivot-table-datamodel#api-reference). Contains the dimensional structure and measures to aggregate. The subclass converts it into a backend command (e.g. SQL) or sends it to an API server.
+ *
+ * Whoever executes the IR (the SQL builder, or a server receiving a `getPivotData` command) groups by the dimensions in the `dimSpec` tree, aggregates each measure per its `aggregation`, and orders the resulting rows by the `dimSpec`'s natural ordering (source insertion order) unless `sort` overrides it - facet spaces are extracted directly from the result order.
  */
 export interface PivotDataFetchAndTransformIR {
   /** Tree describing the dimensional grouping structure. See [DimSpec](/docs/datamodel/pivot-table-datamodel#dimspec). */
@@ -249,6 +251,8 @@ export interface PivotDataFetchAndTransformIR {
   measures: Measure[];
   /** Sort instructions for row dimension values. When present, only covers row dimension fields. */
   sort?: SortEntry[];
+  /** Agent-defined metadata configuration, copied from `PivotConfig.metadata`. Core does not interpret this field - it passes it through so API-backed sources can send it to the server. */
+  metadata?: unknown;
 }
 
 /**
@@ -310,7 +314,15 @@ export interface StandardTableConfig {
 }
 
 /**
- * Intermediate representation describing which rows to fetch. [`StandardTableDataModel`](/docs/datamodel/standard-table-datamodel) passes this to `getData`; the subclass converts it into a backend command (e.g. SQL).
+ * Intermediate representation describing which rows to fetch. [`StandardTableDataModel`](/docs/datamodel/standard-table-datamodel) passes this to `getData`; the subclass converts it into a backend command (e.g. SQL) or sends it to an API server.
+ *
+ * Whoever executes the IR (the SQL builder, or a server receiving a `getRows` command) applies it as:
+ * 1. Apply `filter` conditions (AND) and the `groupPath` equality predicates (`groupBy[i] = groupPath[i]`).
+ * 2. If `groupPath.length < groupBy.length`, group by `groupBy[groupPath.length]` and aggregate each projected measure per its aggregation function; otherwise return individual rows.
+ * 3. Apply `sort`, then slice `[startRow, endRow)`.
+ * 4. Return the slice together with the pre-slice row count at this level.
+ *
+ * Which projected columns are measures and how each aggregates comes from the column schema, which the executor owns.
  */
 export interface StandardDataFetchAndTransformIR {
   /** Start row index in the data source (inclusive). The caller is responsible for converting any logical row to a row index in the data source. All pages overlapping the `[startRow, endRow)` range that are not already cached are fetched in parallel. */
@@ -332,7 +344,22 @@ export interface StandardDataFetchAndTransformIR {
 }
 
 /**
- * The response shape returned by [`getData`](/docs/datamodel/standard-table-datamodel#api-reference).
+ * The response shape returned by [`getData`](/docs/datamodel/standard-table-datamodel#api-reference) - the column-major page [`StandardTableDataModel`](/docs/datamodel/standard-table-datamodel) consumes.
+ *
+ * Column order of `rowData` follows `computeOutputColumns`: at a group level, the group field first (`groupBy[groupPath.length]`), then the entries of `project` that are measure columns, in project order, excluding the group field; at leaf level, `project` verbatim. An empty result is one empty array per output column.
+ *
+ * Example for a top-level group page with `groupBy: ["region", "country"]`, `groupPath: []`, `project: ["revenue", "units"]` - output columns `["region", "revenue", "units"]`:
+ *
+ * ```
+ * {
+ *   rowData: [
+ *     ["EU", "NA"],   // region (group labels)
+ *     [100, 260],     // revenue (aggregated)
+ *     [10, 26],       // units (aggregated)
+ *   ],
+ *   totalRowCount: 2,
+ * }
+ * ```
  */
 export interface GetRowsResponse {
   /** Column-major data arrays. Each inner array holds all values for one column. For example, 3 rows with columns `[name, age]` is stored as `[["Alice", "Bob", "Carol"], [30, 25, 28]]`. */
@@ -341,6 +368,152 @@ export interface GetRowsResponse {
   totalRowCount: number;
   /** Raw metadata columns extracted from the query. Keys are metadata aliases (e.g. `"__meta__email__null"`), values are column-major arrays aligned with `rowData` rows. Populated when a metadata resolver contributes expressions to the getData query. */
   metadata?: Record<string, any[]>;
+}
+
+/**
+ * The commands an API-backed datamodel issues to its data source. [`ApiStandardTableDataModel`](/docs/datamodel/api-standard-table-datamodel) issues `getRows` (carrying the serializable [`StandardDataFetchAndTransformIR`](/docs/api-references/type-references#getrowsir)) and `getRange` (the value range of a single column); [`ApiPivotTableDataModel`](/docs/datamodel/api-pivot-table-datamodel) issues `getPivotData` (carrying the [`PivotDataFetchAndTransformIR`](/docs/api-references/type-references#pivotdatafetchandtransformir)) and `getFacetValues` (carrying a [`PivotFilterQuery`](/docs/api-references/type-references#pivotfilterquery)).
+ *
+ * A command describes what is being asked for, not how it travels - the data source / datamodel receive these types and make the necessary changes (if required): the data source decides how to turn a command into an actual request (e.g. send the IR as a JSON body, in query params, or in headers) via `buildRequest` or a GraphQL operation, and the datamodel runs the response through its transform.
+ *
+ * Example of a user-defined metadata command added via `TMetadataCommand`:
+ *
+ * ```ts
+ * type StatsCommand = { kind: "getStats"; fields: string[] };
+ * // issued by a metadata resolver or a datamodel subclass:
+ * dataSource.execute({ kind: "getStats", fields: ["revenue", "units"] });
+ * // routed to its endpoint by a custom buildRequest that branches on cmd.kind
+ * ```
+ *
+ * @typeParam TMetadataCommand - User-defined command kinds added to the union. The core never sends these - user code (a datamodel subclass, a metadata resolver) does. Defaults to `never` (standard kinds only).
+ */
+export type StandardApiCommand<TMetadataCommand = never> =
+  | { kind: "getRows"; ir: StandardDataFetchAndTransformIR }
+  | { kind: "getRange"; field: string }
+  | { kind: "getPivotData"; ir: PivotDataFetchAndTransformIR }
+  | { kind: "getFacetValues"; query: PivotFilterQuery }
+  | TMetadataCommand;
+
+/**
+ * The response an API server returns for a `getRows` [`StandardApiCommand`](/docs/api-references/type-references#standardapicommand). Row-major - each entry in `rows` is one row keyed by field name, the natural shape of a database query result. The default [`StandardApiTransform`](/docs/api-references/type-references#standardapitransform) (`defaultStandardApiTransform`) picks the output columns from the rows by field name and converts them to the column-major [`GetRowsResponse`](/docs/api-references/type-references#getrowsresponse).
+ *
+ * The column order is derived from the IR's `groupBy` and `project` (see `computeOutputColumns`), so the order of keys inside a row does not matter - values are picked by key, and extra keys are ignored. The order of entries in `rows` does matter: it is the row order the grid displays, and the server decides it by reading the IR (`sort`, source order, then slicing). The column names in the schema must exactly match the keys of the rows.
+ *
+ * Example for a top-level group page with `groupBy: ["region", "country"]`, `groupPath: []`, `project: ["revenue", "units"]`:
+ *
+ * ```
+ * {
+ *   rows: [
+ *     { region: "EU", revenue: 100, units: 10 },
+ *     { region: "NA", revenue: 260, units: 26 },
+ *   ],
+ *   totalRowCount: 2,
+ * }
+ * ```
+ */
+export interface GetRowsApiResponse {
+  /** Row-major data - one object per row, keyed by field name. */
+  rows: Record<string, any>[];
+  /** Total number of rows at this level before slicing. */
+  totalRowCount: number;
+  /** Metadata columns computed by the server (driven by `ir.metadata`). Keys are metadata aliases, values are column-major arrays aligned with `rows`. Passed to the pagewise metadata reshaper. */
+  metadata?: Record<string, any[]>;
+}
+
+/**
+ * The response an API server returns for a `getPivotData` [`StandardApiCommand`](/docs/api-references/type-references#standardapicommand). Row-major - each entry in `rows` is one grouped row keyed by the names in `columns`. The default [`StandardApiTransform`](/docs/api-references/type-references#standardapitransform) (`defaultPivotApiTransform`) picks the columns from the rows by name and converts them to the column-major [`PivotRawDataFromSource`](/docs/api-references/type-references#pivotrawdatafromsource).
+ *
+ * Values are picked from each row by key, so the order of keys inside a row does not matter and extra keys are ignored. The order of entries in `columns` and the order of entries in `rows` do matter - facet spaces are extracted from them directly, and the server decides both by reading the IR. The names in `columns` must exactly match the keys of the rows.
+ *
+ * Example for `cross("region", "department")` with measure `revenue`:
+ *
+ * ```
+ * {
+ *   columns: ["region", "department", "revenue"],
+ *   rows: [
+ *     { region: "NA", department: "Elec", revenue: 8150 },
+ *     { region: "NA", department: "App", revenue: 1670 },
+ *     { region: "EU", department: "Elec", revenue: 5650 },
+ *     { region: "EU", department: "App", revenue: 1730 },
+ *   ],
+ * }
+ * ```
+ */
+export interface GetPivotDataApiResponse {
+  /** Column names in order: dimension columns first (in tree-traversal order of the `dimSpec`), then measure columns. */
+  columns: string[];
+  /** Row-major data - one object per grouped row, keyed by the names in `columns`. */
+  rows: Record<string, any>[];
+  /** Metadata columns computed by the server (driven by `ir.metadata`). Keys are metadata aliases, values are column-major arrays aligned with `rows`. Passed to the metadata reshaper. */
+  metadata?: Record<string, any[]>;
+}
+
+/**
+ * The data source returns what the server sent, with these types as the expectation - it does not reshape. A server that cannot produce them natively is adapted by the [`StandardApiTransform`](/docs/api-references/type-references#standardapitransform) given to the datamodel together with the data source.
+ *
+ * @typeParam TMetadataResponse - The responses for user-defined command kinds added via [`StandardApiCommand`](/docs/api-references/type-references#standardapicommand)'s `TMetadataCommand`. Defaults to `never` (standard responses only).
+ */
+export type StandardApiResponse<TMetadataResponse = never> = GetRowsApiResponse | ColumnRangeValues | GetPivotDataApiResponse | string[][] | TMetadataResponse;
+
+/**
+ * The output type of a [`StandardApiTransform`](/docs/api-references/type-references#standardapitransform) for a given command. The transform converts the server's row-major response (rows keyed by field name) into the column-major shape the datamodel consumes. The conversion is necessary because everything downstream - page cache, flattening, viewmodel, renderer - works only with column-major data; the transform is the boundary where row-major ends.
+ *
+ * Example (pseudocode types):
+ *
+ * ```
+ * // getRows:       { rows: [{ region, revenue }, ...], totalRowCount }  -> { rowData: [[..regions], [..revenues]], totalRowCount }
+ * // getPivotData:  { columns, rows: [{ region, revenue }, ...] }        -> { columns, data: [[..regions], [..revenues]] }
+ * // getRange, getFacetValues, user-defined kinds: already consumable, used as-is
+ * ```
+ *
+ * The correlation is documentation-grade: TypeScript cannot narrow a conditional return type from a `cmd.kind` check inside the implementation, so a transform branch returning a literal may need a cast to the branch's response type.
+ */
+export type StandardApiTransformResult<C, TMetadataResponse = never> =
+  C extends { kind: "getRows" } ? GetRowsResponse :
+  C extends { kind: "getRange" } ? ColumnRangeValues :
+  C extends { kind: "getPivotData" } ? PivotRawDataFromSource :
+  C extends { kind: "getFacetValues" } ? string[][] :
+  TMetadataResponse;
+
+/**
+ * Container holding a schema together with its inverse index.
+ */
+export interface SchemaInfo {
+  /** The current schema. */
+  schema: DataSchema[];
+  /** Inverse index mapping column name to its index in the schema list. */
+  schemaIndex: Map<string, number>;
+}
+
+/**
+ * The context passed to a [`StandardApiTransform`](/docs/api-references/type-references#standardapitransform) on every call - the datamodel's schema state plus the IR of the command being transformed.
+ */
+export interface StandardApiTransformContext extends SchemaInfo {
+  /** The IR carried by the command being transformed - always present for `getRows` / `getPivotData` (and for user-defined commands that carry an `ir` field); `undefined` for commands without one (`getRange`, `getFacetValues`). */
+  ir?: StandardDataFetchAndTransformIR | PivotDataFetchAndTransformIR;
+}
+
+/**
+ * Converts a server response into the column-major format the datamodel and everything downstream depend on ([`StandardApiTransformResult`](/docs/api-references/type-references#standardapitransformresult)). Needed because a server can respond in any shape - the transform is the single place that closes that gap. It is generic enough to fit any response type the server sends: `raw` is untyped, and branching on `cmd.kind` handles each command's response differently.
+ *
+ * Provided via the config of [`ApiStandardTableDataModel`](/docs/datamodel/api-standard-table-datamodel) / [`ApiPivotTableDataModel`](/docs/datamodel/api-pivot-table-datamodel) as the data source's pair - the datamodel runs every response through it, including responses for user-defined command kinds issued by datamodel subclasses. By default the expected server shape is row-major ([`GetRowsApiResponse`](/docs/api-references/type-references#getrowsapiresponse) / [`GetPivotDataApiResponse`](/docs/api-references/type-references#getpivotdataapiresponse)), converted to the column-major [`GetRowsResponse`](/docs/api-references/type-references#getrowsresponse) / [`PivotRawDataFromSource`](/docs/api-references/type-references#pivotrawdatafromsource).
+ */
+export type StandardApiTransform<TMetadataCommand = never, TMetadataResponse = never> =
+  <C extends StandardApiCommand<TMetadataCommand>>(cmd: C, raw: any, ctx: StandardApiTransformContext) => StandardApiTransformResult<C, TMetadataResponse>;
+
+/**
+ * Configuration for [`ApiStandardTableDataModel`](/docs/datamodel/api-standard-table-datamodel)
+ */
+export interface ApiStandardTableConfig<TMetadataCommand = never, TMetadataResponse = never> extends StandardTableConfig {
+  /** Converts each response into the shape the datamodel consumes. Omit for a server speaking the standard protocol - the default converts the row-major wire responses to column-major. For a deviating server, adapt the body and delegate to the default. */
+  transform?: StandardApiTransform<TMetadataCommand, TMetadataResponse>;
+}
+
+/**
+ * Configuration for [`ApiPivotTableDataModel`](/docs/datamodel/api-pivot-table-datamodel).
+ */
+export interface ApiPivotTableConfig<TMetadataCommand = never, TMetadataResponse = never> {
+  /** Converts each response into the shape the datamodel consumes. Omit for a server speaking the standard protocol - the default converts the row-major wire responses to column-major. For a deviating server, adapt the body and delegate to the default. */
+  transform?: StandardApiTransform<TMetadataCommand, TMetadataResponse>;
 }
 
 /**
@@ -431,7 +604,7 @@ export interface StandardRawMetadata {
 export interface StandardMetadataResolverInput {
   ir: StandardDataFetchAndTransformIR;
   schema: DataSchema[];
-  dataSource?: DataSource<any>;
+  dataSource?: DataSource<any, any>;
 }
 
 export interface StandardGlobalMetadataResolver {
@@ -493,8 +666,9 @@ export interface StandardMetadataReshaper {
 }
 
 export interface StandardMetadataPlumbing {
+  /** Global metadata resolved once per IR. The datamodel invokes the resolver through its overridable `getGlobalMetadata`, so a subclass can adapt the resolver's raw result before the reshaper runs on it. */
   global?: { resolver: StandardGlobalMetadataResolver; reshaper: StandardGlobalMetadataReshaper };
-  pageWise?: { resolver: StandardMetadataResolver<unknown>; reshaper: StandardMetadataReshaper };
+  pageWise?: { resolver?: StandardMetadataResolver<unknown>; reshaper: StandardMetadataReshaper };
 }
 
 export type StandardMetadataPlumber = (ir: StandardDataFetchAndTransformIR) => StandardMetadataPlumbing;

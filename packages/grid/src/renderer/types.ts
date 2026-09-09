@@ -2,7 +2,7 @@ import { CellRenderer } from "./cell-renderers";
 import { ProjectionState, DataSchema } from "../datamodel/types";
 import { GridDataViewModel } from "./grid-data-viewmodel";
 import { GridConfig } from "./grid-config";
-import CellManager from "./cell-manager";
+import { PlaceCellFn } from "./mixins";
 import PFixture from "./fixture-proto";
 
 export type Constructor<T> = new (...args: any[]) => T;
@@ -213,7 +213,6 @@ export interface GridDataViewModelOptions {
 
 export interface ResolvedVTrackDef extends VTrackDef {
   renderer: CellRenderer<any>;
-  isCustom: boolean;
   colSize: ColAutoSizeConfig;
   valueFormatter?: ValueFormatter;
 }
@@ -224,7 +223,7 @@ export interface CellToMeasure {
   region: "left" | "center" | "right";
 }
 
-export type PFixtureCls = new (config: GridConfig, con: HTMLElement, cellManager: CellManager) => PFixture;
+export type PFixtureCls = new (config: GridConfig, con: HTMLElement, placeCellInDom: PlaceCellFn) => PFixture;
 export interface LayoutFixtureClasses {
   top: PFixtureCls[];
   left: PFixtureCls[];
@@ -296,7 +295,7 @@ export interface ValueCellDataContext {
 export type FacetPredicate = (dim: string, dimVal: string | null, path: [string, string | null][]) => boolean;
 export type CellPredicate = (value: any) => boolean;
 
-export interface SelectionProps {
+export interface MatchingRuleProps {
   cellRenderer?: CellRenderer<any>;
   trackRenderer?: FacetCellRenderer;
   colSize?: ColAutoSizeConfig;
@@ -308,10 +307,10 @@ export interface CellPredicateNode { type: "cell"; predicate: CellPredicate; }
 export type PredicateNode = FacetPredicateNode | CellPredicateNode;
 
 export type TerminalOp =
-  | { type: "prop"; props: SelectionProps }
+  | { type: "prop"; props: MatchingRuleProps }
   | { type: "style"; fn: (container: HTMLElement) => void };
 
-export interface SelectionRule {
+export interface MatchingRule {
   id: number;
   predicates: PredicateNode[];
   terminal: TerminalOp;

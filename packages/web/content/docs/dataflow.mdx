@@ -1,26 +1,35 @@
 ---
-title: Dataflow
-description: How data flows through the pipeline that is part of the grid's lifecycle, from raw storage through transformation and viewmodel construction to DOM rendering. Each layer has a single responsibility and communicates with the next through a defined interface.
+title: Design and dataflow
+description: A layered, open-closed architecture where data moves in one direction through a stable contract at every boundary, so any layer can be swapped out (or extended) when needed.
 ---
 
-The grid is built as four layers, each with a single responsibility. This is a headless library that requires a layer above (your code) to tie all these components together. This allows great extensibility and composability.
+SuperPlot's grid is built for coding agents to work with, so a human can describe the grid they want in conversation and have an agent reliably generate, inspect, and refine it.
 
-## Patterns
+The grid consists of four core components that are instantiated and injected by glue code written by an agent. This provides greater customization and composability, as the building blocks are stable and well defined.
 
-The four layers are: **DataSource**, **DataModel**, **DataViewModel**, and **Renderer**. Your code acts as the headless manager that orchestrates them. If the interfaces are adhered to, the dataflow just works.
+## Core components
+
+The four core components are: `DataSource`, `DataModel`, `DataViewModel`, and *Renderer*. Your glue code acts as the headless manager that orchestrates them. If the interfaces are adhered to, the dataflow just works.
 
 <DocDiagram id="dataflow" />
 
-- **DataSource** connects to the actual data storage (a WASM database in the browser, an API server, in-memory data) and forwards config/queries to it. It does not know what the queries mean, it just sends them to the source and returns results. Example: a SQL string against a WASM DuckDB instance, or a JSON payload to an API server.
-- **DataModel** accepts a config describing what transformation to apply (group by, sort, window, reshape) and asks the DataSource to execute it. It receives raw results back and reshapes them into params ready for the ViewModel. Your code calls the DataModel and receives these params.
-- **DataViewModel** is a thin, fast, ready-to-render structure. Your code takes the params from the DataModel, applies any local transforms or formatting hooks, and feeds them into the ViewModel. The ViewModel knows nothing about where the data came from.
-- **Renderer** (the Grid instance) receives the ViewModel via `grid.data = viewModel` and renders cells into the DOM. It subscribes to events on the Renderer (scroll, interaction, `viewDataEmpty`) and uses those events to drive the next cycle, asking the DataModel for new data and feeding it back through the pipeline.
+- **DataViewModel** is a thin, ready-to-render, column-major structure. It holds the data along with row and column facets, render metadata, and render state, and knows nothing about the schema, where the data came from, or what transformation produced it. The Renderer slices only the visible rows and columns out of it, and because that is the hot path, this step is built to be stupid fast.
+- **Renderer** (the Grid instance) receives the ViewModel as its source of data and renders cells into the DOM. It manages DOM nodes through pooling and virtualization, and owns event handling, viewport calculation, and scrolling.
+- **DataSource** connects to the source of data - a database behind an API, an in-memory WASM database, or practically any transport you can put behind a request. It sends the request through to the source and returns the result to the caller without interpreting either. A DataModel is handed a DataSource instance to work against.
+- **DataModel** takes an IR describing the transformation to apply - grouping, pivoting, sorting, windowing, filtering, projection - asks the DataSource to execute it, and reshapes the raw results into params ready for the ViewModel. For standard (non-pivot) tables it manages expand and collapse, page fetching, and eviction. For pivots it manages dimensional projection.
+- **Glue code** (written by an agent) is the layer above the four components. The library ships headless by default, so this layer picks and initializes the DataSource the requirement calls for and constructs the DataModel with that DataSource injected, which keeps the data layer separate. Because the DataModel and DataViewModel have no direct relation, the glue code is what calls the DataModel for data and pushes the result into the ViewModel. It also creates the grid instance and any surrounding UI and owns their state and lifecycle, treating all four components as APIs and building the fabric that makes a working grid.
 
-Each layer is an interface or abstract class, so you can replace any layer without touching the others.
+Any component can be swapped out as the requirement demands. By default each one is a closed definition with open extension points, so most customization is a matter of hooking into a component rather than replacing it. For the rare case where a fully custom implementation is wanted, the existing component base can be extended rather than started from scratch.
 
-Keeping the DataModel and DataViewModel internally disconnected, and wiring them together only through the glue code, is a deliberate decision. The dependency injection of the components happens in the glue code too: your layer constructs each one, hands a DataSource to the DataModel, feeds the DataModel's output into the ViewModel, and gives the ViewModel to the Renderer.
+Out of the box the grid owns only the rendering of grid layout. It ships no sorting or filtering icons and no peripheral UI of its own. That is deliberate: the library is opinionated about how data is processed, how it flows, how metadata is retrieved, and what interaction primitives exist, but not about presentation or how those interactions are surfaced, which the glue code decides from the developer's requirements.
 
-The grid manages its own internal state, but every state that decides which kind of grid to produce lives in the glue code: the config for the DataModel, the local transforms applied on the way into the ViewModel, and the event handling that drives the next cycle. Because that state sits in your layer rather than being buried inside any single component, you stay in control of how the grid is composed and can swap or extend a layer without the others needing to know.
+## Dataflow
+
+The loop is always the same. The glue code creates a DataViewModel, creates the grid instance, and hands the ViewModel to it. From then on, interaction updates the ViewModel rather than the grid: the glue code listens to grid events, or to events from whatever custom UI it built, and updates the ViewModel in response. If a DataModel is in play, that means updating the IR, fetching data for it, and pushing the result into the ViewModel, which re-renders the grid. Data therefore only ever moves in one direction.
+
+<DocDiagram id="unidirectional-flow" />
+
+<usage-pattern id="dataflow-loop" />
 
 ### New grid creation
 

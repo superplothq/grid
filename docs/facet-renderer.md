@@ -207,13 +207,15 @@ Both `FacetCellRenderer` and `FacetHeaderRenderer` produce the same DOM structur
 When a renderer returns a plain `El` (string, HTMLElement, or array), the cell contains:
 
 ```html
-<span class="content">...rendered content...</span>
+<div class="cell-slots">
+  <span class="content">...rendered content...</span>
+</div>
 ```
 
 When a renderer returns a `FacetCellContent` object with slots, the cell contains:
 
 ```html
-<div class="f-cell-con">
+<div class="cell-slots">
   <div>...left...</div>           <!-- only if left is provided -->
   <div class="content">...content...</div>
   <div>...right...</div>          <!-- only if right is provided -->

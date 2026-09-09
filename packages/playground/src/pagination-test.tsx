@@ -248,6 +248,7 @@ const PaginationTestPlayground: React.FC = () => {
       grid.draw();
 
       grid.on("viewDataEmpty", async (vp) => {
+        if (vp.reason === "no-data") return;
         console.log('>>> vp', vp.startRow, vp.endRow);
         setFetchingPage(true);
         const newIR: StandardDataFetchAndTransformIR = {

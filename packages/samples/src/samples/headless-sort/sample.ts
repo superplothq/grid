@@ -359,9 +359,8 @@ function compare(a: unknown, b: unknown, kind: "text" | "money"): number {
   return String(a ?? "").localeCompare(String(b ?? ""));
 }
 
-// A custom renderer flips the cell to `.custom-rendered`, which centres content and
-// zeroes padding - restore the theme padding and push the formatted value flush
-// right with tabular figures.
+// Pins the theme padding and alignment explicitly so the formatted value sits flush
+// right with tabular figures, independent of the cell's stylesheet defaults.
 const rightAlignValue: CellRenderer<string> = (data, _dataCtx, ctx: RendererContext) => {
   const cell = ctx.container;
   cell.style.justifyContent = "flex-end";

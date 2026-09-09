@@ -56,7 +56,9 @@ export const createChartRenderer: CellWithConfigRenderer<ChartConfig, number[]> 
   const { chartType, minWidth, minHeight, padding, color, strokeWidth } = mergedConfig;
 
   // Separate bar / line etc rendering
-  return (data: number[], _dataCtx: ValueCellDataContext): string => {
+  return (data: number[], _dataCtx: ValueCellDataContext, ctx: RendererContext): string => {
+    ctx.container.style.justifyContent = "center";
+    ctx.container.style.padding = "0";
     if (!data || data.length === 0) return "";
 
     const width = minWidth;

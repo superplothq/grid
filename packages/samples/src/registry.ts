@@ -45,8 +45,8 @@ export const samples: Record<string, SampleEntry> = {
     load: () => import("./samples/column-interaction/resize"),
     conversation: () => Promise.resolve({ turns: [] }),
   },
-  "column-interaction-selection": {
-    load: () => import("./samples/column-interaction/selection"),
+  "column-interaction-highlight": {
+    load: () => import("./samples/column-interaction/highlight"),
     conversation: () => Promise.resolve({ turns: [] }),
   },
   "column-metadata-heat-bars": {

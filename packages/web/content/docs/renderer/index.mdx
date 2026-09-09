@@ -262,8 +262,25 @@ Default values:
   columnAutosizingStrategyOnScroll: "max-seen",
   dataFetchDebounceMs: 150,
   fixtures: { top: [], left: [], bottom: [], right: [] },
+  hoverEffect: "cross",
+  hoverStyleRenderer: defaultHoverStyleRenderer,
 }
 ```
+
+## Cell data attributes
+
+Every rendered cell carries identity attributes. They drive the [cell events](/grid/docs/renderer/events#cellmouseover) and are the contract a custom `hoverStyleRenderer` writes selectors against.
+
+| Attribute | Present on | Value |
+|---|---|---|
+| `data-cell-type` | all cells | `value`, `row-facet`, `column-facet`, `header`, `fixture` |
+| `data-row` | value, row facet, left/right fixture cells | Data row index. On a merged row facet, the first visible row of the span |
+| `data-col` | value, column facet, top/bottom fixture cells | Data column index. On a merged column facet, the last visible column of the span |
+| `data-level` | facet and header cells | Facet level |
+| `data-track-index` | header cells | Sticky track index of the header's column |
+| `data-fixture-side`, `data-fixture-index` | fixture cells | Which fixture rendered the cell |
+
+The grid container carries `data-grid-id`, unique per instance, for scoping generated rules.
 
 ## Column resize
 
@@ -276,4 +293,4 @@ When `enableResizeUI` is `true` (default), column facet cells render a drag hand
 
 ## API Reference.
 
-<auto-type-table path="packages/grid/src/renderer/index.ts" type="Pick<Grid, 'data' | 'draw' | 'scheduleDraw' | 'scrollTo' | 'selectAll' | 'selectCellByDataIndex' | 'selectColumnByDataIndex' | 'selectRowByDataIndex' | 'selectRangeByDataIndex' | 'clearAllSelections'>" origname="Grid" />
+<auto-type-table path="packages/grid/src/renderer/index.ts" type="Pick<Grid, 'data' | 'draw' | 'scheduleDraw' | 'scrollTo' | 'matchAll' | 'highlightCellByDataIndex' | 'highlightColumnByDataIndex' | 'highlightRowByDataIndex' | 'highlightRangeByDataIndex' | 'clearAllHighlights' | 'setHover'>" origname="Grid" />

@@ -405,6 +405,47 @@ html[data-theme='dark'] #nd-docs-layout .shiki span {
   color: #1f8f57;
 }
 
+/* Usage patterns: canonical pseudo code transcluded from content/patterns via
+   <usage-pattern id="..."/>. The wrapper mimics the fumadocs code block chrome
+   (card background, border, rounded corners) so the "Usage pattern" label and
+   the muted intent sit inside the box as its header bar, and the inner code
+   block sheds its own chrome to merge into the box. */
+.doc-usage-pattern {
+  margin: 1rem 0;
+  border: 1px solid var(--color-fd-border);
+  border-radius: 0.75rem;
+  background: var(--bg-inset);
+  box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+  overflow: hidden;
+}
+.doc-usage-pattern-header {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  min-height: 2.375rem;
+  padding: 0.5rem 1rem;
+  border-bottom: 1px solid var(--color-fd-border);
+  color: var(--text-muted);
+  font-size: 0.875rem;
+}
+.doc-usage-pattern-icon {
+  width: 0.875rem;
+  height: 0.875rem;
+  flex: none;
+  transform: translateY(2px);
+}
+.doc-usage-pattern-intent {
+  font-size: 0.8rem;
+  line-height: 1.3;
+}
+.doc-usage-pattern figure {
+  margin: 0;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+}
+
 /* Conversation reuses web's demo-chatbox visual; drop its fixed demo height. */
 #nd-docs-layout .sample-conversation[open] {
   height: auto;

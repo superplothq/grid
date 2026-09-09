@@ -54,7 +54,7 @@ export function mount(el: HTMLElement, ctx: SampleContext): () => void {
         gridRow: fixture.track,
         gridCol: 1,
         hintContentDirty: true,
-        cls: `header ${fixture.suggestedCls.join(" ")}`,
+        cls: ["header", ...fixture.suggestedCls],
         extraStyles: {
           top: fixture.offset,
           left: vm.fixedLeftVTrackPositions?.[0] ?? 0,

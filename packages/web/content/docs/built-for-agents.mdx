@@ -1,16 +1,21 @@
 ---
 title: Built for Agents
-description: A layered, open-closed architecture with a stable contract at every boundary - so an agent can generate any grid.
+description: A layered, open-closed architecture with a stable contract at every boundary, so any layer can be swapped out (or extended) when needed.
 ---
 
-SuperPlot is built for a new kind of consumer: coding agents that generate, inspect, and refine data grids in conversation with a human. Everything below follows from one idea - a grid composed of independent layers, each opening up a typed contract, so an agent can build it reliably, one layer at a time.
+SuperPlot's grid is built to be reliable for coding agents to work with, so a human can describe the grid they want in conversation and have an agent generate, inspect, and refine it. Everything below follows from one idea - a grid composed of independent layers, each opening up a typed contract, so an agent can build it reliably, one layer at a time.
 
-## The pipeline
+## The building blocks 
 
-The grid is a strict four-stage pipeline. Each stage has a single responsibility and a typed contract with the next, and knows nothing about the layers above or below it.
+The grid has four building blocks, each with a strict contract with the next. The blocks packaged with SuperPlot are enough for the majority of use cases, but for extreme customization any block can be swapped out and a custom implementation can be provided as long as the contracts are respected.
 
 ```text
-DataSource  ->  DataModel  ->  DataViewModel  ->  Renderer
++--------------------------------------------------------+
+|                   Glue code (agent)                    |
++--------------------------------------------------------+
+     |              |                |                |
+     v              v                v                v
+DataSource  <-  DataModel      DataViewModel  ->  Renderer
 (storage)       (transform)    (bridge)           (pixels)
 ```
 

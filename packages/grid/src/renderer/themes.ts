@@ -1,5 +1,5 @@
 import { Theme } from "./types";
-import { registerTheme } from "./registry";
+import { getTheme, registerTheme } from "./registry";
 
 export const lightTheme: Theme = {
   cellPaddingY: 7,
@@ -27,6 +27,8 @@ export const lightTheme: Theme = {
   dataTopBorderColor: "#dcdce0",
   errOverlayBackgroundColor: "rgba(255, 255, 255, 0.92)",
   errOverlayTextColor: "#dc2626",
+  highlightBaseColor: "#3b82f6",
+  hoverColorMixPercentage: 10,
 };
 
 export const darkTheme: Theme = {
@@ -55,7 +57,19 @@ export const darkTheme: Theme = {
   dataTopBorderColor: "#3a3a41",
   errOverlayBackgroundColor: "rgba(16, 16, 19, 0.92)",
   errOverlayTextColor: "#f87171",
+  highlightBaseColor: "#60a5fa",
+  hoverColorMixPercentage: 14,
 };
 
 registerTheme("light", lightTheme);
 registerTheme("dark", darkTheme);
+
+/** Writes a registered theme onto an element as CSS custom properties, camelCase keys becoming `--kebab-case`. */
+export function applyThemeTokens(el: HTMLElement, name: string): void {
+  const theme = getTheme(name);
+  if (!theme) return;
+  for (const [key, value] of Object.entries(theme)) {
+    const cssVar = "--" + key.replace(/[A-Z]/g, m => "-" + m.toLowerCase());
+    el.style.setProperty(cssVar, String(value));
+  }
+}

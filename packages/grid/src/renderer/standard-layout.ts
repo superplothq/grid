@@ -11,8 +11,8 @@ import { PHorizontalFixture, PVerticalFixture } from "./fixture-proto";
 import { GridConfig } from "./grid-config";
 import { GridDataViewModel } from "./grid-data-viewmodel";
 import PLayout, { BaseViewModel, RenderCtx } from "./layout-proto";
-import { addOrReplaceChildren, WithCellPlacement, WithEvents } from "./mixins";
-import { getTheme } from "./registry";
+import { addOrReplaceChildren, WithCellPlacement, WithEvents, PlaceCellFn, PlaceCellOpts } from "./mixins";
+import { applyThemeTokens } from "./themes";
 import {
   CellToMeasure,
   FacetCellContent,
@@ -25,22 +25,35 @@ import {
   IColAutoSizeStrategyClampedWidth,
   IColAutoSizeStrategyStatic,
   PivotSliceResult,
-  SelectionRule,
+  MatchingRule,
 } from "./types";
-import { evaluateRulesForDataCell, evaluateRulesForFacetCell } from "./select-all";
+import { evaluateRulesForDataCell, evaluateRulesForFacetCell } from "./match-all";
 import { computeMerges, MergeState } from "./utils";
+import { CellPointerTracker, resolveCellTarget, CellEventPayload, HoverRect } from "./cell-events";
+
+// `no-data` carries no row range: the grid returns before the layout runs, so no viewport has been
+// calculated. `out-of-range` reports the visible rows that fall outside the loaded block.
+export type ViewDataEmptyPayload =
+  | { reason: "no-data" }
+  | { reason: "out-of-range"; startRow: number; endRow: number };
+
+export const CELL_EVENT_NAMES = ["cellMouseOver", "cellMouseOut", "cellClick"] as const;
+export type CellEventName = typeof CELL_EVENT_NAMES[number];
+
+// Quiet period after scroll, render or resize activity before the cell under the pointer is re-resolved.
+const POINTER_SETTLE_MS = 100;
 
 export type LayoutEvents = {
+  cellMouseOver: CellEventPayload;
+  cellMouseOut: CellEventPayload;
+  cellClick: CellEventPayload;
   renderComplete: {
     x0: number;
     y0: number;
     x1: number;
     y1: number;
   };
-  viewDataEmpty: {
-    startRow: number;
-    endRow: number;
-  };
+  viewDataEmpty: ViewDataEmptyPayload;
   viewModelDataChanged: {
     x0: number;
     y0: number;
@@ -65,13 +78,13 @@ export interface LayoutFixtures {
   right: Array<PVerticalFixture>;
 }
 
-type SelectionProposal = [startRow: number, startCol: number, endRow: number, endCol: number][];
+type HighlightProposal = [startRow: number, startCol: number, endRow: number, endCol: number][];
 
 interface ViewModelProposal {
-  selections?: SelectionProposal;
+  highlights?: HighlightProposal;
 }
 
-export interface SelectionState {
+export interface HighlightState {
   fromRow: number;
   fromCol: number;
   toRow: number;
@@ -90,7 +103,7 @@ export interface ViewModel extends BaseViewModel {
   fixedTopHTrackPositions: number[];
   fixedBottomHTrackPositions: number[];
   colFacetsTopPositions: number[];
-  selections: SelectionState[];
+  highlights: HighlightState[];
   fixtures: LayoutFixtures;
   logicalStartRow: number;
   logicalEndRow: number;
@@ -119,6 +132,8 @@ interface ResizeState {
 
 
 export default class StandardLayout extends StandardLayoutBase {
+  static #nextGridId = 0;
+  readonly gridId: string;
   // the grid is divided into three regions: left, center and right
   // left region is sticky and hosts fixture + row facets + pinned columns (later)
   // right region is sticky and hosts pinned columns (later) + fixture
@@ -147,7 +162,7 @@ export default class StandardLayout extends StandardLayoutBase {
   #scrollListenerSet = false;
   #scrollAxisLock: "x" | "y" | null = null;
   #renderCount = 0;
-  #layoutBootstrapped = false;
+  #repositionTrackWithInitVal = false;
   #viewDataEmptyTimer: ReturnType<typeof setTimeout> | null = null;
   #cellsToMeasure: CellToMeasure[] = [];
   #postRenderAdjustLeftCellsPerLevel: HTMLElement[][] = [];
@@ -155,7 +170,7 @@ export default class StandardLayout extends StandardLayoutBase {
   #proposal: ViewModelProposal = {};
   #fixtures: LayoutFixtures;
   #fixtureMeasurements = { top: [] as number[], topTotal: 0, bottom: [] as number[], bottomTotal: 0 };
-  #selectAllRules: readonly SelectionRule[] = [];
+  #matchingRules: readonly MatchingRule[] = [];
   #appliedSelStyleProps = new WeakMap<HTMLElement, string[]>();
   #isStaticStrategy = false;
   #viewportDataChangeUnsub: (() => void) | null = null;
@@ -164,30 +179,105 @@ export default class StandardLayout extends StandardLayoutBase {
   // Signature of the current viewmodel's column-sizing config. Used to decide when
   // the measured max-seen widths (`colsWidth.*.indices`) are stale and must be reset.
   #sizingSignature = "";
+  #pointer: CellPointerTracker;
+  #pointerSettleTimer: ReturnType<typeof setTimeout> | null = null;
+  #hoverStyleEl: HTMLElement;
+  #hoverRects: HoverRect[] | null = null;
+  // Cell events start paused; the consumer resumes the ones it has listeners for so pointer resolution
+  // only runs when something will observe it.
+  #cellEventsResumed: Record<CellEventName, boolean> = { cellMouseOver: false, cellMouseOut: false, cellClick: false };
 
   constructor(config: GridConfig, mountPoint: HTMLElement, cellManager: CellManager) {
     super(config, mountPoint, cellManager);
 
-    [this.#con, , this.#virtualPanelEl, this.#gridClipEl] = this.#attachShadowDom();
+    this.gridId = String(StandardLayout.#nextGridId++);
+    [this.#con, , this.#virtualPanelEl, this.#gridClipEl, this.#hoverStyleEl] = this.#attachShadowDom();
+    this.#con.dataset.gridId = this.gridId;
     this.#applyTheme();
     this.#fixtures = this.#validateFixtures();
+    this.#pointer = this.#createPointerTracker();
   }
 
   viewModelProposal(proposal: ViewModelProposal): void {
     Object.assign(this.#proposal, proposal);
   }
 
-  setSelectAllRules(rules: readonly SelectionRule[]): void {
-    this.#selectAllRules = rules;
+  resumeCellEvent(event: CellEventName): void {
+    this.#cellEventsResumed[event] = true;
   }
 
-  protected get selectAllRules(): readonly SelectionRule[] {
-    return this.#selectAllRules;
+  pauseCellEvent(event: CellEventName): void {
+    this.#cellEventsResumed[event] = false;
+  }
+
+  #createPointerTracker(): CellPointerTracker {
+    const con = this.#con;
+    const resumed = this.#cellEventsResumed;
+    const tracker = new CellPointerTracker({
+      resolve: (cell) => resolveCellTarget(cell, this.data!),
+      // elementFromPoint is document-wide, so an element from another grid or an overlay must not resolve.
+      cellFromTarget: (target) => {
+        if (!(target instanceof HTMLElement) || !con.contains(target)) return null;
+        if (target.closest(".resize-handle")) return null;
+        return target.closest<HTMLElement>(".cell");
+      },
+      elementAt: (x, y) => document.elementFromPoint(x, y),
+      hoverActive: () => this.data !== undefined && (resumed.cellMouseOver || resumed.cellMouseOut) && this.#pointerSettleTimer === null,
+      clickActive: () => this.data !== undefined && resumed.cellClick,
+      onOver: (payload) => this.emit("cellMouseOver", payload),
+      onOut: (payload) => this.emit("cellMouseOut", payload),
+      onClick: (payload) => this.emit("cellClick", payload),
+    });
+    tracker.attach(con);
+    return tracker;
+  }
+
+  // Scroll and render restart the settle timer, and hover resolution is inactive while it is pending, so
+  // inertia scrolling stays quiet until it actually stops. Renders go through it too: re-resolving with
+  // elementFromPoint right after a DOM mutation would force a synchronous layout.
+  #pointerActivity(): void {
+    if (this.#pointerSettleTimer !== null) clearTimeout(this.#pointerSettleTimer);
+    this.#pointerSettleTimer = setTimeout(() => {
+      this.#pointerSettleTimer = null;
+      this.#pointer.refresh();
+    }, POINTER_SETTLE_MS);
+  }
+
+  suppressNextCellClick(): void {
+    this.#pointer.suppressNextClick();
+  }
+
+  /** Writes the hover rule for `rects` into the grid-scoped stylesheet. Re-clipped to the viewport after every render. */
+  setHover(rects: HoverRect[] | null): void {
+    this.#hoverRects = rects;
+    this.#writeHoverStyle();
+  }
+
+  // Assigning identical text still invalidates the sheet, so a redraw that did not move the viewport
+  // would cost a style recalc for nothing.
+  #writeHoverStyle(): void {
+    const css = this.#hoverRects && this.data
+      ? this.config.hoverStyleRenderer(this.#hoverRects, {
+        viewport: this.data.viewport,
+        gridId: this.gridId,
+        numRowFacetLevels: this.data.numRowFacetLevels,
+        numColFacetLevels: this.data.numColFacetLevels,
+      })
+      : "";
+    if (this.#hoverStyleEl.textContent !== css) this.#hoverStyleEl.textContent = css;
+  }
+
+  setMatchingRules(rules: readonly MatchingRule[]): void {
+    this.#matchingRules = rules;
+  }
+
+  protected get matchingRules(): readonly MatchingRule[] {
+    return this.#matchingRules;
   }
 
   protected resolveFacetOverrides(facetPath: (string | null)[], facetDefs: FacetDef[]): { trackRenderer: FacetCellRenderer | undefined; styleFns: ((el: HTMLElement) => void)[] } {
-    if (this.#selectAllRules.length === 0) return { trackRenderer: undefined, styleFns: [] };
-    const result = evaluateRulesForFacetCell(this.#selectAllRules, facetPath, facetDefs);
+    if (this.#matchingRules.length === 0) return { trackRenderer: undefined, styleFns: [] };
+    const result = evaluateRulesForFacetCell(this.#matchingRules, facetPath, facetDefs);
     return { trackRenderer: result.effectiveTrackRenderer, styleFns: result.styleFns };
   }
 
@@ -262,16 +352,46 @@ export default class StandardLayout extends StandardLayoutBase {
     con.className = "grid-content";
     el.appendChild(con);
 
-    return [con, ...Array.from(el.shadowRoot!.children)] as HTMLElement[];
+    // Cells live in the mount point's light DOM (slotted into the shadow root), so the hover rules must be
+    // a document-level sheet. It sits inside the grid container, scoped by `data-grid-id`.
+    const hoverStyle = document.createElement("style");
+    con.appendChild(hoverStyle);
+
+    return [con, ...Array.from(el.shadowRoot!.children), hoverStyle] as HTMLElement[];
   }
 
   #applyTheme(): void {
-    const theme = getTheme(this.config.theme);
-    if (!theme) return;
-    for (const [key, value] of Object.entries(theme)) {
-      const cssVar = "--" + key.replace(/[A-Z]/g, m => "-" + m.toLowerCase());
-      this.#con.style.setProperty(cssVar, String(value));
-    }
+    applyThemeTokens(this.#con, this.config.theme);
+  }
+
+  // Fixtures place cells through this closure rather than the cell pool directly, so every fixture cell
+  // carries the same identity attributes as layout-owned cells regardless of what getCellsToRender returns.
+  #createFixturePlaceCell(side: "top" | "left" | "bottom" | "right", index: number): PlaceCellFn {
+    return (opts: PlaceCellOpts) => {
+      const placed = this.placeCellInDom(opts);
+      const cell = placed[0];
+      const data = this.data!;
+      cell.dataset.cellType = "fixture";
+      cell.dataset.fixtureSide = side;
+      cell.dataset.fixtureIndex = String(index);
+      if (side === "left" || side === "right") {
+        const dataRowStart = this.#fixtures.top.length + data.numColFacetLevels + 1;
+        cell.dataset.row = String(opts.gridRow - dataRowStart + data.viewport.y0);
+      } else {
+        const dataColStart = this.#fixtures.left.length + data.numRowFacetLevels + 1;
+        cell.dataset.col = String(opts.gridCol - dataColStart + data.viewport.x0);
+      }
+      return placed;
+    };
+  }
+
+  /**
+   * Drops the scroll area a previous render created, so nothing already drawn can be scrolled to.
+   * The rendered cells are left for the next render's diff to reuse.
+   */
+  collapseScrollArea(): void {
+    this.#virtualPanelEl.style.width = "0px";
+    this.#virtualPanelEl.style.height = "0px";
   }
   // Validation rules:
   // 1. top and bottom fixetures need to implement PHorizontalFixture i.e. they are laid out horizontally parallel to
@@ -288,8 +408,9 @@ export default class StandardLayout extends StandardLayoutBase {
     };
 
     for (const type of ["top", "left", "bottom", "right"] as const) {
-      for (const FixtureCls of fixtureDefs[type]) {
-        const inst = new FixtureCls(this.config, this.#con, this.cellManager);
+      for (let fi = 0; fi < fixtureDefs[type].length; fi++) {
+        const FixtureCls = fixtureDefs[type][fi];
+        const inst = new FixtureCls(this.config, this.#con, this.#createFixturePlaceCell(type, fi));
         switch (type) {
         case "left":
         case "right":
@@ -316,7 +437,7 @@ export default class StandardLayout extends StandardLayoutBase {
   // TODO if fixtures are added get height of a row with fixtures as they might increase the size
   #measureRowHeight(): void {
     const facetSample = document.createElement("div");
-    facetSample.className = "cell col-facet facet";
+    facetSample.className = "cell col-facet header";
     facetSample.style.visibility = "hidden";
     // TODO[now] implement custom renderers and includeing renderder void (renderer from framework)
     const sampleMerge: MergeState = { value: "Mgy$123,456", path: "Mgy$123,456", level: 0, start: 0, spanPrimary: 1, spanSecondary: 1 };
@@ -408,10 +529,10 @@ export default class StandardLayout extends StandardLayoutBase {
   }
 
   protected createFacetContainer(cell: HTMLElement): HTMLElement {
-    const existing = cell.querySelector(".f-cell-con") as HTMLElement | null;
+    const existing = cell.querySelector(".cell-slots") as HTMLElement | null;
     if (existing) return existing;
     const container = document.createElement("div");
-    container.className = "f-cell-con";
+    container.className = "cell-slots";
     return container;
   }
 
@@ -461,7 +582,7 @@ export default class StandardLayout extends StandardLayoutBase {
   protected appendResizeHandle(cell: HTMLElement, region: "left" | "center" | "right"): HTMLElement {
     const handle = document.createElement("span");
     handle.className = "resize-handle";
-    cell.dataset.cellActionResize = "1";
+    cell.dataset.cellResizeTarget = "1";
     cell.dataset.cellRegion = region;
     cell.appendChild(handle);
     return handle;
@@ -608,6 +729,7 @@ export default class StandardLayout extends StandardLayoutBase {
       this.colsWidth.left.indices = [];
       this.colsWidth.center.indices = [];
       this.colsWidth.right.indices = [];
+      this.#repositionTrackWithInitVal = true;
     }
     this.#viewportDataChangeUnsub = data.register("viewportDataChange", (viewport) => {
       this.emit("viewModelDataChanged", viewport);
@@ -838,11 +960,11 @@ export default class StandardLayout extends StandardLayoutBase {
       ? this.calculateHorizontalViewModelForFitContainer()
       : this.calculateHorizontalViewModel();
 
-    // Resolve selections from proposal
-    const selections: SelectionState[] = [];
-    const selProp = this.#proposal.selections || [];
-    for (const [startRow, startCol, endRow, endCol] of selProp) {
-      selections.push({
+    // Resolve highlights from proposal
+    const highlights: HighlightState[] = [];
+    const proposed = this.#proposal.highlights || [];
+    for (const [startRow, startCol, endRow, endCol] of proposed) {
+      highlights.push({
         fromRow: startRow,
         fromCol: startCol,
         toRow: Math.min(endRow, this.data.numRows - 1),   // Resolve Infinity
@@ -866,7 +988,7 @@ export default class StandardLayout extends StandardLayoutBase {
       fixedTopHTrackPositions: vsVertical.fixedTopHTrackPositions,
       fixedBottomHTrackPositions: vsVertical.fixedBottomHTrackPositions,
       colFacetsTopPositions: vsVertical.colFacetsTopPositions,
-      selections,
+      highlights,
       fixtures: this.#fixtures,
       logicalStartRow: vsVertical.logicalStartRow,
       logicalEndRow: vsVertical.logicalEndRow,
@@ -1064,7 +1186,7 @@ export default class StandardLayout extends StandardLayoutBase {
     this.#cellsToMeasure = [];
   }
 
-  #onLayoutBootstrap(viewModel: ViewModel): void {
+  #applyInitTrackPositions(viewModel: ViewModel): void {
     this.#updateVirtualPanel(viewModel);
 
     for (let i = 0; i < this.#postRenderAdjustLeftCellsPerLevel.length; i++) {
@@ -1141,7 +1263,7 @@ export default class StandardLayout extends StandardLayoutBase {
     this.#renderFixtureHeaders(fixtures.left, "left", { ...fixtureHeaderOpts, gridColStart: 1 });
 
     // render corner cells which results from intersection of row and column facets
-    let cmnCornerCls = "corner header";
+    const cmnCornerCls = ["corner", "header"];
     for (let hRow = 0; hRow < numColFacetLevels; hRow++) { // each row of header cells
       for (let hCol = 0; hCol < numRowFacetLevels; hCol++) { // each row facet column
         const absCol = hCol + numLeftFixtures;
@@ -1212,10 +1334,13 @@ export default class StandardLayout extends StandardLayoutBase {
             const handler = this.appendResizeHandle(cell, "left");
             handler.style.height = (88 * (numColFacetLevels - 1))  + "%";
             handler.style.bottom = "4px";
-            handler.dataset.groupFacetResize = "1";
+            handler.dataset.groupTrackResize = "1";
           }
         }
         cell.style.zIndex = `${8888 - hCol}`;
+        cell.dataset.cellType = "header";
+        cell.dataset.level = String(hRow);
+        cell.dataset.trackIndex = String(absCol);
         needAppend && nodeAppendList.push(cell);
         const hasHorizontalSpan = shouldSpan && axis === "col";
         if (!hasHorizontalSpan) {
@@ -1240,7 +1365,6 @@ export default class StandardLayout extends StandardLayoutBase {
       const colIndex = viewModel.x0 + merge.start;
       // TODO[1]
       const colDef = colDefs[colIndex];
-      const skipSizeClass = colDef.colSize.excludeColumnFacets ? " skp-sz" : "";
       const absoluteColIndex = numLeftVFixedTrack + colIndex;
       const key = `col-h-${merge.level}-${absoluteColIndex}`;
       const colspan = merge.spanPrimary;
@@ -1249,13 +1373,12 @@ export default class StandardLayout extends StandardLayoutBase {
       const shouldApplyWidth = isLeafLevel && colspan === 1 && !colDef.colSize.excludeColumnFacets && colDef.colSize.strategy === "clamped-width";
       const clampedSize = shouldApplyWidth ? colDef.colSize as IColAutoSizeStrategyClampedWidth : null;
 
-      let boundaryCellCls = (merge.start + merge.spanPrimary === numDataColsVisible ? "r-edge " : "");
       const [cell, needAppend, contentDirty] = this.placeCellInDom({
         key,
         gridRow: merge.level + 1,
         gridCol: numLeftVFixedTrack + merge.start + 1,
         hintContentDirty,
-        cls: `col-facet header facet ${skipSizeClass}${!isLeafLevel ? " non-leaf" : " facet-b-edge"} ${boundaryCellCls}`,
+        cls: ["col-facet", "header", colDef.colSize.excludeColumnFacets && "skp-sz", isLeafLevel ? "facet-b-edge" : "non-leaf", merge.start + merge.spanPrimary === numDataColsVisible && "r-edge"],
         extraStyles: {
           colspan,
           top: viewModel.colFacetsTopPositions[merge.level],
@@ -1279,8 +1402,8 @@ export default class StandardLayout extends StandardLayoutBase {
         nonLeafColFacets.push({ cell, mergeStart: merge.start, mergeSpan: merge.spanPrimary });
       }
       cell.dataset.cellType = "column-facet";
-      cell.dataset.facetLevel = String(merge.level);
-      // For a nested column facet which is not at the last level (not leaf nodes), hix is the rightmost column index
+      cell.dataset.level = String(merge.level);
+      // For a nested column facet which is not at the last level (not leaf nodes), data-col is the rightmost column index
       // [f0_0, f0_0, f0_0, f0_0, f1_1, f1_1, f1_1, f1_1]
       // [f1_0, f1_0, f1_1, f1_1, f1_0, f1_0, f1_1, f1_1]
       // [f2_0, f2_1, f2_0, f2_1, f2_0, f2_1, f2_0, f2_1]
@@ -1288,11 +1411,11 @@ export default class StandardLayout extends StandardLayoutBase {
       // | ----------- f0_0--------- | ----------- f0_1--------- |  <- level=0
       // | -- f1_0 --  | -- f1_1 --  | -- f1_0 --  | -- f1_1 --  |  <- level=1
       // | f2_0 | f2_1 | f2_0 | f2_1 | f2_0 | f2_1 | f2_0 | f2_1 |  <- level=2 / leaf nodes
-      // here hix attach to dom node
+      // here data-col attached to dom node
       //   0       1      2       3     4       5     6      7      <- level=2 / leaf nodes
       //           1              3             5            7      <- level=1
       //                          3                          7      <- level=0
-      cell.dataset.hix = String(absoluteColIndex + colspan - 1);
+      cell.dataset.col = String(colIndex + colspan - 1);
       cell.style.zIndex = `${999 - merge.start}`;
       needAppend && nodeAppendList.push(cell);
       if (isLeafLevel) {
@@ -1364,7 +1487,7 @@ export default class StandardLayout extends StandardLayoutBase {
               gridRow: track,
               gridCol: numLeftFixtures + rfLevel + 1,
               hintContentDirty,
-              cls: `header ${side}-fixture intersect-left`,
+              cls: ["header", `${side}-fixture`, "fixture-isect-left"],
               extraStyles: {
                 [side]: offset,
                 left: viewModel.fixedLeftVTrackPositions[stickyTrackIndex],
@@ -1383,6 +1506,9 @@ export default class StandardLayout extends StandardLayoutBase {
                 this.populateFacetContainer(cell, headerContainer, headerContent);
               }
             }
+            cell.dataset.cellType = "header";
+            cell.dataset.level = String(rfLevel);
+            cell.dataset.trackIndex = String(stickyTrackIndex);
             cell.dataset.leftStickyTrackIndex = String(stickyTrackIndex);
             needAppend && nodeAppendList.push(cell);
             this.#postRenderAdjustLeftCellsPerLevel[stickyTrackIndex].push(cell);
@@ -1402,19 +1528,19 @@ export default class StandardLayout extends StandardLayoutBase {
       }
     }
 
-    // draw selections if present
-    for (const sel of viewModel.selections) {
-      const visFromRow = Math.max(sel.fromRow, viewModel.y0);
-      const visToRow = Math.min(sel.toRow, viewModel.y1 - 1);
-      const visFromCol = Math.max(sel.fromCol, viewModel.x0);
-      const visToCol = Math.min(sel.toCol, viewModel.x1 - 1);
+    // draw highlights if present
+    for (const hl of viewModel.highlights) {
+      const visFromRow = Math.max(hl.fromRow, viewModel.y0);
+      const visToRow = Math.min(hl.toRow, viewModel.y1 - 1);
+      const visFromCol = Math.max(hl.fromCol, viewModel.x0);
+      const visToCol = Math.min(hl.toCol, viewModel.x1 - 1);
 
       if (visFromRow > visToRow || visFromCol > visToCol) continue;
 
-      const [el, needAppend, selContentDirty] = this.placeCellInDom({
-        key: `sel-${sel.fromRow};${sel.toRow};${sel.fromCol};${sel.toCol}`,
+      const [el, needAppend, hlContentDirty] = this.placeCellInDom({
+        key: `hl-${hl.fromRow};${hl.toRow};${hl.fromCol};${hl.toCol}`,
         hintContentDirty,
-        cls: "selection-overlay",
+        cls: ["highlight-overlay"],
         gridRow: gridRowOffset + (visFromRow - viewModel.y0) + 1,
         gridCol: numLeftVFixedTrack + (visFromCol - viewModel.x0) + 1,
         extraStyles: {
@@ -1422,7 +1548,7 @@ export default class StandardLayout extends StandardLayoutBase {
           colspan: visToCol - visFromCol + 1,
         },
       });
-      if (selContentDirty) {
+      if (hlContentDirty) {
         addOrReplaceChildren(el, "");
       }
 
@@ -1474,10 +1600,10 @@ export default class StandardLayout extends StandardLayoutBase {
 
     this.#setupScrollListener();
 
-    if (!this.#layoutBootstrapped) {
-      this.#layoutBootstrapped = true;
+    if (this.#repositionTrackWithInitVal) {
+      this.#repositionTrackWithInitVal = false;
       const vmUpdated = this.calculateViewModel();
-      this.#onLayoutBootstrap(vmUpdated);
+      this.#applyInitTrackPositions(vmUpdated);
       this.#raiseRenderCompleteEvent(vmUpdated, ctx, { nodeAppendList, cellsToRemove, contentCellRerenderCount });
     } else {
       this.#raiseRenderCompleteEvent(viewModel, ctx, { nodeAppendList, cellsToRemove, contentCellRerenderCount });
@@ -1485,6 +1611,8 @@ export default class StandardLayout extends StandardLayoutBase {
 
     this.#postRenderAdjustLeftCellsPerLevel.length = 0;
     this.#postRenderAdjustRightCellsPerLevel.length = 0;
+    this.#writeHoverStyle();
+    this.#pointerActivity();
   }
 
   #addCellRenderResult(result: CellRenderResult): void {
@@ -1510,13 +1638,16 @@ export default class StandardLayout extends StandardLayoutBase {
       gridRow: opts.gridRow,
       gridCol: opts.gridCol,
       hintContentDirty: opts.hintContentDirty,
-      cls: `header ${opts.hFixtureSide}-fixture fixture-spacer intersect-${opts.stickyRegion}`,
+      cls: ["header", `${opts.hFixtureSide}-fixture`, "fixture-spacer", `fixture-isect-${opts.stickyRegion}`],
       extraStyles: {
         [opts.hFixtureSide]: opts.hFixtureOffset,
         [opts.stickyRegion]: opts.stickyPosition,
       },
     });
     cell.dataset[`${opts.stickyRegion}StickyTrackIndex`] = String(opts.stickyTrackIndex);
+    cell.dataset.cellType = "header";
+    cell.dataset.level = "0";
+    cell.dataset.trackIndex = String(opts.stickyTrackIndex);
     return [cell, needAppend];
   }
 
@@ -1550,7 +1681,7 @@ export default class StandardLayout extends StandardLayoutBase {
         gridRow: 1,
         gridCol,
         hintContentDirty,
-        cls: `corner header ${side}-fixture${fi === fixtureDefs.length - 1 ? " last-fixture" : ""} header-b-edge`,
+        cls: ["corner", "header", `${side}-fixture`, fi === fixtureDefs.length - 1 && "last-fixture", "header-b-edge"],
         extraStyles: {
           ...(numColFacetLevels > 1 && { rowspan: numColFacetLevels }),
           top: viewModel.colFacetsTopPositions[0],
@@ -1571,6 +1702,9 @@ export default class StandardLayout extends StandardLayoutBase {
         handle.style.height = "90%";
       }
       cell.style.zIndex = side === "left" ? `${9999 - fi}` : `${9990 + fi}`;
+      cell.dataset.cellType = "header";
+      cell.dataset.level = "0";
+      cell.dataset.trackIndex = String(fi);
       needAppend && nodeAppendList.push(cell);
       this.#cellsToMeasure.push({ cell, sizeKey: fi, region: side });
       if (!adjustArray[fi]) adjustArray[fi] = [];
@@ -1778,13 +1912,12 @@ export default class StandardLayout extends StandardLayoutBase {
 
       const gridRowOffset = viewModel.fixtures.top.length + this.data!.numColFacetLevels;
       const gridColOffset = viewModel.fixtures.left.length;
-      const startEndCellCls = `${merge.start === numDataRowsVisible - 1 ? "last" : ""} ${merge.start === 0 ? "first" : ""}`;
       const [cell, needAppend, contentDirty] = this.placeCellInDom({
         key,
         gridRow: gridRowOffset + merge.start + 1,
         gridCol: gridColOffset + merge.level + 1,
         hintContentDirty,
-        cls: `row-facet facet ${isLeaf ? " facet-r-edge" : " non-leaf"} ${startEndCellCls}`,
+        cls: ["row-facet", isLeaf ? "facet-r-edge" : "non-leaf", merge.start === numDataRowsVisible - 1 && "row-last", merge.start === 0 && "row-first"],
         extraStyles: {
           rowspan: merge.spanPrimary,
           left: viewModel.fixedLeftVTrackPositions[merge.level + gridColOffset],
@@ -1803,6 +1936,8 @@ export default class StandardLayout extends StandardLayoutBase {
         (cell.firstElementChild as HTMLElement).style.transform = labelOffset !== 0 ? `translateY(${labelOffset}px)` : "";
       }
       cell.dataset.cellType = "row-facet";
+      cell.dataset.row = String(absoluteStart);
+      cell.dataset.level = String(merge.level);
       cell.dataset.leftStickyTrackIndex = String(this.#fixtures.left.length + merge.level);
       needAppend && nodesToAppend.push(cell);
       // NOTE: we don't add row facets for column width measurement as corner cells are sent with for measurement
@@ -1835,14 +1970,12 @@ export default class StandardLayout extends StandardLayoutBase {
         const absoluteRowIndex = this.data!.numColFacetLevels + viewModel.y0 + j;
         const key = `data-${absoluteColIndex}-${absoluteRowIndex}`;
         const value = colData[j];
-        const boundaryCellCls = i === numDataColsVisible - 1 ? "r-edge" : "";
-        const startEndCellCls = `${j === numDataRowsVisible - 1 ? "last" : ""} ${j === 0 ? "first" : ""}`;
         const [cell, needAppend, contentDirty] = this.placeCellInDom({
           key,
           gridRow: gridRowOffset + j + 1,
           gridCol,
           hintContentDirty,
-          cls: `data ${boundaryCellCls} ${colDef.isCustom ? " custom-rendered" : ""} ${startEndCellCls}`,
+          cls: ["data", i === numDataColsVisible - 1 && "r-edge", j === numDataRowsVisible - 1 && "row-last", j === 0 && "row-first"],
           extraStyles: {},
         });
 
@@ -1852,11 +1985,11 @@ export default class StandardLayout extends StandardLayoutBase {
           let renderer = colDef.renderer;
           let valueFormatter = colDef.valueFormatter;
           let dataStyleFns: ((el: HTMLElement) => void)[] = [];
-          if (this.selectAllRules.length > 0 && sliceData.rowFacets && sliceData.columnFacets) {
+          if (this.matchingRules.length > 0 && sliceData.rowFacets && sliceData.columnFacets) {
             const rowPath = sliceData.rowFacets[j];
             const colPath = sliceData.columnFacets[i];
             const result = evaluateRulesForDataCell(
-              this.selectAllRules,
+              this.matchingRules,
               rowPath, colPath,
               this.data!.facetDefs.row, this.data!.facetDefs.col,
               value
@@ -1875,8 +2008,8 @@ export default class StandardLayout extends StandardLayoutBase {
           const content = renderer(displayValue, dataCtx, { container: cell, key });
           if (content !== undefined) addOrReplaceChildren(cell, content);
           cell.dataset.cellType = "value";
-          cell.dataset.cclix = String(absoluteColIndex);
-          cell.dataset.croix = String(absoluteRowIndex);
+          cell.dataset.col = String(dataCtx.colIndex);
+          cell.dataset.row = String(dataCtx.rowIndex);
           cell.style.minWidth = clampedSize?.minWidthInPx !== undefined ? `${clampedSize.minWidthInPx}px` : "";
           cell.style.maxWidth = clampedSize?.maxWidthInPx !== undefined ? `${clampedSize.maxWidthInPx}px` : "";
           this.applyCellStyleFns(cell, dataStyleFns);
@@ -1908,7 +2041,7 @@ export default class StandardLayout extends StandardLayoutBase {
       if (this.#viewDataEmptyTimer !== null) clearTimeout(this.#viewDataEmptyTimer);
       this.#viewDataEmptyTimer = setTimeout(() => {
         this.#viewDataEmptyTimer = null;
-        this.emit("viewDataEmpty", { startRow: logicalY0, endRow: logicalY1 });
+        this.emit("viewDataEmpty", { reason: "out-of-range", startRow: logicalY0, endRow: logicalY1 });
       }, this.config.dataFetchDebounceMs);
     }
 
@@ -1931,7 +2064,7 @@ export default class StandardLayout extends StandardLayoutBase {
   // them that css grid layout manages while creating the nesting/hierarchy.
   #getLeafColCells(colIdx: number): { trackHeaderCell: HTMLElement /* | null; cells: HTMLElement[] */ } {
     const leafLevel = this.data!.numColFacetLevels - 1;
-    const trackHeaderCell = this.#con.querySelector<HTMLElement>(`[data-hix="${colIdx}"][data-facet-level="${leafLevel}"]`);
+    const trackHeaderCell = this.#con.querySelector<HTMLElement>(`[data-col="${colIdx}"][data-level="${leafLevel}"]`);
     if (!trackHeaderCell) {
       throw new Error(`No cells found for column ${colIdx} during resize`);
     }
@@ -1940,7 +2073,7 @@ export default class StandardLayout extends StandardLayoutBase {
 
   #getStickyTrackHeaderCell(side: "left" | "right", trackIndex: number): HTMLElement {
     const headerCell = this.#con.querySelector<HTMLElement>(
-      `[data-cell-action-resize][data-${side}-sticky-track-index='${trackIndex}']`
+      `[data-cell-resize-target][data-${side}-sticky-track-index='${trackIndex}']`
     );
     if (!headerCell) {
       throw new Error(`No ${side} sticky track header found for index ${trackIndex} during resize`);
@@ -2023,19 +2156,17 @@ export default class StandardLayout extends StandardLayoutBase {
   autofitLeafColWidth(colIdx: number): void {
     const { trackHeaderCell } = this.#getLeafColCells(colIdx);
     if (!trackHeaderCell) return;
-    const centerIdx = colIdx - this.#fixtures.left.length - this.data!.numRowFacetLevels;
-    this.#autofitTrack("center", centerIdx, trackHeaderCell, () => this.changeLeafColWidth(colIdx));
+    this.#autofitTrack("center", colIdx, trackHeaderCell, () => this.changeLeafColWidth(colIdx));
   }
 
   changeLeafColWidth(colIdx: number) {
-    const centerIdx = colIdx - this.#fixtures.left.length - this.data!.numRowFacetLevels;
     const { trackHeaderCell } = this.#getLeafColCells(colIdx);
     return this.#changeTrackWidth({
       region: "center",
-      regionIndex: centerIdx,
+      regionIndex: colIdx,
       headerCell: trackHeaderCell,
       onCommit: () => {
-        this.data!.setColSize(centerIdx, { strategy: "clamped-width" });
+        this.data!.setColSize(colIdx, { strategy: "clamped-width" });
       },
     });
   }

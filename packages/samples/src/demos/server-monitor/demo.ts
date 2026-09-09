@@ -386,13 +386,13 @@ export function mount(el: HTMLElement): () => void {
         for (let j = 0; j < n; j++) {
           const server = currentRows[viewModel.y0 + j];
           if (!server) continue;
-          const absRow = numColFacetLevels + viewModel.y0 + j;
+          const absRow = viewModel.y0 + j;
           const key = `${side}-${slot}-${absRow}`;
           const [cell, needAppend, contentDirty] = this.placeCellInDom({
             key,
             gridRow: numColFacetLevels + j + 1,
             gridCol: track,
-            cls: `data custom-rendered ${suggestedCls.join(" ")}`,
+            cls: ["data", ...suggestedCls],
             extraStyles: side === "left" ? { left: offset, minWidth: col.width, maxWidth: col.width } : { minWidth: col.width, maxWidth: col.width },
           });
           if (contentDirty) {
@@ -402,11 +402,11 @@ export function mount(el: HTMLElement): () => void {
             cell.style.setProperty(vBorderSide, "1px solid var(--vertical-border-color)");
             // The grid CSS forces `border-top: none` on fixture cells, so the row
             // (horizontal) rule stops at the pinned columns. Re-add it inline (skip
-            // the top visible row, matching the .first data cells).
+            // the top visible row, matching the .row-first data cells).
             cell.style.setProperty("border-top", j > 0 ? "1px solid var(--horizontal-border-color)" : "none");
             applyRenderer(cell, col, server, viewModel.y0 + j, this.data!);
             cell.dataset.cellType = "value";
-            cell.dataset.croix = String(absRow);
+            cell.dataset.row = String(absRow);
           }
           needAppend && nodesToAppend.push(cell);
         }

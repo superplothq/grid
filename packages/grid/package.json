@@ -3,7 +3,8 @@
   "version": "0.5.0",
   "license": "MIT",
   "files": [
-    "dist"
+    "dist",
+    "AGENTS.md"
   ],
   "main": "dist/index.js",
   "types": "dist/index.d.ts",

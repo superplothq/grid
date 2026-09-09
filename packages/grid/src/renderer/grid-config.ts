@@ -1,4 +1,6 @@
 import { LayoutFixtureClasses } from "./types";
+import { blankGridLoadingRenderer, LoadingRenderer } from "./loading-renderers";
+import { defaultHoverStyleRenderer, HoverEffect, HoverStyleRenderer } from "./cell-events";
 
 /**
  * Configuration for the grid renderer. Pass a partial `GridConfig` to the `Grid` constructor; missing fields use [defaultConfig](/docs/renderer#gridconfig).
@@ -20,6 +22,12 @@ export interface GridConfig {
   columnAutosizingStrategyOnScroll: "dynamic" | "max-seen";
   /** Debounce interval in milliseconds for the `viewDataEmpty` event. Prevents flooding the data source with fetch requests during fast scrolling. Default: `150`. */
   dataFetchDebounceMs: number;
+  /** Draws the surface shown while the viewmodel holds no data. Called once when the grid enters that state, with a container that fills the mount point. Default: [`blankGridLoadingRenderer`](/docs/renderer/loading). */
+  loadingRenderer: LoadingRenderer;
+  /** Built-in hover effect driven by the grid's own `cellMouseOver` / `cellMouseOut` events. `"row"` tints the hovered row, `"column"` the column, `"cross"` both, `"cell"` the single cell. Hovering a facet cell tints its full span in every mode. `"none"` disables it; call `setHover()` from your own listeners instead. Default: `"cross"`. */
+  hoverEffect: HoverEffect;
+  /** Generates the CSS applied while a hover target is set. The default tints matching cells by mixing the theme's `highlightBaseColor` into each surface's background. Selectors are matched against the cell data attributes (`data-cell-type`, `data-row`, `data-col`, `data-level`) and must be scoped by `[data-grid-id]`. */
+  hoverStyleRenderer: HoverStyleRenderer;
 }
 
 export const defaultConfig: GridConfig = {
@@ -30,6 +38,9 @@ export const defaultConfig: GridConfig = {
   theme: "light",
   columnAutosizingStrategyOnScroll: "max-seen",
   dataFetchDebounceMs: 150,
+  loadingRenderer: blankGridLoadingRenderer,
+  hoverEffect: "row",
+  hoverStyleRenderer: defaultHoverStyleRenderer,
   fixtures: {
     top: [],
     left: [],

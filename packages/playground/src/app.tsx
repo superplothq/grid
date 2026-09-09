@@ -4,9 +4,10 @@ import { Routes, Route, Link, Outlet, useMatch } from "react-router-dom";
 import GridPlayground from "./grid";
 import PivotGridPlayground from "./pivot-grid";
 import FlatTablePlayground from "./flat-table";
-import SelectionDemo from "./selection-demo";
+import MatchingDemo from "./matching-demo";
 import ReactBindingDemo from "./react-binding-demo";
 import PaginationTestPlayground from "./pagination-test";
+import BlankLoadingDemo from "./blank-loading";
 import SamplesLayout from "./samples/components/SamplesLayout";
 import GettingStartedFlatData from "./samples/getting-started-flat-data.mdx";
 import CleanAndTransformData from "./samples/clean-and-transform-data.mdx";
@@ -49,9 +50,10 @@ const PlaygroundLayout: React.FC = () => {
         <Link to="/grid" style={{ textDecoration: "none" }}>Grid</Link>
         <Link to="/pivot" style={{ marginLeft: "20px", textDecoration: "none" }}>Pivot</Link>
         <Link to="/flat-table" style={{ marginLeft: "20px", textDecoration: "none" }}>Flat Table</Link>
-        <Link to="/selection" style={{ marginLeft: "20px", textDecoration: "none" }}>Selection</Link>
+        <Link to="/matching" style={{ marginLeft: "20px", textDecoration: "none" }}>Matching</Link>
         <Link to="/react-binding" style={{ marginLeft: "20px", textDecoration: "none" }}>React Binding</Link>
         <Link to="/pagination-test" style={{ marginLeft: "20px", textDecoration: "none" }}>Pagination Test</Link>
+        <Link to="/blank-loading" style={{ marginLeft: "20px", textDecoration: "none" }}>Blank Loading</Link>
         <a
           href="/samples/getting-started-flat-data"
           target="_blank"
@@ -76,9 +78,10 @@ const App: React.FC = () => {
         <Route path="/grid" element={<GridPlayground />} />
         <Route path="/pivot" element={<PivotGridPlayground />} />
         <Route path="/flat-table" element={<FlatTablePlayground />} />
-        <Route path="/selection" element={<SelectionDemo />} />
+        <Route path="/matching" element={<MatchingDemo />} />
         <Route path="/react-binding" element={<ReactBindingDemo />} />
         <Route path="/pagination-test" element={<PaginationTestPlayground />} />
+        <Route path="/blank-loading" element={<BlankLoadingDemo />} />
       </Route>
       <Route path="/samples" element={<SamplesLayout />}>
         <Route path="getting-started-flat-data" element={<GettingStartedFlatData />} />

@@ -7,6 +7,7 @@ import { remarkMdxMermaid } from 'fumadocs-core/mdx-plugins';
 import { fileRegionGenerator } from './lib/file-region-generator';
 import { remarkClassOutline } from './lib/remark-class-outline';
 import { remarkTypeTableWithDocs } from './lib/remark-type-table-with-docs';
+import { remarkUsagePattern } from './lib/remark-usage-pattern';
 import { rehypeGridDocsLinks } from './lib/rehype-grid-docs-links';
 import path from 'node:path';
 
@@ -48,6 +49,7 @@ export const samples = defineDocs({
 export default defineConfig({
   mdxOptions: {
     remarkPlugins: [
+      [remarkUsagePattern, { patternsDir: path.resolve(process.cwd(), 'content/patterns') }],
       [remarkTypeTableWithDocs, { basePath: projectRoot }],
       [remarkAutoTypeTable, { options: { basePath: projectRoot } }],
       [remarkClassOutline, { basePath: projectRoot }],

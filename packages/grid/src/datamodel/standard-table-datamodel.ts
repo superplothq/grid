@@ -11,9 +11,12 @@ import {
   StandardMetadataPlumbing,
   StandardColumnMetadata,
   StandardMetadataResolverInput,
+  StandardGlobalMetadataResolver,
+  StandardRawMetadata,
   PageMetadata,
 } from "./types";
 import { DataModel } from "./datamodel";
+import { outputColumnsForDepth } from "./utils";
 import { FlattenedDataViewModelParams, createRowMeta } from "../renderer/flattened-data-viewmodel";
 import { GridDataViewModelOptions, ViewModelMetadata, ValueRowMetadata, ValueCellMetadata } from "../renderer/types";
 
@@ -568,7 +571,7 @@ export abstract class StandardTableDataModel extends DataModel<StandardDataFetch
     // Returns true if walked all pages at this level (reached natural end)
     const walkBlock = (pages: PageNode[], depth: number, start: TargetSlotPath, end: TargetSlotPath): boolean => {
       const isFacetLevel = depth < ir.groupBy.length;
-      const groupFieldProject = isFacetLevel ? this.#buildProjectionForDepth(depth) : null;
+      const groupFieldProject = isFacetLevel ? outputColumnsForDepth(ir, depth, this.schemaInfo) : null;
 
       const startPageIdx = start[0].pageIdx;
       const endPageIdx = end[0].pageIdx;
@@ -631,17 +634,6 @@ export abstract class StandardTableDataModel extends DataModel<StandardDataFetch
     return { data, columnFacets, rowFacet, rowMeta, options, totalRows, offsetTop, metadata };
   }
 
-  #buildProjectionForDepth(depth: number): string[] {
-    const ir = this.#lastIR!;
-    const groupField = ir.groupBy[depth];
-    const measureCols: string[] = [];
-    for (const def of this.schema) {
-      // TODO[now] aggregation function will always be present for measure columns
-      if (def.aggregateFn) measureCols.push(def.name);
-    }
-    return [groupField, ...measureCols];
-  }
-
   #reshapePageMetadata(plumbing: StandardMetadataPlumbing | undefined, ir: StandardDataFetchAndTransformIR, response: GetRowsResponse): PageMetadata | undefined {
     if (!plumbing?.pageWise) return undefined;
     return plumbing.pageWise.reshaper.reshape({ ir, pageMetadata: response.metadata ?? {}, rowData: response.rowData, schema: this.schema });
@@ -651,12 +643,20 @@ export abstract class StandardTableDataModel extends DataModel<StandardDataFetch
     ir: StandardDataFetchAndTransformIR,
     plumbing: StandardMetadataPlumbing,
   ): Promise<StandardColumnMetadata[]> {
-    const raw = await plumbing.global!.resolver.resolve(this.buildResolverInput(ir));
+    const raw = await this.getGlobalMetadata(ir, plumbing.global!.resolver);
     return plumbing.global!.reshaper.reshape({ ir, raw, schema: this.schema });
   }
 
   protected buildResolverInput(ir: StandardDataFetchAndTransformIR): StandardMetadataResolverInput {
     return { ir, schema: this.schema };
+  }
+
+  /**
+   * Fetch the raw global metadata by invoking the plumbing's resolver. Override to adapt the resolver's raw
+   * result before the reshaper runs on it - e.g. an API-backed model unwrapping a deviating server's response.
+   */
+  protected async getGlobalMetadata(ir: StandardDataFetchAndTransformIR, resolver: StandardGlobalMetadataResolver): Promise<StandardRawMetadata> {
+    return resolver.resolve(this.buildResolverInput(ir));
   }
 
   /**

@@ -138,7 +138,7 @@ const PaginatedFlatTableInner: React.FC<PaginatedFlatTableInnerProps> = ({ds, co
           {...bindings}
           layout="flat"
           theme={theme}
-          onViewDataEmpty={({startRow, endRow}) => fetchPage(startRow, endRow)}
+          onViewDataEmpty={(p) => { if (p.reason === "out-of-range") fetchPage(p.startRow, p.endRow); }}
         />
       </div>
       {pageView && <PageView {...pageView} theme={theme} />}

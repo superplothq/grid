@@ -810,6 +810,7 @@ export abstract class PivotTableDataModel extends DataModel<PivotConfig, PivotDa
 
     const merged: PivotDataFetchAndTransformIR = { dimSpec: combinedDimSpec, measures };
     if (resolvedSort) merged.sort = resolvedSort;
+    if (config.metadata !== undefined) merged.metadata = config.metadata;
 
     return {
       merged,

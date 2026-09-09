@@ -1,5 +1,5 @@
 import { expect } from "chai";
-import { computeMerges, MergeState } from "./utils";
+import { computeMerges, resolveFacetSpan, MergeState } from "./utils";
 
 function order(a: MergeState[]) {
   // First sort based on level, then inside same level group (a.level-b.level would be zero) sort by start
@@ -132,5 +132,40 @@ describe("#computeMerges", () => {
       { level: 2, path: "l0_2\x00l1_0\x00e", value: "e", start: 12, spanPrimary: 1, spanSecondary: 1 },
       { level: 2, path: "l0_2\x00l1_0\x00f", value: "f", start: 13, spanPrimary: 1, spanSecondary: 1 },
     ]);
+  });
+});
+
+describe("#resolveFacetSpan", () => {
+  // level-major: facets[level][index]
+  const facets: (string | null)[][] = [
+    ["X", "X", "X", "Y", "Y", "Y"],
+    ["A", "A", "B", "B", "B", "C"],
+  ];
+
+  it("CASE: leaf level resolves to the run of equal paths", () => {
+    expect(resolveFacetSpan(facets, 1, 0)).to.deep.equal([0, 1]);
+    expect(resolveFacetSpan(facets, 1, 1)).to.deep.equal([0, 1]);
+    expect(resolveFacetSpan(facets, 1, 5)).to.deep.equal([5, 5]);
+  });
+
+  it("CASE: parent level spans all its children", () => {
+    expect(resolveFacetSpan(facets, 0, 1)).to.deep.equal([0, 2]);
+    expect(resolveFacetSpan(facets, 0, 4)).to.deep.equal([3, 5]);
+  });
+
+  it("CASE: same value under different parents does not merge", () => {
+    expect(resolveFacetSpan(facets, 1, 2)).to.deep.equal([2, 2]);
+    expect(resolveFacetSpan(facets, 1, 3)).to.deep.equal([3, 4]);
+  });
+
+  it("CASE: a null-padded item does not merge with a neighbour that has children", () => {
+    // item-major: ["A", null], ["A", "X"], ["A", "Y"], ["B", null], ["B", null]
+    const padded: (string | null)[][] = [
+      ["A", "A", "A", "B", "B"],
+      [null, "X", "Y", null, null],
+    ];
+    expect(resolveFacetSpan(padded, 0, 0)).to.deep.equal([0, 0]);
+    expect(resolveFacetSpan(padded, 0, 1)).to.deep.equal([1, 2]);
+    expect(resolveFacetSpan(padded, 0, 4)).to.deep.equal([3, 4]);
   });
 });

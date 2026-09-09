@@ -218,15 +218,15 @@ Extends [LayoutEvents](#layoutevents) with selection events. This is the event m
 
 ```ts
 type GridEvents = LayoutEvents & {
-  selectionAdded: { hash: string; fromRow: number; fromCol: number; toRow: number; toCol: number };
-  selectionRemoved: { hash: string; fromRow: number; fromCol: number; toRow: number; toCol: number };
+  highlightAdded: { hash: string; fromRow: number; fromCol: number; toRow: number; toCol: number };
+  highlightRemoved: { hash: string; fromRow: number; fromCol: number; toRow: number; toCol: number };
 };
 ```
 
-### SelectionRule
+### MatchingRule
 
 ```ts
-interface SelectionRule {
+interface MatchingRule {
   id: number;
   predicates: PredicateNode[];
   terminal: TerminalOp;
@@ -261,13 +261,13 @@ A function that tests whether a data cell's value matches.
 
 ```ts
 type TerminalOp =
-  | { type: "prop"; props: SelectionProps }
+  | { type: "prop"; props: MatchingRuleProps }
   | { type: "style"; fn: (container: HTMLElement) => void };
 ```
 
-### SelectionProps
+### MatchingRuleProps
 
-<auto-type-table path="packages/grid/src/renderer/types.ts" name="SelectionProps" />
+<auto-type-table path="packages/grid/src/renderer/types.ts" name="MatchingRuleProps" />
 
 ## PivotDataViewModelParams
 

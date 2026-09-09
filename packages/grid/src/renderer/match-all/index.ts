@@ -1,5 +1,5 @@
-export { SelectionRuleStore } from "./rule-store";
-export { Selection, CellSelection } from "./selection";
+export { MatchingRuleStore } from "./rule-store";
+export { Matching, CellMatching } from "./matching";
 export {
   matchesFacetPredicate,
   matchesAllFacetPredicates,

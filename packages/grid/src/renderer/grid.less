@@ -34,11 +34,11 @@
   &.fixture-spacer {
     z-index: 10000 !important;
 
-    &.intersect-left {
+    &.fixture-isect-left {
       border-right: calc(var(--vertical-border-width) * 1px) solid var(--vertical-border-color);
     }
 
-    &.intersect-right {
+    &.fixture-isect-right {
       border-left: calc(var(--vertical-border-width) * 1px) solid var(--vertical-border-color);
     }
   }
@@ -85,11 +85,11 @@
     border-top: calc(var(--horizontal-border-width) * 1px) solid var(--horizontal-border-color);
     border-right: calc(var(--vertical-border-width) * 1px) solid var(--vertical-border-color);
 
-    &.first {
+    &.row-first {
       border-top: none !important;
     }
 
-    &.last {
+    &.row-last {
       border-bottom: calc(var(--horizontal-border-width) * 1px) solid var(--horizontal-border-color);
     }
 
@@ -111,14 +111,12 @@
     }
   }
 
-  &.facet, &.header {
-    .f-cell-con {
-      display: flex;
-      gap: 0.65rem;
-      justify-content: center;
-      max-width: 100%;
-      align-items: center;
-    }
+  .cell-slots {
+    display: flex;
+    gap: 0.65rem;
+    justify-content: center;
+    max-width: 100%;
+    align-items: center;
   }
 
   &.data {
@@ -129,21 +127,16 @@
     border-top: calc(var(--horizontal-border-width) * 1px) solid var(--horizontal-border-color);
     border-right: calc(var(--vertical-border-width) * 1px) solid var(--vertical-border-color);
 
-    &.custom-rendered {
-      justify-content: center;
-      padding: 0;
-    }
-
     &.sticky-row {
       position: sticky;
       z-index: 18;
     }
 
-    &.first {
+    &.row-first {
       border-top: none !important;
     }
 
-    &.last {
+    &.row-last {
       border-bottom: calc(var(--horizontal-border-width) * 1px) solid var(--horizontal-border-color);
     }
 
@@ -181,7 +174,7 @@
       border-right: calc(var(--vertical-border-width) * 1px) solid var(--vertical-border-color);
     }
 
-    &.intersect-left, &.intersect-right {
+    &.fixture-isect-left, &.fixture-isect-right {
       z-index: 9999;
     }
   }
@@ -210,7 +203,7 @@
     overflow: visible;
   }
 
-  &.selection-overlay {
+  &.highlight-overlay {
     pointer-events: none;
     background: rgba(59, 130, 246, 0.08);
     border: 2px solid #3b82f6;

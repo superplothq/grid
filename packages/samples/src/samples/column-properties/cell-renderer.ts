@@ -20,8 +20,8 @@ const BAR_FIELD = "base_salary";
 const COL_FR = [2, 2, 1, 1, 1];
 const GRID_HEIGHT = 420;
 
-// Match the theme's cell padding so custom-rendered cells (which the grid strips
-// padding from) line up with the built-in text cells.
+// The renderers below set the cell padding themselves from the theme variables so
+// their bar and label line up with the built-in text cells.
 const CELL_PADDING = "calc(var(--cell-padding-y) * 1px) calc(var(--cell-padding-x) * 1px)";
 
 // Locale-aware currency: turns a raw number into e.g. `$107,789`. Shared by every
@@ -103,10 +103,9 @@ function salaryBar(max: number): CellRenderer<SampleValue> {
   };
 }
 
-// Right-aligns a number cell. Custom-rendered cells lose the grid's default
-// padding and alignment, so this restores both around the formatted value. Styles
-// are set property-by-property, never via `cssText` - that would wipe the cell's
-// grid-area (see QUIRKS.md).
+// Right-aligns a number cell, setting alignment and padding explicitly around the
+// formatted value. Styles are set property-by-property, never via `cssText` - that
+// would wipe the cell's grid-area (see QUIRKS.md).
 const numberCell: CellRenderer<SampleValue> = (value, _dataCtx, ctx) => {
   const style = ctx.container.style;
   style.display = "flex";

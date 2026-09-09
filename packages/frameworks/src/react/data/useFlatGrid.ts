@@ -1,6 +1,6 @@
 import React, { useRef, useState, useEffect, useCallback, createElement, type FC, type ReactNode } from "react";
 import { FlattenedDataViewModel, type GridDataViewModelOptions, type VTrackDef } from "@superplot/grid/renderer";
-import type { FacetPredicate, SelectionProps, ColAutoSizeConfig } from "@superplot/grid/renderer";
+import type { FacetPredicate, MatchingRuleProps, ColAutoSizeConfig } from "@superplot/grid/renderer";
 import { SqlStandardTableDataModel, type FlattenedDataViewModelParams, type StandardDataFetchAndTransformIR, type StandardTableConfig, type DataSchema, type SortEntry, type ScalarFilter, type ColumnRangeValues } from "@superplot/grid";
 import type { SqlDataSource } from "@superplot/grid";
 import type { FacetDef } from "@superplot/grid/renderer";
@@ -13,7 +13,7 @@ import { DataModelContext } from "../components/DataModelContext";
 
 const DEFAULT_PAGE_SIZE = 10000;
 
-export interface SelectionDef {
+export interface MatchingRuleDef {
   predicate: FacetPredicate;
   trackRenderer?: FC<FacetCellProps>;
   cellRenderer?: FC<CellProps>;
@@ -27,7 +27,7 @@ export interface UseFlatGridOptions {
   ir: StandardDataFetchAndTransformIR;
   columns?: ColumnDef[];
   facetDefs?: ReactFacetDefs;
-  selections?: SelectionDef[];
+  matchingRules?: MatchingRuleDef[];
   transformResult?: (result: FlattenedDataViewModelParams) => FlattenedDataViewModelParams;
   contextWrapper?: FC<{ children: ReactNode }>;
   enableSorting?: boolean;
@@ -40,7 +40,7 @@ export interface UseFlatGridOptions {
 export type TransformFn = (val: any) => any;
 
 export interface GridBindings {
-  ref: React.RefObject<DataGridHandle>;
+  ref: React.RefObject<DataGridHandle | null>;
   data: FlattenedDataViewModel | null;
   pageLoadingInProgress: boolean;
   onCellRelease: (key: string, cell: HTMLElement) => void;
@@ -60,7 +60,7 @@ export interface PageViewState {
 export interface UseFlatGridResult {
   bindings: GridBindings;
   viewModel: FlattenedDataViewModel | null;
-  gridRef: React.RefObject<DataGridHandle>;
+  gridRef: React.RefObject<DataGridHandle | null>;
   loading: boolean;
   error: Error | null;
   fetchPage: (startRow: number, endRow: number) => Promise<void>;
@@ -70,7 +70,7 @@ export interface UseFlatGridResult {
 }
 
 export function useFlatGrid(options: UseFlatGridOptions): UseFlatGridResult {
-  const { dataSource, schema, config, ir, columns, facetDefs, selections, transformResult, contextWrapper, enableSorting, enableFiltering, enablePageView, displayPageSize, theme } = options;
+  const { dataSource, schema, config, ir, columns, facetDefs, matchingRules, transformResult, contextWrapper, enableSorting, enableFiltering, enablePageView, displayPageSize, theme } = options;
 
   const modelRef = useRef<SqlStandardTableDataModel | null>(null);
   const adapterRef = useRef<ReactCellAdapter | null>(null);
@@ -327,19 +327,19 @@ export function useFlatGrid(options: UseFlatGridOptions): UseFlatGridResult {
 
   useEffect(() => {
     const grid = gridRef.current?.grid;
-    if (!grid || !vmRef.current || !selections || selections.length === 0) return;
+    if (!grid || !vmRef.current || !matchingRules || matchingRules.length === 0) return;
 
     const adapter = adapterRef.current!;
-    const undos = selections.map((sel) => {
-      const props: SelectionProps = {};
+    const undos = matchingRules.map((sel) => {
+      const props: MatchingRuleProps = {};
       if (sel.trackRenderer) props.trackRenderer = adapter.createNativeFacetRenderer(sel.trackRenderer);
       if (sel.cellRenderer) props.cellRenderer = adapter.createNativeDataCellRenderer(sel.cellRenderer);
       if (sel.colSize) props.colSize = sel.colSize;
-      return grid.selectAll(sel.predicate).prop(props);
+      return grid.matchAll(sel.predicate).prop(props);
     });
 
     return () => { for (const s of undos) s.undo(); };
-  }, [selections, loading]);
+  }, [matchingRules, loading]);
 
   const fetchPage = useCallback(async (startRow: number, endRow: number) => {
     if (enablePageView) return;

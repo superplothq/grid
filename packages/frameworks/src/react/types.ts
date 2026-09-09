@@ -2,12 +2,14 @@ import type { FC, ComponentType } from "react";
 import type Grid from "@superplot/grid/renderer";
 import type {
   GridDataViewModel,
-  SelectionPayload,
+  HighlightPayload,
   LayoutType,
   CellRenderer,
   VTrackDef,
   FacetDef,
   FlatRowMeta,
+  ViewDataEmptyPayload,
+  CellEventPayload,
 } from "@superplot/grid/renderer";
 
 export type { GridDataViewModel };
@@ -73,7 +75,10 @@ export interface DataGridProps {
   onCellRelease?: (key: string, cell: HTMLElement) => void;
   onBeforeMeasure?: () => void;
   onRenderComplete?: (viewport: { x0: number; y0: number; x1: number; y1: number }) => void;
-  onViewDataEmpty?: (payload: { startRow: number; endRow: number }) => void;
-  onSelectionAdded?: (payload: SelectionPayload) => void;
-  onSelectionRemoved?: (payload: SelectionPayload) => void;
+  onViewDataEmpty?: (payload: ViewDataEmptyPayload) => void;
+  onHighlightAdded?: (payload: HighlightPayload) => void;
+  onHighlightRemoved?: (payload: HighlightPayload) => void;
+  onCellMouseOver?: (payload: CellEventPayload) => void;
+  onCellMouseOut?: (payload: CellEventPayload) => void;
+  onCellClick?: (payload: CellEventPayload) => void;
 }

@@ -15,9 +15,12 @@ module.exports = {
   devtool: "source-map",
   resolve: {
     extensions: [".tsx", ".ts", ".js", ".mdx"],
+    // Resolved rather than hardcoded to packages/playground/node_modules: the alias only exists to
+    // keep one copy of React across the workspace, and where that copy sits depends on the installer's
+    // hoisting. require.resolve finds it either way.
     alias: {
-      react: path.resolve(__dirname, "node_modules/react"),
-      "react-dom": path.resolve(__dirname, "node_modules/react-dom"),
+      react: path.dirname(require.resolve("react/package.json")),
+      "react-dom": path.dirname(require.resolve("react-dom/package.json")),
     },
     fallback: {
       "fs": false,

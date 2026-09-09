@@ -286,23 +286,23 @@ const grid = new Grid(config, mountEl, "flat", {
 });
 ```
 
-## Conditional renderers via selection rules
+## Conditional renderers via matching rules
 
 `VTrackDef.renderer` and `FacetDef.trackRenderer` apply to a whole column or facet
 level. To override the renderer for specific cells by their facet context or value, use
-`grid.selectAll`. It matches facet cells by dimension name and value; chain `.prop` to
+`grid.matchAll`. It matches facet cells by dimension name and value; chain `.prop` to
 override the renderer for the matching cells only, without rebuilding the viewmodel.
 
 ```ts
 // A bar renderer only for Revenue data cells.
 grid
-  .selectAll((dim, dimVal) => dim === "Measure" && dimVal === "Revenue")
+  .matchAll((dim, dimVal) => dim === "Measure" && dimVal === "Revenue")
   .prop({ cellRenderer: barRenderer });
 
 // Target data cells by value: red text for negative revenue.
 grid
-  .selectAll((dim, dimVal) => dim === "Measure" && dimVal === "Revenue")
-  .selectAllCell((value) => value < 0)
+  .matchAll((dim, dimVal) => dim === "Measure" && dimVal === "Revenue")
+  .matchAllCell((value) => value < 0)
   .prop({ cellRenderer: negativeValueRenderer });
 ```
 
@@ -313,7 +313,7 @@ See [Column selection](/grid/docs/samples/column-selection) for the targeting in
 
 For each cell, the layout resolves which renderer to use in this order:
 
-1. **Selection rule override** - a matching `selectAll` rule that supplies a
+1. **Matching rule override** - a matching `matchAll` rule that supplies a
    `cellRenderer` (data cells) or `trackRenderer` (facet cells) wins. When several rules
    match, the last one inserted wins.
 2. **VTrackDef / FacetDef renderer** - the renderer set on the column or facet level.

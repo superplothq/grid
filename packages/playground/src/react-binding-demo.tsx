@@ -130,7 +130,7 @@ const FlatTableWithBinding: React.FC<FlatTableProps> = ({dataSource, schema}) =>
         <DataGrid
           {...bindings}
           layout="flat"
-          onViewDataEmpty={({startRow, endRow}) => fetchPage(startRow, endRow)}
+          onViewDataEmpty={(p) => { if (p.reason === "out-of-range") fetchPage(p.startRow, p.endRow); }}
         />
       </div>
       <details>

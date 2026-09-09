@@ -3,11 +3,13 @@ import { GridConfig, defaultConfig } from "./grid-config";
 import CellManager from "./cell-manager";
 import { addToRegistry } from "./registry";
 import { Constructor, FacetPredicate } from "./types";
-import "./themes";
-import StandardLayout, { LayoutEvents } from "./standard-layout";
+import { applyThemeTokens } from "./themes";
+import StandardLayout, { LayoutEvents, CELL_EVENT_NAMES, CellEventName } from "./standard-layout";
 import GroupedRowLayout from "./grouped-row-layout";
-import { WithEvents, EventEmitter } from "./mixins";
-import { SelectionRuleStore, Selection } from "./select-all";
+import { WithEvents, EventEmitter, addOrReplaceChildren } from "./mixins";
+import { MatchingRuleStore, Matching } from "./match-all";
+import { resolveFacetSpan } from "./utils";
+import { hoverRectsFor, HoverRect } from "./cell-events";
 
 export type LayoutType = "pivot" | "flat";
 
@@ -41,7 +43,7 @@ export type {
   DataViewport,
   FacetPredicate,
   CellPredicate,
-  SelectionProps,
+  MatchingRuleProps,
   ViewModelMetadata,
   MetadataValue,
   ColumnFacetMetadata,
@@ -53,13 +55,14 @@ export type {
   ValueCellDataContext,
   ValueFormatter,
 } from "./types";
-export { Selection, CellSelection } from "./select-all";
+export { Matching, CellMatching } from "./match-all";
 export { registerTheme, getTheme } from "./registry";
 export { GridDataViewModel, MetaState } from "./grid-data-viewmodel";
+export type { ViewModelInitParams } from "./grid-data-viewmodel";
 export { PivotDataViewModel } from "./pivot-data-viewmodel";
 export { FlattenedDataViewModel, createRowMeta } from "./flattened-data-viewmodel";
 export type { BaseViewModel } from "./layout-proto";
-export type { LayoutEvents } from "./standard-layout";
+export type { LayoutEvents, ViewDataEmptyPayload } from "./standard-layout";
 export { PVerticalFixture, PHorizontalFixture } from "./fixture-proto";
 export type { BaseFixtureViewModel } from "./fixture-proto";
 export type { EventEmitter };
@@ -75,8 +78,23 @@ export {
   type CellRenderer,
   type RendererContext,
 } from "./cell-renderers";
+export {
+  blankGridLoadingRenderer,
+  type LoadingRenderer,
+  type LoadingRendererContext,
+} from "./loading-renderers";
+export {
+  defaultHoverStyleRenderer,
+  type CellTarget,
+  type CellEventPayload,
+  type HoverRect,
+  type HoverEffect,
+  type HoverStyleRenderer,
+  type HoverStyleContext,
+  type FixtureSide,
+} from "./cell-events";
 
-export type SelectionPayload = {
+export type HighlightPayload = {
   hash: string;
   fromRow: number;
   fromCol: number;
@@ -85,15 +103,15 @@ export type SelectionPayload = {
 };
 
 export type GridEvents = LayoutEvents & {
-  selectionAdded: SelectionPayload;
-  selectionRemoved: SelectionPayload;
+  highlightAdded: HighlightPayload;
+  highlightRemoved: HighlightPayload;
 };
 
 class GridBase {}
 const GridWithEvents = WithEvents<GridEvents>()(GridBase);
 
-export type SelectionType = "cell" | "row" | "column" | "range";
-export type SelectionResult = [hash: string, unsub: () => void] | null;
+export type HighlightType = "cell" | "row" | "column" | "range";
+export type HighlightResult = [hash: string, unsub: () => void] | null;
 
 function fastHash(str: string): string {
   let hash = 5381;
@@ -105,8 +123,8 @@ function fastHash(str: string): string {
 
 /**
  * The public entry point for the grid renderer. Wraps a layout engine (`StandardLayout` or `GroupedRowLayout`),
- * a cell pool, and a selection rule store. Set a [GridDataViewModel](/docs/viewmodel) via the `data` setter, then
- * call `draw()` to render. The Grid forwards all [layout events](/docs/renderer/events) and adds selection events.
+ * a cell pool, and a matching rule store. Set a [GridDataViewModel](/docs/viewmodel) via the `data` setter, then
+ * call `draw()` to render. The Grid forwards all [layout events](/docs/renderer/events) and adds highlight events.
  */
 export default class Grid extends GridWithEvents {
   #config: GridConfig;
@@ -114,8 +132,11 @@ export default class Grid extends GridWithEvents {
   #cellManager: CellManager;
   #layout: StandardLayout;
   #renderCount = 0;
-  #selections: Map<string, [fromRow: number, fromCol: number, toRow: number, toCol: number]> = new Map();
-  #ruleStore: SelectionRuleStore;
+  #highlights: Map<string, [fromRow: number, fromCol: number, toRow: number, toCol: number]> = new Map();
+  #ruleStore: MatchingRuleStore;
+  #scheduleDrawPending = false;
+  #mountPoint: HTMLElement;
+  #loadingEl: HTMLElement | undefined;
 
   constructor(config: Partial<GridConfig>, mountPoint: HTMLElement, layoutType: LayoutType = "pivot", opts?: {
     onCellRelease?: (key: string, cell: HTMLElement) => void;
@@ -123,19 +144,59 @@ export default class Grid extends GridWithEvents {
   }) {
     super();
     this.#config = { ...defaultConfig, ...config };
+    this.#mountPoint = mountPoint;
+    // Absolute against the mount point rather than in flow: `.grid-clip` already fills the host's
+    // height, so an in-flow sibling would start a full viewport below the visible area. The mount only
+    // needs a positioning context when it has none - callers commonly mount into an `absolute; inset: 0`
+    // element, and overwriting that would leave the grid without its dimensions.
+    if (getComputedStyle(this.#mountPoint).position === "static") {
+      this.#mountPoint.style.position = "relative";
+    }
+
 
     this.#cellManager = new CellManager();
     if (opts?.onCellRelease) this.#cellManager.onRelease = opts.onCellRelease;
+    // TODO[beforeRelease] do it gracefully
     const LayoutClass = layoutType === "flat" ? GroupedRowLayout : StandardLayout;
     this.#layout = new LayoutClass(this.#config, mountPoint, this.#cellManager);
+    // TODO[beforeRelease] make it part of the layout opts
     if (opts?.onBeforeMeasure) this.#layout.onBeforeMeasure = opts.onBeforeMeasure;
 
-    this.#ruleStore = new SelectionRuleStore(() => this.draw());
+    this.#ruleStore = new MatchingRuleStore(() => this.draw());
 
     // Forward layout events to Grid
-    this.forwardFrom(this.#layout as unknown as EventEmitter<LayoutEvents>, ["renderComplete", "debug_perf:metrics", "viewDataEmpty", "viewModelDataChanged"]);
+    this.forwardFrom(this.#layout as unknown as EventEmitter<LayoutEvents>, ["renderComplete", "debug_perf:metrics", "viewDataEmpty", "viewModelDataChanged", ...CELL_EVENT_NAMES]);
 
+    this.#setupBuiltInHover();
     this.#setupResizeHandler();
+  }
+
+  // The layout keeps cell events paused until something listens. Every subscription path (on, off, the
+  // unsubscribe closure returned by on) reports here, so the layout's flags track the listener set.
+  listenersChanged(event: keyof GridEvents): void {
+    if (!(CELL_EVENT_NAMES as readonly string[]).includes(event as string)) return;
+    const cellEvent = event as CellEventName;
+    if (this.hasListeners(cellEvent)) this.#layout.resumeCellEvent(cellEvent);
+    else this.#layout.pauseCellEvent(cellEvent);
+  }
+
+  // The out-of-the-box hover is a consumer of the public events and setHover(), nothing more.
+  #setupBuiltInHover(): void {
+    const effect = this.#config.hoverEffect;
+    if (effect === "none") return;
+    this.on("cellMouseOver", (payload) => this.setHover(hoverRectsFor(payload, effect)));
+    this.on("cellMouseOut", () => this.setHover(null));
+  }
+
+  /**
+   * Applies a transient tint to rectangles of cells without a redraw - the rule is written into a stylesheet that
+   * already-rendered cells match by their data attributes, and is re-clipped to the viewport after every render.
+   * Each rectangle is the intersection of its row and column spans; an omitted axis means the whole axis, so a row is
+   * `{ rows: [i, i] }`, a cell `{ rows: [i, i], cols: [j, j] }`, and a cross two rectangles. Pass `null` to clear.
+   * Independent of highlights: it emits no events and is not affected by highlight conflicts.
+   */
+  setHover(rects: HoverRect[] | null): void {
+    this.#layout.setHover(rects);
   }
 
   #setupResizeHandler(): void {
@@ -149,32 +210,20 @@ export default class Grid extends GridWithEvents {
 
     const getResizeTarget = (target: EventTarget | null): HTMLElement | null => {
       if (!(target instanceof HTMLElement)) return null;
-      return target.closest<HTMLElement>("[data-cell-action-resize='1']");
-    };
-
-    const findFullColumnRange = (level: number, rightPtr: number): { start: number; end: number } => {
-      const facets = this.#layout.data!.columnFacets;
-      const facetValue = facets[level][rightPtr];
-
-      let leftPtr = rightPtr;
-      while (leftPtr > 0 && facets[level][leftPtr - 1] === facetValue) {
-        leftPtr--;
-      }
-
-      return { start: leftPtr, end: rightPtr };
+      return target.closest<HTMLElement>("[data-cell-resize-target='1']");
     };
 
     const getVisibleLeafColumns = (rangeStart: number, rangeEnd: number): number[] => {
       const leafLevel = this.#layout.data!.numColFacetLevels - 1;
       const leafCells = container.querySelectorAll<HTMLElement>(
-        `[data-cell-type='column-facet'][data-facet-level='${leafLevel}']`
+        `[data-cell-type='column-facet'][data-level='${leafLevel}']`
       );
 
       const visibleCols: number[] = [];
       leafCells.forEach(cell => {
-        const hix = parseInt(cell.dataset.hix!, 10);
-        if (hix >= rangeStart && hix <= rangeEnd) {
-          visibleCols.push(hix);
+        const col = parseInt(cell.dataset.col!, 10);
+        if (col >= rangeStart && col <= rangeEnd) {
+          visibleCols.push(col);
         }
       });
 
@@ -195,12 +244,11 @@ export default class Grid extends GridWithEvents {
       let totalColCount = 1;
 
       if (region === "center") {
-        const level = parseInt(cell.dataset.facetLevel!, 10);
+        const level = parseInt(cell.dataset.level!, 10);
         // See the diagram in the comment on standard-layout.ts
         // since for facets level < leaf levels, columns are merged (by applying colspan), rightPtr contains the right
         // most index of the merged column facet value from the data view model.
-        const numLeftFixedTracks = this.#layout.numLeftFixedTracks;
-        const rightPtr = parseInt(cell.dataset.hix!, 10) - numLeftFixedTracks;
+        const rightPtr = parseInt(cell.dataset.col!, 10);
 
         // column facets level = leaf levels provides header cells for data cells. These two essentially create a standard table.
         // Column facets level < leaf levels create hierarchy/nesting and spans over multiple leaf level columns.
@@ -209,19 +257,19 @@ export default class Grid extends GridWithEvents {
         // because of virtualization
         const leafLevel = this.#layout.data!.numColFacetLevels - 1;
         const fullRange = level < leafLevel
-          ? findFullColumnRange(level, rightPtr)
-          : { start: rightPtr, end: rightPtr };
-        totalColCount = fullRange.end - fullRange.start + 1;
+          ?  resolveFacetSpan(this.#layout.data!.columnFacets, level, rightPtr)
+          : [rightPtr, rightPtr];
+        totalColCount = fullRange[1] - fullRange[0] + 1;
 
         // Find out out of all leaf level nodes over which the column being dragged spans, which columns are in dom
-        const visibleCols = getVisibleLeafColumns(fullRange.start + numLeftFixedTracks, fullRange.end + numLeftFixedTracks);
+        const visibleCols = getVisibleLeafColumns(fullRange[0], fullRange[1]);
         // TODO for cells that are not currently in dom atm, but would appear in dom as we scroll / reduce size of columns
         //      we need to update the change in size of columns to be considered as they appears on the dom
 
         for (const colIdx of visibleCols) {
           createControllers.push(() => resizeControllers.push({ idx: colIdx, ctrl: this.#layout.changeLeafColWidth(colIdx) }));
         }
-      } else if (region === "left" && (e.target as HTMLElement).dataset.groupFacetResize === "1") {
+      } else if (region === "left" && (e.target as HTMLElement).dataset.groupTrackResize === "1") {
         const numLeftFixtures = this.#layout.numLeftFixedTracks - this.#layout.data!.numRowFacetLevels;
         const numRowFacetLevels = this.#layout.data!.numRowFacetLevels;
         totalColCount = numRowFacetLevels;
@@ -262,6 +310,7 @@ export default class Grid extends GridWithEvents {
 
         if (didDrag) {
           resizeControllers.forEach(c => c.ctrl.commit());
+          this.#layout.suppressNextCellClick();
           this.draw();
         }
       };
@@ -279,7 +328,7 @@ export default class Grid extends GridWithEvents {
 
       const region = cell.dataset.cellRegion as "left" | "center" | "right";
 
-      if (region === "left" && (e.target as HTMLElement).dataset.groupFacetResize === "1") {
+      if (region === "left" && (e.target as HTMLElement).dataset.groupTrackResize === "1") {
         const numLeftFixtures = this.#layout.numLeftFixedTracks - this.#layout.data!.numRowFacetLevels;
         const numRowFacetLevels = this.#layout.data!.numRowFacetLevels;
         for (let i = 0; i < numRowFacetLevels; i++) {
@@ -296,20 +345,24 @@ export default class Grid extends GridWithEvents {
         this.draw();
       } else if (region === "center") {
         const leafLevel = this.#layout.data!.numColFacetLevels - 1;
-        if (parseInt(cell.dataset.facetLevel!, 10) !== leafLevel) return;
-        const colIdx = parseInt(cell.dataset.hix!, 10);
+        if (parseInt(cell.dataset.level!, 10) !== leafLevel) return;
+        const colIdx = parseInt(cell.dataset.col!, 10);
         this.#layout.autofitLeafColWidth(colIdx);
         this.draw();
       }
     });
   }
 
-  #scheduleDrawPending = false;
-
-  /** Sets the viewmodel that provides data for rendering. After setting, call `draw()` to trigger the first render. Reassign after `updateData()` to push new data into the grid. */
+  // TODO[beforeRelease] all the other methods are call as setData() ; here also do the same. Remove the pattern setter
+  // pattern. So is getData() below
+  /**
+   * Sets the viewmodel that provides data for rendering. After setting, call `draw()` to trigger the first render.
+   * Reassign after `updateData()` to push new data into the grid. A blank viewmodel is held back from the layout -
+   * it has no columns or facet defs to lay out - so a grid started blank must be reassigned once the viewmodel is filled.
+   */
   set data(value: GridDataViewModel) {
     this.#data = value;
-    this.#layout.setData(value);
+    if (value.isDataLoaded()) this.#layout.setData(value);
   }
 
   /** Returns the current viewmodel, or `undefined` if none has been set. */
@@ -322,6 +375,7 @@ export default class Grid extends GridWithEvents {
     return this.#layout.gridContainer;
   }
 
+  // TODO[beforeRelease] usage pattern
   /** Schedules a draw on the next animation frame. Multiple calls before the frame fires are coalesced into a single render. */
   scheduleDraw(): void {
     if (this.#scheduleDrawPending) return;
@@ -332,164 +386,203 @@ export default class Grid extends GridWithEvents {
     });
   }
 
-  /** Creates a [Selection](/docs/renderer/selections) builder that targets facet cells matching the predicate. Chain `.selectAll()` to add more predicates, then `.style()` or `.prop()` to apply effects. */
-  selectAll(predicate: FacetPredicate): Selection {
-    return new Selection(this.#ruleStore, [{ type: "facet", predicate }]);
+  /** Creates a [Matching](/docs/renderer/match-all) builder that targets facet cells matching the predicate. Chain `.matchAll()` to add more predicates, then `.style()` or `.prop()` to apply effects. */
+  matchAll(predicate: FacetPredicate): Matching {
+    return new Matching(this.#ruleStore, [{ type: "facet", predicate }]);
   }
 
-  /** Triggers a synchronous render cycle: calculates the viewport, fetches the data slice, renders cells, auto-sizes columns, and emits `renderComplete`. Throws if `data` has not been set. */
+  /** Triggers a synchronous render cycle: calculates the viewport, fetches the data slice, renders cells, auto-sizes columns, and emits `renderComplete`. Throws if `data` has not been set. When the viewmodel is blank (`isDataLoaded()` is `false`), nothing is rendered - the grid emits `viewDataEmpty` with reason `no-data` and returns, leaving the consumer to fetch data or show its own empty state. */
   draw(): void {
+    if (!this.#data) throw new Error("Data is not set!");
+
+    if (!this.#data.isDataLoaded()) {
+      this.#showLoading();
+      this.emit("viewDataEmpty", { reason: "no-data" });
+      return;
+    }
+
+    this.#hideLoading();
+    if (this.#layout.data !== this.#data) this.#layout.setData(this.#data);
+
+
     const startTime = performance.now();
     this.#renderCount++;
 
-    if (!this.#data) throw new Error("Data is not set!");
-
-    this.#layout.setSelectAllRules(this.#ruleStore.rules);
+    this.#layout.setMatchingRules(this.#ruleStore.rules);
     const viewModel = this.#layout.calculateViewModel();
     this.#layout.render(viewModel, { t1: startTime });
   }
 
-  #makeSelectionId(fromRow: number, fromCol: number, toRow: number, toCol: number): string {
+  // The container is built on first use and kept for the life of the grid: `config.loadingRenderer` may
+  // hand it to a framework (a React root binds to the element), so it must not be recreated per draw.
+  #showLoading(): void {
+    this.#layout.collapseScrollArea();
+
+    if (this.#loadingEl) {
+      this.#loadingEl.style.display = "block";
+      return;
+    }
+
+    this.#loadingEl = document.createElement("div");
+    Object.assign(this.#loadingEl.style, {
+      position: "absolute",
+      inset: "0",
+      overflow: "hidden",
+      zIndex: "1",
+      display: "block",
+    });
+    applyThemeTokens(this.#loadingEl, this.#config.theme);
+    this.#mountPoint.shadowRoot!.appendChild(this.#loadingEl);
+
+    const content = this.#config.loadingRenderer({ container: this.#loadingEl });
+    if (content !== undefined) addOrReplaceChildren(this.#loadingEl, content);
+  }
+
+  #hideLoading(): void {
+    if (this.#loadingEl) this.#loadingEl.style.display = "none";
+  }
+
+  #makeHighlightId(fromRow: number, fromCol: number, toRow: number, toCol: number): string {
     const r = (v: number) => v === Infinity ? "inf" : String(v);
     return `${r(fromRow)};${r(toRow)};${r(fromCol)};${r(toCol)}`;
   }
 
-  #getSelectionType(fromRow: number, fromCol: number, toRow: number, toCol: number): SelectionType {
+  #getHighlightType(fromRow: number, fromCol: number, toRow: number, toCol: number): HighlightType {
     if (fromRow === toRow && fromCol === toCol) return "cell";
     if (fromCol === 0 && toCol === Infinity) return "row";
     if (fromRow === 0 && toRow === Infinity) return "column";
     return "range";
   }
 
-  #getCurrentSelectionType(): SelectionType | null {
-    const first = this.#selections.values().next().value;
+  #getCurrentHighlightType(): HighlightType | null {
+    const first = this.#highlights.values().next().value;
     if (!first) return null;
-    return this.#getSelectionType(first[0], first[1], first[2], first[3]);
+    return this.#getHighlightType(first[0], first[1], first[2], first[3]);
   }
 
-  #resolveConflictsAndAddSelection(fromRow: number, fromCol: number, toRow: number, toCol: number): {
+  #resolveConflictsAndAddHighlight(fromRow: number, fromCol: number, toRow: number, toCol: number): {
     id: string;
     hash: string;
     isDuplicate: boolean;
-    removed: SelectionPayload[];
-    added: SelectionPayload[]
+    removed: HighlightPayload[];
+    added: HighlightPayload[]
   } {
-    const newType = this.#getSelectionType(fromRow, fromCol, toRow, toCol);
-    const currentType = this.#getCurrentSelectionType();
-    const id = this.#makeSelectionId(fromRow, fromCol, toRow, toCol);
+    const newType = this.#getHighlightType(fromRow, fromCol, toRow, toCol);
+    const currentType = this.#getCurrentHighlightType();
+    const id = this.#makeHighlightId(fromRow, fromCol, toRow, toCol);
     const hash = fastHash(id);
 
-    if (this.#selections.has(id)) {
+    if (this.#highlights.has(id)) {
       return { id, hash, isDuplicate: true, removed: [], added: [] };
     }
 
-    const removed: SelectionPayload[] = [];
+    const removed: HighlightPayload[] = [];
 
-    // if range selection: then all previous selections are cleared including range
-    // if cell selection: only keep if previous selection is cell
-    // if col selection: only keep if previous selection is col
-    // if row selection: only keep if previous selection is row
+    // if range highlight: then all previous highlights are cleared including range
+    // if cell highlight: only keep if previous highlight is cell
+    // if col highlight: only keep if previous highlight is col
+    // if row highlight: only keep if previous highlight is row
     if (newType === "range" || (currentType && currentType !== newType)) {
-      for (const [existingId, selection] of this.#selections) {
-        removed.push({ hash: fastHash(existingId), fromRow: selection[0], fromCol: selection[1], toRow: selection[2], toCol: selection[3] });
+      for (const [existingId, highlight] of this.#highlights) {
+        removed.push({ hash: fastHash(existingId), fromRow: highlight[0], fromCol: highlight[1], toRow: highlight[2], toCol: highlight[3] });
       }
-      this.#selections.clear();
+      this.#highlights.clear();
     }
 
-    this.#selections.set(id, [fromRow, fromCol, toRow, toCol]);
-    const added: SelectionPayload[] = [{ hash, fromRow, fromCol, toRow, toCol }];
+    this.#highlights.set(id, [fromRow, fromCol, toRow, toCol]);
+    const added: HighlightPayload[] = [{ hash, fromRow, fromCol, toRow, toCol }];
     return { id, hash, isDuplicate: false, removed, added };
   }
 
-  #raiseSelectionEvents(result: { removed: SelectionPayload[]; added: SelectionPayload[] }): void {
+  #raiseHighlightEvents(result: { removed: HighlightPayload[]; added: HighlightPayload[] }): void {
     for (const r of result.removed) {
-      this.emit("selectionRemoved", r);
+      this.emit("highlightRemoved", r);
     }
     for (const a of result.added) {
-      this.emit("selectionAdded", a);
+      this.emit("highlightAdded", a);
     }
   }
 
-  #syncSelectionsToLayout(): void {
-    const selectionsArray = Array.from(this.#selections.values());
-    this.#layout.viewModelProposal({ selections: selectionsArray });
+  #syncHighlightsToLayout(): void {
+    const highlightsArray = Array.from(this.#highlights.values());
+    this.#layout.viewModelProposal({ highlights: highlightsArray });
   }
 
-  /** Selects a single cell by its data row and column index. Returns `[hash, unsub]` where `hash` identifies the selection and `unsub()` removes it. Returns `null` if the cell is already selected. Emits `selectionAdded`; calling `unsub()` emits `selectionRemoved`. */
-  selectCellByDataIndex(row: number, col: number): SelectionResult {
-    const result = this.#resolveConflictsAndAddSelection(row, col, row, col);
+  /** Highlights a single cell by its data row and column index. Returns `[hash, unsub]` where `hash` identifies the highlight and `unsub()` removes it. Returns `null` if the cell is already highlighted. Emits `highlightAdded`; calling `unsub()` emits `highlightRemoved`. */
+  highlightCellByDataIndex(row: number, col: number): HighlightResult {
+    const result = this.#resolveConflictsAndAddHighlight(row, col, row, col);
     if (result.isDuplicate) return null;
 
-    this.#syncSelectionsToLayout();
+    this.#syncHighlightsToLayout();
     this.draw();
-    this.#raiseSelectionEvents(result);
+    this.#raiseHighlightEvents(result);
 
     return [result.hash, () => {
-      if (!this.#selections.has(result.id)) return;
-      this.#selections.delete(result.id);
-      this.#syncSelectionsToLayout();
+      if (!this.#highlights.has(result.id)) return;
+      this.#highlights.delete(result.id);
+      this.#syncHighlightsToLayout();
       this.draw();
-      this.#raiseSelectionEvents({ removed: result.added, added: [] });
+      this.#raiseHighlightEvents({ removed: result.added, added: [] });
     }];
   }
 
-  /** Selects a rectangular range of cells. Coordinates are normalized (min/max) internally. A range selection clears all previous selections. Returns `[hash, unsub]` or `null` if already selected. */
-  selectRangeByDataIndex(fromRow: number, fromCol: number, toRow: number, toCol: number): SelectionResult {
+  /** Highlights a rectangular range of cells. Coordinates are normalized (min/max) internally. A range highlight clears all previous highlights. Returns `[hash, unsub]` or `null` if already highlighted. */
+  highlightRangeByDataIndex(fromRow: number, fromCol: number, toRow: number, toCol: number): HighlightResult {
     // Normalize to ensure from <= to
     const normFromRow = Math.min(fromRow, toRow);
     const normFromCol = Math.min(fromCol, toCol);
     const normToRow = Math.max(fromRow, toRow);
     const normToCol = Math.max(fromCol, toCol);
 
-    const result = this.#resolveConflictsAndAddSelection(normFromRow, normFromCol, normToRow, normToCol);
+    const result = this.#resolveConflictsAndAddHighlight(normFromRow, normFromCol, normToRow, normToCol);
     if (result.isDuplicate) return null;
 
-    this.#syncSelectionsToLayout();
+    this.#syncHighlightsToLayout();
     this.draw();
-    this.#raiseSelectionEvents(result);
+    this.#raiseHighlightEvents(result);
 
     return [result.hash, () => {
-      if (!this.#selections.has(result.id)) return;
-      this.#selections.delete(result.id);
-      this.#syncSelectionsToLayout();
+      if (!this.#highlights.has(result.id)) return;
+      this.#highlights.delete(result.id);
+      this.#syncHighlightsToLayout();
       this.draw();
-      this.#raiseSelectionEvents({ removed: result.added, added: [] });
+      this.#raiseHighlightEvents({ removed: result.added, added: [] });
     }];
   }
 
-  /** Selects an entire column by its data index (all rows from 0 to Infinity). Column selections accumulate; adding a non-column selection clears them. Returns `[hash, unsub]` or `null` if already selected. */
-  selectColumnByDataIndex(colIndex: number): SelectionResult {
-    const result = this.#resolveConflictsAndAddSelection(0, colIndex, Infinity, colIndex);
+  /** Highlights an entire column by its data index (all rows from 0 to Infinity). Column highlights accumulate; adding a non-column highlight clears them. Returns `[hash, unsub]` or `null` if already highlighted. */
+  highlightColumnByDataIndex(colIndex: number): HighlightResult {
+    const result = this.#resolveConflictsAndAddHighlight(0, colIndex, Infinity, colIndex);
     if (result.isDuplicate) return null;
 
-    this.#syncSelectionsToLayout();
+    this.#syncHighlightsToLayout();
     this.draw();
-    this.#raiseSelectionEvents(result);
+    this.#raiseHighlightEvents(result);
 
     return [result.hash, () => {
-      if (!this.#selections.has(result.id)) return;
-      this.#selections.delete(result.id);
-      this.#syncSelectionsToLayout();
+      if (!this.#highlights.has(result.id)) return;
+      this.#highlights.delete(result.id);
+      this.#syncHighlightsToLayout();
       this.draw();
-      this.#raiseSelectionEvents({ removed: result.added, added: [] });
+      this.#raiseHighlightEvents({ removed: result.added, added: [] });
     }];
   }
 
-  /** Selects an entire row by its data index (all columns from 0 to Infinity). Row selections accumulate; adding a non-row selection clears them. Returns `[hash, unsub]` or `null` if already selected. */
-  selectRowByDataIndex(rowIndex: number): SelectionResult {
-    const result = this.#resolveConflictsAndAddSelection(rowIndex, 0, rowIndex, Infinity);
+  /** Highlights an entire row by its data index (all columns from 0 to Infinity). Row highlights accumulate; adding a non-row highlight clears them. Returns `[hash, unsub]` or `null` if already highlighted. */
+  highlightRowByDataIndex(rowIndex: number): HighlightResult {
+    const result = this.#resolveConflictsAndAddHighlight(rowIndex, 0, rowIndex, Infinity);
     if (result.isDuplicate) return null;
 
-    this.#syncSelectionsToLayout();
+    this.#syncHighlightsToLayout();
     this.draw();
-    this.#raiseSelectionEvents(result);
+    this.#raiseHighlightEvents(result);
 
     return [result.hash, () => {
-      if (!this.#selections.has(result.id)) return;
-      this.#selections.delete(result.id);
-      this.#syncSelectionsToLayout();
+      if (!this.#highlights.has(result.id)) return;
+      this.#highlights.delete(result.id);
+      this.#syncHighlightsToLayout();
       this.draw();
-      this.#raiseSelectionEvents({ removed: result.added, added: [] });
+      this.#raiseHighlightEvents({ removed: result.added, added: [] });
     }];
   }
 
@@ -503,10 +596,10 @@ export default class Grid extends GridWithEvents {
     }
   }
 
-  /** Removes all active cell/row/column/range selections and triggers a re-render. */
-  clearAllSelections(): void {
-    this.#selections.clear();
-    this.#syncSelectionsToLayout();
+  /** Removes all active cell/row/column/range highlights and triggers a re-render. */
+  clearAllHighlights(): void {
+    this.#highlights.clear();
+    this.#syncHighlightsToLayout();
     this.draw();
   }
 

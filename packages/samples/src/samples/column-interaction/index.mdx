@@ -7,13 +7,13 @@ tags: [flat]
 ---
 
 Beyond styling, the grid ships two built-in pointer interactions for columns:
-**drag-to-resize** and **cell/column/range selection**. Both render their own
-visuals - the resize handle and the blue selection overlay come from the grid's
+**drag-to-resize** and **cell/column/range highlighting**. Both render their own
+visuals - the resize handle and the blue highlight overlay come from the grid's
 stylesheet - so a sample only sets a flag or forwards a click.
 
-This is a different system from the rule-based `selectAll(...)` styling used in
+This is a different system from the rule-based `matchAll(...)` styling used in
 [Column Selection](/docs/samples/column-selection): that paints cells from facet
-predicates, while the API here selects data-index ranges and draws an overlay.
+predicates, while the API here highlights data-index ranges and draws an overlay.
 
 ## Resize columns
 
@@ -45,38 +45,38 @@ the toolbar.
 
 ## Select cells, columns, and ranges
 
-The selection API works in data indices and renders a blue overlay itself, so
+The highlight API works in data indices and renders a blue overlay itself, so
 after a call there is no `draw()` to make. It is purely programmatic - no pointer
 handling is built in - so the sample forwards clicks and drags to it. Every cell
 carries its data index in `data-*` attributes, which is what maps a DOM target to
-a selection call.
+a highlight call.
 
 ```ts
 // read the index off the clicked cell, then select
-grid.selectColumnByDataIndex(colIndex);           // whole column - columns accumulate
-grid.selectCellByDataIndex(rowIndex, colIndex);    // a single cell
-grid.selectRangeByDataIndex(r1, c1, r2, c2);       // a rectangle - clears other selections
-grid.clearAllSelections();
+grid.highlightColumnByDataIndex(colIndex);           // whole column - columns accumulate
+grid.highlightCellByDataIndex(rowIndex, colIndex);    // a single cell
+grid.highlightRangeByDataIndex(r1, c1, r2, c2);       // a rectangle - clears other highlights
+grid.clearAllHighlights();
 ```
 
-The indices come straight off the DOM: a data cell exposes `data-croix` /
-`data-cclix` (its data row / column), and a column header exposes `data-hix` (its
+The indices come straight off the DOM: a data cell exposes `data-row` /
+`data-col` (its data row / column), and a column header exposes `data-col` (its
 leaf column). A `mousedown` reads them and calls the matching method; a drag
-re-issues `selectRangeByDataIndex` as the pointer moves.
+re-issues `highlightRangeByDataIndex` as the pointer moves.
 
 ```ts
 const cell = (event.target as Element).closest('[data-cell-type="value"]');
-grid.selectCellByDataIndex(+cell.dataset.croix, +cell.dataset.cclix);
+grid.highlightCellByDataIndex(+cell.dataset.row, +cell.dataset.col);
 ```
 
 Try it below: click a header to select its column (click more headers to add
 them), click a single cell, or drag across cells to sweep out a range. **Clear**
-removes every selection.
+removes every highlight.
 
-<SampleDemo id="column-interaction-selection" />
+<SampleDemo id="column-interaction-highlight" />
 
 **Source**
 
 ```json doc-gen:file
-{ "file": "packages/samples/src/samples/column-interaction/selection.ts", "codeblock": { "lang": "ts" } }
+{ "file": "packages/samples/src/samples/column-interaction/highlight.ts", "codeblock": { "lang": "ts" } }
 ```

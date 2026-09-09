@@ -10,9 +10,11 @@ export function addOrReplaceChildren(parent: HTMLElement, child: string | HTMLEl
   }
 }
 
+export type CellClassList = (string | false | null | undefined)[];
+
 export interface PlaceCellOpts {
   key: string;
-  cls: string;
+  cls: CellClassList;
   gridRow: number;
   gridCol: number;
   hintContentDirty?: boolean;
@@ -30,6 +32,8 @@ export interface PlaceCellOpts {
   };
 }
 
+export type PlaceCellFn = (opts: PlaceCellOpts) => [HTMLElement, boolean, boolean];
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Constructor<T = object> = abstract new (...args: any[]) => T;
 
@@ -43,7 +47,7 @@ export function WithCellPlacement<TBase extends Constructor<HasCellManager>>(Bas
       const [cell, needAppend] = this.cellManager.acquire(opts.key);
       const contentDirty = needAppend || !opts.hintContentDirty;
 
-      const cellCls = "cell " + opts.cls;
+      const cellCls = ["cell", ...opts.cls].filter(Boolean).join(" ");
       if (cell.className !== cellCls) {
         cell.className = cellCls;
       }
@@ -98,6 +102,7 @@ export interface EventEmitter<TEvents extends Record<string, unknown>> {
   on<K extends keyof TEvents>(event: K, handler: EventHandler<TEvents[K]>): () => void;
   off<K extends keyof TEvents>(event: K, handler?: EventHandler<TEvents[K]>): void;
   emit<K extends keyof TEvents>(event: K, payload: TEvents[K]): void;
+  hasListeners<K extends keyof TEvents>(event: K): boolean;
   forwardFrom<TSource extends Record<string, unknown>>(
     source: EventEmitter<TSource>,
     events: (keyof TSource & keyof TEvents)[]
@@ -114,6 +119,7 @@ export function WithEvents<TEvents extends Record<string, unknown>>() {
           this.#listeners.set(event, new Set());
         }
         this.#listeners.get(event)!.add(handler as EventHandler<unknown>);
+        this.listenersChanged(event);
         return () => this.off(event, handler);
       }
 
@@ -123,12 +129,22 @@ export function WithEvents<TEvents extends Record<string, unknown>>() {
         } else {
           this.#listeners.get(event)?.delete(handler as EventHandler<unknown>);
         }
+        this.listenersChanged(event);
       }
+
+      // Called after every subscribe / unsubscribe. Subclasses that gate work on whether an event is
+      // observed override this. Not generic and not protected on purpose: a generic override trips the
+      // mixin typing and declaration emit rejects protected members on an anonymous mixin class.
+      listenersChanged(_event: keyof TEvents): void {}
 
       emit<K extends keyof TEvents>(event: K, payload: TEvents[K]): void {
         setTimeout(() => {
           this.#listeners.get(event)?.forEach((handler) => handler(payload));
         }, 0);
+      }
+
+      hasListeners<K extends keyof TEvents>(event: K): boolean {
+        return (this.#listeners.get(event)?.size ?? 0) > 0;
       }
 
       forwardFrom<TSource extends Record<string, unknown>>(
