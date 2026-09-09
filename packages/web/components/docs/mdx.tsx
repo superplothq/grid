@@ -8,6 +8,7 @@ import { Pill } from '@/components/docs/pill';
 import { TypeTable } from '@/components/docs/type-table';
 import { Term } from '@/components/docs/term';
 import { Mermaid } from '@/components/docs/mermaid';
+import { UsagePattern } from '@/components/docs/usage-pattern';
 import type { MDXComponents } from 'mdx/types';
 
 export function getMDXComponents(components?: MDXComponents) {
@@ -23,6 +24,7 @@ export function getMDXComponents(components?: MDXComponents) {
     TypeTable,
     Term,
     Mermaid,
+    UsagePattern,
     ...components,
   } satisfies MDXComponents;
 }

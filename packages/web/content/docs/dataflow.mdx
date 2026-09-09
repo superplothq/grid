@@ -25,6 +25,12 @@ Out of the box the grid owns only the rendering of grid layout. It ships no sort
 
 ## Dataflow
 
+The loop is always the same. The glue code creates a DataViewModel, creates the grid instance, and hands the ViewModel to it. From then on, interaction updates the ViewModel rather than the grid: the glue code listens to grid events, or to events from whatever custom UI it built, and updates the ViewModel in response. If a DataModel is in play, that means updating the IR, fetching data for it, and pushing the result into the ViewModel, which re-renders the grid. Data therefore only ever moves in one direction.
+
+<DocDiagram id="unidirectional-flow" />
+
+<usage-pattern id="dataflow-loop" />
+
 ### New grid creation
 
 The example below uses `DuckDBWasmDataSource` (to connect to a WASM SQL database in the browser) and `SqlPivotTableDataModel` (to model data using SQL syntax). These are opinionated subclasses that ship with the library. You can substitute any class that implements `DataSource<T>` or extends `DataModel`.
