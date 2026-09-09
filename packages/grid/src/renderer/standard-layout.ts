@@ -162,7 +162,7 @@ export default class StandardLayout extends StandardLayoutBase {
   #scrollListenerSet = false;
   #scrollAxisLock: "x" | "y" | null = null;
   #renderCount = 0;
-  #layoutBootstrapped = false;
+  #repositionTrackWithInitVal = false;
   #viewDataEmptyTimer: ReturnType<typeof setTimeout> | null = null;
   #cellsToMeasure: CellToMeasure[] = [];
   #postRenderAdjustLeftCellsPerLevel: HTMLElement[][] = [];
@@ -729,6 +729,7 @@ export default class StandardLayout extends StandardLayoutBase {
       this.colsWidth.left.indices = [];
       this.colsWidth.center.indices = [];
       this.colsWidth.right.indices = [];
+      this.#repositionTrackWithInitVal = true;
     }
     this.#viewportDataChangeUnsub = data.register("viewportDataChange", (viewport) => {
       this.emit("viewModelDataChanged", viewport);
@@ -1185,7 +1186,7 @@ export default class StandardLayout extends StandardLayoutBase {
     this.#cellsToMeasure = [];
   }
 
-  #onLayoutBootstrap(viewModel: ViewModel): void {
+  #applyInitTrackPositions(viewModel: ViewModel): void {
     this.#updateVirtualPanel(viewModel);
 
     for (let i = 0; i < this.#postRenderAdjustLeftCellsPerLevel.length; i++) {
@@ -1599,10 +1600,10 @@ export default class StandardLayout extends StandardLayoutBase {
 
     this.#setupScrollListener();
 
-    if (!this.#layoutBootstrapped) {
-      this.#layoutBootstrapped = true;
+    if (this.#repositionTrackWithInitVal) {
+      this.#repositionTrackWithInitVal = false;
       const vmUpdated = this.calculateViewModel();
-      this.#onLayoutBootstrap(vmUpdated);
+      this.#applyInitTrackPositions(vmUpdated);
       this.#raiseRenderCompleteEvent(vmUpdated, ctx, { nodeAppendList, cellsToRemove, contentCellRerenderCount });
     } else {
       this.#raiseRenderCompleteEvent(viewModel, ctx, { nodeAppendList, cellsToRemove, contentCellRerenderCount });
