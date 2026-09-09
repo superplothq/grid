@@ -127,7 +127,7 @@ export function mount(el: HTMLElement): () => void {
   el.append(groupBar, gridMount);
 
   const grid = new Grid(
-    { defaultCellHeight: ROW_HEIGHT, enableResizeUI: true },
+    { defaultCellHeight: ROW_HEIGHT, enableResizeUI: true, hoverEffect: "none" },
     gridMount,
     "flat"
   );

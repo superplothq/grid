@@ -440,7 +440,7 @@ export function mount(el: HTMLElement): () => void {
     const leftFx = visibleLeft().map((_, i) => makeFixture("left", i));
     const rightFx = visibleRight().map((_, i) => makeFixture("right", i));
     grid = new Grid(
-      { defaultCellHeight: ROW_HEIGHT, enableResizeUI: false, fixtures: { top: [], left: leftFx, bottom: [], right: rightFx } },
+      { defaultCellHeight: ROW_HEIGHT, enableResizeUI: false, hoverEffect: "none", fixtures: { top: [], left: leftFx, bottom: [], right: rightFx } },
       gridMount,
       "flat",
     );
