@@ -90,7 +90,7 @@ export function mount(el: HTMLElement): () => void {
   gridMount.style.borderRadius = "10px";
   el.append(gridMount);
 
-  const grid = new Grid({ defaultCellHeight: ROW_HEIGHT, enableResizeUI: true }, gridMount, "flat");
+  const grid = new Grid({ defaultCellHeight: ROW_HEIGHT, enableResizeUI: true, hoverEffect: "none" }, gridMount, "flat");
   const disposeTheme = syncGridTheme(grid);
 
   /* ===== data shaping ===== */

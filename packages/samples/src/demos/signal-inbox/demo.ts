@@ -262,6 +262,7 @@ export function mount(el: HTMLElement): () => void {
     {
       defaultCellHeight: ROW_HEIGHT,
       enableResizeUI: true,
+      hoverEffect: "none",
       fixtures: { top: [], left: [SelectFixture], bottom: [], right: [ContactFixture] },
     },
     gridMount,

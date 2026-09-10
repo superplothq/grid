@@ -211,7 +211,7 @@ export const demoUseCases: DemoUseCase[] = [
         code: `await dataSource.loadData(columns);`,
       },
       { role: 'human', body: 'Now pivot the cleaned data by month.' },
-      { role: 'agent', body: 'Same datasource, new pivot datamodel — no re-import needed.' },
+      { role: 'agent', body: 'Same datasource, new pivot datamodel. No re-import needed.' },
     ],
   },
   {
@@ -228,7 +228,7 @@ export const demoUseCases: DemoUseCase[] = [
         body: 'Filters are just transform inputs to the datamodel; the action menu is a custom cell renderer emitting app events.',
         code: `grid.on('cell:action', ({ row, action }) => handleRowAction(row, action));`,
       },
-      { role: 'agent', body: 'Because the core is headless, your app owns the filter UI completely — the grid only receives the resulting query state.' },
+      { role: 'agent', body: 'Because the core is headless, your app owns the filter UI completely. The grid only receives the resulting query state.' },
     ],
   },
   */
@@ -244,13 +244,13 @@ export const principles: Principle[] = [
   {
     slug: 'fullstack-grid',
     title: 'Fullstack grid',
-    body: 'One pipeline runs from storage to pixels: DataSource, DataModel, DataViewModel, Renderer. SQL generation, aggregation, and virtualization are built in — no hand-stitched glue between frontend and backend.',
+    body: 'One pipeline runs from storage to pixels: DataSource, DataModel, DataViewModel, Renderer. SQL generation, aggregation, and virtualization are built in, with no hand-stitched glue between frontend and backend.',
     href: `${ourApproachPath}#principles/fullstack-grid`,
   },
   {
     slug: 'table-algebra',
     title: 'Table algebra',
-    body: 'Pivot layouts are expressions built from cross, hierarchy, and concat operators. A layout is data an agent can generate, inspect, and refine — not a pile of imperative configuration calls.',
+    body: 'Pivot layouts are expressions built from cross, hierarchy, and concat operators. A layout is data an agent can generate, inspect, and refine instead of a pile of imperative configuration calls.',
     href: `${ourApproachPath}#principles/table-algebra`,
   },
 ];
@@ -402,4 +402,3 @@ export const faqItems: FaqItem[] = [
     ),
   },
 ];
-

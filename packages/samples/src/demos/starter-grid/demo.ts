@@ -17,7 +17,7 @@ const COLUMNS: { label: string; get: (row: Row) => SampleValue; fr: number; nume
 
 export function mount(el: HTMLElement): () => void {
   const gridMount = createGridMount(el, GRID_HEIGHT);
-  const grid = new Grid({}, gridMount, "flat");
+  const grid = new Grid({ hoverEffect: "none" }, gridMount, "flat");
   const disposeTheme = syncGridTheme(grid);
   el.append(gridMount);
 
