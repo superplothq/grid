@@ -55,15 +55,19 @@ import {
  * in definition order. The final ORDER BY follows the tree traversal order, ensuring
  * the result is in row-major order (row dims first, then col dims).
  */
+function escapeSQL(value: string): string {
+  return value.replace(/'/g, "''");
+}
+
 function filterToWhere(filter: SegmentFilter): string {
   const parts: string[] = [];
   for (const c of filter.pass) {
-    const valList = c.values.map(v => `'${v}'`).join(",");
+    const valList = c.values.map(v => `'${escapeSQL(v)}'`).join(",");
     parts.push(`"${c.field}" IN (${valList})`);
   }
   if (filter.fail.length > 0) {
     const failParts = filter.fail.map(c => {
-      const valList = c.values.map(v => `'${v}'`).join(",");
+      const valList = c.values.map(v => `'${escapeSQL(v)}'`).join(",");
       return `COALESCE("${c.field}" IN (${valList}), FALSE)`;
     });
     parts.push(`NOT (${failParts.join(" AND ")})`);
@@ -74,14 +78,14 @@ function filterToWhere(filter: SegmentFilter): string {
 function filterToWhereQualified(filter: SegmentFilter, fieldToCte: Map<string, string>): string {
   const parts: string[] = [];
   for (const c of filter.pass) {
-    const valList = c.values.map(v => `'${v}'`).join(",");
+    const valList = c.values.map(v => `'${escapeSQL(v)}'`).join(",");
     const cte = fieldToCte.get(c.field);
     const fieldRef = cte ? `${cte}."${c.field}"` : `"${c.field}"`;
     parts.push(`${fieldRef} IN (${valList})`);
   }
   if (filter.fail.length > 0) {
     const failParts = filter.fail.map(c => {
-      const valList = c.values.map(v => `'${v}'`).join(",");
+      const valList = c.values.map(v => `'${escapeSQL(v)}'`).join(",");
       const cte = fieldToCte.get(c.field);
       const fieldRef = cte ? `${cte}."${c.field}"` : `"${c.field}"`;
       return `COALESCE(${fieldRef} IN (${valList}), FALSE)`;
@@ -111,9 +115,10 @@ export class SqlPivotTableDataModel extends PivotTableDataModel {
   }
 
   private buildTupleFilterClause(tf: TupleFilter): string {
+    if (tf.value.length === 0) return tf.op === "in" ? "1=0" : "1=1";
     const cols = `(${tf.fields.map(f => `"${f}"`).join(", ")})`;
     const tuples = tf.value.map(t =>
-      `(${t.map(v => typeof v === "number" ? String(v) : `'${v}'`).join(", ")})`
+      `(${t.map(v => typeof v === "number" ? String(v) : `'${escapeSQL(v)}'`).join(", ")})`
     ).join(", ");
     const op = tf.op === "in" ? "IN" : "NOT IN";
     return `${cols} ${op} (${tuples})`;
@@ -122,21 +127,29 @@ export class SqlPivotTableDataModel extends PivotTableDataModel {
   private buildFilterClause(f: ScalarFilter): string {
     const col = `"${f.field}"`;
     switch (f.op) {
-    case "eq": return `${col} = '${f.value}'`;
-    case "neq": return `${col} != '${f.value}'`;
-    case "in": return `${col} IN (${(f.value as string[]).map(v => `'${v}'`).join(",")})`;
-    case "not_in": return `${col} NOT IN (${(f.value as string[]).map(v => `'${v}'`).join(",")})`;
+    case "eq": return `${col} = '${escapeSQL(String(f.value))}'`;
+    case "neq": return `${col} != '${escapeSQL(String(f.value))}'`;
+    case "in": {
+      const values = f.value as string[];
+      if (values.length === 0) return "1=0";
+      return `${col} IN (${values.map(v => `'${escapeSQL(String(v))}'`).join(",")})`;
+    }
+    case "not_in": {
+      const values = f.value as string[];
+      if (values.length === 0) return "1=1";
+      return `${col} NOT IN (${values.map(v => `'${escapeSQL(String(v))}'`).join(",")})`;
+    }
     case "gt": return `${col} > ${f.value}`;
     case "lt": return `${col} < ${f.value}`;
     case "gte": return `${col} >= ${f.value}`;
     case "lte": return `${col} <= ${f.value}`;
     case "between": { const v = f.value as number[]; return `${col} BETWEEN ${v[0]} AND ${v[1]}`; }
-    case "contains": return `${col} LIKE '%${f.value}%'`;
-    case "doesNotContain": return `${col} NOT LIKE '%${f.value}%'`;
-    case "startsWith": return `${col} LIKE '${f.value}%'`;
-    case "endsWith": return `${col} LIKE '%${f.value}'`;
-    case "before": return `${col} < '${f.value}'`;
-    case "after": return `${col} > '${f.value}'`;
+    case "contains": return `${col} LIKE '%${escapeSQL(String(f.value))}%'`;
+    case "doesNotContain": return `${col} NOT LIKE '%${escapeSQL(String(f.value))}%'`;
+    case "startsWith": return `${col} LIKE '${escapeSQL(String(f.value))}%'`;
+    case "endsWith": return `${col} LIKE '%${escapeSQL(String(f.value))}'`;
+    case "before": return `${col} < '${escapeSQL(String(f.value))}'`;
+    case "after": return `${col} > '${escapeSQL(String(f.value))}'`;
     case "empty": return `${col} IS NULL`;
     case "notEmpty": return `${col} IS NOT NULL`;
     }
