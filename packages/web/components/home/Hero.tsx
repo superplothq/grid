@@ -17,7 +17,7 @@ export function Hero({
         <h1 id="hero-heading">The JavaScript grid built for agents</h1>
         <p className="hero-lead">
           Create advanced grids, pivots, and data views using prompts, typed APIs, and composable
-          primitives — without manually stitching frontend, backend, and query logic by hand. Build
+          primitives without manually stitching frontend, backend, and query logic by hand. Build
           on a composable architecture designed for coding agents.
         </p>
         <div className="hero-ctas">
@@ -96,9 +96,11 @@ export function Hero({
             </a>
           </div>
         </div>
+        { /* TODO undo
         <p className="bridge-footnote">
           <code className="bridge-highlight">/superplot help</code> to see available skills
         </p>
+        */ }
       </div>
     </section>
   );

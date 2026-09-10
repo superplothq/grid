@@ -1780,7 +1780,7 @@ html[data-theme='dark'] .stack-logo-dark-invert img {
 }
 
 .route-hero h1::before {
-  content: '$ ';
+  content: '# ';
   color: var(--accent);
 }
 

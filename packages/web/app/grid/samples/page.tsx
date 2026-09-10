@@ -33,7 +33,7 @@ export default function SamplesPage() {
           <ul>
             {demoUseCases.map((demo) => (
               <li key={demo.key}>
-                {demo.label} — {demo.summary}
+                {demo.label}: {demo.summary}
               </li>
             ))}
           </ul>

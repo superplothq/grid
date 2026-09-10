@@ -14,7 +14,7 @@ export function DemoFrame({ demo }: { demo: DemoUseCase }) {
     <div className="demo-frame">
       <div id={demo.gridMountId} data-grid-demo={demo.key} className="demo-frame-mount">
         <p className="demo-frame-fallback">
-          The live {demo.label} grid demo will render here. Demos are added progressively — the
+          The live {demo.label} grid demo will render here. Demos are added progressively. The
           conversation below shows how an agent builds this grid.
         </p>
       </div>
