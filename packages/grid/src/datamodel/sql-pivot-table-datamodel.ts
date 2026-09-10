@@ -111,6 +111,7 @@ export class SqlPivotTableDataModel extends PivotTableDataModel {
   }
 
   private buildTupleFilterClause(tf: TupleFilter): string {
+    if (tf.value.length === 0) return tf.op === "in" ? "1=0" : "1=1";
     const cols = `(${tf.fields.map(f => `"${f}"`).join(", ")})`;
     const tuples = tf.value.map(t =>
       `(${t.map(v => typeof v === "number" ? String(v) : `'${v}'`).join(", ")})`
@@ -124,8 +125,16 @@ export class SqlPivotTableDataModel extends PivotTableDataModel {
     switch (f.op) {
     case "eq": return `${col} = '${f.value}'`;
     case "neq": return `${col} != '${f.value}'`;
-    case "in": return `${col} IN (${(f.value as string[]).map(v => `'${v}'`).join(",")})`;
-    case "not_in": return `${col} NOT IN (${(f.value as string[]).map(v => `'${v}'`).join(",")})`;
+    case "in": {
+      const values = f.value as string[];
+      if (values.length === 0) return "1=0";
+      return `${col} IN (${values.map(v => `'${v}'`).join(",")})`;
+    }
+    case "not_in": {
+      const values = f.value as string[];
+      if (values.length === 0) return "1=1";
+      return `${col} NOT IN (${values.map(v => `'${v}'`).join(",")})`;
+    }
     case "gt": return `${col} > ${f.value}`;
     case "lt": return `${col} < ${f.value}`;
     case "gte": return `${col} >= ${f.value}`;
