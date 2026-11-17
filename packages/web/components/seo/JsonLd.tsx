@@ -6,12 +6,23 @@ export interface Breadcrumb {
   path: string;
 }
 
+export interface Article {
+  headline: string;
+  description: string;
+  path: string;
+  image: string;
+  author: string;
+  datePublished: string;
+}
+
 export function JsonLd({
   faqItems,
   breadcrumbs,
+  article,
 }: {
-  faqItems?: FaqItem[];
+  faqItems?: Omit<FaqItem, 'hashPath' | 'answerNode'>[];
   breadcrumbs?: Breadcrumb[];
+  article?: Article;
 }) {
   const documents: object[] = [
     {
@@ -50,6 +61,20 @@ export function JsonLd({
         name: crumb.name,
         item: `${siteUrl}${crumb.path}`,
       })),
+    });
+  }
+
+  if (article) {
+    documents.push({
+      '@context': 'https://schema.org',
+      '@type': 'BlogPosting',
+      headline: article.headline,
+      description: article.description,
+      image: `${siteUrl}${article.image}`,
+      datePublished: article.datePublished,
+      author: { '@type': 'Person', name: article.author },
+      publisher: { '@type': 'Organization', name: siteName, url: siteUrl },
+      mainEntityOfPage: { '@type': 'WebPage', '@id': `${siteUrl}${article.path}` },
     });
   }
 
