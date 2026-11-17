@@ -1,5 +1,5 @@
 import type { MetadataRoute } from 'next';
-import { blogPath, blogs } from '@/lib/blog-source';
+import { alternativePath, alternatives } from '@/lib/alternatives-source';
 import { source } from '@/lib/docs-source';
 import {
   aboutPath,
@@ -20,9 +20,9 @@ export default function sitemap(): MetadataRoute.Sitemap {
     url: absolute(path),
   }));
   const docs = source.getPages().map((page) => ({ url: absolute(page.url) }));
-  const posts = blogs.map((post) => ({
-    url: absolute(blogPath(post)),
-    lastModified: post.published,
+  const alternativePages = alternatives.map((page) => ({
+    url: absolute(alternativePath(page)),
+    lastModified: page.published,
   }));
-  return [...pages, ...docs, ...posts];
+  return [...pages, ...docs, ...alternativePages];
 }
