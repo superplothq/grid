@@ -6,6 +6,7 @@ export const gridSamplesPath = '/grid/samples';
 export const docsPath = '/grid/docs';
 export const gridDemosPath = '/grid/#demos';
 export const ourApproachPath = '/grid/our-approach';
+export const gridBlogsPath = '/grid/blogs';
 export const aboutPath = '/about';
 export const contactPath = '/contact';
 export const contactEmail = 'hello@superplot.dev';

@@ -1,4 +1,4 @@
-import { defineConfig, defineDocs } from 'fumadocs-mdx/config';
+import { defineCollections, defineConfig, defineDocs } from 'fumadocs-mdx/config';
 import { metaSchema, pageSchema } from 'fumadocs-core/source/schema';
 import { z } from 'zod';
 import { remarkDocGen } from 'fumadocs-docgen';
@@ -44,6 +44,20 @@ export const samples = defineDocs({
     schema: metaSchema,
     files: ['**/meta.json'],
   },
+});
+
+export const blogs = defineCollections({
+  type: 'doc',
+  dir: 'content/blogs',
+  files: ['*.mdx'],
+  schema: pageSchema.extend({
+    description: z.string(),
+    lead: z.string(),
+    author: z.string(),
+    published: z.string(),
+    image: z.string(),
+    faq: z.array(z.object({ question: z.string(), answer: z.string() })).default([]),
+  }),
 });
 
 export default defineConfig({
