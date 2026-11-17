@@ -46,9 +46,9 @@ export const samples = defineDocs({
   },
 });
 
-export const blogs = defineCollections({
+export const alternatives = defineCollections({
   type: 'doc',
-  dir: 'content/blogs',
+  dir: 'content/alternatives',
   files: ['*.mdx'],
   schema: pageSchema.extend({
     description: z.string(),
