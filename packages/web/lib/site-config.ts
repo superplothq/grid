@@ -13,6 +13,13 @@ export const contactEmail = 'hello@superplot.dev';
 export const githubUrl = 'https://github.com/superplothq/grid';
 export const discordUrl = 'https://discord.gg/SK5mxxt8f';
 export const twitterUrl = 'https://x.com/superplothq';
+export const gtmId = 'GTM-TT3N897X';
+export const analyticsHost: Record<string, number> = {
+  'superplot.dev': 1,
+  'www.superplot.dev': 1,
+  // INFO: uncomment when testing and comment when prod
+  // '*': 1,
+};
 
 export interface NavItem {
   label: string;
