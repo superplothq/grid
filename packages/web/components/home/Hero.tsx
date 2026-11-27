@@ -21,10 +21,10 @@ export function Hero({
           on a composable architecture designed for coding agents.
         </p>
         <div className="hero-ctas">
-          <Link className="button button-primary" href={gridDemosPath}>
+          <Link className="button button-primary" href={gridDemosPath} data-track="view_demos">
             View demos
           </Link>
-          <Link className="button button-secondary" href={ourApproachPath}>
+          <Link className="button button-secondary" href={ourApproachPath} data-track="read_approach">
             Read about our approach
           </Link>
         </div>
@@ -39,6 +39,7 @@ export function Hero({
               type="button"
               className="button bridge-copy-button"
               data-copy-target="agent-prompt"
+              data-track="copy_install_prompt"
             >
               Copy prompt
             </button>
@@ -57,6 +58,7 @@ export function Hero({
                 className="copy-icon-button"
                 data-copy-icon=""
                 data-copy-target="grid-prompt"
+                data-track="copy_start_prompt"
                 aria-label="Copy prompt"
               >
                 <svg
@@ -86,11 +88,11 @@ export function Hero({
             </li>
           </ol>
           <div className="hero-ctas">
-            <a className="button button-secondary" href={githubUrl}>
+            <a className="button button-secondary" href={githubUrl} data-track="github">
               <GithubIcon className="button-icon" />
               MIT Licensed on GitHub
             </a>
-            <a className="button button-secondary" href={discordUrl}>
+            <a className="button button-secondary" href={discordUrl} data-track="discord">
               <DiscordIcon className="button-icon" />
               Join our Discord
             </a>
