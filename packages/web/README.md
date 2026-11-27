@@ -15,6 +15,14 @@ bun --filter web lint
 - Next 16 allows one dev server per project. If a dev server is already running, preview changes with `dev:preview` instead of starting a second one.
 - Dev scripts pass `--disable-source-maps`: Turbopack's source maps leak memory (next.js#81161).
 
+## Analytics
+
+Every page loads the Google Tag Manager container (`gtmId` in `lib/site-config.ts`) only when the page is opened on one of the production hosts in `analyticsHost` (`superplot.dev`, `www.superplot.dev`). The check runs in the browser, so the same build can be deployed anywhere: on staging, Amplify preview URLs and localhost no analytics events are sent.
+
+To test analytics on any other host (staging, localhost), uncomment the `'*': 1` entry in `analyticsHost`, which enables GTM on every host. Comment it out again before deploying to production.
+
+Google Analytics (GA4) is configured inside the GTM container, not in code.
+
 ## Content layout
 
 ```
