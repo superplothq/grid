@@ -128,6 +128,21 @@
     });
   }
 
+  function wireTracking() {
+    document.addEventListener('click', function (event) {
+      var element = event.target.closest('[data-track]');
+      if (!element) {
+        return;
+      }
+      window.dataLayer = window.dataLayer || [];
+      window.dataLayer.push({
+        event: 'ui_click',
+        ui_target: element.getAttribute('data-track'),
+        ui_label: element.getAttribute('data-track-label') || undefined,
+      });
+    });
+  }
+
   function init() {
     document.documentElement.dataset.enhanced = '';
     window.addEventListener('hashchange', syncHashState);
@@ -135,6 +150,7 @@
     wireCopyButtons();
     wireThemeToggle();
     wireNavMenu();
+    wireTracking();
   }
 
   if (document.readyState === 'complete') {

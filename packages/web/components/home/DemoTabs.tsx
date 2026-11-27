@@ -8,6 +8,8 @@ export function DemoTabs({ demos }: { demos: DemoUseCase[] }) {
           key={demo.key}
           href={`#${demo.hashPath}`}
           data-hash-link={demo.hashPath}
+          data-track="demo_tab"
+          data-track-label={demo.label}
           title={`See ${demo.label} with ${demo.theme}`}
           suppressHydrationWarning
         >

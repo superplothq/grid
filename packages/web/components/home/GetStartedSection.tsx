@@ -53,6 +53,7 @@ export function GetStartedSection({
               type="button"
               className="code-copy-button"
               data-copy-target="get-started-prompt"
+              data-track="get_started_copy_install_prompt"
             >
               Copy
             </button>
@@ -73,6 +74,7 @@ export function GetStartedSection({
               type="button"
               className="code-copy-button"
               data-copy-target="get-started-example"
+              data-track="get_started_copy_example_prompt"
             >
               Copy
             </button>
